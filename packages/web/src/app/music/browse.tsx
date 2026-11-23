@@ -93,14 +93,14 @@ export function MusicCollection({
           <section aria-label={t`Collection tracks`} className="space-y-2">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold"><Trans>Tracks</Trans></h2>
-              <button type="button" onClick={() => onPlay(source, detail.tracks, 0)}
+              <button type="button" onClick={() => { onPlay(source, detail.tracks, 0); onClose(); }}
                 className="inline-flex items-center gap-2 rounded-full bg-violet-200 px-5 py-2.5 font-semibold text-[#171420]">
                 <BiPlay aria-hidden /> <Trans>Play all</Trans>
               </button>
             </div>
             {detail.tracks.map((track, at) => (
               <button key={track.id + ':' + at} type="button"
-                onClick={() => onPlay(source, detail.tracks, at)}
+                onClick={() => { onPlay(source, detail.tracks, at); onClose(); }}
                 className="flex w-full items-center gap-4 rounded-xl border border-white/[0.05] bg-white/[0.035] px-4 py-3 text-left hover:bg-white/[0.09]">
                 <span className="w-6 text-right text-xs text-white/35">{at + 1}</span>
                 <Cover src={track.artworkURL} size="small" />
