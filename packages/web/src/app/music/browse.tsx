@@ -7,6 +7,8 @@ import {
   type EclipseCatalogDefinition, type EclipseCatalogItem, type EclipseDetail, type EclipseTrack,
 } from '@/lib/music/eclipse';
 import type { MusicConnection } from '@/lib/music/connections';
+import type { TrendingRecording } from '@/lib/music/discovery';
+import { MusicCharts } from './charts';
 
 export type PlayCollection = (source: MusicConnection, songs: EclipseTrack[], at: number) => void;
 
@@ -135,10 +137,11 @@ export function MusicCollection({
 }
 
 export function MusicDiscover({
-  source, onPlay,
+  source, onPlay, onFind,
 }: {
   source: MusicConnection | undefined;
   onPlay: PlayCollection;
+  onFind(recording: TrendingRecording): void;
 }) {
   const [shelves, setShelves] = React.useState<Shelf[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -203,7 +206,7 @@ export function MusicDiscover({
       {error && <p role="alert" className="text-sm text-amber-200">{error}</p>}
       {!loading && !error && !hasCatalog && (
         <p className="rounded-xl border border-white/10 bg-white/[0.03] p-7 text-sm text-white/50">
-          <Trans>This addon has no published catalog shelves. Use Search to browse its tracks.</Trans>
+          <Trans>This addon does not publish shelves. Explore independent charts below or use Search.</Trans>
         </p>
       )}
       {shelves.map((row) => (
@@ -233,6 +236,7 @@ export function MusicDiscover({
           )}
         </section>
       ))}
+      <MusicCharts onFind={onFind} />
       <MusicCollection source={source} selected={selected}
         onClose={() => setSelected(null)} onPlay={onPlay} />
     </section>

@@ -12,6 +12,7 @@ import {
 } from '@/lib/music/connections';
 import { MusicPlayer, type RepeatMode } from './player';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
+import type { TrendingRecording } from '@/lib/music/discovery';
 
 /** Music lives outside the AIOStreams/Jellyfin session. */
 export function MusicPage({
@@ -133,6 +134,32 @@ export function MusicPage({
       }
     } catch (error) {
       if (request === generation.current) setSearchError((error as Error).message);
+    } finally {
+      if (request === generation.current) setSearching(false);
+    }
+  }
+
+  async function findChartTrack(song: TrendingRecording) {
+    // ListenBrainz supplies only metadata. Always let the user select the track.
+    const source = activeSource;
+    const term = song.artist + ' ' + song.title;
+    setTab('search');
+    setQuery(term);
+    setTracks([]);
+    setCollections([]);
+    setSearchError('');
+    if (!source) return;
+    const request = ++generation.current;
+    setSearching(true);
+    try {
+      const result = await searchAddonAll(source.url, term);
+      if (request === generation.current) {
+        setTracks(result.tracks);
+        setCollections([...result.albums, ...result.artists, ...result.playlists]);
+      }
+    } catch (reason) {
+      if (request === generation.current)
+        setSearchError(reason instanceof Error ? reason.message : t`Search failed.`);
     } finally {
       if (request === generation.current) setSearching(false);
     }
@@ -265,7 +292,7 @@ export function MusicPage({
   return (
     <main data-page="music" style={{ display: visible ? 'block' : 'none' }}
       className="min-h-screen px-6 py-7 pb-44 sm:px-10">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-[1440px]">
         <nav aria-label={t`Media sections`} className="mb-12 flex items-center justify-between gap-4">
           <button type="button" onClick={openWelcome} className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-[--muted] hover:bg-white/[0.08] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
             <BiArrowBack aria-hidden /> <Trans>All media</Trans>
@@ -316,7 +343,8 @@ export function MusicPage({
           )}
         </nav>
 
-        {tab === 'discover' && <MusicDiscover source={activeSource} onPlay={playCollection} />}
+        {tab === 'discover' && <MusicDiscover source={activeSource} onPlay={playCollection}
+          onFind={(song) => { void findChartTrack(song); }} />}
 
         <section aria-labelledby="music-source-heading" style={{ display: tab === 'sources' ? 'block' : 'none' }}
           className="mb-10 space-y-4 rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
