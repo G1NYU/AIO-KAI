@@ -1,4 +1,4 @@
-import { storage } from '@/lib/storage';
+import { storage } from '../storage';
 import { manifestUrlFor, parseManifest, type EclipseManifest } from './eclipse';
 
 /** User-installed music addons; their URLs often contain bearer-like secrets. */
