@@ -15,6 +15,8 @@ export function EclipseStudioStage({
   if (!song) return null;
   const time = Math.max(1, p.duration);
   function render(layer: PlayerLayer) {
+    const song = p.track;
+    if (!song) return null;
     switch (layer.kind) {
       case 'artwork':
         return song.artworkURL
