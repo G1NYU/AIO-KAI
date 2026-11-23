@@ -6,6 +6,8 @@ import {
   BiRepeat, BiShuffle, BiSkipNext, BiSkipPrevious, BiVolumeFull,
 } from 'react-icons/bi';
 import type { EclipseTrack } from '@/lib/music/eclipse';
+import { parsePlayerTemplate, type EclipsePlayerTemplate } from '@/lib/music/player-template';
+import { EclipseStudioStage } from './studio-player';
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -100,6 +102,26 @@ function Timeline({ p }: { p: MusicPlayerProps }) {
 }
 
 export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
+  const [template, setTemplate] = React.useState<EclipsePlayerTemplate | null>(null);
+  const [importError, setImportError] = React.useState('');
+
+  async function importLayout(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      setImportError(t`Player layouts must be smaller than 1 MB.`);
+      return;
+    }
+    try {
+      const result = parsePlayerTemplate(JSON.parse(await file.text()) as unknown);
+      setTemplate(result);
+      setImportError('');
+    } catch (reason) {
+      setImportError(reason instanceof Error ? reason.message : t`This Eclipse player file could not be imported.`);
+    }
+  }
+
   React.useEffect(() => {
     if (!p.expanded) return;
     const onKey = (e: KeyboardEvent) => {
@@ -154,9 +176,33 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                 </p>
                 <p className="mt-1 text-sm text-white/50">{p.sourceName}</p>
               </div>
-              <button type="button" onClick={() => p.onExpanded(false)} aria-label={t`Minimise player`}
-                className={buttonClass}><BiChevronDown aria-hidden className="text-3xl" /></button>
+              <div className="flex flex-wrap items-center gap-3">
+                {template && (
+                  <button type="button" onClick={() => setTemplate(null)}
+                    className="rounded-full border border-white/15 px-3 py-2 text-xs text-white/70 hover:bg-white/10">
+                    <Trans>Default player</Trans>
+                  </button>
+                )}
+                <label className="cursor-pointer rounded-full border border-white/15 px-4 py-2 text-xs text-white/80 hover:bg-white/10">
+                  <Trans>Import Eclipse player</Trans>
+                  <input type="file" accept=".eclipseplayer,application/json" className="sr-only"
+                    onChange={(event) => void importLayout(event)} />
+                </label>
+                <button type="button" onClick={() => p.onExpanded(false)} aria-label={t`Minimise player`}
+                  className={buttonClass}><BiChevronDown aria-hidden className="text-3xl" /></button>
+              </div>
             </header>
+            {importError && <p role="alert" className="mt-4 text-sm text-amber-200">{importError}</p>}
+            {template ? (
+              <div className="flex flex-1 flex-col items-center justify-center">
+                <EclipseStudioStage p={p} template={template} />
+                {(p.loading || p.error) && (
+                  <p role={p.error ? 'alert' : 'status'} className="mt-3 text-center text-sm text-amber-200">
+                    {p.error || <Trans>Resolving audio…</Trans>}
+                  </p>
+                )}
+              </div>
+            ) : (
             <div className="grid flex-1 items-center gap-12 py-9 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
               <div className="flex flex-col items-center gap-8">
                 <Artwork track={track} large />
@@ -208,6 +254,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                 </ol>
               </aside>
             </div>
+            )}
           </div>
         </section>
       )}
