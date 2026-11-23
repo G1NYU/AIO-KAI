@@ -15,6 +15,7 @@ import {
   BiHeart,
   BiHistory,
   BiHomeAlt2,
+  BiMusic,
   BiListUl,
   BiCog,
   BiSearch,
@@ -30,6 +31,7 @@ import { Sidebar, type SidebarItem } from '@aiostreams/ui/shared/sidebar';
 import { cn } from '@aiostreams/ui/core/styling';
 import { useMediaQuery } from '@aiostreams/ui/hooks/media-query';
 import { useSession } from '@/lib/jellyfin/session';
+import { useDesktopArea } from '@/lib/desktop-area';
 import { useLiveTvShown } from '@/features/live-tv/live-tv';
 import { useCanSwitch } from '@/lib/profiles';
 import { navigate, to } from '@/lib/paths';
@@ -138,6 +140,7 @@ const WARM_UP_AFTER_MS = 10_000;
 
 export function WebLayout() {
   const { switchUser, user } = useSession();
+  const desktopArea = useDesktopArea();
   const several = useCanSwitch();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   // From the match the outlet shows, which can trail the location for a render.
@@ -225,6 +228,13 @@ export function WebLayout() {
       isCurrent: pathname === '/',
       onClick: () => navigate(to.home),
     },
+    ...(desktopArea ? [{
+      id: 'music',
+      name: t`Music`,
+      iconType: BiMusic,
+      isCurrent: false,
+      onClick: desktopArea.openMusic,
+    }] : []),
     {
       id: 'discover',
       name: t`Discover`,

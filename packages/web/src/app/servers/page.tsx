@@ -3,7 +3,7 @@ import { Trans } from '@lingui/react/macro';
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { BiDotsVerticalRounded, BiPlus } from 'react-icons/bi';
+import { BiDotsVerticalRounded, BiPlus, BiMusic } from 'react-icons/bi';
 import { Button, IconButton } from '@aiostreams/ui/button';
 import {
   ContextMenu,
@@ -57,10 +57,12 @@ function AddServer({
   initial,
   onAdded,
   onBack,
+  openMusic,
 }: {
   initial?: string | null;
   onAdded(server: SavedServer): void;
   onBack?: () => void;
+  openMusic?: () => void;
 }) {
   const [address, setAddress] = React.useState(initial ?? '');
   const [busy, setBusy] = React.useState(false);
@@ -117,7 +119,10 @@ function AddServer({
       >
         <Trans>Connect</Trans>
       </Button>
-      <LinkRow links={[!!onBack && { label: t`Back`, onClick: onBack }]} />
+      <LinkRow links={[
+        !!onBack && { label: t`Back`, onClick: onBack },
+        !!openMusic && { label: t`Music`, onClick: openMusic },
+      ]} />
     </form>
   );
 }
@@ -341,18 +346,28 @@ function ServerList({
   onSignOut,
   onForget,
   onAdd,
+  openMusic,
 }: {
   servers: SavedServer[];
   onChoose(server: SavedServer): void;
   onSignOut(server: SavedServer): void;
   onForget(server: SavedServer): void;
   onAdd(): void;
+  openMusic?: () => void;
 }) {
   return (
     <div className="space-y-8">
       <h1 data-ui="page-title" className="text-center text-2xl font-semibold">
         <Trans>Choose a server</Trans>
       </h1>
+      {openMusic && (
+        <div className="flex justify-center">
+          <Button intent="gray-subtle" onClick={openMusic}>
+            <BiMusic aria-hidden className="mr-2" />
+            <Trans>Music</Trans>
+          </Button>
+        </div>
+      )}
       <motion.ul
         data-ui="servers"
         className="flex flex-wrap justify-center gap-4"
@@ -393,10 +408,12 @@ function ServerList({
 export function ServersPage({
   onChoose,
   address,
+  openMusic,
 }: {
   onChoose(server: SavedServer): void;
   /** Filled into the add form, as from a link. */
   address?: string | null;
+  openMusic?: () => void;
 }) {
   const queryClient = useQueryClient();
   const [servers, setServers] = React.useState(savedServers);
@@ -445,6 +462,7 @@ export function ServersPage({
                 initial={address}
                 onAdded={onChoose}
                 onBack={servers.length ? () => setAdding(false) : undefined}
+                openMusic={openMusic}
               />
             ) : (
               <ServerList
@@ -459,6 +477,7 @@ export function ServersPage({
                   confirmForget.open();
                 }}
                 onAdd={() => setAdding(true)}
+                openMusic={openMusic}
               />
             )}
           </motion.div>

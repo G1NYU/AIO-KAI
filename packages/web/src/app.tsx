@@ -52,6 +52,10 @@ import { WindowControls } from './components/shell/window-controls';
 import { InputSetup } from './components/shell/input-setup';
 import { CrashReportDialog } from './components/shell/crash-report';
 import { SplashEnd } from './lib/splash';
+import { BiMusic } from 'react-icons/bi';
+import { DesktopAreaContext, initialDesktopArea, type DesktopArea } from './lib/desktop-area';
+import { DesktopLandingPage } from './app/desktop-landing/page';
+import { MusicPage } from './app/music/page';
 
 /** The web app served at the Jellyfin API's `/web`. */
 export default function JellyfinWebApp() {
@@ -132,6 +136,17 @@ function Served() {
 function Standalone() {
   const queryClient = useQueryClient();
   const [base, setBase] = React.useState(currentServer);
+  const desktop = currentHost().name === 'desktop';
+  const [area, setArea] = React.useState<DesktopArea>(() =>
+    initialDesktopArea(desktop, !!currentServer())
+  );
+  const openMusic = React.useCallback(() => setArea('music'), []);
+  const openVideo = React.useCallback(() => setArea('video'), []);
+  const openWelcome = React.useCallback(() => setArea('welcome'), []);
+  const areaActions = React.useMemo(
+    () => ({ openMusic, openVideo }),
+    [openMusic, openVideo]
+  );
   // Who's watching, asked across the saved servers.
   const [picking, setPicking] = React.useState(() => {
     const here = currentServer();
@@ -198,6 +213,8 @@ function Standalone() {
   useShellLinks((raw) => {
     const link = parseAppLink(raw);
     if (!link) return void toast.error(t`The app cannot open that link`);
+    // Deep links that target video must reveal the video shell first.
+    setArea('video');
     if (link.kind === 'route') return navigate(link.path);
     if (link.kind === 'party') return party.hold(link.invite);
     if (link.kind === 'remote') {
@@ -221,28 +238,40 @@ function Standalone() {
   });
 
   return (
-    <>
+    <DesktopAreaContext.Provider value={desktop ? areaActions : null}>
+      <>
       <AnimatePresence mode="wait">
         <motion.div
-          key={picking && base ? 'picker' : (base ?? 'servers')}
+          key={desktop && area !== 'video' ? area : (picking && base ? 'picker' : (base ?? 'servers'))}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
         >
-          {picking && base ? (
+          {desktop && area === 'welcome' ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
-              <SharedPicker base={base} onOpen={openServer} onManage={leave} />
+              <DesktopLandingPage openVideo={openVideo} openMusic={openMusic} />
+              <SplashEnd />
+            </ServerInfoProvider>
+          ) : desktop && area === 'music' ? (
+            <ServerInfoProvider value={NO_SERVER_INFO}>
+              <MusicPage openVideo={openVideo} openWelcome={openWelcome} />
+              <SplashEnd />
+            </ServerInfoProvider>
+          ) : picking && base ? (
+            <ServerInfoProvider value={NO_SERVER_INFO}>
+              <SharedPicker base={base} onOpen={openServer} onManage={leave} openMusic={desktop ? openMusic : undefined} />
             </ServerInfoProvider>
           ) : base ? (
             <Session
               base={base}
               changeServer={leave}
               askAll={pickerServers(base).length > 0 ? askAll : undefined}
+              openMusic={desktop ? openMusic : undefined}
             />
           ) : (
             <ServerInfoProvider value={NO_SERVER_INFO}>
-              <ServersPage key={linked} onChoose={choose} address={linked} />
+              <ServersPage key={linked} onChoose={choose} address={linked} openMusic={desktop ? openMusic : undefined} />
               <SplashEnd />
             </ServerInfoProvider>
           )}
@@ -250,7 +279,8 @@ function Standalone() {
       </AnimatePresence>
       <ConfirmationDialog {...confirmLeave} />
       <ConfirmationDialog {...confirmSwitch} />
-    </>
+      </>
+    </DesktopAreaContext.Provider>
   );
 }
 
@@ -258,10 +288,12 @@ function SharedPicker({
   base,
   onOpen,
   onManage,
+  openMusic,
 }: {
   base: string;
   onOpen: (server: SavedServer) => void;
   onManage: () => void;
+  openMusic?: () => void;
 }) {
   const queryClient = useQueryClient();
   const profiles = usePickerProfiles(base);
@@ -277,7 +309,10 @@ function SharedPicker({
           onOpen(server!);
         }}
         onOpenServer={onOpen}
-        links={[{ label: t`Manage servers`, onClick: onManage }]}
+        links={[
+          { label: t`Manage servers`, onClick: onManage },
+          ...(openMusic ? [{ label: t`Music`, onClick: openMusic }] : []),
+        ]}
       />
       <SplashEnd />
     </>
@@ -288,10 +323,12 @@ function Session({
   base,
   changeServer: leave,
   askAll,
+  openMusic,
 }: {
   base: string;
   changeServer?: () => void;
   askAll?: () => void;
+  openMusic?: () => void;
 }) {
   const { phase, signIn, signInWithQuickConnect, switchUser, signOut, retry } =
     useSessionPhase(base, askAll);
@@ -399,7 +436,14 @@ function Session({
           transition={{ duration: 0.18 }}
         >
           {screen}
-          {!waiting && <SplashEnd />}
+          {!ready && openMusic && (
+            <button type="button" onClick={openMusic}
+              className="fixed bottom-5 left-5 z-50 inline-flex items-center gap-2 rounded-full border border-white/10 bg-gray-950/90 px-4 py-2 text-sm text-white shadow-xl transition-colors hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+              <BiMusic aria-hidden />
+              {t`Music`}
+            </button>
+          )}
+          {!waiting && <SplashEnd />
         </motion.div>
       </AnimatePresence>
     </ServerInfoProvider>
