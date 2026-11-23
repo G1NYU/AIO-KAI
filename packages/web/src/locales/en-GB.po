@@ -511,7 +511,7 @@ msgstr "Address"
 msgid "Ads"
 msgstr "Ads"
 
-#: src/lib/music/player-theme.ts
+#: src/app/music/player.tsx
 msgid "AIO Dark"
 msgstr "AIO Dark"
 
@@ -928,7 +928,7 @@ msgstr "Can’t reach the server"
 msgid "Cancel"
 msgstr "Cancel"
 
-#: src/lib/music/player-theme.ts
+#: src/app/music/player.tsx
 msgid "Carbon"
 msgstr "Carbon"
 
@@ -2928,7 +2928,7 @@ msgstr "Next up"
 msgid "Night mode"
 msgstr "Night mode"
 
-#: src/lib/music/player-theme.ts
+#: src/app/music/player.tsx
 msgid "Nightfall"
 msgstr "Nightfall"
 
@@ -3043,10 +3043,6 @@ msgstr "No versions were found."
 #: src/app/music/player.tsx
 msgid "Nocturne layout"
 msgstr "Nocturne layout"
-
-#: src/lib/music/nocturne-stage.ts
-msgid "Nocturne Stage"
-msgstr "Nocturne Stage"
 
 #: src/app/settings/audio.tsx
 #: src/app/settings/subtitles.tsx

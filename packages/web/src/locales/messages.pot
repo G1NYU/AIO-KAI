@@ -510,7 +510,7 @@ msgstr ""
 msgid "Ads"
 msgstr ""
 
-#: src/lib/music/player-theme.ts
+#: src/app/music/player.tsx
 msgid "AIO Dark"
 msgstr ""
 
@@ -927,7 +927,7 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
-#: src/lib/music/player-theme.ts
+#: src/app/music/player.tsx
 msgid "Carbon"
 msgstr ""
 
@@ -2927,7 +2927,7 @@ msgstr ""
 msgid "Night mode"
 msgstr ""
 
-#: src/lib/music/player-theme.ts
+#: src/app/music/player.tsx
 msgid "Nightfall"
 msgstr ""
 
@@ -3041,10 +3041,6 @@ msgstr ""
 
 #: src/app/music/player.tsx
 msgid "Nocturne layout"
-msgstr ""
-
-#: src/lib/music/nocturne-stage.ts
-msgid "Nocturne Stage"
 msgstr ""
 
 #: src/app/settings/audio.tsx
