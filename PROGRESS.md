@@ -26,18 +26,21 @@ Build a premium Windows streaming app on AIOStreams Desktop while preserving AIO
 - Desktop Music Validation passed: run 45164419657 (Node 24, pnpm frozen install, shared core build, web typecheck, lint, Vitest adapter test and standalone desktop web-assets build).
 - Web App Translations passed on commit 7c50b9f: run 45165964623.
 - Exact generated localization source files en-GB.po and messages.pot were committed by CI as f14d3918a0a9857afccfe8181f11daa31e06b6cc; each gained 123 lines. The temporary, privileged catalog-sync workflow was removed in 7c50b9fe923649686915e8f6d2542f04c5d1772f.
-- Some later overlapping workflows were cancelled by concurrency; inspect specific run IDs before claiming latest checks are green.
+- On commit 7f7c1cf89581ce5a91b437879b7891914a848923, all four checks passed: Build Addon 45166759373; Web App Translations 45166759021; Desktop Music Validation 45166759006; Windows Test Build 45166759361.
 - Current code is not yet demonstrated to play real music on Windows, so the feature is not release-ready.
 
-## Windows portable test workflow (new)
+## Windows portable test workflow (CI passed)
 - .github/workflows/desktop-music-windows-test.yml builds an x64 ZIP in CI on a PR; read-only contents permission; no releases, installer, deployment or auto-update feed changes.
 - Packages current/aiostreams-desktop.exe, its web/ files, pinned libmpv runtime DLLs, the license and a .portable marker one level above current/; validates required ZIP entries.
-- This is a test artifact, not proof the app launches or plays tracks. If the Windows build fails, diagnose its actual job logs, then fix and rerun.
+- Windows x64 CI completed successfully: https://github.com/G1NYU/AIO-KAI/actions/runs/45166759361 (artifact ID 14815875819, name AIO-KAI-Windows-x64-test; expires under CI retention policy). Source commit: 7f7c1cf89581ce5a91b437879b7891914a848923.
+- The artifact ZIP was downloaded and independently verified: AIO-KAI-Windows-x64-test.zip, 30,730,860 bytes compressed, 204 entries, 8 DLLs, valid MZ Windows executable, .portable, current/web/index.html and LICENSE present; full ZIP integrity check passed.
+- SHA-256: 7fe2c9dfb76566c2746870db66042753bf3c3c870e3347c4aeb8a3919f8a7c5c.
+- This confirms a real native Windows build and package, NOT that the app launches, plays media or accepts private addons on a physical Windows machine. User needs a hands-on smoke test.
 - AIOStreams is AGPL-3.0-only; preserve its source and attribution obligations.
 
 ## Next tasks
-1. Get the independent Windows x64 test workflow green and inspect its ZIP artifact contents.
-2. Smoke-test on Windows: no-server launch, music without video URL, existing video session, switching, offline server, deep links, and Windows WebView2.
+1. Smoke-test the validated Windows x64 ZIP from run 45166759361 on a physical Windows PC (extract entire archive; run current/aiostreams-desktop.exe).
+2. Check no-server launch, Music without AIOStreams URL, saved video login, switching, offline behavior, deep links and WebView2 playback.
 3. Enter each private addon manifest only in the running app and test direct playable songs; verify CORS and provider behavior. Do not copy URLs into tests or logs.
 4. Only after a real playback test, integrate reliable native audio for supported formats, queue continuity and a full Eclipse-inspired player.
 5. Port Refract client, ID mapping and queued watch/watchlist updates from HarborCommunity/Harbor and add automated playback tests.
