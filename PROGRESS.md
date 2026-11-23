@@ -38,6 +38,12 @@ The fork currently reports **zero GitHub Actions workflow runs and zero check ru
 - A local, **uncommitted** prototype now handles registry browsing, compatible manifest input, addon search, secure direct MP3/FLAC-style stream URL resolution and basic browser audio controls. Six isolated mocked protocol tests passed and the TypeScript service typechecked in isolation. Full web build, CORS and real Windows audio are unverified.
 - Local source package: `AIO-KAI-eclipse-store-milestone2.zip` (conversation artifact). **Do not mark this implemented upstream until the full app builds and a real audio source is verified.**
 
+## User-provided music addon configurations (2026-11-23)
+- The user supplied three independent **private** Eclipse addon configurations for YouTube Music, UltraMax/Deezer, and Tido/Tidal. **Never copy the personalized URLs or token segments into this repository, Actions logs, error messages, or automated fixtures.**
+- The Tido manifest was reachable and identified itself as `Tido` version `1.44.3`, with `search`, `stream`, `settings`, `isrc`, `resolve`, and `notifications` resources; this confirms its basic manifest shape, **not working playback**.
+- The standalone Eclipse prototype gained synthetic URL-shape tests for a YouTube `/u/…` base, UltraMax's long tokenized manifest path, and Tido's tokenized manifest path; its isolated Node protocol tests now pass 8/8. TypeScript service typecheck and TS/TSX syntax checks pass. No full workspace build was available.
+- Reviewed local source package: `AIO-KAI-eclipse-store-milestone2-provider-tests.zip` (conversation artifact, **not committed to GitHub**). It contains no real personalized configuration values.
+
 ## Next tasks
 1. Establish usable CI on the feature branch or a complete trusted checkout and run:
    `pnpm install --frozen-lockfile`,
