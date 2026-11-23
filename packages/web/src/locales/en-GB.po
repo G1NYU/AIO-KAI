@@ -1180,6 +1180,10 @@ msgstr "Connect a music source to explore its catalogs."
 msgid "Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device."
 msgstr "Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device."
 
+#: src/app/desktop-landing/page.tsx
+msgid "Connected by choice"
+msgstr "Connected by choice"
+
 #: src/app/music/page.tsx
 msgid "Connected music sources"
 msgstr "Connected music sources"
@@ -1210,10 +1214,6 @@ msgstr "Continue"
 #: src/features/player/next-episode.tsx
 msgid "Continue watching"
 msgstr "Continue watching"
-
-#: src/app/desktop-landing/page.tsx
-msgid "Continue with your AIOStreams configuration, addons and player."
-msgstr "Continue with your AIOStreams configuration, addons and player."
 
 #: src/app/settings/player.tsx
 msgid "Controls"
@@ -1868,6 +1868,10 @@ msgstr "Everything"
 #: src/features/downloads/download-button.tsx
 msgid "Everything unwatched"
 msgstr "Everything unwatched"
+
+#: src/app/desktop-landing/page.tsx
+msgid "Everything you love, together."
+msgstr "Everything you love, together."
 
 #: src/components/shell/window-controls.tsx
 #: src/features/player/options.tsx
@@ -2852,10 +2856,6 @@ msgstr "Music player"
 msgid "Music sections"
 msgstr "Music sections"
 
-#: src/app/desktop-landing/page.tsx
-msgid "Music works independently of your Movies & TV connection."
-msgstr "Music works independently of your Movies & TV connection."
-
 #: src/features/player/picture-in-picture.tsx
 #: src/features/player/volume.tsx
 #: src/lib/input/actions.ts
@@ -3372,6 +3372,10 @@ msgstr "Open playlist"
 #: src/app/downloads/page.tsx
 msgid "Open the app's downloads"
 msgstr "Open the app's downloads"
+
+#: src/app/desktop-landing/page.tsx
+msgid "Open your existing video configuration and its addons."
+msgstr "Open your existing video configuration and its addons."
 
 #: src/lib/input/actions.ts
 msgid "Opens the menu of what is selected, as a right click does."
@@ -5020,6 +5024,10 @@ msgstr "Stream link copied"
 msgid "Stretch"
 msgstr "Stretch"
 
+#: src/app/music/studio-player.tsx
+msgid "Studio compatibility"
+msgstr "Studio compatibility"
+
 #: src/app/item/_components/details.tsx
 msgid "Studios"
 msgstr "Studios"
@@ -5800,9 +5808,17 @@ msgstr "Try starting the party again."
 msgid "Try them"
 msgstr "Try them"
 
+#: src/components/tsugi-brand.tsx
+msgid "Tsugi"
+msgstr "Tsugi"
+
 #: src/app/music/studio-player.tsx
 msgid "TSUGI / JUNCTION"
 msgstr "TSUGI / JUNCTION"
+
+#: src/app/desktop-landing/page.tsx
+msgid "Tsugi connects your music and video addons without tying their accounts together."
+msgstr "Tsugi connects your music and video addons without tying their accounts together."
 
 #: src/app/settings/player.tsx
 msgid "Tunneled playback"
@@ -6198,10 +6214,6 @@ msgstr "What to save"
 msgid "What touching or holding the video does."
 msgstr "What touching or holding the video does."
 
-#: src/app/desktop-landing/page.tsx
-msgid "What would you like to enjoy?"
-msgstr "What would you like to enjoy?"
-
 #: src/app/settings/_components/reaction-setting.tsx
 msgid "What you can send from a party's chat."
 msgstr "What you can send from a party's chat."
@@ -6386,10 +6398,6 @@ msgstr "Your {name}"
 #: src/app/settings/_components/version-settings.tsx
 msgid "Your badges"
 msgstr "Your badges"
-
-#: src/app/desktop-landing/page.tsx
-msgid "Your media, your way"
-msgstr "Your media, your way"
 
 #: src/lib/playback/player-choice.ts
 msgid "Your own {name}"

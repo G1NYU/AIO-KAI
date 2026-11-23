@@ -1179,6 +1179,10 @@ msgstr ""
 msgid "Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device."
 msgstr ""
 
+#: src/app/desktop-landing/page.tsx
+msgid "Connected by choice"
+msgstr ""
+
 #: src/app/music/page.tsx
 msgid "Connected music sources"
 msgstr ""
@@ -1208,10 +1212,6 @@ msgstr ""
 #: src/app/settings/browsing.tsx
 #: src/features/player/next-episode.tsx
 msgid "Continue watching"
-msgstr ""
-
-#: src/app/desktop-landing/page.tsx
-msgid "Continue with your AIOStreams configuration, addons and player."
 msgstr ""
 
 #: src/app/settings/player.tsx
@@ -1866,6 +1866,10 @@ msgstr ""
 
 #: src/features/downloads/download-button.tsx
 msgid "Everything unwatched"
+msgstr ""
+
+#: src/app/desktop-landing/page.tsx
+msgid "Everything you love, together."
 msgstr ""
 
 #: src/components/shell/window-controls.tsx
@@ -2851,10 +2855,6 @@ msgstr ""
 msgid "Music sections"
 msgstr ""
 
-#: src/app/desktop-landing/page.tsx
-msgid "Music works independently of your Movies & TV connection."
-msgstr ""
-
 #: src/features/player/picture-in-picture.tsx
 #: src/features/player/volume.tsx
 #: src/lib/input/actions.ts
@@ -3370,6 +3370,10 @@ msgstr ""
 
 #: src/app/downloads/page.tsx
 msgid "Open the app's downloads"
+msgstr ""
+
+#: src/app/desktop-landing/page.tsx
+msgid "Open your existing video configuration and its addons."
 msgstr ""
 
 #: src/lib/input/actions.ts
@@ -5019,6 +5023,10 @@ msgstr ""
 msgid "Stretch"
 msgstr ""
 
+#: src/app/music/studio-player.tsx
+msgid "Studio compatibility"
+msgstr ""
+
 #: src/app/item/_components/details.tsx
 msgid "Studios"
 msgstr ""
@@ -5799,8 +5807,16 @@ msgstr ""
 msgid "Try them"
 msgstr ""
 
+#: src/components/tsugi-brand.tsx
+msgid "Tsugi"
+msgstr ""
+
 #: src/app/music/studio-player.tsx
 msgid "TSUGI / JUNCTION"
+msgstr ""
+
+#: src/app/desktop-landing/page.tsx
+msgid "Tsugi connects your music and video addons without tying their accounts together."
 msgstr ""
 
 #: src/app/settings/player.tsx
@@ -6197,10 +6213,6 @@ msgstr ""
 msgid "What touching or holding the video does."
 msgstr ""
 
-#: src/app/desktop-landing/page.tsx
-msgid "What would you like to enjoy?"
-msgstr ""
-
 #: src/app/settings/_components/reaction-setting.tsx
 msgid "What you can send from a party's chat."
 msgstr ""
@@ -6384,10 +6396,6 @@ msgstr ""
 
 #: src/app/settings/_components/version-settings.tsx
 msgid "Your badges"
-msgstr ""
-
-#: src/app/desktop-landing/page.tsx
-msgid "Your media, your way"
 msgstr ""
 
 #: src/lib/playback/player-choice.ts
