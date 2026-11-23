@@ -394,6 +394,10 @@ msgstr "A week"
 msgid "About"
 msgstr "About"
 
+#: src/app/music/charts.tsx
+msgid "About these charts"
+msgstr "About these charts"
+
 #: src/app/settings/theme.tsx
 msgid "Accent"
 msgstr "Accent"
@@ -506,6 +510,10 @@ msgstr "Address"
 #: src/app/settings/playback.tsx
 msgid "Ads"
 msgstr "Ads"
+
+#: src/lib/music/player-theme.ts
+msgid "AIO Dark"
+msgstr "AIO Dark"
 
 #: src/lib/i18n.ts
 msgid "AIOStreams is a solo project built and maintained by me in my free time. If you find it useful, please consider supporting my work. Your donation helps me keep the project alive and improve it for everyone!"
@@ -920,6 +928,10 @@ msgstr "Can’t reach the server"
 msgid "Cancel"
 msgstr "Cancel"
 
+#: src/lib/music/player-theme.ts
+msgid "Carbon"
+msgstr "Carbon"
+
 #: src/app/settings/browsing.tsx
 msgid "Cards"
 msgstr "Cards"
@@ -1105,6 +1117,10 @@ msgstr "Commentary"
 #: src/app/music/page.tsx
 msgid "Community"
 msgstr "Community"
+
+#: src/app/music/charts.tsx
+msgid "Community charts are temporarily unavailable. Your addon still supports search."
+msgstr "Community charts are temporarily unavailable. Your addon still supports search."
 
 #: src/app/settings/player.tsx
 msgid "Compatibility"
@@ -1585,6 +1601,10 @@ msgstr "Discord refused the status: {message}"
 #: src/components/shell/layout.tsx
 msgid "Discover"
 msgstr "Discover"
+
+#: src/app/music/charts.tsx
+msgid "Discover tracks independently of your music source. Select one to search your addon."
+msgstr "Discover tracks independently of your music source. Select one to search your addon."
 
 #: src/components/shell/unreachable.tsx
 #: src/features/live-tv/live-reminders.tsx
@@ -2285,6 +2305,10 @@ msgstr "In this collection"
 msgid "Independent listening"
 msgstr "Independent listening"
 
+#: src/app/music/charts.tsx
+msgid "Independent music discovery"
+msgstr "Independent music discovery"
+
 #: src/lib/hosts/shell/index.ts
 msgid "Install"
 msgstr "Install"
@@ -2509,6 +2533,10 @@ msgstr "List"
 msgid "List only my languages"
 msgstr "List only my languages"
 
+#: src/app/music/charts.tsx
+msgid "ListenBrainz charts"
+msgstr "ListenBrainz charts"
+
 #: src/app/search/page.tsx
 msgid "Listening…"
 msgstr "Listening…"
@@ -2535,6 +2563,7 @@ msgid "Loading community addons…"
 msgstr "Loading community addons…"
 
 #: src/app/music/browse.tsx
+#: src/app/music/charts.tsx
 msgid "Loading music…"
 msgstr "Loading music…"
 
@@ -2899,6 +2928,10 @@ msgstr "Next up"
 msgid "Night mode"
 msgstr "Night mode"
 
+#: src/lib/music/player-theme.ts
+msgid "Nightfall"
+msgstr "Nightfall"
+
 #: src/app/settings/apps.tsx
 msgid "Nightly"
 msgstr "Nightly"
@@ -2922,6 +2955,10 @@ msgstr "No channel {typed}"
 #: src/app/live-tv/page.tsx
 msgid "No channels in this group."
 msgstr "No channels in this group."
+
+#: src/app/music/charts.tsx
+msgid "No chart entries are available right now."
+msgstr "No chart entries are available right now."
 
 #: src/app/item/_components/no-details.tsx
 msgid "No details for this title"
@@ -3002,6 +3039,14 @@ msgstr "No versions match."
 #: src/features/versions/version-list.tsx
 msgid "No versions were found."
 msgstr "No versions were found."
+
+#: src/app/music/player.tsx
+msgid "Nocturne layout"
+msgstr "Nocturne layout"
+
+#: src/lib/music/nocturne-stage.ts
+msgid "Nocturne Stage"
+msgstr "Nocturne Stage"
 
 #: src/app/settings/audio.tsx
 #: src/app/settings/subtitles.tsx
@@ -3729,6 +3774,10 @@ msgstr "Player layouts must be smaller than 1 MB."
 msgid "Player link"
 msgstr "Player link"
 
+#: src/app/music/player.tsx
+msgid "Player theme"
+msgstr "Player theme"
+
 #: src/app/settings/player.tsx
 msgid "Player window"
 msgstr "Player window"
@@ -4365,6 +4414,10 @@ msgstr "Search again"
 #: src/app/search/page.tsx
 msgid "Search by voice"
 msgstr "Search by voice"
+
+#: src/app/music/page.tsx
+msgid "Search failed."
+msgstr "Search failed."
 
 #: src/app/music/page.tsx
 msgid "Search music"
@@ -5442,8 +5495,8 @@ msgid "Thin"
 msgstr "Thin"
 
 #: src/app/music/browse.tsx
-msgid "This addon has no published catalog shelves. Use Search to browse its tracks."
-msgstr "This addon has no published catalog shelves. Use Search to browse its tracks."
+msgid "This addon does not publish shelves. Explore independent charts below or use Search."
+msgstr "This addon does not publish shelves. Explore independent charts below or use Search."
 
 #: src/app/settings/audio.tsx
 msgid "This app decodes Dolby and DTS audio itself, which loses Atmos."
@@ -5662,6 +5715,10 @@ msgstr "Trailer"
 #: src/app/settings/browsing.tsx
 msgid "Trailers"
 msgstr "Trailers"
+
+#: src/app/music/charts.tsx
+msgid "Trending this week"
+msgstr "Trending this week"
 
 #: src/app/settings/subtitles.tsx
 msgid "Tried in order for the subtitles the setting below shows."

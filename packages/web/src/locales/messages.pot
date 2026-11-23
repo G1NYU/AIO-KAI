@@ -393,6 +393,10 @@ msgstr ""
 msgid "About"
 msgstr ""
 
+#: src/app/music/charts.tsx
+msgid "About these charts"
+msgstr ""
+
 #: src/app/settings/theme.tsx
 msgid "Accent"
 msgstr ""
@@ -504,6 +508,10 @@ msgstr ""
 
 #: src/app/settings/playback.tsx
 msgid "Ads"
+msgstr ""
+
+#: src/lib/music/player-theme.ts
+msgid "AIO Dark"
 msgstr ""
 
 #: src/lib/i18n.ts
@@ -919,6 +927,10 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
+#: src/lib/music/player-theme.ts
+msgid "Carbon"
+msgstr ""
+
 #: src/app/settings/browsing.tsx
 msgid "Cards"
 msgstr ""
@@ -1103,6 +1115,10 @@ msgstr ""
 
 #: src/app/music/page.tsx
 msgid "Community"
+msgstr ""
+
+#: src/app/music/charts.tsx
+msgid "Community charts are temporarily unavailable. Your addon still supports search."
 msgstr ""
 
 #: src/app/settings/player.tsx
@@ -1583,6 +1599,10 @@ msgstr ""
 #: src/app/settings/interface.tsx
 #: src/components/shell/layout.tsx
 msgid "Discover"
+msgstr ""
+
+#: src/app/music/charts.tsx
+msgid "Discover tracks independently of your music source. Select one to search your addon."
 msgstr ""
 
 #: src/components/shell/unreachable.tsx
@@ -2284,6 +2304,10 @@ msgstr ""
 msgid "Independent listening"
 msgstr ""
 
+#: src/app/music/charts.tsx
+msgid "Independent music discovery"
+msgstr ""
+
 #: src/lib/hosts/shell/index.ts
 msgid "Install"
 msgstr ""
@@ -2508,6 +2532,10 @@ msgstr ""
 msgid "List only my languages"
 msgstr ""
 
+#: src/app/music/charts.tsx
+msgid "ListenBrainz charts"
+msgstr ""
+
 #: src/app/search/page.tsx
 msgid "Listening…"
 msgstr ""
@@ -2534,6 +2562,7 @@ msgid "Loading community addons…"
 msgstr ""
 
 #: src/app/music/browse.tsx
+#: src/app/music/charts.tsx
 msgid "Loading music…"
 msgstr ""
 
@@ -2898,6 +2927,10 @@ msgstr ""
 msgid "Night mode"
 msgstr ""
 
+#: src/lib/music/player-theme.ts
+msgid "Nightfall"
+msgstr ""
+
 #: src/app/settings/apps.tsx
 msgid "Nightly"
 msgstr ""
@@ -2920,6 +2953,10 @@ msgstr ""
 
 #: src/app/live-tv/page.tsx
 msgid "No channels in this group."
+msgstr ""
+
+#: src/app/music/charts.tsx
+msgid "No chart entries are available right now."
 msgstr ""
 
 #: src/app/item/_components/no-details.tsx
@@ -3000,6 +3037,14 @@ msgstr ""
 
 #: src/features/versions/version-list.tsx
 msgid "No versions were found."
+msgstr ""
+
+#: src/app/music/player.tsx
+msgid "Nocturne layout"
+msgstr ""
+
+#: src/lib/music/nocturne-stage.ts
+msgid "Nocturne Stage"
 msgstr ""
 
 #: src/app/settings/audio.tsx
@@ -3728,6 +3773,10 @@ msgstr ""
 msgid "Player link"
 msgstr ""
 
+#: src/app/music/player.tsx
+msgid "Player theme"
+msgstr ""
+
 #: src/app/settings/player.tsx
 msgid "Player window"
 msgstr ""
@@ -4363,6 +4412,10 @@ msgstr ""
 
 #: src/app/search/page.tsx
 msgid "Search by voice"
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Search failed."
 msgstr ""
 
 #: src/app/music/page.tsx
@@ -5441,7 +5494,7 @@ msgid "Thin"
 msgstr ""
 
 #: src/app/music/browse.tsx
-msgid "This addon has no published catalog shelves. Use Search to browse its tracks."
+msgid "This addon does not publish shelves. Explore independent charts below or use Search."
 msgstr ""
 
 #: src/app/settings/audio.tsx
@@ -5660,6 +5713,10 @@ msgstr ""
 #: src/app/item/_components/trailers.tsx
 #: src/app/settings/browsing.tsx
 msgid "Trailers"
+msgstr ""
+
+#: src/app/music/charts.tsx
+msgid "Trending this week"
 msgstr ""
 
 #: src/app/settings/subtitles.tsx
