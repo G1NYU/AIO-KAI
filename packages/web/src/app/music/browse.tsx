@@ -1,4 +1,5 @@
 import React from 'react';
+import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { BiArrowBack, BiDisc, BiPlay } from 'react-icons/bi';
 import {
@@ -50,7 +51,7 @@ export function MusicCollection({
     loadDetail(source.url, current, controller.signal).then((result) => {
       if (!controller.signal.aborted) setDetail(result);
     }).catch(() => {
-      if (!controller.signal.aborted) setError('This collection is unavailable from the addon.');
+      if (!controller.signal.aborted) setError(t`This collection is unavailable from the addon.`);
     }).finally(() => {
       if (!controller.signal.aborted) setLoading(false);
     });
@@ -68,7 +69,7 @@ export function MusicCollection({
 
   if (!current) return null;
   return (
-    <section role="dialog" aria-modal="true" aria-label="Music collection"
+    <section role="dialog" aria-modal="true" aria-label={t`Music collection`}
       className="fixed inset-0 z-40 overflow-y-auto bg-[#100e17] text-white">
       <div className="mx-auto min-h-screen max-w-6xl px-6 py-7 sm:px-10">
         <button type="button" onClick={nested ? () => setNested(null) : onClose}
@@ -89,7 +90,7 @@ export function MusicCollection({
         {loading && <p role="status" className="text-sm text-white/50"><Trans>Loading music…</Trans></p>}
         {error && <p role="alert" className="text-sm text-amber-200">{error}</p>}
         {detail && detail.tracks.length > 0 && (
-          <section aria-label="Collection tracks" className="space-y-2">
+          <section aria-label={t`Collection tracks`} className="space-y-2">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold"><Trans>Tracks</Trans></h2>
               <button type="button" onClick={() => onPlay(source, detail.tracks, 0)}
@@ -173,7 +174,7 @@ export function MusicDiscover({
         }));
         if (!controller.signal.aborted) setShelves(rows);
       } catch {
-        if (!controller.signal.aborted) setError('Could not load this addon\'s music catalogs.');
+        if (!controller.signal.aborted) setError(t`Could not load this addon's music catalogs.`);
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -188,7 +189,7 @@ export function MusicDiscover({
     </p>
   );
   return (
-    <section aria-label="Music discovery" className="space-y-10">
+    <section aria-label={t`Music discovery`} className="space-y-10">
       <header className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-200/70">
           <Trans>Explore</Trans>
