@@ -89,4 +89,20 @@ describe('Eclipse public addon compatibility', () => {
     expect(requests.map(({ url }) => url)).toContain('https://source.example/fake-token/search?q=My+song');
     expect(requests.every(({ credentials }) => credentials === 'omit')).toBe(true);
   });
+  it('preserves query-based access settings for addon search and stream endpoints', () => {
+    const manifest = 'https://provider.example/private/manifest.json?key=synthetic-token';
+    expect(addonEndpoint(manifest, 'search'))
+      .toBe('https://provider.example/private/search?key=synthetic-token');
+    expect(addonEndpoint(manifest, 'stream/track'))
+      .toBe('https://provider.example/private/stream/track?key=synthetic-token');
+  });
+
+  it('reports fetch failures without exposing a personalized addon URL', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Failed to fetch from a private addon URL');
+    }));
+    await expect(loadAddon('https://provider.example/private/manifest.json'))
+      .rejects.toThrow('Cannot reach the addon.');
+  });
+
 });

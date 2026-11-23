@@ -172,12 +172,19 @@ export function parseStream(value: unknown): EclipseStream {
 }
 
 async function getJson(url: string, signal?: AbortSignal): Promise<unknown> {
-  const response = await fetch(url, {
-    signal,
-    credentials: 'omit',
-    redirect: 'error',
-    cache: 'no-store',
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      signal,
+      credentials: 'omit',
+      redirect: 'error',
+      cache: 'no-store',
+    });
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    // Browser errors may contain private addon URLs; do not surface them.
+    throw new Error('Cannot reach the addon. Check its availability and desktop cross-origin support.');
+  }
   if (!response.ok) throw new Error('Request failed (HTTP ' + response.status + ').');
   return response.json() as Promise<unknown>;
 }
@@ -193,7 +200,7 @@ export async function loadAddon(input: string, signal?: AbortSignal): Promise<Ec
 export function addonEndpoint(input: string, path: string): string {
   const url = new URL(manifestUrlFor(input));
   url.pathname = url.pathname.slice(0, -'manifest.json'.length) + path.replace(/^\//, '');
-  url.search = '';
+  // Preserve query-string configuration parameters used by some private addons.
   return url.href;
 }
 
