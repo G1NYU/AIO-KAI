@@ -652,3 +652,87 @@ html[data-blur-spoilers]:not([data-tv])
   max-width: 40px;
   max-height: 40px;
 }
+
+
+/* Tsugi desktop: Japanese joinery, quiet typography and flat geometry.
+   Scoped to native desktop to preserve other platforms and native video controls. */
+html[data-host='desktop']:not(.playing) {
+  --radius: 0px;
+  --radius-md: 0px;
+  --tsugi-canvas: #090d10;
+  --tsugi-surface: #101418;
+  --tsugi-panel: #181e22;
+  --tsugi-ink: #e8edf0;
+  --tsugi-muted: #9bafb8;
+  --tsugi-line: #343d42;
+  --tsugi-accent: #bdd8e5;
+  color-scheme: dark;
+}
+html[data-host='desktop'][data-tsugi-theme='nightfall'] {
+  --tsugi-canvas: #0c0b10;
+  --tsugi-surface: #14121a;
+  --tsugi-panel: #1c1923;
+  --tsugi-ink: #ebe8f0;
+  --tsugi-muted: #aea5be;
+  --tsugi-line: #3a3542;
+  --tsugi-accent: #c4b9d7;
+}
+html[data-host='desktop'][data-tsugi-theme='carbon'] {
+  --tsugi-canvas: #0b0e0f;
+  --tsugi-surface: #121516;
+  --tsugi-panel: #1b2022;
+  --tsugi-ink: #e0e6e8;
+  --tsugi-muted: #9fadaf;
+  --tsugi-line: #3a4447;
+  --tsugi-accent: #b3c9c9;
+}
+html[data-host='desktop']:not(.playing) body {
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+}
+html[data-host='desktop']:not(.playing) :where(
+  button, input, select, textarea, [role='tab'], [role='dialog'],
+  [data-ui='nav-item'], [data-ui='settings-card-item'],
+  .UI-Drawer__content, .UI-Select__content
+) {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html[data-host='desktop']:not(.playing) [data-ui='nav-item'][aria-current='page'] {
+  background: rgb(189 216 229 / 8%);
+  box-shadow: inset 2px 0 var(--tsugi-accent) !important;
+}
+html[data-host='desktop']:not(.playing) [data-ui='top-tabs'] [data-ui='nav-item'][aria-current='page'] {
+  box-shadow: inset 0 -2px var(--tsugi-accent) !important;
+}
+html[data-host='desktop'] :where([data-page='music'], [data-page='desktop-landing']) {
+  background-color: var(--tsugi-canvas) !important;
+  color: var(--tsugi-ink);
+}
+html[data-host='desktop'] :where([data-page='music'], [data-page='desktop-landing']) [class*='rounded-'] {
+  border-radius: 0 !important;
+}
+html[data-host='desktop'] [data-page='music'] :where(input, select) {
+  border-color: var(--tsugi-line);
+}
+html[data-host='desktop'] [data-page='music'] [role='tab'][aria-selected='true'] {
+  background: var(--tsugi-accent) !important;
+  color: var(--tsugi-canvas) !important;
+}
+html[data-host='desktop'] [data-page='music'] [role='tab'][aria-selected='false'] {
+  background: transparent !important;
+  color: var(--tsugi-muted);
+}
+html[data-host='desktop'] [data-page='music'] [data-ui='tsugi-studio-stage'] {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+html[data-host='desktop'] :where([data-page='music'], [data-page='desktop-landing']) :where(h1,h2,h3) {
+  letter-spacing: -.025em;
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-host='desktop'] :where([data-page='music'], [data-page='desktop-landing']) * {
+    transition-duration: 0.01ms !important;
+  }
+}

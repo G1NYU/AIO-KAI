@@ -24,7 +24,7 @@ export function MusicCharts({ onFind }: { onFind(recording: TrendingRecording): 
 
   return (
     <section aria-label={t`Independent music discovery`}
-      className="rounded-2xl border border-white/10 bg-white/[0.025] px-5 py-6 sm:px-7">
+      className="border-t border-white/10 px-0 py-7">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-white/40">
@@ -50,9 +50,9 @@ export function MusicCharts({ onFind }: { onFind(recording: TrendingRecording): 
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {tracks.slice(0, 15).map((item, index) => (
           <button key={item.key} type="button" onClick={() => onFind(item)}
-            className="group flex min-w-0 items-center gap-3 rounded-xl border border-white/[0.06] bg-[#17171b] px-3 py-3 text-left hover:border-white/20 hover:bg-[#202025] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60">
+            className="group flex min-w-0 items-center gap-3 rounded-none border border-white/[0.06] bg-[#17171b] px-3 py-3 text-left hover:border-white/20 hover:bg-[#202025] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60">
             <span className="w-6 shrink-0 text-right text-xs tabular-nums text-white/35">{index + 1}</span>
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-[#24242b]">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-none border border-white/10 bg-[#24242b]">
               <BiDisc aria-hidden className="text-2xl text-white/45" />
             </span>
             <span className="min-w-0 flex-1">

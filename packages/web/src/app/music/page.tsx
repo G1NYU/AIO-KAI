@@ -313,9 +313,7 @@ export function MusicPage({
               <h1 className="mt-1 text-4xl font-semibold tracking-tight"><Trans>Music</Trans></h1>
             </div>
           </div>
-          <span className="rounded-xl border border-[#353342] bg-[#171620] p-3 text-[#BDD5F1]">
-            <BiMusic aria-hidden className="text-2xl" />
-          </span>
+          <BiMusic aria-hidden className="text-3xl text-[#BDD8E5]" />
         </header>
 
         <nav className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4"
