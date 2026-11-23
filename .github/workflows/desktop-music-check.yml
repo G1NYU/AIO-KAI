@@ -1,18 +1,6 @@
 name: Desktop Music Validation
 
 on:
-  push:
-    branches:
-      - feature/desktop-music-entry
-    paths:
-      - '.github/workflows/desktop-music-check.yml'
-      - 'packages/web/src/app.tsx'
-      - 'packages/web/src/app/music/**'
-      - 'packages/web/src/app/desktop-landing/**'
-      - 'packages/web/src/components/shell/layout.tsx'
-      - 'packages/web/src/lib/music/**'
-      - 'packages/web/src/lib/desktop-area.tsx'
-      - 'packages/web/tests/**'
   pull_request:
     paths:
       - '.github/workflows/desktop-music-check.yml'
@@ -46,6 +34,8 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Build shared core types
+        run: pnpm -F @aiostreams/core build
       - name: Typecheck web application
         run: pnpm -F @aiostreams/web typecheck
       - name: Lint web application
@@ -54,3 +44,15 @@ jobs:
         run: pnpm exec vitest run packages/web/tests/eclipse.test.ts
       - name: Build standalone desktop web assets
         run: pnpm -F @aiostreams/web build:standalone
+      - name: Extract source catalogs for review
+        if: always()
+        run: pnpm -F @aiostreams/web i18n:extract
+      - name: Upload generated source catalogs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: eclipse-source-catalogs
+          retention-days: 7
+          path: |
+            packages/web/src/locales/en-GB.po
+            packages/web/src/locales/messages.pot
