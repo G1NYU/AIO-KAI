@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchTrendingRecordings, parseTrendingRecordings } from '../src/lib/music/discovery';
 import { DEFAULT_PLAYER_THEME, isPlayerTheme, PLAYER_PALETTES } from '../src/lib/music/player-theme';
 import { NOCTURNE_STAGE } from '../src/lib/music/nocturne-stage';
+import { JUNCTION_STAGE } from '../src/lib/music/junction-stage';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -12,6 +13,14 @@ describe('AIO-KAI music theme pack', () => {
     expect(isPlayerTheme('nightfall')).toBe(true);
     expect(isPlayerTheme('__proto__')).toBe(false);
     expect(isPlayerTheme('https://elsewhere.test/skin.css')).toBe(false);
+  });
+
+  it('ships a rich Junction stage with real lyrics, queue and player transport', () => {
+    expect(JUNCTION_STAGE.layers.length).toBeGreaterThanOrEqual(25);
+    for (const kind of ['lyricsInline', 'queue', 'volumeKnob', 'shuffle', 'repeat', 'text', 'favorite']) {
+      expect(JUNCTION_STAGE.layers.some((layer) => layer.kind === kind)).toBe(true);
+    }
+    expect(JUNCTION_STAGE.layers.every((layer) => layer.x >= 0 && layer.x <= 1)).toBe(true);
   });
 
   it('ships a complete Nocturne stage with real player controls', () => {
