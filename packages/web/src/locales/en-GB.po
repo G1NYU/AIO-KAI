@@ -1067,8 +1067,16 @@ msgid "Close"
 msgstr "Close"
 
 #: src/app/music/studio-player.tsx
+msgid "Close menu"
+msgstr "Close menu"
+
+#: src/app/music/studio-player.tsx
 msgid "Close player"
 msgstr "Close player"
+
+#: src/app/music/studio-player.tsx
+msgid "Close queue"
+msgstr "Close queue"
 
 #: src/app/settings/account.tsx
 msgid "Code"
@@ -1903,6 +1911,10 @@ msgstr "Fast forward"
 msgid "Faster"
 msgstr "Faster"
 
+#: src/app/music/studio-player.tsx
+msgid "Favorite"
+msgstr "Favorite"
+
 #: src/app/item/_components/actions.tsx
 #: src/features/live-tv/channel-list.tsx
 msgid "Favourite"
@@ -2386,6 +2398,10 @@ msgstr "Joining the party…"
 msgid "Jump through the video"
 msgstr "Jump through the video"
 
+#: src/app/music/player.tsx
+msgid "Junction layout"
+msgstr "Junction layout"
+
 #: src/lib/format.ts
 msgid "just now"
 msgstr "just now"
@@ -2562,6 +2578,10 @@ msgstr "Loading"
 msgid "Loading community addons…"
 msgstr "Loading community addons…"
 
+#: src/app/music/studio-player.tsx
+msgid "Loading lyrics…"
+msgstr "Loading lyrics…"
+
 #: src/app/music/browse.tsx
 #: src/app/music/charts.tsx
 msgid "Loading music…"
@@ -2599,6 +2619,14 @@ msgstr "Lost the connection to {relay}. Reconnecting… Your player carries on, 
 #: src/lib/input/actions.ts
 msgid "Lower subtitles"
 msgstr "Lower subtitles"
+
+#: src/app/music/studio-player.tsx
+msgid "Lyrics"
+msgstr "Lyrics"
+
+#: src/app/music/studio-player.tsx
+msgid "Lyrics are temporarily unavailable."
+msgstr "Lyrics are temporarily unavailable."
 
 #: src/app/settings/player.tsx
 msgid "macOS draws the video, using less power, and shows Dolby Vision itself. Shaders and mpv's picture options do not apply."
@@ -2988,6 +3016,10 @@ msgstr "No line matches."
 msgid "No live TV here"
 msgstr "No live TV here"
 
+#: src/app/music/studio-player.tsx
+msgid "No matching lyrics found."
+msgstr "No matching lyrics found."
+
 #: src/features/party/chat.tsx
 msgid "No messages yet. Say hello."
 msgstr "No messages yet. Say hello."
@@ -3164,6 +3196,10 @@ msgstr "Notifications"
 #: src/app/music/player.tsx
 msgid "Now playing"
 msgstr "Now playing"
+
+#: src/app/music/studio-player.tsx
+msgid "NOW PLAYING / CONNECTED SOUND"
+msgstr "NOW PLAYING / CONNECTED SOUND"
 
 #: src/features/player/subtitle-sync.tsx
 msgid "Now tap Heard when that line is spoken."
@@ -3770,6 +3806,10 @@ msgstr "Player layouts must be smaller than 1 MB."
 msgid "Player link"
 msgstr "Player link"
 
+#: src/app/music/studio-player.tsx
+msgid "Player options"
+msgstr "Player options"
+
 #: src/app/music/player.tsx
 msgid "Player theme"
 msgstr "Player theme"
@@ -3942,6 +3982,10 @@ msgstr "QR code"
 #: src/features/player/options.tsx
 msgid "Quality"
 msgstr "Quality"
+
+#: src/app/music/studio-player.tsx
+msgid "Queue"
+msgstr "Queue"
 
 #: src/app/settings/account.tsx
 #: src/app/sign-in/page.tsx
@@ -4162,6 +4206,7 @@ msgid "Rename"
 msgstr "Rename"
 
 #: src/app/music/player.tsx
+#: src/app/music/studio-player.tsx
 #: src/features/playlists/playlists.tsx
 msgid "Repeat"
 msgstr "Repeat"
@@ -4595,6 +4640,10 @@ msgstr "Show episodes"
 msgid "Show in folder"
 msgstr "Show in folder"
 
+#: src/app/music/studio-player.tsx
+msgid "Show lyrics"
+msgstr "Show lyrics"
+
 #: src/app/settings/playback.tsx
 msgid "Show messages over the video"
 msgstr "Show messages over the video"
@@ -4602,6 +4651,10 @@ msgstr "Show messages over the video"
 #: src/app/servers/page.tsx
 msgid "Show on the profile picker"
 msgstr "Show on the profile picker"
+
+#: src/app/music/studio-player.tsx
+msgid "Show queue"
+msgstr "Show queue"
 
 #: src/app/settings/playback.tsx
 msgid "Show reactions over the video"
@@ -4618,6 +4671,10 @@ msgstr "Show subtitles earlier"
 #: src/features/player/options.tsx
 msgid "Show subtitles later"
 msgstr "Show subtitles later"
+
+#: src/app/music/studio-player.tsx
+msgid "Show synchronized lyrics"
+msgstr "Show synchronized lyrics"
 
 #: src/app/settings/playback.tsx
 msgid "Show the prompt"
@@ -4677,6 +4734,7 @@ msgid "Shows the time of day at the top of the player with the controls."
 msgstr "Shows the time of day at the top of the player with the controls."
 
 #: src/app/music/player.tsx
+#: src/app/music/studio-player.tsx
 #: src/features/playlists/playlists.tsx
 msgid "Shuffle"
 msgstr "Shuffle"
@@ -5742,6 +5800,10 @@ msgstr "Try starting the party again."
 msgid "Try them"
 msgstr "Try them"
 
+#: src/app/music/studio-player.tsx
+msgid "TSUGI / JUNCTION"
+msgstr "TSUGI / JUNCTION"
+
 #: src/app/settings/player.tsx
 msgid "Tunneled playback"
 msgstr "Tunneled playback"
@@ -5821,9 +5883,14 @@ msgid "Up"
 msgstr "Up"
 
 #: src/app/music/player.tsx
+#: src/app/music/studio-player.tsx
 #: src/features/player/next-episode.tsx
 msgid "Up next"
 msgstr "Up next"
+
+#: src/app/music/studio-player.tsx
+msgid "UP NEXT / YOUR QUEUE"
+msgstr "UP NEXT / YOUR QUEUE"
 
 #: src/features/player/next-episode.tsx
 msgid "Up next: {upNext}"
@@ -5986,6 +6053,7 @@ msgid "Voice search failed"
 msgstr "Voice search failed"
 
 #: src/app/music/player.tsx
+#: src/app/music/studio-player.tsx
 #: src/features/player/volume.tsx
 msgid "Volume"
 msgstr "Volume"
