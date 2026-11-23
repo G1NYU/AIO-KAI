@@ -8,6 +8,7 @@ import {
 import type { EclipseTrack } from '@/lib/music/eclipse';
 import { parsePlayerTemplate, type EclipsePlayerTemplate } from '@/lib/music/player-template';
 import { EclipseStudioStage } from './studio-player';
+import { NOCTURNE_STAGE } from '@/lib/music/nocturne-stage';
 import { PLAYER_PALETTES, readPlayerTheme, savePlayerTheme, type PlayerPalette, type PlayerThemeId } from '@/lib/music/player-theme';
 
 export type RepeatMode = 'off' | 'all' | 'one';
@@ -193,6 +194,14 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                 <p className="mt-1 text-sm text-white/50">{p.sourceName}</p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
+                <button type="button" onClick={() => {
+                  setTemplate(NOCTURNE_STAGE);
+                  changeTheme('nightfall');
+                  setImportError('');
+                }}
+                  className="rounded-full border border-white/15 px-3 py-2 text-xs text-white/80 hover:bg-white/10">
+                  <Trans>Nocturne layout</Trans>
+                </button>
                 <label className="flex items-center gap-2 text-xs text-white/60">
                   <Trans>Player theme</Trans>
                   <select value={theme} onChange={(event) => changeTheme(event.target.value as PlayerThemeId)}

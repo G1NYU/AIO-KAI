@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchTrendingRecordings, parseTrendingRecordings } from '../src/lib/music/discovery';
 import { DEFAULT_PLAYER_THEME, isPlayerTheme, PLAYER_PALETTES } from '../src/lib/music/player-theme';
+import { NOCTURNE_STAGE } from '../src/lib/music/nocturne-stage';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -11,6 +12,13 @@ describe('AIO-KAI music theme pack', () => {
     expect(isPlayerTheme('nightfall')).toBe(true);
     expect(isPlayerTheme('__proto__')).toBe(false);
     expect(isPlayerTheme('https://elsewhere.test/skin.css')).toBe(false);
+  });
+
+  it('ships a complete Nocturne stage with real player controls', () => {
+    expect(NOCTURNE_STAGE.layers).toHaveLength(12);
+    expect(NOCTURNE_STAGE.layers.some((layer) => layer.kind === 'playPause')).toBe(true);
+    expect(NOCTURNE_STAGE.layers.some((layer) => layer.kind === 'progressBar')).toBe(true);
+    expect(NOCTURNE_STAGE.layers.every((layer) => layer.x >= 0 && layer.x <= 1)).toBe(true);
   });
 });
 
