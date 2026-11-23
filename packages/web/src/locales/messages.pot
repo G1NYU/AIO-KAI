@@ -1175,10 +1175,6 @@ msgstr ""
 msgid "Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device."
 msgstr ""
 
-#: src/app/desktop-landing/page.tsx
-msgid "Connected by choice"
-msgstr ""
-
 #: src/app/music/page.tsx
 msgid "Connected music sources"
 msgstr ""
@@ -1494,15 +1490,12 @@ msgid "Deep purple"
 msgstr ""
 
 #. No colour of its own
+#: src/app/music/player.tsx
 #: src/app/settings/_components/version-settings.tsx
 #: src/app/settings/subtitles.tsx
 #: src/app/settings/theme.tsx
 #: src/lib/i18n.ts
 msgid "Default"
-msgstr ""
-
-#: src/app/music/player.tsx
-msgid "Default player"
 msgstr ""
 
 #: src/features/player/options.tsx
@@ -1790,10 +1783,6 @@ msgstr ""
 msgid "Enter the code the other device shows."
 msgstr ""
 
-#: src/app/desktop-landing/page.tsx
-msgid "Enter the music space without a streaming-server account."
-msgstr ""
-
 #: src/app/sign-in/page.tsx
 msgid "Enter this code under Quick Connect in an app already signed in to this server."
 msgstr ""
@@ -1804,6 +1793,14 @@ msgstr ""
 
 #: src/app/sign-in/page.tsx
 msgid "Enter your password."
+msgstr ""
+
+#: src/app/desktop-landing/page.tsx
+msgid "Enter your video library and connected sources."
+msgstr ""
+
+#: src/app/servers/page.tsx
+msgid "Enter your video server address. Compatible Jellyfin servers work too."
 msgstr ""
 
 #: src/components/media/episodes.tsx
@@ -1860,12 +1857,12 @@ msgstr ""
 msgid "Everything"
 msgstr ""
 
-#: src/features/downloads/download-button.tsx
-msgid "Everything unwatched"
+#: src/app/desktop-landing/page.tsx
+msgid "Everything connects."
 msgstr ""
 
-#: src/app/desktop-landing/page.tsx
-msgid "Everything you love, together."
+#: src/features/downloads/download-button.tsx
+msgid "Everything unwatched"
 msgstr ""
 
 #: src/components/shell/window-controls.tsx
@@ -2275,7 +2272,11 @@ msgid "Import"
 msgstr ""
 
 #: src/app/music/player.tsx
-msgid "Import Eclipse player"
+msgid "Import Studio layout"
+msgstr ""
+
+#: src/app/music/player.tsx
+msgid "Imported Studio layout"
 msgstr ""
 
 #: src/lib/discord.ts
@@ -2318,6 +2319,10 @@ msgstr ""
 
 #: src/app/music/charts.tsx
 msgid "Independent music discovery"
+msgstr ""
+
+#: src/app/music/player.tsx
+msgid "Ink"
 msgstr ""
 
 #: src/lib/hosts/shell/index.ts
@@ -2398,7 +2403,7 @@ msgid "Jump through the video"
 msgstr ""
 
 #: src/app/music/player.tsx
-msgid "Junction layout"
+msgid "Junction"
 msgstr ""
 
 #: src/lib/format.ts
@@ -2480,6 +2485,10 @@ msgstr ""
 msgid "Later"
 msgstr ""
 
+#: src/app/music/player.tsx
+msgid "Layout"
+msgstr ""
+
 #: src/app.tsx
 msgid "Leave {from} to add {adding}?"
 msgstr ""
@@ -2546,6 +2555,10 @@ msgstr ""
 
 #: src/app/settings/subtitles.tsx
 msgid "List only my languages"
+msgstr ""
+
+#: src/app/desktop-landing/page.tsx
+msgid "Listen through your independent music addons."
 msgstr ""
 
 #: src/app/music/charts.tsx
@@ -2835,6 +2848,10 @@ msgstr ""
 msgid "Music"
 msgstr ""
 
+#: src/app/desktop-landing/page.tsx
+msgid "Music and moving pictures, joined without binding their accounts together."
+msgstr ""
+
 #: src/app/music/browse.tsx
 msgid "Music collection"
 msgstr ""
@@ -3068,7 +3085,7 @@ msgid "No versions were found."
 msgstr ""
 
 #: src/app/music/player.tsx
-msgid "Nocturne layout"
+msgid "Nocturne"
 msgstr ""
 
 #: src/app/settings/audio.tsx
@@ -3366,10 +3383,6 @@ msgstr ""
 
 #: src/app/downloads/page.tsx
 msgid "Open the app's downloads"
-msgstr ""
-
-#: src/app/desktop-landing/page.tsx
-msgid "Open your existing video configuration and its addons."
 msgstr ""
 
 #: src/lib/input/actions.ts
@@ -3795,6 +3808,10 @@ msgstr ""
 #: src/app/settings/player.tsx
 #: src/lib/input/actions.ts
 msgid "Player"
+msgstr ""
+
+#: src/app/music/player.tsx
+msgid "Player layout"
 msgstr ""
 
 #: src/app/music/player.tsx
@@ -4558,6 +4575,10 @@ msgstr ""
 
 #: src/app/settings/apps.tsx
 msgid "Sends this device's details and the app's recent log to the server, with a code to give whoever looks into it."
+msgstr ""
+
+#: src/app/desktop-landing/page.tsx
+msgid "Separate worlds. One place."
 msgstr ""
 
 #: src/app/settings/subtitles.tsx
@@ -5803,20 +5824,13 @@ msgstr ""
 msgid "Try them"
 msgstr ""
 
+#: src/app.tsx
 #: src/components/tsugi-brand.tsx
 msgid "Tsugi"
 msgstr ""
 
 #: src/app/music/studio-player.tsx
 msgid "TSUGI / JUNCTION"
-msgstr ""
-
-#: src/app/desktop-landing/page.tsx
-msgid "Tsugi connects your music and video addons without tying their accounts together."
-msgstr ""
-
-#: src/app/music/player.tsx
-msgid "Tsugi Dark"
 msgstr ""
 
 #: src/app/settings/player.tsx
