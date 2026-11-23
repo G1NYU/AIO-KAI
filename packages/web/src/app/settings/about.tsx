@@ -16,6 +16,7 @@ import { SettingsCard, SettingsRow } from './_components/settings-card';
 import { DOCS_URL } from './_components/common';
 
 const REPO_URL = 'https://github.com/Viren070/AIOStreams';
+const TSUGI_SOURCE_URL = 'https://github.com/G1NYU/AIO-KAI';
 
 /** The desktop app's stable release, whose notes link each download. */
 const DESKTOP_DOWNLOAD_URL = `${REPO_URL}/releases/tag/desktop`;
@@ -24,7 +25,7 @@ const links = () => [
   {
     name: t`Source code`,
     help: t`Where the app is made, and where to report a problem.`,
-    url: REPO_URL,
+    url: currentHost().name === 'desktop' ? TSUGI_SOURCE_URL : REPO_URL,
   },
   {
     name: t`Documentation`,

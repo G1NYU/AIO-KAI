@@ -155,3 +155,12 @@ Build a premium Windows streaming app on AIOStreams Desktop while preserving AIO
 
 ## Commit rules
 Focused conventional commits, re-read each diff, no private secrets, no force push, no merging to main without tests and deployment-impact review.
+
+## Tsugi unified palette and flat desktop UI (2026-11-23)
+- Target: `G1NYU/AIO-KAI`, `feature/desktop-music-entry`. This work is scoped to the Windows/native-desktop UI and does not change addon protocols, video decode, data paths, updater identifiers, or app install IDs.
+- The imported Studio v4 layout is now saved as validated declarative JSON; choosing the built-in player or another stage preserves it for later. The selected layout and the selected theme are independent and survive component remounts when local storage is available.
+- Palette colors are applied to the embedded Studio stage, its transport sliders, typography, lines and overlay drawers. The stage no longer paints an independently themed rounded card.
+- A square, joinery-inspired Tsugi navigation symbol and typography-led Watch/Listen entrance replace earlier rounded desktop chrome. The desktop top navigation/logo/title and source link now refer to Tsugi; non-desktop branding remains unchanged for upstream compatibility.
+- Desktop-only scoped CSS flattens controls and music cards. The production media player, deep link schemes, install identity and source credentials are not modified.
+- Verification to complete on resulting branch head: web TypeScript, lint, music Vitest suite, i18n/catalog checks, standalone web bundle, Windows portable test artifact, actual player/layout/palette switching on Windows, and visible brand audit.
+- Outstanding migration: executable and installer names still use original upstream identifiers. Change only with a tested migration to protect stored profiles and updater continuity.

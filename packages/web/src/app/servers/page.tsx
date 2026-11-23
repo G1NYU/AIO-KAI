@@ -94,15 +94,17 @@ function AddServer({
           <Trans>Add a server</Trans>
         </h1>
         <p className="text-sm text-[--muted]">
-          <Trans>
-            The address of the AIOStreams instance where you set up your addon.
-            Other Jellyfin servers work too.
-          </Trans>
+          {currentHost().name === 'desktop'
+            ? <Trans>Enter your video server address. Compatible Jellyfin servers work too.</Trans>
+            : <Trans>
+                The address of the AIOStreams instance where you set up your addon.
+                Other Jellyfin servers work too.
+              </Trans>}
         </p>
       </div>
       <TextInput
         label={t`Server address`}
-        placeholder="https://aiostreams.example.com"
+        placeholder={currentHost().name === 'desktop' ? 'https://example.com' : 'https://aiostreams.example.com'}
         value={address}
         onValueChange={setAddress}
         autoComplete="url"
