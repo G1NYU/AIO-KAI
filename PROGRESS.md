@@ -44,6 +44,16 @@ The fork currently reports **zero GitHub Actions workflow runs and zero check ru
 - The standalone Eclipse prototype gained synthetic URL-shape tests for a YouTube `/u/…` base, UltraMax's long tokenized manifest path, and Tido's tokenized manifest path; its isolated Node protocol tests now pass 8/8. TypeScript service typecheck and TS/TSX syntax checks pass. No full workspace build was available.
 - Reviewed local source package: `AIO-KAI-eclipse-store-milestone2-provider-tests.zip` (conversation artifact, **not committed to GitHub**). It contains no real personalized configuration values.
 
+## Milestone 2: Eclipse addon integration (2026-11-23)
+- **Code now pushed** to `feature/desktop-music-entry`:
+  - `8be9244543aff59741de40e863f0a8387a2eb5fc` — public registry browser, runtime-only personal manifest URL, manifest validation, music search, direct-stream resolution, basic audio controls, and protocol unit tests.
+  - `8e8769b56779df8438c3c79b24bb213633fedf57` — move Vitest test outside `src` to avoid production web typecheck dependency, and disable caching for manifest/registry API requests.
+- Added/updated paths: `packages/web/src/lib/music/eclipse.ts`, `packages/web/src/app/music/page.tsx`, `packages/web/tests/eclipse.test.ts`.
+- Reviewed the commit diff; no dependencies, releases, GitHub workflow files, or secret addon URLs were committed.
+- **Validation:** local counterpart of the standalone addon service passed 9 isolated Node protocol tests, strict standalone TypeScript compilation, and TSX/test syntax parsing. The full AIO-KAI workspace dependency install, typecheck, lint, Vitest run, native desktop build, WebView2 runtime, third-party CORS behavior, and actual music playback remain **unverified**. Do not mark the feature production ready.
+- Current playback deliberately supports direct HTTPS audio only; HLS/DASH and DRM-protected audio are not handled, and music state is not persistent across video navigation.
+- GitHub Actions reported zero workflow runs and zero check runs for the fork's draft PR; establishing CI remains the first blocker before release.
+
 ## Next tasks
 1. Establish usable CI on the feature branch or a complete trusted checkout and run:
    `pnpm install --frozen-lockfile`,
