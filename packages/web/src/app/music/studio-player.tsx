@@ -191,7 +191,8 @@ export function EclipseStudioStage({
     }
   }
   return (
-    <div className="mx-auto w-full max-w-[1740px] py-3">
+    <div className="mx-auto max-w-full py-2"
+      style={{width: 'min(94vw, calc((100dvh - 116px) * 1.777778))'}}>
       <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-white/10"
         style={{ backgroundColor: template.background, containerType: 'inline-size' }}>
         {template.layers.map((layer) => (
@@ -204,7 +205,7 @@ export function EclipseStudioStage({
               transform: 'translate(-50%, -50%)',
               opacity: layer.opacity,
               color: layer.color,
-              fontSize: 'clamp(9px, ' + layer.fontSize / 19.2 + 'cqw, ' + layer.fontSize + 'px)',
+              fontSize: 'clamp(11px, ' + layer.fontSize / 19.2 + 'cqw, ' + layer.fontSize * 1.2 + 'px)',
               textAlign: layer.align,
             }}>
             <div className="flex size-full min-w-0 items-center justify-center">{render(layer)}</div>
@@ -247,9 +248,14 @@ export function EclipseStudioStage({
         )}
       </div>
       {template.skippedLayers > 0 && (
-        <p className="mt-3 text-center text-xs text-white/40">
-          <Trans>{skippedCount} unsupported or hidden Eclipse Studio layers are omitted.</Trans>
-        </p>
+        <details className="mx-auto mt-1 w-fit text-center text-xs text-white/35">
+          <summary className="cursor-pointer rounded-lg px-2 py-1 hover:text-white/70">
+            <Trans>Studio compatibility</Trans>
+          </summary>
+          <p className="pb-2">
+            <Trans>{skippedCount} unsupported or hidden Eclipse Studio layers are omitted.</Trans>
+          </p>
+        </details>
       )}
     </div>
   );

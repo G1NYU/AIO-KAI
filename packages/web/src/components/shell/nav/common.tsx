@@ -2,6 +2,8 @@ import React from 'react';
 import type { SidebarItem } from '@aiostreams/ui/shared/sidebar';
 import { cn } from '@aiostreams/ui/core/styling';
 import { BrandLogo } from '@/components/brand-logo';
+import { TsugiBrand } from '@/components/tsugi-brand';
+import { currentHost } from '@/lib/hosts';
 
 export function Logo() {
   return (
@@ -9,7 +11,9 @@ export function Logo() {
       data-ui="sidebar-logo"
       className="mb-4 flex w-full justify-center p-4 pb-0"
     >
-      <BrandLogo className="max-h-[60px] max-w-[90px] object-contain p-4" />
+      {currentHost().name === 'desktop'
+        ? <TsugiBrand markOnly />
+        : <BrandLogo className="max-h-[60px] max-w-[90px] object-contain p-4" />}
     </div>
   );
 }

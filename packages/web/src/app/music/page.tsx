@@ -11,6 +11,7 @@ import {
   type MusicConnection,
 } from '@/lib/music/connections';
 import { MusicPlayer, type RepeatMode } from './player';
+import { TsugiBrand } from '@/components/tsugi-brand';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 import type { TrendingRecording } from '@/lib/music/discovery';
 
@@ -291,7 +292,7 @@ export function MusicPage({
 
   return (
     <main data-page="music" style={{ display: visible ? 'block' : 'none' }}
-      className="min-h-screen px-6 py-7 pb-44 sm:px-10">
+      className="min-h-screen bg-[#0B0B11] px-6 py-7 pb-44 text-[#E9EAF2] sm:px-10">
       <div className="mx-auto max-w-[1440px]">
         <nav aria-label={t`Media sections`} className="mb-12 flex items-center justify-between gap-4">
           <button type="button" onClick={openWelcome} className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-[--muted] hover:bg-white/[0.08] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
@@ -302,16 +303,19 @@ export function MusicPage({
           </button>
         </nav>
 
-        <header className="mb-10 flex items-center gap-4">
-          <span className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
-            <BiMusic aria-hidden className="text-4xl text-violet-200" />
-          </span>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[--muted]">
-              <Trans>Independent listening</Trans>
-            </p>
-            <h1 className="text-4xl font-semibold tracking-tight"><Trans>Music</Trans></h1>
+        <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-4">
+            <TsugiBrand />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#A7A0BC]">
+                <Trans>Independent listening</Trans>
+              </p>
+              <h1 className="mt-1 text-4xl font-semibold tracking-tight"><Trans>Music</Trans></h1>
+            </div>
           </div>
+          <span className="rounded-xl border border-[#353342] bg-[#171620] p-3 text-[#BDD5F1]">
+            <BiMusic aria-hidden className="text-2xl" />
+          </span>
         </header>
 
         <nav className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4"
@@ -319,24 +323,24 @@ export function MusicPage({
           <div className="flex items-center gap-2" role="tablist">
             <button type="button" role="tab" aria-selected={tab === 'discover'}
               onClick={() => setTab('discover')}
-              className={tab === 'discover' ? 'rounded-full bg-violet-200 px-5 py-2.5 text-sm font-semibold text-[#171420]' : 'rounded-full px-5 py-2.5 text-sm text-white/55 hover:bg-white/10'}>
+              className={tab === 'discover' ? 'rounded-full bg-[#BDD5F1] px-5 py-2.5 text-sm font-semibold text-[#15141C]' : 'rounded-full px-5 py-2.5 text-sm text-white/55 hover:bg-white/10'}>
               <Trans>Discover</Trans>
             </button>
             <button type="button" role="tab" aria-selected={tab === 'search'}
               onClick={() => setTab('search')}
-              className={tab === 'search' ? 'rounded-full bg-violet-200 px-5 py-2.5 text-sm font-semibold text-[#171420]' : 'rounded-full px-5 py-2.5 text-sm text-white/55 hover:bg-white/10'}>
+              className={tab === 'search' ? 'rounded-full bg-[#BDD5F1] px-5 py-2.5 text-sm font-semibold text-[#15141C]' : 'rounded-full px-5 py-2.5 text-sm text-white/55 hover:bg-white/10'}>
               <Trans>Search</Trans>
             </button>
             <button type="button" role="tab" aria-selected={tab === 'sources'}
               onClick={() => setTab('sources')}
-              className={tab === 'sources' ? 'rounded-full bg-violet-200 px-5 py-2.5 text-sm font-semibold text-[#171420]' : 'rounded-full px-5 py-2.5 text-sm text-white/55 hover:bg-white/10'}>
+              className={tab === 'sources' ? 'rounded-full bg-[#BDD5F1] px-5 py-2.5 text-sm font-semibold text-[#15141C]' : 'rounded-full px-5 py-2.5 text-sm text-white/55 hover:bg-white/10'}>
               <Trans>Sources</Trans>
             </button>
           </div>
           {connections.length > 0 && (
             <select aria-label={t`Active music source`} value={selectedId}
               onChange={(event) => switchSource(event.target.value)}
-              className="max-w-60 rounded-xl border border-white/15 bg-[#201b2b] px-4 py-2 text-sm text-white">
+              className="max-w-60 rounded-xl border border-[#373442] bg-[#1C1A25] px-4 py-2 text-sm text-white">
               {connections.map((source) =>
                 <option key={source.id} value={source.id}>{source.manifest.name}</option>)}
             </select>

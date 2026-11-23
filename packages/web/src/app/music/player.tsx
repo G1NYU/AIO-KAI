@@ -185,8 +185,8 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
         <section role="dialog" aria-modal="true" aria-label={t`Now playing`}
           className="fixed inset-0 z-50 overflow-y-auto text-white"
           style={{backgroundColor:palette.canvas}}>
-          <div className="mx-auto flex min-h-screen max-w-[1500px] flex-col px-5 py-5 sm:px-10">
-            <header className="flex flex-wrap items-center justify-between gap-5 border-b pb-5"
+          <div className="mx-auto flex min-h-dvh w-full flex-col px-4 py-4 sm:px-7">
+            <header className="mx-auto flex w-full max-w-[1900px] flex-wrap items-center justify-between gap-4 border-b pb-3"
               style={{borderColor:palette.border}}>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em]" style={{color:palette.muted}}>
@@ -240,7 +240,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
             </header>
             {importError && <p role="alert" className="mt-4 text-sm text-amber-200">{importError}</p>}
             {template ? (
-              <div className="flex flex-1 flex-col items-center justify-center">
+              <div className="flex min-h-0 flex-1 flex-col items-center justify-center py-3">
                 <EclipseStudioStage p={p} template={template} />
                 {(p.loading || p.error) && (
                   <p role={p.error ? 'alert' : 'status'} className="mt-3 text-center text-sm text-amber-200">

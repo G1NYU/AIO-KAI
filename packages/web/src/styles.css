@@ -634,3 +634,21 @@ html[data-blur-spoilers]:not([data-tv])
     opacity: 0;
   }
 }
+
+
+/* Tsugi desktop shell: flat surfaces shared across music and the gateway.
+ * Video's configured theme/custom CSS remains authoritative within playback. */
+:root[data-host='desktop'] {
+  --tsugi-canvas: #0b0b11;
+  --tsugi-panel: #171620;
+  --tsugi-border: #343142;
+  --tsugi-accent: #bdd5f1;
+}
+:root[data-host='desktop'] [data-page='desktop-landing'],
+:root[data-host='desktop'] [data-page='music'] {
+  background: var(--tsugi-canvas);
+}
+:root[data-host='desktop'] [data-ui='sidebar-logo'] svg {
+  max-width: 40px;
+  max-height: 40px;
+}

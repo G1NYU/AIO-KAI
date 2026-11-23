@@ -14,8 +14,8 @@ export type PlayerPalette = {
 
 export const PLAYER_PALETTES: Record<PlayerThemeId, PlayerPalette> = {
   'aio-dark': {
-    surface: '#111114', canvas: '#09090b', panel: '#18181c',
-    border: '#29292d', accent: '#e5e5e8', accentText: '#101014', muted: '#a1a1aa',
+    surface: '#12121B', canvas: '#0B0B11', panel: '#1C1B27',
+    border: '#343142', accent: '#BDD5F1', accentText: '#12131B', muted: '#A8A3BC',
   },
   nightfall: {
     surface: '#171420', canvas: '#0d0b12', panel: '#211c2b',
