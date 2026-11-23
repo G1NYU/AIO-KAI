@@ -1,0 +1,90 @@
+name: AIO-KAI Windows Test Build
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/desktop-music-windows-test.yml'
+      - 'packages/web/src/**'
+      - 'packages/web/package.json'
+      - 'packages/web/rsbuild.config.ts'
+      - 'packages/desktop/app/**'
+      - 'packages/desktop/core/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aio-kai-windows-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-x64:
+    if: github.event.pull_request.head.ref == 'feature/desktop-music-entry' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 75
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Install web dependencies
+        run: pnpm install --frozen-lockfile --filter "@aiostreams/web..."
+      - name: Build standalone web assets
+        run: pnpm -F @aiostreams/web build:standalone
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/desktop
+      - name: Fetch pinned libmpv for x64
+        run: ./packages/desktop/scripts/fetch-libs.ps1 -Arch x86_64
+      - name: Build Windows desktop application
+        working-directory: packages/desktop
+        run: cargo build --release
+      - name: Assemble isolated portable test package
+        run: |
+          $stage = New-Item -ItemType Directory -Force stage
+          $current = New-Item -ItemType Directory -Force stage/current
+          New-Item -ItemType File -Path "$stage/.portable" -Force | Out-Null
+          Copy-Item packages/desktop/target/release/aiostreams-desktop.exe $current
+          Copy-Item packages/desktop/vendor/x86_64/*.dll $current
+          Copy-Item packages/desktop/vendor/x86_64/licenses "$current/licenses" -Recurse
+          Copy-Item packages/desktop/vendor/x86_64/vulkan "$current/vulkan" -Recurse
+          Copy-Item packages/desktop/THIRD-PARTY.md $current
+          Copy-Item packages/web/dist-standalone "$current/web" -Recurse
+          Copy-Item LICENSE $stage
+          @'
+          AIO-KAI WINDOWS X64 DEVELOPMENT TEST
+
+          Unzip this archive into a writable folder and run:
+            current/aiostreams-desktop.exe
+
+          Keep the .portable marker beside current/.
+          The app stores its data in data/ next to current/.
+          This ZIP is a non-release development artifact; it has not been
+          smoke-tested on a real Windows desktop and does not ship an installer.
+          AIOStreams is AGPL-3.0-only; LICENSE and upstream attribution are included.
+          '@ | Set-Content -Path "$stage/README-TEST.txt" -Encoding utf8
+          $zip = [IO.Path]::GetFullPath('AIO-KAI-windows-x64-test.zip')
+          [IO.Compression.ZipFile]::CreateFromDirectory(
+            (Resolve-Path stage).Path, $zip,
+            [IO.Compression.CompressionLevel]::Optimal, $false)
+          $archive = [IO.Compression.ZipFile]::OpenRead($zip)
+          try {
+            $names = @($archive.Entries | ForEach-Object FullName)
+            foreach ($required in @('.portable', 'current/aiostreams-desktop.exe', 'current/web/index.html', 'LICENSE', 'README-TEST.txt')) {
+              if ($required -notin $names) { throw "Portable artifact missing $required" }
+            }
+          } finally {
+            $archive.Dispose()
+          }
+      - name: Upload Windows test build (no release)
+        uses: actions/upload-artifact@v7
+        with:
+          name: AIO-KAI-Windows-x64-test
+          retention-days: 7
+          path: AIO-KAI-windows-x64-test.zip
