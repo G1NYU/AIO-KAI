@@ -105,6 +105,38 @@ Build a premium Windows streaming app on AIOStreams Desktop while preserving AIO
 
 **Non-goals for this roadmap-only update:** no code/product/installer IDs changed yet; no live app rename, GitHub repository rename, icon replacement or distribution migration performed. Keep the current draft branch stable until those changes are implemented and tested.
 
+## Milestone 6 — Premium Tsugi Junction player (2026-11-23)
+- User supplied Eclipse Studio screenshots with its controls/layers sidebar (queue, playlist/library, cast/Connect, lyrics, shuffle/repeat, output device, volume, up next, artwork, static text/shapes). Inspected the user's original `NullBeat Monolith Desktop.eclipseplayer` v4/desktop export as the schema reference.
+- Created a **standalone** `Tsugi-Junction-Premium-Desktop.eclipseplayer` (30,400 bytes), 32 declarative Studio layers, flat near-black background, icy blue accents, artwork / song / album metadata, lyrics, interactive seek, transport, shuffle/repeat, queue, favorite, playlist/library, Eclipse Connect, output chooser and other informational elements. Validated JSON roundtrip, schema v4, desktopStage=1, unique layer IDs, normalized positions and no remote personal URLs. Delivered as a conversation artifact, **not committed to GitHub**. Import and fidelity in the official Eclipse Studio have not yet been verified.
+- Expanded `packages/web/src/lib/music/player-template.ts` from 12 to **27 supported layer instances in this particular exported layout**, via safe static parser kinds. Unknown controls are skipped without dynamic script execution. Five of the 32 exported layers cannot yet be rendered functionally in AIO-KAI: add-to-playlist, add-to-library, Connect/casting, output-device switching and sleep-timer countdown. Eclipse may provide those functionalities inside its own native app; not verified.
+- `packages/web/src/app/music/studio-player.tsx` now renders actual queue drawer, shuffle, repeat, seek, volume, locally persisted favorites (not a cross-provider library sync), custom text/lines and richer album/provider metadata. Clicking the lyrics control makes an **opt-in** public LRCLIB lookup using only song title and artist (no addon secrets), with strict title/artist/duration matching and synchronized lines when available. `packages/web/src/lib/music/lyrics.ts` has parsing, timing and HTTP error handling.
+- Bundled `packages/web/src/lib/music/junction-stage.ts` as a selectable **Junction layout** in Now Playing; the previous Nocturne remains selectable with updated types. The existing audio transport and Movies & TV code were not changed. Imported `.eclipseplayer` can still be chosen independently.
+- CI tests added/updated in `packages/web/tests/player-template.test.ts`, `packages/web/tests/music-lyrics.test.ts`, `packages/web/tests/music-feature-pack.test.ts`; `.github/workflows/desktop-music-check.yml` runs all five test files. All generated Lingui catalog changes were committed via a scoped one-time workflow, then the write-enabled workflow was deleted.
+- **Verified code build commit:** `aef640b8831e0d43217f2d708f4ee7de1f48184b` on draft `feature/desktop-music-entry`. Four CI successes:
+  - Music Validation: https://github.com/G1NYU/AIO-KAI/actions/runs/45201281821 — **28/28 Vitest**, TypeScript, lint and standalone web assets.
+  - Web Translations: https://github.com/G1NYU/AIO-KAI/actions/runs/45201281959 — passed.
+  - Full Build Addon: https://github.com/G1NYU/AIO-KAI/actions/runs/45201281659 — passed.
+  - Windows portable build: https://github.com/G1NYU/AIO-KAI/actions/runs/45201281667 — passed, including native Rust EXE, libmpv, ZIP artifact upload.
+- **Verified portable artifact:** ID `14831083175`, extracted `Tsugi-Junction-Windows-x64.zip` (30,775,759 bytes), nested ZIP CRC/integrity passed, 204 entries, 8 DLLs, valid `MZ` Windows EXE `current/aiostreams-desktop.exe`, `.portable`, `current/web/index.html`, `LICENSE`.
+- Portable SHA-256: `1b35f58378fa035496658901851174cc2e36dcfdbbc737e03b6123138395bbf8`.
+- **Windows visual QA remains outstanding:** built-in Junction, imported standalone 32-layer file, queue drawer, timed lyrics, volume and local favorites require actual mouse/keyboard playback tests. Do not equate green CI with functioning cast or Eclipse Studio compatibility.
+
+## Next tasks — premium music before Refract
+1. Test new portable Windows ZIP in its own extracted folder. Play through UltraMax / NullBeat / a working provider, expand Now Playing, select Junction layout, verify all implemented buttons, seek/volume/queue, favorites, timed lyrics and return to Nocturne/default.
+2. Import `Tsugi-Junction-Premium-Desktop.eclipseplayer` into Eclipse's native Studio; check all 32 layers and report any export parser warnings or layout overlaps. Import into AIO-KAI separately and verify 27 supported layers; unsupported actions should not appear as fake controls.
+3. Improve the Discover page with real genre/category rails and licensed/attributed album/artist artwork where source terms support it; ListenBrainz chart-only fallback still lacks covers and genre shelves.
+4. Implement *real* device output selection/casting only when a verified Windows backend and permissions exist; no nonfunctional Chromecast or Eclipse Connect icons. Later consider native library/playlist actions and Eclipse app-wide skins/AutoEQ with their actual schemas.
+5. Keep **Refract integration deferred** until the premium Music player and Discover experience pass user acceptance. Preserve existing Refract architecture/identity mapping plan for movies/episodes.
+6. Continue the **Tsugi** app-wide identity plan after music and Refract, before the first stable release. Protect existing addon tokens/configurations and saved data during product/install migration.
+
+## Risks
+- The Eclipse Studio export is schema-grounded and structurally validated locally but has not been opened in Eclipse Studio; some rarely used layer kinds may differ from the actual application schema.
+- The AIO-KAI UI supports only the allowlisted subset, not arbitrary remote renderer code. Missing source features are skipped.
+- Lyrics requests go to public LRCLIB when explicitly opened and share title/artist; unavailable/mismatched lyrics show a graceful fallback. Actual WebView2 network behavior is untested.
+- Current favorites are local to the app and do not write to the Eclipse user account or addon library; casting/Connect/output switching remain unimplemented.
+- Portable Windows build is unsigned test software; native GUI and live stream interactions have not been retested on user hardware.
+- `main` is unchanged and the PR remains a draft.
+
 ## Next tasks
 1. Windows smoke test this Milestone 5 portable build in a **new folder**. Open UltraMax (no native shelves), verify ListenBrainz charts appear and a chart selection launches a provider search, then choose a correct track to play. Confirm NullBeat's native catalogs still display too. If charts do not load, inspect browser/WebView CORS and API response before changing code.
 2. With a song playing, verify left/right-centered bottom bar at 1280×760 and ultrawide. Test the default AIO Dark, Nightfall and Carbon palettes; expand and select Nocturne Stage; seek, skip, volume and queue. Return to default and confirm imported `.eclipseplayer` still renders.
