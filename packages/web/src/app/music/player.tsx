@@ -218,7 +218,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                     style={{backgroundColor: palette.panel, borderColor: palette.border}}>
                     {(Object.keys(PLAYER_PALETTES) as PlayerThemeId[]).map((id) => (
                       <option key={id} value={id}>
-                        {id === 'aio-dark' ? t`AIO Dark` : id === 'nightfall' ? t`Nightfall` : t`Carbon`}
+                        {id === 'aio-dark' ? t`Tsugi Dark` : id === 'nightfall' ? t`Nightfall` : t`Carbon`}
                       </option>
                     ))}
                   </select>
