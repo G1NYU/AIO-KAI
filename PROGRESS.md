@@ -134,24 +134,9 @@ Build a premium Windows streaming app on AIOStreams Desktop while preserving AIO
 - The AIO-KAI UI supports only the allowlisted subset, not arbitrary remote renderer code. Missing source features are skipped.
 - Lyrics requests go to public LRCLIB when explicitly opened and share title/artist; unavailable/mismatched lyrics show a graceful fallback. Actual WebView2 network behavior is untested.
 - Current favorites are local to the app and do not write to the Eclipse user account or addon library; casting/Connect/output switching remain unimplemented.
+- Opt-in saved personalized addon URLs currently reside in unencrypted localStorage. Move to OS-protected storage before public release; do not log source tokens.
 - Portable Windows build is unsigned test software; native GUI and live stream interactions have not been retested on user hardware.
 - `main` is unchanged and the PR remains a draft.
-
-## Next tasks
-1. Windows smoke test this Milestone 5 portable build in a **new folder**. Open UltraMax (no native shelves), verify ListenBrainz charts appear and a chart selection launches a provider search, then choose a correct track to play. Confirm NullBeat's native catalogs still display too. If charts do not load, inspect browser/WebView CORS and API response before changing code.
-2. With a song playing, verify left/right-centered bottom bar at 1280×760 and ultrawide. Test the default AIO Dark, Nightfall and Carbon palettes; expand and select Nocturne Stage; seek, skip, volume and queue. Return to default and confirm imported `.eclipseplayer` still renders.
-3. Only after user accepts the music player experience, start native **Refract integration**: port identity mapping, queued API writes, watchlist add/remove and early playback-progress logging from the Harbor implementation. Wire to AIOStreams' real media identity and playback events, not music metadata. Write tests and preserve video behavior.
-4. **Tsugi rebrand:** follow the detailed roadmap above to replace all user-facing AIO branding, logos, icons, app/installer/release identity and documentation, with compatibility-safe saved-settings and update migration. Do this before the first stable public release, after music and Refract are validated.
-5. App-wide Eclipse skins and Eclipse Audio/AutoEQ profile imports are separate from fullscreen player templates. Their real export schemas and processing requirements remain unimplemented; do not claim compatibility or execute untrusted theme code. Consider after Refract unless user reprioritizes.
-6. Native secure storage for personalized addon URLs, stable installer/updater identity, accessibility and performance QA, and licensing before any public stable release.
-
-## Risks
-- ListenBrainz is external public chart metadata, not a streaming source. Its availability, browser CORS, changing chart rankings and selected-provider search quality may affect discovery; there is no automatic recording match or Apple Music catalog mirroring.
-- Theme palettes are internal choices, not general Eclipse application skin import support. Built-in Nocturne is a safe declarative 12-layer player layout, not a complete custom Eclipse skin/equalizer implementation.
-- Music still relies on direct HTTPS HTML Audio; HLS/DASH, DRM, native EQ, music scrobbling and full audio profiles remain unsupported. Existing streaming playback stays untouched.
-- Private provider URLs may contain credentials, and opt-in saved source links remain unencrypted in localStorage. Native OS-protected storage should precede public release.
-- The portable Windows ZIP is a **development build**, not a signed installer or proof that GUI behavior on a physical Windows machine is correct.
-- Keep the draft feature branch separate from `main`.
 
 ## Commit rules
 Focused conventional commits, re-read each diff, no private secrets, no force push, no merging to main without tests and deployment-impact review.
