@@ -530,6 +530,10 @@ msgstr ""
 msgid "All fields"
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "All media"
+msgstr ""
+
 #: src/app/settings/_components/gesture-settings.tsx
 msgid "All on"
 msgstr ""
@@ -642,6 +646,10 @@ msgstr ""
 
 #: src/lib/i18n.ts
 msgid "Are you sure you want to continue?"
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Artist, album or track"
 msgstr ""
 
 #: src/app/settings/cache.tsx
@@ -1061,6 +1069,10 @@ msgstr ""
 msgid "Commentary"
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "Community"
+msgstr ""
+
 #: src/app/settings/player.tsx
 msgid "Compatibility"
 msgstr ""
@@ -1090,12 +1102,25 @@ msgstr ""
 msgid "Confirm"
 msgstr ""
 
+#: src/app/music/page.tsx
 #: src/app/servers/page.tsx
 msgid "Connect"
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "Connect a music source"
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Connected to {connectedName}"
+msgstr ""
+
 #: src/app/settings/apps.tsx
 msgid "Connected to Discord."
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Connecting…"
 msgstr ""
 
 #: src/features/party/in-party.tsx
@@ -1111,6 +1136,10 @@ msgstr ""
 #: src/app/settings/browsing.tsx
 #: src/features/player/next-episode.tsx
 msgid "Continue watching"
+msgstr ""
+
+#: src/app/desktop-landing/page.tsx
+msgid "Continue with your AIOStreams configuration, addons and player."
 msgstr ""
 
 #: src/app/settings/player.tsx
@@ -1205,6 +1234,10 @@ msgstr ""
 
 #: src/app/live-tv/page.tsx
 msgid "Could not load Live TV"
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Could not load the addon registry: {storeError}"
 msgstr ""
 
 #: src/app/calendar/page.tsx
@@ -1632,6 +1665,14 @@ msgstr ""
 msgid "Each filter shows as a pill above the version list. Its search is words that must all appear, or a regular expression between slashes, such as /2160p|4k/. Case never matters."
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "Eclipse addon manifest URL"
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Eclipse community addon store"
+msgstr ""
+
 #: src/app/settings/_components/version-settings.tsx
 msgid "Edit"
 msgstr ""
@@ -1662,6 +1703,10 @@ msgstr ""
 
 #: src/app/settings/account.tsx
 msgid "Enter the code the other device shows."
+msgstr ""
+
+#: src/app/desktop-landing/page.tsx
+msgid "Enter the music space without a streaming-server account."
 msgstr ""
 
 #: src/app/sign-in/page.tsx
@@ -2162,6 +2207,10 @@ msgstr ""
 msgid "In this collection"
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "Independent listening"
+msgstr ""
+
 #: src/lib/hosts/shell/index.ts
 msgid "Install"
 msgstr ""
@@ -2407,6 +2456,10 @@ msgstr ""
 msgid "Loading"
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "Loading community addons…"
+msgstr ""
+
 #: src/app/settings/_components/version-settings.tsx
 msgid "Loading…"
 msgstr ""
@@ -2493,6 +2546,10 @@ msgstr ""
 
 #: src/components/shell/window-controls.tsx
 msgid "Maximise"
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Media sections"
 msgstr ""
 
 #: src/app/settings/browsing.tsx
@@ -2599,6 +2656,11 @@ msgstr ""
 msgid "Movies"
 msgstr ""
 
+#: src/app/desktop-landing/page.tsx
+#: src/app/music/page.tsx
+msgid "Movies & TV"
+msgstr ""
+
 #: src/app/search/page.tsx
 msgid "Movies, shows and people"
 msgstr ""
@@ -2621,6 +2683,22 @@ msgstr ""
 
 #: src/app/settings/player.tsx
 msgid "mpv.conf, input.conf, scripts and shaders in this folder apply to the built-in mpv."
+msgstr ""
+
+#: src/app.tsx
+#: src/app/desktop-landing/page.tsx
+#: src/app/music/page.tsx
+#: src/app/servers/page.tsx
+#: src/components/shell/layout.tsx
+msgid "Music"
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Music player"
+msgstr ""
+
+#: src/app/desktop-landing/page.tsx
+msgid "Music works independently of your Movies & TV connection."
 msgstr ""
 
 #: src/features/player/picture-in-picture.tsx
@@ -3099,6 +3177,10 @@ msgstr ""
 
 #: src/lib/i18n.ts
 msgid "Open main menu"
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Open official store"
 msgstr ""
 
 #: src/features/playlists/playlists.tsx
@@ -3957,6 +4039,10 @@ msgstr ""
 msgid "Reset theme"
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "Resolving audio…"
+msgstr ""
+
 #: src/app/settings/player.tsx
 msgid "Restart"
 msgstr ""
@@ -4134,6 +4220,7 @@ msgid "SDH, with sounds described"
 msgstr ""
 
 #: src/app/discover/page.tsx
+#: src/app/music/page.tsx
 #: src/app/search/page.tsx
 #: src/app/settings/_components/licenses.tsx
 #: src/app/settings/_components/version-settings.tsx
@@ -4151,6 +4238,10 @@ msgstr ""
 msgid "Search by voice"
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "Search music"
+msgstr ""
+
 #: src/app/settings/page.tsx
 msgid "Search settings"
 msgstr ""
@@ -4159,12 +4250,20 @@ msgstr ""
 msgid "Search the lines"
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "Search your connected addon to find tracks."
+msgstr ""
+
 #: src/app/settings/cache.tsx
 msgid "Searches"
 msgstr ""
 
 #: src/lib/discord.ts
 msgid "Searching"
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Searching…"
 msgstr ""
 
 #: src/features/player/pause-screen.tsx
@@ -4254,6 +4353,10 @@ msgstr ""
 
 #: src/features/player/options.tsx
 msgid "Set by hand"
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Set up addon"
 msgstr ""
 
 #: src/app/settings/page.tsx
@@ -4992,6 +5095,10 @@ msgstr ""
 msgid "The artwork of the title you're on, blurred and darkened, behind these pages. The version list shows it with title pages."
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "The browser audio engine could not play this stream."
+msgstr ""
+
 #: src/app/settings/_components/settings-card.tsx
 msgid "The default for every device. A device that changes it keeps its own."
 msgstr ""
@@ -5546,6 +5653,14 @@ msgstr ""
 msgid "Usage statistics"
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "Use a compatible Eclipse addon manifest. Private links stay in this session and are not saved to your account or AIOStreams configuration."
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Use manifest"
+msgstr ""
+
 #: src/app/sign-in/page.tsx
 msgid "Use Quick Connect, or the configuration’s password."
 msgstr ""
@@ -5809,6 +5924,10 @@ msgstr ""
 msgid "What touching or holding the video does."
 msgstr ""
 
+#: src/app/desktop-landing/page.tsx
+msgid "What would you like to enjoy?"
+msgstr ""
+
 #: src/app/settings/_components/reaction-setting.tsx
 msgid "What you can send from a party's chat."
 msgstr ""
@@ -5992,6 +6111,10 @@ msgstr ""
 
 #: src/app/settings/_components/version-settings.tsx
 msgid "Your badges"
+msgstr ""
+
+#: src/app/desktop-landing/page.tsx
+msgid "Your media, your way"
 msgstr ""
 
 #: src/lib/playback/player-choice.ts
