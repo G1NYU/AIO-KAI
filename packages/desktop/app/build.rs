@@ -1,11 +1,11 @@
 fn main() {
-    println!("cargo:rerun-if-changed=icons/aiostreams.ico");
+    println!("cargo:rerun-if-changed=icons/tsugi.ico");
     match std::env::var("CARGO_CFG_TARGET_OS").as_deref() {
         Ok("windows") => {
             winresource::WindowsResource::new()
-                .set_icon("icons/aiostreams.ico")
-                .set("ProductName", "AIOStreams")
-                .set("FileDescription", "AIOStreams")
+                .set_icon("icons/tsugi.ico")
+                .set("ProductName", "Tsugi")
+                .set("FileDescription", "Tsugi — Movies & Music")
                 .compile()
                 .expect("could not embed the Windows resources");
         }

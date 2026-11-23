@@ -693,7 +693,7 @@ pub fn choose_folder(window: &Window, title: &str) -> Option<PathBuf> {
 
 pub fn fatal(message: &str) -> ! {
     log::error!("{message}");
-    let (text, title) = (wide(message), wide("AIOStreams"));
+    let (text, title) = (wide(message), wide("Tsugi"));
     unsafe {
         MessageBoxW(
             std::ptr::null_mut(),
