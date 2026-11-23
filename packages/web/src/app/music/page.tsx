@@ -6,21 +6,32 @@ import {
   loadAddon, loadStore, manifestUrlFor, resolveTrack, searchAddon,
   type EclipseManifest, type EclipseStoreEntry, type EclipseTrack,
 } from '@/lib/music/eclipse';
+import {
+  readMusicSources, remembersMusicSources, saveMusicSources,
+  type MusicConnection,
+} from '@/lib/music/connections';
 
 /** Music lives outside the AIOStreams/Jellyfin session. */
 export function MusicPage({
   openVideo,
   openWelcome,
+  visible,
 }: {
   openVideo(): void;
   openWelcome(): void;
+  visible: boolean;
 }) {
   const [store, setStore] = React.useState<EclipseStoreEntry[]>([]);
   const [storeError, setStoreError] = React.useState('');
   const [manifestInput, setManifestInput] = React.useState('');
-  const [activeUrl, setActiveUrl] = React.useState('');
-  const [activeAddon, setActiveAddon] = React.useState<EclipseManifest | null>(null);
+  const [connections, setConnections] = React.useState<MusicConnection[]>(readMusicSources);
+  const [rememberSources, setRememberSources] = React.useState(remembersMusicSources);
+  const [selectedId, setSelectedId] = React.useState(() => readMusicSources()[0]?.id ?? '');
+  const activeSource = connections.find((source) => source.id === selectedId);
+  const activeUrl = activeSource?.url ?? '';
+  const activeAddon = activeSource?.manifest ?? null;
   const connectedName = activeAddon?.name ?? '';
+  const [playingSourceId, setPlayingSourceId] = React.useState('');
   const [connectError, setConnectError] = React.useState('');
   const [connecting, setConnecting] = React.useState(false);
   const [query, setQuery] = React.useState('');
@@ -32,6 +43,17 @@ export function MusicPage({
   const [playError, setPlayError] = React.useState('');
   const [resolving, setResolving] = React.useState(false);
   const generation = React.useRef(0);
+
+  React.useEffect(() => {
+    saveMusicSources(rememberSources, connections);
+  }, [rememberSources, connections]);
+
+  React.useEffect(() => {
+    if (!visible) {
+      // Do not play music over a movie; keep the track and provider in memory.
+      document.querySelector<HTMLAudioElement>('[data-aiokai-music-audio]')?.pause();
+    }
+  }, [visible]);
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -48,18 +70,19 @@ export function MusicPage({
     setSearching(false);
     setResolving(false);
     setConnectError('');
-    setActiveAddon(null);
-    setActiveUrl('');
-    setPlaying(null);
-    setStreamUrl('');
     setTracks([]);
     setPlayError('');
     try {
       const url = manifestUrlFor(manifestInput);
       const addon = await loadAddon(url);
       if (request !== generation.current) return;
-      setActiveUrl(url);
-      setActiveAddon(addon);
+      const existing = connections.find((source) => source.url === url);
+      const id = existing?.id ?? crypto.randomUUID();
+      setConnections((previous) => existing
+        ? previous.map((source) => source.id === id ? { id, url, manifest: addon } : source)
+        : [...previous, { id, url, manifest: addon }]);
+      setSelectedId(id);
+      setManifestInput('');
       setSearchError('');
       setQuery('');
     } catch (error) {
@@ -92,6 +115,7 @@ export function MusicPage({
     if (!activeUrl) return;
     const request = ++generation.current;
     setPlaying(track);
+    setPlayingSourceId(selectedId);
     setSearching(false);
     setConnecting(false);
     setStreamUrl('');
@@ -107,8 +131,36 @@ export function MusicPage({
     }
   }
 
+  function switchSource(id: string) {
+    ++generation.current;
+    setSelectedId(id);
+    setTracks([]);
+    setQuery('');
+    setSearchError('');
+    setSearching(false);
+    setConnecting(false);
+    setConnectError('');
+  }
+
+  function removeSource(id: string) {
+    ++generation.current;
+    setConnections((previous) => previous.filter((source) => source.id !== id));
+    if (selectedId === id) {
+      setSelectedId(connections.find((source) => source.id !== id)?.id ?? '');
+      setTracks([]);
+      setQuery('');
+    }
+    if (playingSourceId === id) {
+      setPlaying(null);
+      setPlayingSourceId('');
+      setStreamUrl('');
+      setPlayError('');
+    }
+  }
+
   return (
-    <main data-page="music" className="min-h-screen px-6 py-7 pb-44 sm:px-10">
+    <main data-page="music" style={{ display: visible ? 'block' : 'none' }}
+      className="min-h-screen px-6 py-7 pb-44 sm:px-10">
       <div className="mx-auto max-w-6xl">
         <nav aria-label={t`Media sections`} className="mb-12 flex items-center justify-between gap-4">
           <button type="button" onClick={openWelcome} className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-[--muted] hover:bg-white/[0.08] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
@@ -136,7 +188,7 @@ export function MusicPage({
             <Trans>Connect a music source</Trans>
           </h2>
           <p className="max-w-3xl text-sm leading-6 text-[--muted]">
-            <Trans>Use a compatible Eclipse addon manifest. Private links stay in this session and are not saved to your account or AIOStreams configuration.</Trans>
+            <Trans>Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device.</Trans>
           </p>
           <form onSubmit={connect} className="flex flex-col gap-3 sm:flex-row">
             <input
@@ -151,6 +203,30 @@ export function MusicPage({
             </button>
           </form>
           {connectError && <p role="alert" className="text-sm text-red-300">{connectError}</p>}
+          <label className="flex items-start gap-3 text-xs text-[--muted]">
+            <input type="checkbox" checked={rememberSources}
+              onChange={(event) => setRememberSources(event.target.checked)}
+              className="mt-0.5 accent-violet-300" />
+            <span><Trans>Remember my music sources on this device (stored locally without encryption).</Trans></span>
+          </label>
+          {connections.length > 0 && (
+            <div className="flex flex-wrap gap-2" aria-label={t`Connected music sources`}>
+              {connections.map((source) => (
+                <div key={source.id} className="flex items-center rounded-full border border-white/15 bg-white/[0.04] text-sm">
+                  <button type="button" onClick={() => switchSource(source.id)}
+                    aria-pressed={selectedId === source.id}
+                    className={selectedId === source.id
+                      ? 'rounded-full bg-violet-200 px-4 py-2 font-semibold text-slate-950'
+                      : 'rounded-full px-4 py-2 text-white hover:bg-white/10'}>
+                    {source.manifest.name}
+                  </button>
+                  <button type="button" onClick={() => removeSource(source.id)}
+                    aria-label={t`Remove music source`}
+                    className="rounded-full px-3 py-2 text-[--muted] hover:text-red-300">×</button>
+                </div>
+              ))}
+            </div>
+          )}
           {activeAddon && <p role="status" className="text-sm text-green-200">
             <Trans>Connected to {connectedName}</Trans>
           </p>}
@@ -246,7 +322,7 @@ export function MusicPage({
             </div>
             {resolving && <span className="text-sm text-[--muted]"><Trans>Resolving audio…</Trans></span>}
             {playError && <span role="alert" className="text-sm text-red-300">{playError}</span>}
-            {streamUrl && <audio key={streamUrl} controls autoPlay preload="metadata" src={streamUrl}
+            {streamUrl && <audio data-aiokai-music-audio key={streamUrl} controls autoPlay preload="metadata" src={streamUrl}
               onError={() => setPlayError(t`The browser audio engine could not play this stream.`)}
               className="w-full max-w-xl" />}
           </div>

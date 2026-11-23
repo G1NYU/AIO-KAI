@@ -255,7 +255,6 @@ function Standalone() {
             </ServerInfoProvider>
           ) : desktop && area === 'music' ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
-              <MusicPage openVideo={openVideo} openWelcome={openWelcome} />
               <SplashEnd />
             </ServerInfoProvider>
           ) : picking && base ? (
@@ -277,6 +276,15 @@ function Standalone() {
           )}
         </motion.div>
       </AnimatePresence>
+      {desktop && (
+        <ServerInfoProvider value={NO_SERVER_INFO}>
+          <MusicPage
+            visible={area === 'music'}
+            openVideo={openVideo}
+            openWelcome={openWelcome}
+          />
+        </ServerInfoProvider>
+      )}
       <ConfirmationDialog {...confirmLeave} />
       <ConfirmationDialog {...confirmSwitch} />
       </>
