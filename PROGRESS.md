@@ -164,3 +164,16 @@ Focused conventional commits, re-read each diff, no private secrets, no force pu
 - Desktop-only scoped CSS flattens controls and music cards. The production media player, deep link schemes, install identity and source credentials are not modified.
 - Verification to complete on resulting branch head: web TypeScript, lint, music Vitest suite, i18n/catalog checks, standalone web bundle, Windows portable test artifact, actual player/layout/palette switching on Windows, and visible brand audit.
 - Outstanding migration: executable and installer names still use original upstream identifiers. Change only with a tested migration to protect stored profiles and updater continuity.
+
+## Tsugi player persistence and flat desktop visual system — verified build (2026-11-23)
+- Code/catalog commit: `9aa7436559858359683d6dc1388ae138c7bd7bfa` on `feature/desktop-music-entry`; no merge to `main`, no production release. The intervening fix `89340f31` corrected a Lingui lint issue in the desktop title, and the final catalog commit synchronized generated `en-GB.po` and `messages.pot` with exact CI artifact checksums.
+- Changes: saved/validated imported Eclipse Studio v4 layout with independent selected layout; player palette applied to the embedded stage surface, controls, typography, and overlays; flat edge-to-edge Studio player; desktop-scoped angular Tsugi brand, top navigation, welcome screen and music cards. Native playback engine and addon configuration are unchanged.
+- **Passed on exact code commit `9aa74365`:**
+  - Desktop Music Validation: https://github.com/G1NYU/AIO-KAI/actions/runs/45215900758 — web TypeScript, lint, Vitest music suite, and standalone web assets.
+  - Web App Translations: https://github.com/G1NYU/AIO-KAI/actions/runs/45215900468 — lint, source extraction and committed catalog comparison.
+  - Build Addon: https://github.com/G1NYU/AIO-KAI/actions/runs/45215900416 — success.
+  - AIO-KAI Windows Test Build: https://github.com/G1NYU/AIO-KAI/actions/runs/45215900368 — success; artifact ID `14837879047`.
+  - Desktop Check: https://github.com/G1NYU/AIO-KAI/actions/runs/45215900427 — Windows native check passed; macOS/Linux were incomplete at this handoff.
+- Downloaded and inspected Windows artifact. Nested portable ZIP was extracted as `Tsugi-Desktop-Windows-x64.zip` (30,757,108 bytes; SHA-256 `e8c7c2e12883b728b29217fba24d5498fe1aae40dfc64fff62ad6b5f71d512e9`). Outer/nested ZIP CRCs passed; nested ZIP contains 204 entries, 8 DLLs, valid MZ executable, embedded Tsugi product title, portable marker and bundled web assets. The executable file remains `current/aiostreams-desktop.exe` to preserve old install identity.
+- **Not yet verified:** actual imported layouts and palettes in a running Windows WebView, visual spacing at high-DPI/narrow/ultrawide sizes, cold restart persistence with local storage permissions, actual streaming and lyrics/queue behavior. These must be checked before announcing the redesign as production-ready.
+- **Remaining identity migration:** update installer/executable naming and internal identifiers only with explicit upgrade/rollback tests. Keep upstream attribution and licensing; do not bulk-rename credentials, custom scheme, storage paths or updater feed.
