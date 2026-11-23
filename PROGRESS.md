@@ -50,21 +50,40 @@ Build a premium Windows streaming app on AIOStreams Desktop while preserving AIO
 - This verifies a genuine Windows build and package. Baseline audio playback was user-tested on the prior build, but the latest source-persistence and custom-player interactions still require a physical Windows smoke test.
 - AIOStreams is AGPL-3.0-only; preserve its source and attribution obligations.
 
+## Milestone 4 — Eclipse catalogs, browsable media and Studio player import (2026-11-23)
+- Code build commit: `9015af8ec17287ec9b7ef6df3d9c8ff770ca2d9f`, on `feature/desktop-music-entry`; draft PR #1 unchanged; `main` not touched.
+- Eclipse manifest now supports optional `catalogs`; if an addon advertises `catalog`, Discover loads real addon-owned named shelves through `GET /catalog/{id}?skip=0`. Tracks use the original provider's id and playback URL, and convert catalog `durationMs` into seconds.
+- Search now includes albums, artists and playlists in addition to tracks; opened items use `GET /album/{id}`, `/artist/{id}` and `/playlist/{id}`, with clickable artwork and queue playback through the original addon. Missing catalog support is shown as unsupported rather than fabricated.
+- Music navigation now separates Discover, Search and Sources, including active-source switching and a direct external DebridVault settings link. DebridVault is a distinct Real-Debrid/TorBox library website: its root URL is **not** an Eclipse manifest, and native API/addon connectivity is not yet verified.
+- First-pass import of **local Eclipse Studio schema-v4 desktop `.eclipseplayer`** JSON. Whitelisted, declarative layers are mapped to actual player actions; external scripts, foreign actions, remote code, and unrecognized layers are not executed/rendered. Maximum input file size 1 MB. Default player remains available.
+- User-supplied NullBeat Monolith Desktop template contained 20 layers. 12 recognized kinds have supported renderers: artwork, title, artist, seek, time, play/pause, previous, next, quality, up next, close; 8 unsupported controls are skipped. The uploaded template is **not committed** to the repo.
+- Source code changes this milestone: `packages/web/src/lib/music/eclipse.ts`, `packages/web/tests/eclipse.test.ts`, `packages/web/src/app/music/browse.tsx`, `packages/web/src/app/music/page.tsx`, `packages/web/src/lib/music/player-template.ts`, `packages/web/src/app/music/studio-player.tsx`, `packages/web/src/app/music/player.tsx`, `packages/web/tests/player-template.test.ts`, CI test command, generated en-GB / POT catalogs. No changes to the video player, dependencies, installer identity or release flows. The temporary translation-write workflow was removed before final code build.
+- CI on exact code commit `9015af8e` ALL GREEN:
+  - Desktop Music Validation: https://github.com/G1NYU/AIO-KAI/actions/runs/45184552777 — typecheck, lint, 18/18 Vitest tests (12 Eclipse adapter/catalog, 3 saved sources, 3 Studio template), standalone web bundle passed.
+  - Web App Translations: https://github.com/G1NYU/AIO-KAI/actions/runs/45184553003 — passed.
+  - Build Addon: https://github.com/G1NYU/AIO-KAI/actions/runs/45184552826 — passed.
+  - Native AIO-KAI Windows Test Build: https://github.com/G1NYU/AIO-KAI/actions/runs/45184552649 — passed, including ZIP upload and package assembly.
+- Final Windows artifact: id `14822918453`, `AIO-KAI-Windows-x64-test`. Downloaded nested archive and independently checked: ZIP test clean, 30,757,940 bytes compressed, 204 entries, 8 DLLs, valid Windows PE MZ executable, `.portable`, `current/web/index.html`, `LICENSE`.
+- SHA-256 of extracted portable ZIP `de4104806ecb9939632d15395fce62bb7f03a4014752b292623f4b4c067a1077`.
+- **Windows interaction testing of milestone 4 remains outstanding**. User previously confirmed real audio and a debrid-capable addon worked on an earlier build; new catalogs and Studio import were only tested in CI/synthetic templates, not demonstrated on a physical Windows machine.
+
 ## Next tasks
-1. Windows smoke test for milestone 3: connect YouTube Music / UltraMax / Tido in Music, switch to Movies & TV and back, confirm source stays selected and music remains paused; test restart with and without the opt-in remember setting.
-2. Test the new mini/fullscreen player: real streaming, seek, volume, play/pause, next/previous, shuffle/repeat, queue selection, short and long songs, and keyboard/window controls at 1280x760.
-3. Add source-driven catalog shelves using Eclipse's documented manifest catalogs and GET /catalog/{id}, plus album/artist/playlist detail endpoints, with source-correct track IDs.
-4. Inspect a real Eclipse custom player/skin export before implementing JSON design import; the source-addon HTTP protocol is separate from Eclipse's custom UI/skin and audio-profile formats. Do not execute arbitrary remote skin code.
-5. Port Refract client, identity mapping, queued diary/watchlist sync and playback event thresholds from HarborCommunity/Harbor; test against AIOStreams' playback identity and progress.
-6. Finalize Windows installer identity, independent update feed, privacy/secret storage, licensing and release QA before any merge or stable release.
+1. Windows smoke test this artifact in its own extracted portable folder. Connect a music addon that advertises `catalog`, browse Discover shelves, open album/artist/playlist and play from collections; check queue and existing direct audio remain stable. Sources without catalog should show a clear fallback.
+2. With a song playing, expand the player and import the user-provided `NullBeat Monolith Desktop.eclipseplayer`; validate layout, layers, transport buttons, seek and fallback to default. Check scaling at 1280×760 and ultrawide.
+3. Investigate Eclipse official skin export format and audio profiles (e.g. AutoEQ); they are separate to `.eclipseplayer` and remain unsupported. Any EQ requires a real native/WEB Audio signal-processing chain and performance tests.
+4. Research DebridVault's current official integration/API and documented authentication; do not treat its root URL as a provider manifest or commit user tokens.
+5. Port Refract watch progress, offline-queue and watchlist client/identity logic from HarborCommunity/Harbor, with test coverage.
+6. Review encrypted or OS-backed secret storage for private addon URLs, installer identity, independent update feed, licensing and release QA before any merge to `main`.
 
 ## Risks
-- Durable "remember" explicitly saves tokenized provider URLs in localStorage without encryption. Defaults off; session-only sources remain in memory when switching sections. Native secure secret storage is desirable before broader distribution.
-- The player uses browser HTML audio for direct HTTPS audio; HLS/DASH, DRM, dedicated native audio, Last.fm and native EQ/audio profile support remain unimplemented.
-- Switching to Movies & TV pauses Music, but the video session itself is still recreated when navigating sections; video stop/resume behavior needs Windows testing.
-- The expanded-player UI and source persistence are verified by web tests and compiled Windows CI, **not yet by a physical Windows run of the latest artifact**.
-- AIOStreams desktop's default updater feed references upstream; portable ZIP is not a Velopack installer or public release.
-- The project remains on a draft feature branch; main is unchanged.
+- Private configured addon URLs can contain access tokens. Persistence is opt-in and currently plain localStorage, not OS encrypted. The repo and CI fixtures contain only synthetic URLs.
+- Catalogs are only available if the connected addon actually provides them; not all support album/artist/playlist detail endpoints. No automatic Apple Music fallback has been implemented.
+- Imported Eclipse player layouts are an allowlisted v4 subset, not pixel-perfect parity with Eclipse Studio, and do not provide live lyrics, output-device switching, favorites or audio processing.
+- Music still relies on direct HTTPS HTML Audio; HLS/DASH and DRM remain unsupported. Existing streaming playback stays untouched.
+- No native debrid-vault integration; only an official external settings link is included in Music.
+- AIOStreams' updater is upstream-bound; this is a portable **development build**, not a signed stable installer or official release.
+- No verification of new Windows GUI interactions yet; earlier user playback success applies to a previous compiled version.
+- Keep the draft feature branch separate from `main`.
 
 ## Commit rules
 Focused conventional commits, re-read each diff, no private secrets, no force push, no merging to main without tests and deployment-impact review.
