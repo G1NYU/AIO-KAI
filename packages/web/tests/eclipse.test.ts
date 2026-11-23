@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   addonEndpoint, loadAddon, loadStore, manifestUrlFor, parseManifest,
   parseStoreRegistry, parseStream, parseTracks, resolveTrack, safeHttpsUrl, searchAddon,
-} from './eclipse';
+} from '../src/lib/music/eclipse';
 
 afterEach(() => vi.unstubAllGlobals());
 

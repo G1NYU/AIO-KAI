@@ -176,6 +176,7 @@ async function getJson(url: string, signal?: AbortSignal): Promise<unknown> {
     signal,
     credentials: 'omit',
     redirect: 'error',
+    cache: 'no-store',
   });
   if (!response.ok) throw new Error('Request failed (HTTP ' + response.status + ').');
   return response.json() as Promise<unknown>;
