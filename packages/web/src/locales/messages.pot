@@ -1112,6 +1112,14 @@ msgid "Connect a music source"
 msgstr ""
 
 #: src/app/music/page.tsx
+msgid "Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device."
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Connected music sources"
+msgstr ""
+
+#: src/app/music/page.tsx
 msgid "Connected to {connectedName}"
 msgstr ""
 
@@ -1790,6 +1798,10 @@ msgstr ""
 
 #: src/app/settings/player.tsx
 msgid "ExoPlayer, which uses less battery, and mpv for a video this device has no decoder for."
+msgstr ""
+
+#: src/app/music/player.tsx
+msgid "Expand player"
 msgstr ""
 
 #: src/app/history/page.tsx
@@ -2588,6 +2600,10 @@ msgstr ""
 msgid "Minimise"
 msgstr ""
 
+#: src/app/music/player.tsx
+msgid "Minimise player"
+msgstr ""
+
 #: src/lib/format.ts
 msgid "Missing"
 msgstr ""
@@ -2693,7 +2709,7 @@ msgstr ""
 msgid "Music"
 msgstr ""
 
-#: src/app/music/page.tsx
+#: src/app/music/player.tsx
 msgid "Music player"
 msgstr ""
 
@@ -2780,6 +2796,7 @@ msgstr ""
 msgid "Next subtitles"
 msgstr ""
 
+#: src/app/music/player.tsx
 #: src/lib/input/keys.ts
 msgid "Next track"
 msgstr ""
@@ -3016,6 +3033,7 @@ msgid "Notifications"
 msgstr ""
 
 #: src/app/history/_components/sessions.tsx
+#: src/app/music/player.tsx
 msgid "Now playing"
 msgstr ""
 
@@ -3357,6 +3375,7 @@ msgid "Pattern"
 msgstr ""
 
 #: src/app/downloads/page.tsx
+#: src/app/music/player.tsx
 #: src/features/player/controls.tsx
 #: src/features/player/mini-player.tsx
 #: src/features/player/picture-in-picture.tsx
@@ -3467,6 +3486,7 @@ msgstr ""
 #: src/app/item/_components/header.tsx
 #: src/app/item/_components/no-details.tsx
 #: src/app/live-tv/_components/channel-details.tsx
+#: src/app/music/player.tsx
 #: src/components/media/hero.tsx
 #: src/components/media/item-menu.tsx
 #: src/components/media/random-pick.tsx
@@ -3749,6 +3769,7 @@ msgstr ""
 msgid "Previous month"
 msgstr ""
 
+#: src/app/music/player.tsx
 #: src/lib/input/keys.ts
 msgid "Previous track"
 msgstr ""
@@ -3910,6 +3931,10 @@ msgstr ""
 msgid "Released"
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "Remember my music sources on this device (stored locally without encryption)."
+msgstr ""
+
 #: src/app/settings/audio.tsx
 #: src/app/settings/subtitles.tsx
 msgid "Remember picks per show"
@@ -3977,6 +4002,10 @@ msgstr ""
 msgid "Remove from the list, keep the file"
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "Remove music source"
+msgstr ""
+
 #: src/app/servers/page.tsx
 msgid "Remove server"
 msgstr ""
@@ -3989,6 +4018,7 @@ msgstr ""
 msgid "Rename"
 msgstr ""
 
+#: src/app/music/player.tsx
 #: src/features/playlists/playlists.tsx
 msgid "Repeat"
 msgstr ""
@@ -4039,7 +4069,7 @@ msgstr ""
 msgid "Reset theme"
 msgstr ""
 
-#: src/app/music/page.tsx
+#: src/app/music/player.tsx
 msgid "Resolving audio…"
 msgstr ""
 
@@ -4282,6 +4312,10 @@ msgstr ""
 msgid "Seek bar previews"
 msgstr ""
 
+#: src/app/music/player.tsx
+msgid "Seek position"
+msgstr ""
+
 #: src/app/history/page.tsx
 #: src/lib/i18n.ts
 #: src/lib/input/actions.ts
@@ -4494,6 +4528,7 @@ msgstr ""
 msgid "Shows the time of day at the top of the player with the controls."
 msgstr ""
 
+#: src/app/music/player.tsx
 #: src/features/playlists/playlists.tsx
 msgid "Shuffle"
 msgstr ""
@@ -5612,6 +5647,7 @@ msgstr ""
 msgid "Up"
 msgstr ""
 
+#: src/app/music/player.tsx
 #: src/features/player/next-episode.tsx
 msgid "Up next"
 msgstr ""
@@ -5651,10 +5687,6 @@ msgstr ""
 #: src/app/settings/about.tsx
 #: src/components/shell/usage-stats.tsx
 msgid "Usage statistics"
-msgstr ""
-
-#: src/app/music/page.tsx
-msgid "Use a compatible Eclipse addon manifest. Private links stay in this session and are not saved to your account or AIOStreams configuration."
 msgstr ""
 
 #: src/app/music/page.tsx
@@ -5780,6 +5812,7 @@ msgstr ""
 msgid "Voice search failed"
 msgstr ""
 
+#: src/app/music/player.tsx
 #: src/features/player/volume.tsx
 msgid "Volume"
 msgstr ""
