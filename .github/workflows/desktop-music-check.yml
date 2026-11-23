@@ -40,8 +40,8 @@ jobs:
         run: pnpm -F @aiostreams/web typecheck
       - name: Lint web application
         run: pnpm -F @aiostreams/web lint
-      - name: Test Eclipse addon adapter
-        run: pnpm exec vitest run packages/web/tests/eclipse.test.ts
+      - name: Test Eclipse protocol and music source persistence
+        run: pnpm exec vitest run packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts
       - name: Build standalone desktop web assets
         run: pnpm -F @aiostreams/web build:standalone
       - name: Extract source catalogs for review
