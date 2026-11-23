@@ -419,6 +419,7 @@ export function ServersPage({
   const [servers, setServers] = React.useState(savedServers);
   const [adding, setAdding] = React.useState(servers.length === 0 || !!address);
   React.useEffect(() => {
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- product and protocol names
     document.title = currentHost().name === 'desktop' ? 'Tsugi' : 'AIOStreams';
   }, []);
 
