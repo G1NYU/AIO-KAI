@@ -6,7 +6,8 @@ import {
   BiRepeat, BiShuffle, BiSkipNext, BiSkipPrevious, BiVolumeFull,
 } from 'react-icons/bi';
 import type { EclipseTrack } from '@/lib/music/eclipse';
-import { parsePlayerTemplate, type EclipsePlayerTemplate } from '@/lib/music/player-template';
+import { parsePlayerTemplate } from '@/lib/music/player-template';
+import { readPlayerStage, savePlayerStage, type PlayerStageId } from '@/lib/music/player-layout';
 import { EclipseStudioStage } from './studio-player';
 import { NOCTURNE_STAGE } from '@/lib/music/nocturne-stage';
 import { JUNCTION_STAGE } from '@/lib/music/junction-stage';
@@ -40,7 +41,7 @@ export type MusicPlayerProps = {
   onQueue(index: number): void;
 };
 
-const buttonClass = 'inline-flex size-10 items-center justify-center rounded-full text-white/75 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-200';
+const buttonClass = 'inline-flex size-10 items-center justify-center rounded-none text-white/75 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-200';
 
 export function musicTime(value: number): string {
   if (!Number.isFinite(value) || value < 0) return '0:00';
@@ -49,7 +50,7 @@ export function musicTime(value: number): string {
 }
 
 function Artwork({ track, large = false }: { track: EclipseTrack; large?: boolean }) {
-  const size = large ? 'aspect-square w-full max-w-[410px] rounded-3xl shadow-2xl' : 'size-14 shrink-0 rounded-xl';
+  const size = large ? 'aspect-square w-full max-w-[410px] rounded-none' : 'size-14 shrink-0 rounded-none';
   return track.artworkURL
     ? <img src={track.artworkURL} alt="" referrerPolicy="no-referrer"
         className={`${size} border border-white/10 bg-white/[0.05] object-cover`} />
@@ -72,7 +73,7 @@ function Transport({ p, palette, large = false }: { p: MusicPlayerProps; palette
       </button>
       <button type="button" disabled={p.loading} onClick={p.onToggle}
         aria-label={p.paused ? t`Play` : t`Pause`}
-        className={`${large ? 'size-16' : 'size-11'} mx-2 inline-flex items-center justify-center rounded-full transition-transform hover:scale-105 disabled:opacity-50`}
+        className={`${large ? 'size-16' : 'size-11'} mx-2 inline-flex items-center justify-center rounded-none transition-transform hover:scale-105 disabled:opacity-50`}
         style={{backgroundColor: palette.accent, color: palette.accentText}}>
         {p.paused
           ? <BiPlay aria-hidden className={large ? 'text-4xl' : 'text-2xl'} />
@@ -107,10 +108,28 @@ function Timeline({ p, palette }: { p: MusicPlayerProps; palette: PlayerPalette 
 }
 
 export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
-  const [template, setTemplate] = React.useState<EclipsePlayerTemplate | null>(null);
+  const [initialStage] = React.useState(readPlayerStage);
+  const [stageId, setStageId] = React.useState<PlayerStageId>(initialStage.id);
+  const [importedTemplate, setImportedTemplate] = React.useState(initialStage.template);
+  const [importedJson, setImportedJson] = React.useState<unknown>(initialStage.imported);
   const [importError, setImportError] = React.useState('');
   const [theme, setTheme] = React.useState<PlayerThemeId>(readPlayerTheme);
   const palette = PLAYER_PALETTES[theme];
+  const template = stageId === 'junction' ? JUNCTION_STAGE
+    : stageId === 'nocturne' ? NOCTURNE_STAGE
+    : stageId === 'imported' ? importedTemplate : null;
+
+  React.useEffect(() => {
+    document.documentElement.dataset.tsugiTheme = theme;
+    return () => { delete document.documentElement.dataset.tsugiTheme; };
+  }, [theme]);
+
+  function changeStage(next: PlayerStageId) {
+    if (next === 'imported' && !importedTemplate) return;
+    setStageId(next);
+    savePlayerStage(next, importedJson);
+    setImportError('');
+  }
 
   function changeTheme(value: PlayerThemeId) {
     setTheme(value);
@@ -126,8 +145,12 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
       return;
     }
     try {
-      const result = parsePlayerTemplate(JSON.parse(await file.text()) as unknown);
-      setTemplate(result);
+      const json = JSON.parse(await file.text()) as unknown;
+      const result = parsePlayerTemplate(json);
+      setImportedJson(json);
+      setImportedTemplate(result);
+      setStageId('imported');
+      savePlayerStage('imported', json);
       setImportError('');
     } catch (reason) {
       setImportError(reason instanceof Error ? reason.message : t`This Eclipse player file could not be imported.`);
@@ -152,7 +175,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
         style={{backgroundColor: palette.surface, borderColor: palette.border}}>
         <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-2.5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,560px)_minmax(0,1fr)] lg:px-9">
           <button type="button" onClick={() => p.onExpanded(true)}
-            className="flex min-w-0 max-w-[420px] items-center gap-3 rounded-lg px-1 text-left hover:bg-white/[0.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60">
+            className="flex min-w-0 max-w-[420px] items-center gap-3 rounded-none px-1 text-left hover:bg-white/[0.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60">
             <Artwork track={track} />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold text-white">{track.title}</span>
@@ -195,42 +218,34 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                 <p className="mt-1 text-sm text-white/50">{p.sourceName}</p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <button type="button" onClick={() => {
-                  setTemplate(JUNCTION_STAGE);
-                  changeTheme('nightfall');
-                  setImportError('');
-                }}
-                  className="rounded-full border border-white/15 px-3 py-2 text-xs text-white/80 hover:bg-white/10">
-                  <Trans>Junction layout</Trans>
-                </button>
-                <button type="button" onClick={() => {
-                  setTemplate(NOCTURNE_STAGE);
-                  changeTheme('nightfall');
-                  setImportError('');
-                }}
-                  className="rounded-full border border-white/15 px-3 py-2 text-xs text-white/80 hover:bg-white/10">
-                  <Trans>Nocturne layout</Trans>
-                </button>
+                <label className="flex items-center gap-2 text-xs" style={{color:palette.muted}}>
+                  <Trans>Layout</Trans>
+                  <select aria-label={t`Player layout`} value={stageId}
+                    onChange={(event) => changeStage(event.target.value as PlayerStageId)}
+                    className="min-w-32 rounded-none border px-3 py-2 text-xs"
+                    style={{backgroundColor: palette.panel, borderColor: palette.border, color:palette.foreground}}>
+                    <option value="default">{t`Default`}</option>
+                    <option value="junction">{t`Junction`}</option>
+                    <option value="nocturne">{t`Nocturne`}</option>
+                    {importedTemplate && <option value="imported">
+                      {importedTemplate.name || t`Imported Studio layout`}
+                    </option>}
+                  </select>
+                </label>
                 <label className="flex items-center gap-2 text-xs text-white/60">
                   <Trans>Player theme</Trans>
                   <select value={theme} onChange={(event) => changeTheme(event.target.value as PlayerThemeId)}
-                    className="rounded-lg border px-3 py-2 text-xs text-white"
+                    className="rounded-none border px-3 py-2 text-xs text-white"
                     style={{backgroundColor: palette.panel, borderColor: palette.border}}>
                     {(Object.keys(PLAYER_PALETTES) as PlayerThemeId[]).map((id) => (
                       <option key={id} value={id}>
-                        {id === 'aio-dark' ? t`Tsugi Dark` : id === 'nightfall' ? t`Nightfall` : t`Carbon`}
+                        {id === 'aio-dark' ? t`Ink` : id === 'nightfall' ? t`Nightfall` : t`Carbon`}
                       </option>
                     ))}
                   </select>
                 </label>
-                {template && (
-                  <button type="button" onClick={() => setTemplate(null)}
-                    className="rounded-full border border-white/15 px-3 py-2 text-xs text-white/70 hover:bg-white/10">
-                    <Trans>Default player</Trans>
-                  </button>
-                )}
-                <label className="cursor-pointer rounded-full border border-white/15 px-4 py-2 text-xs text-white/80 hover:bg-white/10">
-                  <Trans>Import Eclipse player</Trans>
+                <label className="cursor-pointer rounded-none border border-white/15 px-4 py-2 text-xs text-white/80 hover:bg-white/10">
+                  <Trans>Import Studio layout</Trans>
                   <input type="file" accept=".eclipseplayer,application/json" className="sr-only"
                     onChange={(event) => void importLayout(event)} />
                 </label>
@@ -241,7 +256,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
             {importError && <p role="alert" className="mt-4 text-sm text-amber-200">{importError}</p>}
             {template ? (
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center py-3">
-                <EclipseStudioStage p={p} template={template} />
+                <EclipseStudioStage p={p} template={template} palette={palette} />
                 {(p.loading || p.error) && (
                   <p role={p.error ? 'alert' : 'status'} className="mt-3 text-center text-sm text-amber-200">
                     {p.error || <Trans>Resolving audio…</Trans>}
@@ -251,7 +266,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
             ) : (
             <div className="grid flex-1 items-center gap-10 py-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(300px,0.7fr)] xl:gap-16">
               <div className="flex flex-col items-center gap-8">
-                <div className="w-full max-w-[410px] rounded-3xl border p-2" style={{backgroundColor:palette.panel,borderColor:palette.border}}>
+                <div className="w-full max-w-[410px] rounded-none border p-2" style={{backgroundColor:palette.panel,borderColor:palette.border}}>
                   <Artwork track={track} large />
                 </div>
                 <div className="w-full max-w-[460px] text-center">
@@ -276,7 +291,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                   </p>
                 )}
               </div>
-              <aside className="w-full self-stretch rounded-2xl border p-5 sm:p-7"
+              <aside className="w-full self-stretch rounded-none border p-5 sm:p-7"
                 style={{backgroundColor:palette.panel,borderColor:palette.border}}>
                 <div className="mb-5 flex items-center gap-3">
                   <BiListUl aria-hidden className="text-2xl" style={{color: palette.accent}} />
@@ -288,11 +303,11 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                     <li key={item.id + ':' + index}>
                       <button type="button" onClick={() => p.onQueue(index)}
                         aria-current={index === p.index ? 'true' : undefined}
-                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-white/10 ${index === p.index ? 'bg-white/10 text-white' : 'text-white/75'}`}>
+                        className={`flex w-full items-center gap-3 rounded-none px-3 py-2 text-left transition-colors hover:bg-white/10 ${index === p.index ? 'bg-white/10 text-white' : 'text-white/75'}`}>
                         <span className="w-5 shrink-0 text-xs tabular-nums text-white/40">{index + 1}</span>
                         {item.artworkURL
                           ? <img src={item.artworkURL} alt="" referrerPolicy="no-referrer"
-                              className="size-10 rounded-lg object-cover" loading="lazy" />
+                              className="size-10 rounded-none object-cover" loading="lazy" />
                           : <BiDisc aria-hidden className="text-2xl" />}
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-medium">{item.title}</span>

@@ -3,6 +3,7 @@ import { storage } from '../storage';
 export type PlayerThemeId = 'aio-dark' | 'nightfall' | 'carbon';
 
 export type PlayerPalette = {
+  foreground: string;
   surface: string;
   canvas: string;
   panel: string;
@@ -14,16 +15,16 @@ export type PlayerPalette = {
 
 export const PLAYER_PALETTES: Record<PlayerThemeId, PlayerPalette> = {
   'aio-dark': {
-    surface: '#12121B', canvas: '#0B0B11', panel: '#1C1B27',
-    border: '#343142', accent: '#BDD5F1', accentText: '#12131B', muted: '#A8A3BC',
+    foreground: '#E8EDF0', surface: '#101418', canvas: '#090D10', panel: '#181E22',
+    border: '#343D42', accent: '#BDD8E5', accentText: '#0E1518', muted: '#9BAFB8',
   },
   nightfall: {
-    surface: '#171420', canvas: '#0d0b12', panel: '#211c2b',
-    border: '#342d40', accent: '#d8cff4', accentText: '#1b1624', muted: '#b2a9bf',
+    foreground: '#EBE8F0', surface: '#14121A', canvas: '#0C0B10', panel: '#1C1923',
+    border: '#3A3542', accent: '#C4B9D7', accentText: '#16121C', muted: '#AEA5BE',
   },
   carbon: {
-    surface: '#13171b', canvas: '#090d10', panel: '#1a2127',
-    border: '#303941', accent: '#b9d1e4', accentText: '#101820', muted: '#a8b7c3',
+    foreground: '#E0E6E8', surface: '#121516', canvas: '#0B0E0F', panel: '#1B2022',
+    border: '#3A4447', accent: '#B3C9C9', accentText: '#0E1516', muted: '#9FADAF',
   },
 };
 
