@@ -12,6 +12,43 @@ export type EclipseStoreEntry = {
   manifestUrl?: string;
 };
 
+export type EclipseItemType = 'track' | 'album' | 'artist' | 'playlist';
+
+export type EclipseCatalogDefinition = {
+  id: string;
+  type: EclipseItemType;
+  name: string;
+};
+
+export type EclipseCatalogItem = {
+  id: string;
+  type: EclipseItemType;
+  title: string;
+  artist?: string;
+  album?: string;
+  artworkURL?: string;
+  durationMs?: number;
+  isrc?: string;
+  year?: string;
+};
+
+export type EclipseSearchResults = {
+  tracks: EclipseTrack[];
+  albums: EclipseCatalogItem[];
+  artists: EclipseCatalogItem[];
+  playlists: EclipseCatalogItem[];
+};
+
+export type EclipseDetail = {
+  id: string;
+  title: string;
+  description?: string;
+  artist?: string;
+  artworkURL?: string;
+  tracks: EclipseTrack[];
+  albums: EclipseCatalogItem[];
+};
+
 export type EclipseManifest = {
   id: string;
   name: string;
@@ -20,6 +57,7 @@ export type EclipseManifest = {
   icon?: string;
   resources: string[];
   types?: string[];
+  catalogs?: EclipseCatalogDefinition[];
 };
 
 export type EclipseTrack = {
@@ -107,6 +145,94 @@ export function manifestUrlFor(input: string): string {
   return url.href;
 }
 
+function itemType(input: unknown): EclipseItemType | undefined {
+  return input === 'track' || input === 'album' || input === 'artist' || input === 'playlist'
+    ? input : undefined;
+}
+
+export function parseCatalogDefinitions(input: unknown): EclipseCatalogDefinition[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  return input.flatMap((raw): EclipseCatalogDefinition[] => {
+    if (!record(raw)) return [];
+    const id = asString(raw.id);
+    const type = itemType(raw.type);
+    const name = asString(raw.name);
+    if (!id || !type || !name || seen.has(id)) return [];
+    seen.add(id);
+    return [{ id, type, name }];
+  }).slice(0, 40);
+}
+
+function catalogItem(raw: unknown, fallback?: EclipseItemType): EclipseCatalogItem | null {
+  if (!record(raw)) return null;
+  const type = itemType(raw.type) ?? fallback;
+  const id = asString(raw.id);
+  const title = asString(raw.title) ?? (type === 'artist' ? asString(raw.name) : undefined);
+  if (!type || !id || !title) return null;
+  return {
+    id, type, title,
+    artist: asString(raw.artist) ?? asString(raw.creator),
+    album: asString(raw.album),
+    artworkURL: safeHttpsUrl(raw.artworkURL),
+    durationMs: typeof raw.durationMs === 'number' && raw.durationMs >= 0
+      ? raw.durationMs : undefined,
+    isrc: asString(raw.isrc),
+    year: typeof raw.year === 'number' ? String(raw.year) : asString(raw.year),
+  };
+}
+
+export function parseCatalogItems(value: unknown, type: EclipseItemType): EclipseCatalogItem[] {
+  if (!record(value) || !Array.isArray(value.items)) {
+    throw new Error('The addon returned an invalid music catalog.');
+  }
+  return value.items.flatMap((raw): EclipseCatalogItem[] => {
+    const item = catalogItem(raw, type);
+    return item && item.type === type ? [item] : [];
+  });
+}
+
+export function parseSearchResults(value: unknown): EclipseSearchResults {
+  if (!record(value)) throw new Error('The addon returned invalid search results.');
+  const parseGroup = (key: string, type: EclipseItemType): EclipseCatalogItem[] => {
+    const group = value[key];
+    if (group === undefined) return [];
+    if (!Array.isArray(group)) throw new Error('The addon returned invalid search results.');
+    return group.flatMap((raw): EclipseCatalogItem[] => {
+      const item = catalogItem(raw, type);
+      return item && item.type === type ? [item] : [];
+    });
+  };
+  return {
+    tracks: parseTracks(value),
+    albums: parseGroup('albums', 'album'),
+    artists: parseGroup('artists', 'artist'),
+    playlists: parseGroup('playlists', 'playlist'),
+  };
+}
+
+export function parseDetail(value: unknown, type: Exclude<EclipseItemType, 'track'>): EclipseDetail {
+  if (!record(value)) throw new Error('The addon returned an invalid music detail page.');
+  const id = asString(value.id);
+  const title = asString(value.title) ?? asString(value.name);
+  if (!id || !title) throw new Error('The addon returned an invalid music detail page.');
+  const trackKey = type === 'artist' ? 'topTracks' : 'tracks';
+  const tracks = parseTracks({ tracks: value[trackKey] ?? [] });
+  const albums = type === 'artist' && Array.isArray(value.albums)
+    ? value.albums.flatMap((raw): EclipseCatalogItem[] => {
+      const item = catalogItem(raw, 'album');
+      return item?.type === 'album' ? [item] : [];
+    })
+    : [];
+  return {
+    id, title,
+    description: asString(value.description) ?? asString(value.bio),
+    artist: asString(value.artist) ?? asString(value.creator),
+    artworkURL: safeHttpsUrl(value.artworkURL),
+    tracks, albums,
+  };
+}
+
 export function parseManifest(value: unknown): EclipseManifest {
   if (!record(value)) throw new Error('The addon did not return a manifest.');
   const id = asString(value.id);
@@ -126,6 +252,7 @@ export function parseManifest(value: unknown): EclipseManifest {
     types: Array.isArray(value.types)
       ? value.types.filter((t): t is string => typeof t === 'string')
       : undefined,
+    catalogs: parseCatalogDefinitions(value.catalogs),
   };
 }
 
@@ -215,4 +342,41 @@ export async function resolveTrack(input: string, track: EclipseTrack, signal?: 
   return parseStream(await getJson(
     addonEndpoint(input, 'stream/' + encodeURIComponent(track.id)), signal
   ));
+}
+
+/** Catalog IDs are addon-owned; never resolve them against another provider. */
+export async function loadCatalog(
+  manifestUrl: string, catalog: EclipseCatalogDefinition, skip = 0, signal?: AbortSignal
+): Promise<EclipseCatalogItem[]> {
+  const url = new URL(addonEndpoint(manifestUrl, 'catalog/' + encodeURIComponent(catalog.id)));
+  url.searchParams.set('skip', String(Math.max(0, Math.floor(skip / 100) * 100)));
+  return parseCatalogItems(await getJson(url.href, signal), catalog.type);
+}
+
+export async function loadDetail(
+  manifestUrl: string, item: EclipseCatalogItem, signal?: AbortSignal
+): Promise<EclipseDetail> {
+  if (item.type === 'track') throw new Error('Tracks do not have a detail endpoint.');
+  const endpoint = addonEndpoint(manifestUrl, item.type + '/' + encodeURIComponent(item.id));
+  return parseDetail(await getJson(endpoint, signal), item.type);
+}
+
+export async function searchAddonAll(
+  manifestUrl: string, query: string, signal?: AbortSignal
+): Promise<EclipseSearchResults> {
+  const url = new URL(addonEndpoint(manifestUrl, 'search'));
+  url.searchParams.set('q', query);
+  return parseSearchResults(await getJson(url.href, signal));
+}
+
+/** Catalog metadata is in milliseconds; the HTML audio player expects seconds. */
+export function catalogTrack(item: EclipseCatalogItem): EclipseTrack {
+  if (item.type !== 'track') throw new Error('This catalog item is not a track.');
+  return {
+    id: item.id, title: item.title, artist: item.artist ?? '',
+    album: item.album,
+    artworkURL: item.artworkURL,
+    duration: item.durationMs === undefined ? undefined : item.durationMs / 1000,
+    isrc: item.isrc,
+  };
 }

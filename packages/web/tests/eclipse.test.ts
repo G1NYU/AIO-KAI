@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   addonEndpoint, loadAddon, loadStore, manifestUrlFor, parseManifest,
   parseStoreRegistry, parseStream, parseTracks, resolveTrack, safeHttpsUrl, searchAddon,
+  parseCatalogItems, catalogTrack, loadCatalog, loadDetail, parseDetail, parseSearchResults,
 } from '../src/lib/music/eclipse';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -103,6 +104,68 @@ describe('Eclipse public addon compatibility', () => {
     }));
     await expect(loadAddon('https://provider.example/private/manifest.json'))
       .rejects.toThrow('Cannot reach the addon.');
+  });
+
+  it('accepts named catalog shelves and safely rejects malformed entries', () => {
+    const manifest = parseManifest({
+      id: 'my.catalog', name: 'My Catalog', version: '1.0',
+      resources: ['search', 'stream', 'catalog'],
+      catalogs: [
+        { id: 'hits', type: 'track', name: 'Top Hits' },
+        { id: 'albums', type: 'album', name: 'Albums' },
+        { id: 'hits', type: 'track', name: 'Duplicate' },
+        { id: 'bad', type: 'html', name: 'Unsafe' },
+      ],
+    });
+    expect(manifest.catalogs?.map((row) => row.id)).toEqual(['hits', 'albums']);
+    expect(parseCatalogItems({
+      items: [
+        { id: 'song', type: 'track', title: 'Song', artist: 'Artist', durationMs: 180000 },
+        { id: 'album', type: 'album', title: 'Album' },
+      ],
+    }, 'track')).toHaveLength(1);
+    expect(catalogTrack(parseCatalogItems({items: [{id:'song',type:'track',title:'Song',artist:'Artist',durationMs:180000}]}, 'track')[0]).duration).toBe(180);
+  });
+
+  it('keeps catalog requests scoped to source-owned ids and tokenized URLs', async () => {
+    const requests: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      requests.push(url);
+      if (url.includes('/catalog/')) return new Response(JSON.stringify({
+        items: [{ id: 't-1', type: 'track', title: 'Track', artist: 'A', durationMs: 125000 }],
+      }));
+      return new Response(JSON.stringify({
+        id: 'album/1', title: 'Album', tracks: [{ id: 't-1', title: 'Track', artist: 'A' }],
+      }));
+    }));
+    const base = 'https://provider.test/private/manifest.json?quality=flac';
+    const catalog = {id:'top/mixes',type:'track' as const,name:'Top'};
+    const items = await loadCatalog(base, catalog, 120);
+    expect(items[0].id).toBe('t-1');
+    const result = await loadDetail(base, { id: 'album/1', type: 'album', title: 'Album' });
+    expect(result.tracks[0].id).toBe('t-1');
+    expect(requests[0]).toBe('https://provider.test/private/catalog/top%2Fmixes?quality=flac&skip=100');
+    expect(requests[1]).toBe('https://provider.test/private/album/album%2F1?quality=flac');
+  });
+
+  it('parses all four Eclipse search result groups and artist details', () => {
+    const result = parseSearchResults({
+      tracks: [{ id: 'one', title: 'Track', artist: 'Artist' }],
+      albums: [{ id: 'album', title: 'Album', artist: 'Artist' }],
+      artists: [{ id: 'artist', name: 'Artist' }],
+      playlists: [{ id: 'playlist', title: 'Playlist', creator: 'A' }],
+    });
+    expect(result.tracks).toHaveLength(1);
+    expect(result.albums[0].type).toBe('album');
+    expect(result.artists[0].title).toBe('Artist');
+    expect(result.playlists[0].artist).toBe('A');
+    const detail = parseDetail({
+      id:'artist',name:'Artist',
+      topTracks:[{id:'one',title:'Song',artist:'Artist'}],
+      albums:[{id:'album',title:'Album',artist:'Artist'}],
+    }, 'artist');
+    expect(detail.tracks).toHaveLength(1);
+    expect(detail.albums).toHaveLength(1);
   });
 
 });
