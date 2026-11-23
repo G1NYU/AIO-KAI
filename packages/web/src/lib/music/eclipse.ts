@@ -252,7 +252,7 @@ export function parseManifest(value: unknown): EclipseManifest {
     types: Array.isArray(value.types)
       ? value.types.filter((t): t is string => typeof t === 'string')
       : undefined,
-    catalogs: parseCatalogDefinitions(value.catalogs),
+    ...(Array.isArray(value.catalogs) ? { catalogs: parseCatalogDefinitions(value.catalogs) } : {}),
   };
 }
 
