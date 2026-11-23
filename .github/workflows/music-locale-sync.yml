@@ -1,0 +1,48 @@
+name: Sync Music Source Catalogs (one-time)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/music-locale-sync.yml'
+
+jobs:
+  sync:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feature/desktop-music-entry'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: true
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -F @aiostreams/core build
+      - run: pnpm -F @aiostreams/web i18n:extract
+      - name: Commit source catalogs only
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(packages/web/src/locales/en-GB.po packages/web/src/locales/messages.pot)
+          git add -- "${files[@]}"
+          if git diff --cached --quiet -- "${files[@]}"; then
+            echo 'Source catalogs are current; nothing to commit.'
+            exit 0
+          fi
+          actual="$(git diff --cached --name-only)"
+          expected="$(printf '%s\n' "${files[@]}" | sort)"
+          if [ "$(printf '%s\n' "$actual" | sort)" != "$expected" ]; then
+            echo 'Refusing to commit unexpected source files.' >&2
+            exit 1
+          fi
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore(i18n): sync source catalogs for Music'
+          git push origin HEAD:refs/heads/feature/desktop-music-entry
