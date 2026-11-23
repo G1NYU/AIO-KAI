@@ -443,7 +443,7 @@ function Session({
               {t`Music`}
             </button>
           )}
-          {!waiting && <SplashEnd />
+          {!waiting && <SplashEnd />}
         </motion.div>
       </AnimatePresence>
     </ServerInfoProvider>

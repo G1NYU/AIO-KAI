@@ -20,6 +20,7 @@ export function MusicPage({
   const [manifestInput, setManifestInput] = React.useState('');
   const [activeUrl, setActiveUrl] = React.useState('');
   const [activeAddon, setActiveAddon] = React.useState<EclipseManifest | null>(null);
+  const connectedName = activeAddon?.name ?? '';
   const [connectError, setConnectError] = React.useState('');
   const [connecting, setConnecting] = React.useState(false);
   const [query, setQuery] = React.useState('');
@@ -151,7 +152,7 @@ export function MusicPage({
           </form>
           {connectError && <p role="alert" className="text-sm text-red-300">{connectError}</p>}
           {activeAddon && <p role="status" className="text-sm text-green-200">
-            <Trans>Connected to {activeAddon.name}</Trans>
+            <Trans>Connected to {connectedName}</Trans>
           </p>}
         </section>
 
