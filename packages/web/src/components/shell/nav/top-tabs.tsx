@@ -8,6 +8,8 @@ import type { SidebarItem } from '@aiostreams/ui/shared/sidebar';
 import { cn } from '@aiostreams/ui/core/styling';
 import type { TopBar } from '@/lib/settings';
 import { BrandLogo } from '@/components/brand-logo';
+import { TsugiBrand } from '@/components/tsugi-brand';
+import { currentHost } from '@/lib/hosts';
 import { GlassSurface } from '@/components/shell/glass-surface';
 import { useScrollAway } from '@/components/shell/page-scroll';
 import { HistoryButtons } from '@/components/shell/history-buttons';
@@ -71,7 +73,9 @@ export function TopTabs({
   };
   const logo = (
     <div className="flex flex-none items-center gap-3">
-      <BrandLogo className="h-8 w-6 flex-none object-contain" />
+      {currentHost().name === 'desktop'
+        ? <TsugiBrand markOnly />
+        : <BrandLogo className="h-8 w-6 flex-none object-contain" />}
       {!tv && <HistoryButtons top />}
     </div>
   );

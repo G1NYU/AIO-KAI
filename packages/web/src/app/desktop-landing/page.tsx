@@ -1,7 +1,8 @@
 import { Trans } from '@lingui/react/macro';
-import { BiFilm, BiMusic } from 'react-icons/bi';
+import { BiFilm, BiMusic, BiRightArrowAlt } from 'react-icons/bi';
 import { TsugiBrand } from '@/components/tsugi-brand';
 
+/** The two media environments form a joined whole without duplicate chrome. */
 export function DesktopLandingPage({
   openVideo,
   openMusic,
@@ -10,48 +11,48 @@ export function DesktopLandingPage({
   openMusic(): void;
 }) {
   return (
-    <main
-      data-page="desktop-landing"
-      className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center gap-12 bg-[#0B0B11] px-6 py-20 text-[#E9EAF2]"
-    >
-      <header className="max-w-3xl space-y-4">
+    <main data-page="desktop-landing"
+      className="mx-auto flex min-h-screen max-w-[1440px] flex-col justify-center bg-[#090D10] px-8 py-20 text-[#E8EDF0] md:px-16">
+      <header className="mb-20 max-w-3xl">
         <TsugiBrand />
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#AAA4BD]">
-          <Trans>Connected by choice</Trans>
+        <p className="mt-12 text-xs uppercase tracking-[0.3em] text-[#9BAFB8]">
+          <Trans>Separate worlds. One place.</Trans>
         </p>
-        <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-          <Trans>Everything you love, together.</Trans>
+        <h1 className="mt-6 text-5xl font-medium leading-[1.15] tracking-tight md:text-7xl">
+          <Trans>Everything connects.</Trans>
         </h1>
-        <p className="text-base text-[--muted]">
-          <Trans>Tsugi connects your music and video addons without tying their accounts together.</Trans>
+        <p className="mt-6 max-w-xl text-base leading-7 text-[#9BAFB8]">
+          <Trans>Music and moving pictures, joined without binding their accounts together.</Trans>
         </p>
       </header>
-      <div className="grid gap-4 md:grid-cols-2">
-        <button
-          type="button"
-          onClick={openVideo}
-          className="group flex min-h-56 flex-col items-start justify-between rounded-3xl border border-[#302E3B] bg-[#171620] p-8 text-start transition-colors hover:border-[#465269] hover:bg-[#20202B] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-        >
-          <BiFilm aria-hidden className="text-4xl text-[#BDD5F1]" />
-          <span className="space-y-2">
-            <span className="block text-2xl font-semibold"><Trans>Movies & TV</Trans></span>
-            <span className="block text-sm text-[--muted]">
-              <Trans>Open your existing video configuration and its addons.</Trans>
-            </span>
-          </span>
+      <div className="grid border-t border-[#343D42] md:grid-cols-2">
+        <button type="button" onClick={openVideo}
+          className="group flex min-h-64 flex-col justify-between border-b border-[#343D42] px-1 py-8 text-left transition-colors hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#BDD8E5] md:mr-8">
+          <div className="flex items-center justify-between">
+            <span className="text-xs tabular-nums tracking-widest text-[#9BAFB8]">01</span>
+            <BiFilm aria-hidden className="text-2xl text-[#BDD8E5]" />
+          </div>
+          <div className="flex items-end justify-between">
+            <div>
+              <h2 className="text-3xl font-medium"><Trans>Movies & TV</Trans></h2>
+              <p className="mt-3 text-sm text-[#9BAFB8]"><Trans>Enter your video library and connected sources.</Trans></p>
+            </div>
+            <BiRightArrowAlt aria-hidden className="text-3xl text-[#BDD8E5] transition-transform group-hover:translate-x-1" />
+          </div>
         </button>
-        <button
-          type="button"
-          onClick={openMusic}
-          className="group flex min-h-56 flex-col items-start justify-between rounded-3xl border border-[#302E3B] bg-[#171620] p-8 text-start transition-colors hover:border-[#465269] hover:bg-[#20202B] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-        >
-          <BiMusic aria-hidden className="text-4xl text-[#AE9FD9]" />
-          <span className="space-y-2">
-            <span className="block text-2xl font-semibold"><Trans>Music</Trans></span>
-            <span className="block text-sm text-[--muted]">
-              <Trans>Enter the music space without a streaming-server account.</Trans>
-            </span>
-          </span>
+        <button type="button" onClick={openMusic}
+          className="group flex min-h-64 flex-col justify-between border-b border-[#343D42] px-1 py-8 text-left transition-colors hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#BDD8E5] md:ml-8">
+          <div className="flex items-center justify-between">
+            <span className="text-xs tabular-nums tracking-widest text-[#9BAFB8]">02</span>
+            <BiMusic aria-hidden className="text-2xl text-[#BDD8E5]" />
+          </div>
+          <div className="flex items-end justify-between">
+            <div>
+              <h2 className="text-3xl font-medium"><Trans>Music</Trans></h2>
+              <p className="mt-3 text-sm text-[#9BAFB8]"><Trans>Listen through your independent music addons.</Trans></p>
+            </div>
+            <BiRightArrowAlt aria-hidden className="text-3xl text-[#BDD8E5] transition-transform group-hover:translate-x-1" />
+          </div>
         </button>
       </div>
     </main>
