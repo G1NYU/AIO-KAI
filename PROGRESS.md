@@ -85,12 +85,33 @@ Build a premium Windows streaming app on AIOStreams Desktop while preserving AIO
 - Portable ZIP SHA-256: `95841fa4bee262f67032489be9e5ed790f8779f5aa6baf02d72b7b1d4b87999c`.
 - **Windows GUI testing of new default palette, truly-centered bar, Nocturne stage and ListenBrainz API/CORS remains outstanding.** User previously confirmed real music playback, provider switching and Studio template imports on an older build.
 
+## Standalone Eclipse Studio player file (2026-11-23)
+- Created **Tsugi — Nocturne Desktop.eclipseplayer** as a real standalone JSON export using the user-supplied `NullBeat Monolith Desktop.eclipseplayer` source shape, not merely an internal AIO-KAI preset.
+- Matches the original's `schemaVersion: 4`, `formFactor: desktop`, `templateRevision: 2` and `requiredCapabilities.desktopStage` fields. Uses a new template ID, 12 supported functional player layer kinds, native layer transforms/appearance fields, a flat near-black purple background and muted blue-violet detail, with no imported preview URL or personalized addon tokens.
+- The standalone file was delivered as `Tsugi-Nocturne-Desktop.eclipseplayer` in the conversation. JSON round-trip, layer ID uniqueness, supported-kind set and normalized coordinates checked against the exact original upload. **Actual import into the Eclipse website/desktop Studio and visual appearance remain to be tested by the user.** This file has not yet been committed to the repo and does not change AIO-KAI's code.
+
+## Planned project rebrand — Tsugi (not yet implemented)
+**Brand:** `Tsugi` — the user's chosen name, referring to connecting and patching together the separate addon ecosystems for Movies & TV and Music. Replace consumer-facing AIO-KAI/AIOStreams-branded shell elements with an original Tsugi identity. Do not remove upstream acknowledgments, licensing, or provider names.
+
+**Sequence:** complete current music-player smoke tests → implement/verify native Refract → launch the Tsugi rebrand **before the first public stable release**. Treat this as a release identity migration with regression checks, not a bulk text replacement.
+
+**Implementation checklist:**
+1. **Brand audit:** inventory current `AIO-KAI`, `AIOStreams`, AIO icon, title, logo, splash, onboarding, Windows title bar, About/settings, taskbar icon, installer/shortcut, README, metadata, CI artifacts, website and updater/feed references. Distinguish upstream/internal protocol identifiers from user-facing branding.
+2. **Design identity:** design a distinctive Tsugi wordmark and app symbol communicating linked/joined media sources; original vector master; high contrast and legible at 16/24/32px; provide light/dark app assets and Windows `.ico` multi-resolution variants. Maintain AIO Dark/Nocturne aesthetic without reusing upstream brand graphics. No new visual assets have been approved or produced yet.
+3. **UI replace:** replace visible app logo/brand text in shell, navigation, welcome/configuration screens, title bar, player, settings/About, empty states and desktop notifications. Ensure the video and music modules feel like one Tsugi product; preserve working streams, routing, provider search, Refract, accessibility and performance.
+4. **Packaging/distribution:** update product display name, executable/installer naming, Windows taskbar and shortcut resources, AppUserModelID, installer publisher/product metadata, update feed, build artifact labels and release notes. Keep the upstream provider's API names where technically necessary. Review licensing/attribution, update signing and the new repository/site naming before changing any public URLs.
+5. **Compatibility and migration:** design migration/aliases for existing portable configuration, tokens, watchlists, opt-in saved music sources, Refract credentials and old update/install IDs. Do not silently strand old installs, discard user data, or switch an update endpoint without a tested migration path.
+6. **Verification and launch:** icon scaling and contrast at 16–256px, window title/notification/shortcut audits, fresh and upgrade installs on Windows, uninstall behavior, no autoplay/provider regressions, stable CI build and dedicated release checklist. Check for third-party name/trademark collisions before public distribution.
+
+**Non-goals for this roadmap-only update:** no code/product/installer IDs changed yet; no live app rename, GitHub repository rename, icon replacement or distribution migration performed. Keep the current draft branch stable until those changes are implemented and tested.
+
 ## Next tasks
 1. Windows smoke test this Milestone 5 portable build in a **new folder**. Open UltraMax (no native shelves), verify ListenBrainz charts appear and a chart selection launches a provider search, then choose a correct track to play. Confirm NullBeat's native catalogs still display too. If charts do not load, inspect browser/WebView CORS and API response before changing code.
 2. With a song playing, verify left/right-centered bottom bar at 1280×760 and ultrawide. Test the default AIO Dark, Nightfall and Carbon palettes; expand and select Nocturne Stage; seek, skip, volume and queue. Return to default and confirm imported `.eclipseplayer` still renders.
 3. Only after user accepts the music player experience, start native **Refract integration**: port identity mapping, queued API writes, watchlist add/remove and early playback-progress logging from the Harbor implementation. Wire to AIOStreams' real media identity and playback events, not music metadata. Write tests and preserve video behavior.
-4. App-wide Eclipse skins and Eclipse Audio/AutoEQ profile imports are separate from fullscreen player templates. Their real export schemas and processing requirements remain unimplemented; do not claim compatibility or execute untrusted theme code. Consider after Refract unless user reprioritizes.
-5. Native secure storage for personalized addon URLs, stable installer/updater identity, accessibility and performance QA, and licensing before any public stable release.
+4. **Tsugi rebrand:** follow the detailed roadmap above to replace all user-facing AIO branding, logos, icons, app/installer/release identity and documentation, with compatibility-safe saved-settings and update migration. Do this before the first stable public release, after music and Refract are validated.
+5. App-wide Eclipse skins and Eclipse Audio/AutoEQ profile imports are separate from fullscreen player templates. Their real export schemas and processing requirements remain unimplemented; do not claim compatibility or execute untrusted theme code. Consider after Refract unless user reprioritizes.
+6. Native secure storage for personalized addon URLs, stable installer/updater identity, accessibility and performance QA, and licensing before any public stable release.
 
 ## Risks
 - ListenBrainz is external public chart metadata, not a streaming source. Its availability, browser CORS, changing chart rankings and selected-provider search quality may affect discovery; there is no automatic recording match or Apple Music catalog mirroring.
