@@ -207,8 +207,10 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                   <select value={theme} onChange={(event) => changeTheme(event.target.value as PlayerThemeId)}
                     className="rounded-lg border px-3 py-2 text-xs text-white"
                     style={{backgroundColor: palette.panel, borderColor: palette.border}}>
-                    {Object.entries(PLAYER_PALETTES).map(([id, value]) => (
-                      <option key={id} value={id}>{value.label}</option>
+                    {(Object.keys(PLAYER_PALETTES) as PlayerThemeId[]).map((id) => (
+                      <option key={id} value={id}>
+                        {id === 'aio-dark' ? t`AIO Dark` : id === 'nightfall' ? t`Nightfall` : t`Carbon`}
+                      </option>
                     ))}
                   </select>
                 </label>

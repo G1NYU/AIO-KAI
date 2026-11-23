@@ -1,5 +1,4 @@
 import type { EclipsePlayerTemplate, PlayerLayerKind, PlayerLayer } from './player-template';
-import { t } from '@lingui/core/macro';
 
 /**
  * Bundled Nocturne stage. Uses the same declarative layer renderer as Eclipse
@@ -21,7 +20,7 @@ const layers: Array<[PlayerLayerKind, number, number, number, number, number, 'l
 ];
 
 export const NOCTURNE_STAGE: EclipsePlayerTemplate = {
-  name: t`Nocturne Stage`,
+  name: '',
   background: '#0f0d15',
   skippedLayers: 0,
   layers: layers.map(([kind, x, y, width, height, fontSize, align], index): PlayerLayer => ({
