@@ -510,10 +510,6 @@ msgstr ""
 msgid "Ads"
 msgstr ""
 
-#: src/app/music/player.tsx
-msgid "AIO Dark"
-msgstr ""
-
 #: src/lib/i18n.ts
 msgid "AIOStreams is a solo project built and maintained by me in my free time. If you find it useful, please consider supporting my work. Your donation helps me keep the project alive and improve it for everyone!"
 msgstr ""
@@ -5817,6 +5813,10 @@ msgstr ""
 
 #: src/app/desktop-landing/page.tsx
 msgid "Tsugi connects your music and video addons without tying their accounts together."
+msgstr ""
+
+#: src/app/music/player.tsx
+msgid "Tsugi Dark"
 msgstr ""
 
 #: src/app/settings/player.tsx
