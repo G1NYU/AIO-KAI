@@ -1,4 +1,5 @@
 import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import { BiArrowBack, BiDisc, BiPause, BiPlay, BiSkipNext, BiSkipPrevious } from 'react-icons/bi';
 import type { MusicPlayerProps } from './player';
 import type { EclipsePlayerTemplate, PlayerLayer } from '@/lib/music/player-template';
@@ -14,6 +15,7 @@ export function EclipseStudioStage({
   const song = p.track;
   if (!song) return null;
   const time = Math.max(1, p.duration);
+  const skippedCount = template.skippedLayers;
   function render(layer: PlayerLayer) {
     const song = p.track;
     if (!song) return null;
@@ -87,7 +89,7 @@ export function EclipseStudioStage({
       </div>
       {template.skippedLayers > 0 && (
         <p className="mt-3 text-center text-xs text-white/40">
-          {template.skippedLayers} unsupported or hidden Eclipse Studio layers are omitted.
+          <Trans>{skippedCount} unsupported or hidden Eclipse Studio layers are omitted.</Trans>
         </p>
       )}
     </div>

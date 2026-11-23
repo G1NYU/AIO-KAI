@@ -68,7 +68,7 @@ export function parsePlayerTemplate(input: unknown): EclipsePlayerTemplate {
     throw new Error('Only Eclipse Studio v4 desktop player layouts are supported.');
   }
   const name = typeof input.name === 'string' && input.name.trim()
-    ? input.name.trim().slice(0, 90) : 'Imported player';
+    ? input.name.trim().slice(0, 90) : '';
   const bg = entry(input.background) ? input.background : {};
   const background = hsbColor(bg.color, '#100e17');
   const layers: PlayerLayer[] = [];
