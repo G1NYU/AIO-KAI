@@ -67,22 +67,37 @@ Build a premium Windows streaming app on AIOStreams Desktop while preserving AIO
 - SHA-256 of extracted portable ZIP `de4104806ecb9939632d15395fce62bb7f03a4014752b292623f4b4c067a1077`.
 - **Windows interaction testing of milestone 4 remains outstanding**. User previously confirmed real audio and a debrid-capable addon worked on an earlier build; new catalogs and Studio import were only tested in CI/synthetic templates, not demonstrated on a physical Windows machine.
 
+## Milestone 5 — AIO Dark player theme feature pack and independent discovery (2026-11-23)
+- Code build commit: `d092a6ed9a2b7eb30eb6876c4cce75191144cdca`, branch `feature/desktop-music-entry`, draft PR #1. `main` unchanged.
+- Complete-width compact music bar uses three grid columns with **equal left and right regions** and a fixed centered player column on desktop, with responsive two-row layout on narrower windows. Long titles do not shift the playback transport controls. The bar is flat, has subtle dark AIO-style borders and no costly glass blur or gradients.
+- Player palette choices: **AIO Dark** (default), Nightfall (very dark purple), Carbon (cool near-black). Save only the validated palette identifier in local storage; all styling comes from whitelisted internal palette definitions. Existing Eclipse Studio `.eclipseplayer` imports still work.
+- Bundled **Nocturne Stage** fullscreen layout (12 declarative layers) is selectable directly in Now Playing, alongside the original default layout and imported Eclipse player templates. The original source playback, queue, audio element and Movies & TV engine remain unchanged.
+- Added independent **ListenBrainz public weekly recordings** shelf to Music → Discover, even when the selected Eclipse addon declares no catalog shelves. Public API: `GET https://api.listenbrainz.org/1/stats/sitewide/recordings?range=week&count=30`. Only public title/artist/chart metadata is retrieved, without addon credentials, cookies or source URLs. Items are deduplicated and text-validated. Clicking a chart entry switches to Search, searches the selected provider and **requires the listener to select the correct result**. Never automatically resolves titles to possibly incorrect editions or falsely promises playback. If ListenBrainz is unreachable or blocked by CORS, show a non-disruptive error and keep existing source search available.
+- Music main content widened from `max-w-6xl` to `max-w-[1440px]` for less unused screen space on large desktop windows.
+- Code files: `packages/web/src/lib/music/player-theme.ts`, `packages/web/src/lib/music/discovery.ts`, `packages/web/src/lib/music/nocturne-stage.ts`, `packages/web/src/app/music/player.tsx`, `packages/web/src/app/music/charts.tsx`, `packages/web/src/app/music/browse.tsx`, `packages/web/src/app/music/page.tsx`, `packages/web/tests/music-feature-pack.test.ts`, focused music validation workflow update and generated Lingui catalog files. No third-party dependencies, production deployment, updater or video engine changes.
+- A temporary PR-only, branch-scoped translation sync workflow was used to generate only `en-GB.po` and `messages.pot`, and then **deleted**. No privileged workflow remains.
+- CI on exact code commit `d092a6ed`: all four GitHub Actions successful.
+  - Desktop Music Validation: https://github.com/G1NYU/AIO-KAI/actions/runs/45192494091 — TypeScript, lint, **23/23 Vitest tests** (12 Eclipse adapter/catalog, 3 saved sources, 3 Eclipse Studio parser, 5 feature pack/discovery), standalone web bundle passed.
+  - Web App Translations: https://github.com/G1NYU/AIO-KAI/actions/runs/45192494385 — passed.
+  - Build Addon: https://github.com/G1NYU/AIO-KAI/actions/runs/45192494093 — passed.
+  - AIO-KAI Windows Test Build: https://github.com/G1NYU/AIO-KAI/actions/runs/45192494118 — passed, including Rust native Windows executable, libmpv, ZIP packaging and GitHub artifact upload.
+- Artifact ID `14825014227`, `AIO-KAI-Windows-x64-test`, downloaded and extracted to `AIO-KAI-Nocturne-Windows-x64.zip` (30,766,460 bytes). Verified with ZIP CRC check and full extraction listing: 204 entries, 8 DLLs, valid `MZ` Windows EXE, `.portable` marker, `current/web/index.html`, `LICENSE`.
+- Portable ZIP SHA-256: `95841fa4bee262f67032489be9e5ed790f8779f5aa6baf02d72b7b1d4b87999c`.
+- **Windows GUI testing of new default palette, truly-centered bar, Nocturne stage and ListenBrainz API/CORS remains outstanding.** User previously confirmed real music playback, provider switching and Studio template imports on an older build.
+
 ## Next tasks
-1. Windows smoke test this artifact in its own extracted portable folder. Connect a music addon that advertises `catalog`, browse Discover shelves, open album/artist/playlist and play from collections; check queue and existing direct audio remain stable. Sources without catalog should show a clear fallback.
-2. With a song playing, expand the player and import the user-provided `NullBeat Monolith Desktop.eclipseplayer`; validate layout, layers, transport buttons, seek and fallback to default. Check scaling at 1280×760 and ultrawide.
-3. Investigate Eclipse official skin export format and audio profiles (e.g. AutoEQ); they are separate to `.eclipseplayer` and remain unsupported. Any EQ requires a real native/WEB Audio signal-processing chain and performance tests.
-4. Research DebridVault's current official integration/API and documented authentication; do not treat its root URL as a provider manifest or commit user tokens.
-5. Port Refract watch progress, offline-queue and watchlist client/identity logic from HarborCommunity/Harbor, with test coverage.
-6. Review encrypted or OS-backed secret storage for private addon URLs, installer identity, independent update feed, licensing and release QA before any merge to `main`.
+1. Windows smoke test this Milestone 5 portable build in a **new folder**. Open UltraMax (no native shelves), verify ListenBrainz charts appear and a chart selection launches a provider search, then choose a correct track to play. Confirm NullBeat's native catalogs still display too. If charts do not load, inspect browser/WebView CORS and API response before changing code.
+2. With a song playing, verify left/right-centered bottom bar at 1280×760 and ultrawide. Test the default AIO Dark, Nightfall and Carbon palettes; expand and select Nocturne Stage; seek, skip, volume and queue. Return to default and confirm imported `.eclipseplayer` still renders.
+3. Only after user accepts the music player experience, start native **Refract integration**: port identity mapping, queued API writes, watchlist add/remove and early playback-progress logging from the Harbor implementation. Wire to AIOStreams' real media identity and playback events, not music metadata. Write tests and preserve video behavior.
+4. App-wide Eclipse skins and Eclipse Audio/AutoEQ profile imports are separate from fullscreen player templates. Their real export schemas and processing requirements remain unimplemented; do not claim compatibility or execute untrusted theme code. Consider after Refract unless user reprioritizes.
+5. Native secure storage for personalized addon URLs, stable installer/updater identity, accessibility and performance QA, and licensing before any public stable release.
 
 ## Risks
-- Private configured addon URLs can contain access tokens. Persistence is opt-in and currently plain localStorage, not OS encrypted. The repo and CI fixtures contain only synthetic URLs.
-- Catalogs are only available if the connected addon actually provides them; not all support album/artist/playlist detail endpoints. No automatic Apple Music fallback has been implemented.
-- Imported Eclipse player layouts are an allowlisted v4 subset, not pixel-perfect parity with Eclipse Studio, and do not provide live lyrics, output-device switching, favorites or audio processing.
-- Music still relies on direct HTTPS HTML Audio; HLS/DASH and DRM remain unsupported. Existing streaming playback stays untouched.
-- No native debrid-vault integration; only an official external settings link is included in Music.
-- AIOStreams' updater is upstream-bound; this is a portable **development build**, not a signed stable installer or official release.
-- No verification of new Windows GUI interactions yet; earlier user playback success applies to a previous compiled version.
+- ListenBrainz is external public chart metadata, not a streaming source. Its availability, browser CORS, changing chart rankings and selected-provider search quality may affect discovery; there is no automatic recording match or Apple Music catalog mirroring.
+- Theme palettes are internal choices, not general Eclipse application skin import support. Built-in Nocturne is a safe declarative 12-layer player layout, not a complete custom Eclipse skin/equalizer implementation.
+- Music still relies on direct HTTPS HTML Audio; HLS/DASH, DRM, native EQ, music scrobbling and full audio profiles remain unsupported. Existing streaming playback stays untouched.
+- Private provider URLs may contain credentials, and opt-in saved source links remain unencrypted in localStorage. Native OS-protected storage should precede public release.
+- The portable Windows ZIP is a **development build**, not a signed installer or proof that GUI behavior on a physical Windows machine is correct.
 - Keep the draft feature branch separate from `main`.
 
 ## Commit rules
