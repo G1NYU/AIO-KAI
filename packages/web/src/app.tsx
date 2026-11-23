@@ -359,7 +359,7 @@ function Session({
     [infoQuery.data, branding]
   );
   React.useEffect(() => {
-    document.title = currentHost().name === 'desktop' ? 'Tsugi' : (info.name || 'AIOStreams');
+    document.title = currentHost().name === 'desktop' ? t`Tsugi` : (info.name || 'AIOStreams');
   }, [info.name]);
   React.useEffect(() => {
     if (ready) currentHost().signedIn?.(ready.client);
