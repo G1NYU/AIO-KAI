@@ -3,14 +3,15 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { BiArrowBack, BiDisc, BiFilm, BiMusic, BiSearch } from 'react-icons/bi';
 import {
-  loadAddon, loadStore, manifestUrlFor, resolveTrack, searchAddon,
-  type EclipseManifest, type EclipseStoreEntry, type EclipseTrack,
+  loadAddon, loadStore, manifestUrlFor, resolveTrack, searchAddonAll,
+  type EclipseCatalogItem, type EclipseStoreEntry, type EclipseTrack,
 } from '@/lib/music/eclipse';
 import {
   readMusicSources, remembersMusicSources, saveMusicSources,
   type MusicConnection,
 } from '@/lib/music/connections';
 import { MusicPlayer, type RepeatMode } from './player';
+import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 
 /** Music lives outside the AIOStreams/Jellyfin session. */
 export function MusicPage({
@@ -39,6 +40,11 @@ export function MusicPage({
   const [searching, setSearching] = React.useState(false);
   const [searchError, setSearchError] = React.useState('');
   const [tracks, setTracks] = React.useState<EclipseTrack[]>([]);
+  const [collections, setCollections] = React.useState<EclipseCatalogItem[]>([]);
+  const [selectedCollection, setSelectedCollection] = React.useState<EclipseCatalogItem | null>(null);
+  const [tab, setTab] = React.useState<'discover' | 'search' | 'sources'>(
+    () => readMusicSources().length ? 'discover' : 'sources'
+  );
   const [playing, setPlaying] = React.useState<EclipseTrack | null>(null);
   const [streamUrl, setStreamUrl] = React.useState('');
   const [playError, setPlayError] = React.useState('');
@@ -100,6 +106,8 @@ export function MusicPage({
       setManifestInput('');
       setSearchError('');
       setQuery('');
+      setCollections([]);
+      setTab(addon.catalogs?.length ? 'discover' : 'search');
     } catch (error) {
       if (request === generation.current) setConnectError((error as Error).message);
     } finally {
@@ -116,9 +124,13 @@ export function MusicPage({
     setResolving(false);
     setSearchError('');
     setTracks([]);
+    setCollections([]);
     try {
-      const result = await searchAddon(activeUrl, query.trim());
-      if (request === generation.current) setTracks(result);
+      const result = await searchAddonAll(activeUrl, query.trim());
+      if (request === generation.current) {
+        setTracks(result.tracks);
+        setCollections([...result.albums, ...result.artists, ...result.playlists]);
+      }
     } catch (error) {
       if (request === generation.current) setSearchError((error as Error).message);
     } finally {
@@ -153,6 +165,12 @@ export function MusicPage({
       if (request === playbackRequest.current) setResolving(false);
     }
   }
+
+  const playCollection: PlayCollection = (source, songs, at) => {
+    if (!songs[at]) return;
+    setQueue(songs);
+    void play(songs[at], at, source, true);
+  };
 
   function seek(seconds: number) {
     const audio = audioRef.current;
@@ -211,6 +229,8 @@ export function MusicPage({
     ++generation.current;
     setSelectedId(id);
     setTracks([]);
+    setCollections([]);
+    setSelectedCollection(null);
     setQuery('');
     setSearchError('');
     setSearching(false);
@@ -224,6 +244,8 @@ export function MusicPage({
     if (selectedId === id) {
       setSelectedId(connections.find((source) => source.id !== id)?.id ?? '');
       setTracks([]);
+      setCollections([]);
+      setSelectedCollection(null);
       setQuery('');
     }
     if (playingSourceId === id) {
@@ -265,7 +287,39 @@ export function MusicPage({
           </div>
         </header>
 
-        <section aria-labelledby="music-source-heading" className="mb-10 space-y-4 rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
+        <nav className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4"
+          aria-label={t`Music sections`}>
+          <div className="flex items-center gap-2" role="tablist">
+            <button type="button" role="tab" aria-selected={tab === 'discover'}
+              onClick={() => setTab('discover')}
+              className={tab === 'discover' ? 'rounded-full bg-violet-200 px-5 py-2.5 text-sm font-semibold text-[#171420]' : 'rounded-full px-5 py-2.5 text-sm text-white/55 hover:bg-white/10'}>
+              <Trans>Discover</Trans>
+            </button>
+            <button type="button" role="tab" aria-selected={tab === 'search'}
+              onClick={() => setTab('search')}
+              className={tab === 'search' ? 'rounded-full bg-violet-200 px-5 py-2.5 text-sm font-semibold text-[#171420]' : 'rounded-full px-5 py-2.5 text-sm text-white/55 hover:bg-white/10'}>
+              <Trans>Search</Trans>
+            </button>
+            <button type="button" role="tab" aria-selected={tab === 'sources'}
+              onClick={() => setTab('sources')}
+              className={tab === 'sources' ? 'rounded-full bg-violet-200 px-5 py-2.5 text-sm font-semibold text-[#171420]' : 'rounded-full px-5 py-2.5 text-sm text-white/55 hover:bg-white/10'}>
+              <Trans>Sources</Trans>
+            </button>
+          </div>
+          {connections.length > 0 && (
+            <select aria-label={t`Active music source`} value={selectedId}
+              onChange={(event) => switchSource(event.target.value)}
+              className="max-w-60 rounded-xl border border-white/15 bg-[#201b2b] px-4 py-2 text-sm text-white">
+              {connections.map((source) =>
+                <option key={source.id} value={source.id}>{source.manifest.name}</option>)}
+            </select>
+          )}
+        </nav>
+
+        {tab === 'discover' && <MusicDiscover source={activeSource} onPlay={playCollection} />}
+
+        <section aria-labelledby="music-source-heading" style={{ display: tab === 'sources' ? 'block' : 'none' }}
+          className="mb-10 space-y-4 rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
           <h2 id="music-source-heading" className="text-2xl font-semibold">
             <Trans>Connect a music source</Trans>
           </h2>
@@ -314,7 +368,7 @@ export function MusicPage({
           </p>}
         </section>
 
-        {activeAddon && (
+        {tab === 'search' && activeAddon && (
           <section aria-labelledby="music-search-heading" className="mb-10 space-y-4">
             <h2 id="music-search-heading" className="text-2xl font-semibold"><Trans>Search music</Trans></h2>
             <form onSubmit={search} className="flex flex-col gap-3 sm:flex-row">
@@ -327,6 +381,27 @@ export function MusicPage({
               </button>
             </form>
             {searchError && <p role="alert" className="text-sm text-red-300">{searchError}</p>}
+            {collections.length > 0 && (
+              <section className="space-y-3">
+                <h3 className="text-lg font-semibold"><Trans>Albums, artists and playlists</Trans></h3>
+                <div className="flex gap-4 overflow-x-auto pb-3">
+                  {collections.map((item) => (
+                    <button key={item.type + ':' + item.id} type="button"
+                      onClick={() => setSelectedCollection(item)}
+                      className="w-36 shrink-0 text-left">
+                      {item.artworkURL
+                        ? <img src={item.artworkURL} alt="" loading="lazy" referrerPolicy="no-referrer"
+                            className="aspect-square w-full rounded-xl object-cover" />
+                        : <span className="flex aspect-square items-center justify-center rounded-xl bg-[#292335]">
+                            <BiDisc aria-hidden className="text-4xl text-violet-200/70" />
+                          </span>}
+                      <span className="mt-2 block truncate text-sm font-medium">{item.title}</span>
+                      <span className="block truncate text-xs text-white/45">{item.artist ?? item.type}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
             <ul className="space-y-2">
               {tracks.map((track, at) => (
                 <li key={track.id}>
@@ -345,12 +420,13 @@ export function MusicPage({
                 </li>
               ))}
             </ul>
-            {!searching && tracks.length === 0 && !searchError &&
+            {!searching && tracks.length === 0 && collections.length === 0 && !searchError &&
               <p className="text-sm text-[--muted]"><Trans>Search your connected addon to find tracks.</Trans></p>}
           </section>
         )}
 
-        <section aria-labelledby="music-store-heading" className="space-y-4">
+        <section aria-labelledby="music-store-heading" style={{ display: tab === 'sources' ? 'block' : 'none' }}
+          className="space-y-4">
           <div className="flex items-center justify-between gap-4">
             <h2 id="music-store-heading" className="text-2xl font-semibold">
               <Trans>Eclipse community addon store</Trans>
@@ -365,6 +441,16 @@ export function MusicPage({
           </p>}
           {store.length === 0 && !storeError &&
             <p className="text-sm text-[--muted]"><Trans>Loading community addons…</Trans></p>}
+          <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm">
+            <h3 className="font-semibold"><Trans>DebridVault library</Trans></h3>
+            <p className="mt-2 max-w-2xl text-white/55">
+              <Trans>Manage your personal Real-Debrid or TorBox music library in DebridVault. This website is not itself an Eclipse addon manifest.</Trans>
+            </p>
+            <a href="https://debridvault.elfhosted.com/settings" target="_blank" rel="noopener noreferrer"
+              className="mt-3 inline-block text-violet-200 underline underline-offset-4">
+              <Trans>Configure DebridVault</Trans>
+            </a>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {store.map((addon) => (
               <article key={addon.id} className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
@@ -407,6 +493,10 @@ export function MusicPage({
           onPause={() => setPaused(true)}
           onEnded={() => next(true)}
           onError={() => setPlayError(t`The browser audio engine could not play this stream.`)} />
+      )}
+      {activeSource && (
+        <MusicCollection source={activeSource} selected={selectedCollection}
+          onClose={() => setSelectedCollection(null)} onPlay={playCollection} />
       )}
       <MusicPlayer p={{
         track: playing,
