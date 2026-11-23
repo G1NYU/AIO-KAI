@@ -30,6 +30,14 @@ The fork currently reports **zero GitHub Actions workflow runs and zero check ru
 ## Release / deployment safety
 `.github/workflows/desktop-nightly.yml`, `nightly.yml`, and `web-app-updates.yml` trigger on relevant changes to `main`. Work on the feature branch only. Do not manually dispatch release or Docker deployment workflows. No signing secrets, dependency changes, or workflow edits were introduced by milestone 1.
 
+## Eclipse addon-store discovery (2026-11-23)
+- Official public store manifest: https://eclipsemusic.app/addonstore/manifest.json
+- Official public registry: https://eclipsemusic.app/addonstore/registry.json
+- Registry verified to contain eight community entries: YouTube Music (one iOS-only and one cross-platform listing), SoundCloud (two variants), Tido, UltraMax, Internet Archive, and Unreleased Grid. They carry `setupUrl` or `manifestUrl`, not guaranteed immediately usable audio URLs.
+- Eclipse protocol docs: https://eclipsemusic.app/docs — endpoints `/manifest.json`, `/search?q=`, `/stream/{id}` plus optional album/artist/playlist/catalog. Eclipse-only addons may require `X-Eclipse-Access` signed tokens that AIO-KAI cannot and must not forge.
+- A local, **uncommitted** prototype now handles registry browsing, compatible manifest input, addon search, secure direct MP3/FLAC-style stream URL resolution and basic browser audio controls. Six isolated mocked protocol tests passed and the TypeScript service typechecked in isolation. Full web build, CORS and real Windows audio are unverified.
+- Local source package: `AIO-KAI-eclipse-store-milestone2.zip` (conversation artifact). **Do not mark this implemented upstream until the full app builds and a real audio source is verified.**
+
 ## Next tasks
 1. Establish usable CI on the feature branch or a complete trusted checkout and run:
    `pnpm install --frozen-lockfile`,
