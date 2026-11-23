@@ -230,6 +230,10 @@ msgstr ""
 msgid "{shown}×"
 msgstr ""
 
+#: src/app/music/studio-player.tsx
+msgid "{skippedCount} unsupported or hidden Eclipse Studio layers are omitted."
+msgstr ""
+
 #: src/features/player/controls.tsx
 #: src/features/player/picture-in-picture.tsx
 msgid "{stepSeconds, plural, one {Back # second} other {Back # seconds}}"
@@ -407,6 +411,10 @@ msgstr ""
 msgid "Actions"
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "Active music source"
+msgstr ""
+
 #: src/app/history/page.tsx
 #: src/app/home/page.tsx
 #: src/app/settings/apps.tsx
@@ -508,6 +516,18 @@ msgstr ""
 
 #: src/lib/format.ts
 msgid "Airs {day} · {until}"
+msgstr ""
+
+#: src/app/music/browse.tsx
+msgid "Albums"
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Albums, artists and playlists"
+msgstr ""
+
+#: src/app/music/browse.tsx
+msgid "Albums, playlists and songs from your connected music source."
 msgstr ""
 
 #: src/app/discover/page.tsx
@@ -733,6 +753,10 @@ msgstr ""
 
 #: src/app/settings/player.tsx
 msgid "Back in the player"
+msgstr ""
+
+#: src/app/music/browse.tsx
+msgid "Back to music"
 msgstr ""
 
 #: src/app/settings/_components/version-settings.tsx
@@ -1029,6 +1053,10 @@ msgstr ""
 msgid "Close"
 msgstr ""
 
+#: src/app/music/studio-player.tsx
+msgid "Close player"
+msgstr ""
+
 #: src/app/settings/account.tsx
 msgid "Code"
 msgstr ""
@@ -1039,6 +1067,10 @@ msgstr ""
 
 #: src/features/party/not-in-party.tsx
 msgid "Code or invite link"
+msgstr ""
+
+#: src/app/music/browse.tsx
+msgid "Collection tracks"
 msgstr ""
 
 #: src/app/discover/page.tsx
@@ -1098,6 +1130,10 @@ msgstr ""
 msgid "Configure"
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "Configure DebridVault"
+msgstr ""
+
 #: src/lib/i18n.ts
 msgid "Confirm"
 msgstr ""
@@ -1109,6 +1145,10 @@ msgstr ""
 
 #: src/app/music/page.tsx
 msgid "Connect a music source"
+msgstr ""
+
+#: src/app/music/browse.tsx
+msgid "Connect a music source to explore its catalogs."
 msgstr ""
 
 #: src/app/music/page.tsx
@@ -1272,6 +1312,10 @@ msgstr ""
 msgid "Could not load their work"
 msgstr ""
 
+#: src/app/music/browse.tsx
+msgid "Could not load this addon's music catalogs."
+msgstr ""
+
 #: src/app/discover/page.tsx
 msgid "Could not load this catalog"
 msgstr ""
@@ -1409,6 +1453,10 @@ msgstr ""
 msgid "Day"
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "DebridVault library"
+msgstr ""
+
 #: src/app/settings/player.tsx
 msgid "Decodes nearly any video, in software where the device has no decoder for it. Takes your mpv.conf, under mpv below."
 msgstr ""
@@ -1431,6 +1479,10 @@ msgstr ""
 #: src/app/settings/theme.tsx
 #: src/lib/i18n.ts
 msgid "Default"
+msgstr ""
+
+#: src/app/music/player.tsx
+msgid "Default player"
 msgstr ""
 
 #: src/features/player/options.tsx
@@ -1526,6 +1578,7 @@ msgid "Discord refused the status: {message}"
 msgstr ""
 
 #: src/app/discover/page.tsx
+#: src/app/music/page.tsx
 #: src/app/settings/apps.tsx
 #: src/app/settings/interface.tsx
 #: src/components/shell/layout.tsx
@@ -1802,6 +1855,10 @@ msgstr ""
 
 #: src/app/music/player.tsx
 msgid "Expand player"
+msgstr ""
+
+#: src/app/music/browse.tsx
+msgid "Explore"
 msgstr ""
 
 #: src/app/history/page.tsx
@@ -2185,6 +2242,10 @@ msgstr ""
 msgid "Import"
 msgstr ""
 
+#: src/app/music/player.tsx
+msgid "Import Eclipse player"
+msgstr ""
+
 #: src/lib/discord.ts
 msgid "In Activity"
 msgstr ""
@@ -2472,6 +2533,10 @@ msgstr ""
 msgid "Loading community addons…"
 msgstr ""
 
+#: src/app/music/browse.tsx
+msgid "Loading music…"
+msgstr ""
+
 #: src/app/settings/_components/version-settings.tsx
 msgid "Loading…"
 msgstr ""
@@ -2519,6 +2584,10 @@ msgstr ""
 
 #: src/app.tsx
 msgid "Manage servers"
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Manage your personal Real-Debrid or TorBox music library in DebridVault. This website is not itself an Eclipse addon manifest."
 msgstr ""
 
 #: src/features/versions/external-prompt.tsx
@@ -2709,8 +2778,20 @@ msgstr ""
 msgid "Music"
 msgstr ""
 
+#: src/app/music/browse.tsx
+msgid "Music collection"
+msgstr ""
+
+#: src/app/music/browse.tsx
+msgid "Music discovery"
+msgstr ""
+
 #: src/app/music/player.tsx
 msgid "Music player"
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Music sections"
 msgstr ""
 
 #: src/app/desktop-landing/page.tsx
@@ -2797,6 +2878,7 @@ msgid "Next subtitles"
 msgstr ""
 
 #: src/app/music/player.tsx
+#: src/app/music/studio-player.tsx
 #: src/lib/input/keys.ts
 msgid "Next track"
 msgstr ""
@@ -2898,6 +2980,10 @@ msgstr ""
 
 #: src/lib/subtitles/files.ts
 msgid "No subtitles were found in that file"
+msgstr ""
+
+#: src/app/music/browse.tsx
+msgid "No tracks available from this addon."
 msgstr ""
 
 #: src/lib/party/follow.ts
@@ -3376,6 +3462,7 @@ msgstr ""
 
 #: src/app/downloads/page.tsx
 #: src/app/music/player.tsx
+#: src/app/music/studio-player.tsx
 #: src/features/player/controls.tsx
 #: src/features/player/mini-player.tsx
 #: src/features/player/picture-in-picture.tsx
@@ -3487,6 +3574,7 @@ msgstr ""
 #: src/app/item/_components/no-details.tsx
 #: src/app/live-tv/_components/channel-details.tsx
 #: src/app/music/player.tsx
+#: src/app/music/studio-player.tsx
 #: src/components/media/hero.tsx
 #: src/components/media/item-menu.tsx
 #: src/components/media/random-pick.tsx
@@ -3502,6 +3590,10 @@ msgstr ""
 
 #: src/app/item/_components/header.tsx
 msgid "Play {code}"
+msgstr ""
+
+#: src/app/music/browse.tsx
+msgid "Play all"
 msgstr ""
 
 #: src/features/versions/unaired-question.tsx
@@ -3626,6 +3718,10 @@ msgstr ""
 #: src/app/settings/player.tsx
 #: src/lib/input/actions.ts
 msgid "Player"
+msgstr ""
+
+#: src/app/music/player.tsx
+msgid "Player layouts must be smaller than 1 MB."
 msgstr ""
 
 #: src/app/settings/player.tsx
@@ -3770,6 +3866,7 @@ msgid "Previous month"
 msgstr ""
 
 #: src/app/music/player.tsx
+#: src/app/music/studio-player.tsx
 #: src/lib/input/keys.ts
 msgid "Previous track"
 msgstr ""
@@ -4313,6 +4410,7 @@ msgid "Seek bar previews"
 msgstr ""
 
 #: src/app/music/player.tsx
+#: src/app/music/studio-player.tsx
 msgid "Seek position"
 msgstr ""
 
@@ -4727,6 +4825,10 @@ msgstr ""
 
 #: src/app/settings/about.tsx
 msgid "Source code"
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Sources"
 msgstr ""
 
 #: src/lib/input/keys.ts
@@ -5338,6 +5440,10 @@ msgstr ""
 msgid "Thin"
 msgstr ""
 
+#: src/app/music/browse.tsx
+msgid "This addon has no published catalog shelves. Use Search to browse its tracks."
+msgstr ""
+
 #: src/app/settings/audio.tsx
 msgid "This app decodes Dolby and DTS audio itself, which loses Atmos."
 msgstr ""
@@ -5367,12 +5473,20 @@ msgstr ""
 msgid "This code has expired."
 msgstr ""
 
+#: src/app/music/browse.tsx
+msgid "This collection is unavailable from the addon."
+msgstr ""
+
 #: src/lib/hosts/shell/index.ts
 msgid "This copy does not update itself."
 msgstr ""
 
 #: src/lib/party/follow.ts
 msgid "This device couldn't read what the party is playing."
+msgstr ""
+
+#: src/app/music/player.tsx
+msgid "This Eclipse player file could not be imported."
 msgstr ""
 
 #: src/lib/playback/shaders.ts
@@ -5425,6 +5539,10 @@ msgstr ""
 
 #: src/app/settings/theme.tsx
 msgid "This server styles the app for everyone. Your own CSS applies on top of it."
+msgstr ""
+
+#: src/app/music/browse.tsx
+msgid "This shelf is temporarily unavailable."
 msgstr ""
 
 #: src/components/media/random-pick.tsx
@@ -5528,6 +5646,7 @@ msgstr ""
 msgid "Track {n}"
 msgstr ""
 
+#: src/app/music/browse.tsx
 #: src/lib/hosts/shell/player.ts
 msgid "Tracks"
 msgstr ""
