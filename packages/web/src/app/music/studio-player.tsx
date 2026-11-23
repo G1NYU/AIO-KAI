@@ -67,8 +67,16 @@ export function EclipseStudioStage({
     switch (layer.kind) {
       case 'albumName':
         return <span className="block truncate">{song.album ?? ''}</span>;
-      case 'text':
-        return <span className="block truncate" style={{ fontWeight: layer.weight === 'semibold' ? 600 : layer.weight }}>{layer.content}</span>;
+      case 'text': {
+        const label = layer.content || (layer.id === 'junction-2'
+          ? t`TSUGI / JUNCTION` : layer.id === 'junction-4'
+            ? t`NOW PLAYING / CONNECTED SOUND` : layer.id === 'junction-24'
+              ? t`UP NEXT / YOUR QUEUE` : '');
+        return <span className="block truncate"
+          style={{ fontWeight: layer.weight === 'semibold' ? 600 : layer.weight === 'medium' ? 500 : layer.weight }}>
+          {label}
+        </span>;
+      }
       case 'line':
         return <span aria-hidden className="block h-px w-full" style={{ backgroundColor: layer.color }} />;
       case 'releaseInfo':

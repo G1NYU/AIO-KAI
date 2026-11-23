@@ -4,9 +4,9 @@ type Spec = [PlayerLayerKind, number, number, number, number, string, number?, s
 const specs: Spec[] = [
   ['close', .032, .062, .032, .049, '#A7AFC5'],
   ['threeDotMenu', .965, .063, .036, .048, '#A7AFC5'],
-  ['text', .178, .073, .255, .049, '#D6E4FA', 27, 'TSUGI / JUNCTION'],
+  ['text', .178, .073, .255, .049, '#D6E4FA', 27, ''],
   ['line', .5, .117, .928, .002, '#303646'],
-  ['text', .668, .144, .302, .038, '#A7B2CA', 17, 'NOW PLAYING / CONNECTED SOUND'],
+  ['text', .668, .144, .302, .038, '#A7B2CA', 17, ''],
   ['artwork', .258, .475, .373, .662, '#FFFFFF'],
   ['qualityBadge', .184, .840, .215, .041, '#A7C9F3'],
   ['songTitle', .740, .230, .435, .086, '#F2F4FF', 59],
@@ -26,7 +26,7 @@ const specs: Spec[] = [
   ['lyrics', .615, .864, .043, .052, '#B8C6DC'],
   ['queue', .856, .864, .043, .052, '#B8C6DC'],
   ['volumeKnob', .937, .864, .11, .052, '#B8C6DC'],
-  ['text', .140, .923, .190, .034, '#B2C7E4', 17, 'UP NEXT / YOUR QUEUE'],
+  ['text', .140, .923, .190, .034, '#B2C7E4', 17, ''],
   ['upNext', .310, .951, .360, .031, '#D8DDEE', 21],
   ['releaseInfo', .740, .948, .425, .042, '#8E9DB4', 17],
 ];
