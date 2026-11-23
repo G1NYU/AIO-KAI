@@ -1,0 +1,216 @@
+import React from 'react';
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import {
+  BiChevronDown, BiDisc, BiExpand, BiListUl, BiPause, BiPlay,
+  BiRepeat, BiShuffle, BiSkipNext, BiSkipPrevious, BiVolumeFull,
+} from 'react-icons/bi';
+import type { EclipseTrack } from '@/lib/music/eclipse';
+
+export type RepeatMode = 'off' | 'all' | 'one';
+
+export type MusicPlayerProps = {
+  track: EclipseTrack | null;
+  sourceName: string;
+  queue: EclipseTrack[];
+  index: number;
+  paused: boolean;
+  loading: boolean;
+  error: string;
+  position: number;
+  duration: number;
+  volume: number;
+  quality: string;
+  expanded: boolean;
+  shuffle: boolean;
+  repeat: RepeatMode;
+  onExpanded(value: boolean): void;
+  onToggle(): void;
+  onNext(auto?: boolean): void;
+  onPrevious(): void;
+  onSeek(seconds: number): void;
+  onVolume(value: number): void;
+  onShuffle(value: boolean): void;
+  onRepeat(mode: RepeatMode): void;
+  onQueue(index: number): void;
+};
+
+const buttonClass = 'inline-flex size-10 items-center justify-center rounded-full text-white/75 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-200';
+
+export function musicTime(value: number): string {
+  if (!Number.isFinite(value) || value < 0) return '0:00';
+  const n = Math.floor(value);
+  return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+}
+
+function Artwork({ track, large = false }: { track: EclipseTrack; large?: boolean }) {
+  const size = large ? 'aspect-square w-full max-w-[410px] rounded-3xl shadow-2xl' : 'size-14 shrink-0 rounded-xl';
+  return track.artworkURL
+    ? <img src={track.artworkURL} alt="" referrerPolicy="no-referrer"
+        className={`${size} border border-white/10 bg-white/[0.05] object-cover`} />
+    : <span className={`${size} flex items-center justify-center border border-white/10 bg-[#211d30]`}>
+        <BiDisc aria-hidden className={large ? 'text-8xl text-violet-200' : 'text-3xl text-violet-200'} />
+      </span>;
+}
+
+function Transport({ p, large = false }: { p: MusicPlayerProps; large?: boolean }) {
+  return (
+    <div className="flex items-center justify-center gap-1">
+      <button type="button" onClick={() => p.onShuffle(!p.shuffle)} aria-label={t`Shuffle`}
+        aria-pressed={p.shuffle}
+        className={`${buttonClass} ${p.shuffle ? 'bg-violet-200/15 text-violet-200' : ''}`}>
+        <BiShuffle aria-hidden className="text-xl" />
+      </button>
+      <button type="button" onClick={p.onPrevious} aria-label={t`Previous track`}
+        className={buttonClass}>
+        <BiSkipPrevious aria-hidden className="text-2xl" />
+      </button>
+      <button type="button" disabled={p.loading} onClick={p.onToggle}
+        aria-label={p.paused ? t`Play` : t`Pause`}
+        className={`${large ? 'size-16' : 'size-11'} mx-2 inline-flex items-center justify-center rounded-full bg-violet-200 text-[#171420] hover:scale-105 disabled:opacity-50`}>
+        {p.paused
+          ? <BiPlay aria-hidden className={large ? 'text-4xl' : 'text-2xl'} />
+          : <BiPause aria-hidden className={large ? 'text-4xl' : 'text-2xl'} />}
+      </button>
+      <button type="button" onClick={() => p.onNext()} aria-label={t`Next track`}
+        className={buttonClass}>
+        <BiSkipNext aria-hidden className="text-2xl" />
+      </button>
+      <button type="button" onClick={() => p.onRepeat(p.repeat === 'off' ? 'all' : p.repeat === 'all' ? 'one' : 'off')}
+        aria-pressed={p.repeat !== 'off'} aria-label={t`Repeat`}
+        className={`${buttonClass} relative ${p.repeat !== 'off' ? 'bg-violet-200/15 text-violet-200' : ''}`}>
+        <BiRepeat aria-hidden className="text-xl" />
+        {p.repeat === 'one' && <span className="absolute -bottom-0.5 text-[9px] font-bold">1</span>}
+      </button>
+    </div>
+  );
+}
+
+function Timeline({ p }: { p: MusicPlayerProps }) {
+  const max = Math.max(1, p.duration);
+  return (
+    <div className="flex w-full items-center gap-3 text-xs tabular-nums text-white/55">
+      <span className="w-10 text-right">{musicTime(p.position)}</span>
+      <input type="range" min={0} max={max} step={0.1} value={Math.min(max, p.position)}
+        onChange={(e) => p.onSeek(Number(e.target.value))}
+        aria-label={t`Seek position`} className="h-1 min-w-0 flex-1 cursor-pointer accent-violet-200" />
+      <span className="w-10">{musicTime(p.duration)}</span>
+    </div>
+  );
+}
+
+export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
+  React.useEffect(() => {
+    if (!p.expanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') p.onExpanded(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [p.expanded, p.onExpanded]);
+
+  const track = p.track;
+  if (!track) return null;
+  return (
+    <>
+      <section aria-label={t`Music player`} className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[#171420] px-4 py-3 shadow-2xl sm:px-7">
+        <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-3 md:flex-nowrap">
+          <button type="button" onClick={() => p.onExpanded(true)}
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left hover:bg-white/[0.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-200">
+            <Artwork track={track} />
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-white">{track.title}</span>
+              <span className="block truncate text-xs text-white/55">{track.artist}</span>
+              {p.quality && <span className="block truncate text-[10px] text-violet-200/80">{p.quality}</span>}
+            </span>
+          </button>
+          <div className="order-3 flex w-full flex-col items-center gap-1 md:order-none md:w-[42%]">
+            <Transport p={p} />
+            <Timeline p={p} />
+          </div>
+          <div className="hidden items-center gap-2 lg:flex">
+            <BiVolumeFull aria-hidden className="text-lg text-white/60" />
+            <input type="range" min={0} max={1} step={0.02} value={p.volume}
+              aria-label={t`Volume`} onChange={(e) => p.onVolume(Number(e.target.value))}
+              className="w-20 cursor-pointer accent-violet-200" />
+            <button type="button" onClick={() => p.onExpanded(true)} aria-label={t`Expand player`}
+              className={buttonClass}><BiExpand aria-hidden className="text-xl" /></button>
+          </div>
+        </div>
+        {(p.loading || p.error) && (
+          <p role={p.error ? 'alert' : 'status'} className="mt-2 text-center text-xs text-amber-200">
+            {p.error || <Trans>Resolving audio…</Trans>}
+          </p>
+        )}
+      </section>
+      {p.expanded && (
+        <section role="dialog" aria-modal="true" aria-label={t`Now playing`}
+          className="fixed inset-0 z-50 overflow-y-auto bg-[#100e17] text-white">
+          <div className="mx-auto flex min-h-screen max-w-[1500px] flex-col px-5 py-5 sm:px-10">
+            <header className="flex items-center justify-between border-b border-white/10 pb-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-200/70">
+                  <Trans>Now playing</Trans>
+                </p>
+                <p className="mt-1 text-sm text-white/50">{p.sourceName}</p>
+              </div>
+              <button type="button" onClick={() => p.onExpanded(false)} aria-label={t`Minimise player`}
+                className={buttonClass}><BiChevronDown aria-hidden className="text-3xl" /></button>
+            </header>
+            <div className="grid flex-1 items-center gap-12 py-9 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
+              <div className="flex flex-col items-center gap-8">
+                <Artwork track={track} large />
+                <div className="w-full max-w-[460px] text-center">
+                  <h1 className="truncate text-3xl font-semibold tracking-tight sm:text-4xl">{track.title}</h1>
+                  <p className="mt-2 truncate text-lg text-white/60">{track.artist}</p>
+                  <p className="mt-1 truncate text-sm text-white/35">{track.album ?? ''}</p>
+                </div>
+                <div className="w-full max-w-[540px] space-y-5">
+                  <Timeline p={p} />
+                  <Transport p={p} large />
+                  <div className="flex items-center justify-center gap-3 text-white/60">
+                    <BiVolumeFull aria-hidden />
+                    <input type="range" min={0} max={1} step={0.02} value={p.volume}
+                      aria-label={t`Volume`} onChange={(e) => p.onVolume(Number(e.target.value))}
+                      className="w-40 cursor-pointer accent-violet-200" />
+                  </div>
+                </div>
+                {(p.loading || p.error) && (
+                  <p role={p.error ? 'alert' : 'status'} className="max-w-lg text-center text-sm text-amber-200">
+                    {p.error || <Trans>Resolving audio…</Trans>}
+                  </p>
+                )}
+              </div>
+              <aside className="w-full self-stretch rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-7">
+                <div className="mb-5 flex items-center gap-3">
+                  <BiListUl aria-hidden className="text-2xl text-violet-200" />
+                  <h2 className="text-lg font-semibold"><Trans>Up next</Trans></h2>
+                  <span className="ml-auto text-xs text-white/50">{p.queue.length}</span>
+                </div>
+                <ol className="max-h-[64vh] space-y-2 overflow-y-auto">
+                  {p.queue.map((item, index) => (
+                    <li key={item.id + ':' + index}>
+                      <button type="button" onClick={() => p.onQueue(index)}
+                        aria-current={index === p.index ? 'true' : undefined}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-white/10 ${index === p.index ? 'bg-violet-200/10 text-violet-200' : 'text-white/75'}`}>
+                        <span className="w-5 shrink-0 text-xs tabular-nums text-white/40">{index + 1}</span>
+                        {item.artworkURL
+                          ? <img src={item.artworkURL} alt="" referrerPolicy="no-referrer"
+                              className="size-10 rounded-lg object-cover" loading="lazy" />
+                          : <BiDisc aria-hidden className="text-2xl" />}
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium">{item.title}</span>
+                          <span className="block truncate text-xs text-white/45">{item.artist}</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </aside>
+            </div>
+          </div>
+        </section>
+      )}
+    </>
+  );
+}

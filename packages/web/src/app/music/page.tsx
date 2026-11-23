@@ -10,6 +10,7 @@ import {
   readMusicSources, remembersMusicSources, saveMusicSources,
   type MusicConnection,
 } from '@/lib/music/connections';
+import { MusicPlayer, type RepeatMode } from './player';
 
 /** Music lives outside the AIOStreams/Jellyfin session. */
 export function MusicPage({
@@ -42,6 +43,18 @@ export function MusicPage({
   const [streamUrl, setStreamUrl] = React.useState('');
   const [playError, setPlayError] = React.useState('');
   const [resolving, setResolving] = React.useState(false);
+  const [queue, setQueue] = React.useState<EclipseTrack[]>([]);
+  const [queueIndex, setQueueIndex] = React.useState(-1);
+  const [paused, setPaused] = React.useState(true);
+  const [position, setPosition] = React.useState(0);
+  const [duration, setDuration] = React.useState(0);
+  const [quality, setQuality] = React.useState('');
+  const [volume, setVolume] = React.useState(0.85);
+  const [expanded, setExpanded] = React.useState(false);
+  const [shuffle, setShuffle] = React.useState(false);
+  const [repeat, setRepeat] = React.useState<RepeatMode>('off');
+  const audioRef = React.useRef<HTMLAudioElement>(null);
+  const playbackRequest = React.useRef(0);
   const generation = React.useRef(0);
 
   React.useEffect(() => {
@@ -51,7 +64,9 @@ export function MusicPage({
   React.useEffect(() => {
     if (!visible) {
       // Do not play music over a movie; keep the track and provider in memory.
-      document.querySelector<HTMLAudioElement>('[data-aiokai-music-audio]')?.pause();
+      audioRef.current?.pause();
+      setPaused(true);
+      setExpanded(false);
     }
   }, [visible]);
 
@@ -111,24 +126,85 @@ export function MusicPage({
     }
   }
 
-  async function play(track: EclipseTrack) {
-    if (!activeUrl) return;
-    const request = ++generation.current;
+  async function play(track: EclipseTrack, at: number, source: MusicConnection, fromQueue = false) {
+    const request = ++playbackRequest.current;
+    audioRef.current?.pause();
+    if (!fromQueue) setQueue(tracks);
+    setQueueIndex(at);
     setPlaying(track);
-    setPlayingSourceId(selectedId);
+    setPlayingSourceId(source.id);
     setSearching(false);
-    setConnecting(false);
     setStreamUrl('');
     setPlayError('');
+    setPosition(0);
+    setDuration(track.duration ?? 0);
+    setPaused(true);
+    setQuality('');
     setResolving(true);
     try {
-      const stream = await resolveTrack(activeUrl, track);
-      if (request === generation.current) setStreamUrl(stream.url);
+      const stream = await resolveTrack(source.url, track);
+      if (request !== playbackRequest.current) return;
+      setQuality(stream.quality ?? stream.format ?? '');
+      setStreamUrl(stream.url);
     } catch (error) {
-      if (request === generation.current) setPlayError((error as Error).message);
+      if (request === playbackRequest.current)
+        setPlayError(error instanceof Error ? error.message : t`The browser audio engine could not play this stream.`);
     } finally {
-      if (request === generation.current) setResolving(false);
+      if (request === playbackRequest.current) setResolving(false);
     }
+  }
+
+  function seek(seconds: number) {
+    const audio = audioRef.current;
+    if (!audio || !Number.isFinite(seconds)) return;
+    const maximum = Number.isFinite(audio.duration) ? audio.duration : duration;
+    audio.currentTime = Math.max(0, Math.min(seconds, maximum));
+    setPosition(audio.currentTime);
+  }
+
+  function toggle() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) {
+      setPlayError('');
+      void audio.play().catch(() => setPlayError(t`The browser audio engine could not play this stream.`));
+    } else audio.pause();
+  }
+
+  function next(auto = false) {
+    const source = connections.find((item) => item.id === playingSourceId);
+    if (!source || !queue.length) return;
+    if (auto && repeat === 'one') {
+      seek(0);
+      void audioRef.current?.play();
+      return;
+    }
+    let at = queueIndex + 1;
+    if (shuffle && queue.length > 1) {
+      const candidate = Math.floor(Math.random() * (queue.length - 1));
+      at = candidate >= queueIndex ? candidate + 1 : candidate;
+    } else if (at >= queue.length) {
+      if (repeat !== 'all') {
+        if (auto) setPaused(true);
+        return;
+      }
+      at = 0;
+    }
+    void play(queue[at], at, source, true);
+  }
+
+  function previous() {
+    if (position > 3) return seek(0);
+    const source = connections.find((item) => item.id === playingSourceId);
+    if (!source || !queue.length) return;
+    const at = queueIndex > 0 ? queueIndex - 1 : repeat === 'all' ? queue.length - 1 : 0;
+    void play(queue[at], at, source, true);
+  }
+
+  function changeVolume(value: number) {
+    const safe = Math.min(1, Math.max(0, value));
+    setVolume(safe);
+    if (audioRef.current) audioRef.current.volume = safe;
   }
 
   function switchSource(id: string) {
@@ -151,10 +227,16 @@ export function MusicPage({
       setQuery('');
     }
     if (playingSourceId === id) {
+      ++playbackRequest.current;
+      audioRef.current?.pause();
       setPlaying(null);
       setPlayingSourceId('');
       setStreamUrl('');
+      setQueue([]);
+      setQueueIndex(-1);
+      setResolving(false);
       setPlayError('');
+      setExpanded(false);
     }
   }
 
@@ -246,9 +328,9 @@ export function MusicPage({
             </form>
             {searchError && <p role="alert" className="text-sm text-red-300">{searchError}</p>}
             <ul className="space-y-2">
-              {tracks.map((track) => (
+              {tracks.map((track, at) => (
                 <li key={track.id}>
-                  <button type="button" onClick={() => void play(track)}
+                  <button type="button" onClick={() => activeSource && void play(track, at, activeSource)}
                     className="flex w-full items-center gap-4 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-start hover:bg-white/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
                     {track.artworkURL
                       ? <img src={track.artworkURL} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-12 rounded-lg object-cover" />
@@ -313,21 +395,32 @@ export function MusicPage({
         </section>
       </div>
 
-      {(playing || resolving) && (
-        <section aria-label={t`Music player`} className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[#15131d] px-6 py-3 shadow-2xl">
-          <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 sm:flex-row">
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-semibold">{playing?.title}</p>
-              <p className="truncate text-xs text-[--muted]">{playing?.artist}</p>
-            </div>
-            {resolving && <span className="text-sm text-[--muted]"><Trans>Resolving audio…</Trans></span>}
-            {playError && <span role="alert" className="text-sm text-red-300">{playError}</span>}
-            {streamUrl && <audio data-aiokai-music-audio key={streamUrl} controls autoPlay preload="metadata" src={streamUrl}
-              onError={() => setPlayError(t`The browser audio engine could not play this stream.`)}
-              className="w-full max-w-xl" />}
-          </div>
-        </section>
+      {playing && streamUrl && (
+        <audio ref={audioRef} key={streamUrl} autoPlay preload="metadata" src={streamUrl}
+          onLoadedMetadata={(event) => {
+            const audio = event.currentTarget;
+            audio.volume = volume;
+            if (Number.isFinite(audio.duration)) setDuration(audio.duration);
+          }}
+          onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)}
+          onPlay={() => setPaused(false)}
+          onPause={() => setPaused(true)}
+          onEnded={() => next(true)}
+          onError={() => setPlayError(t`The browser audio engine could not play this stream.`)} />
       )}
+      <MusicPlayer p={{
+        track: playing,
+        sourceName: connections.find((item) => item.id === playingSourceId)?.manifest.name ?? '',
+        queue, index: queueIndex, paused, loading: resolving, error: playError,
+        position, duration, volume, quality, expanded, shuffle, repeat,
+        onExpanded: setExpanded, onToggle: toggle, onNext: next,
+        onPrevious: previous, onSeek: seek, onVolume: changeVolume,
+        onShuffle: setShuffle, onRepeat: setRepeat,
+        onQueue: (at) => {
+          const source = connections.find((item) => item.id === playingSourceId);
+          if (source && queue[at]) void play(queue[at], at, source, true);
+        },
+      }} />
     </main>
   );
 }
