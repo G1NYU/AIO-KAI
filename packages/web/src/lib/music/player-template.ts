@@ -5,7 +5,9 @@
 export type PlayerLayerKind =
   | 'artwork' | 'songTitle' | 'artistName' | 'progressBar' | 'elapsed'
   | 'remaining' | 'playPause' | 'previous' | 'next' | 'qualityBadge'
-  | 'upNext' | 'close';
+  | 'upNext' | 'close' | 'albumName' | 'text' | 'line'
+  | 'shuffle' | 'repeat' | 'queue' | 'threeDotMenu' | 'volumeKnob'
+  | 'lyrics' | 'lyricsInline' | 'favorite' | 'releaseInfo';
 
 export type PlayerLayer = {
   id: string;
@@ -18,6 +20,9 @@ export type PlayerLayer = {
   color: string;
   fontSize: number;
   align: 'left' | 'center' | 'right';
+  /** Static text from the Eclipse Studio export. Render as React text only. */
+  content: string;
+  weight: 'normal' | 'medium' | 'semibold' | 'bold';
 };
 
 export type EclipsePlayerTemplate = {
@@ -60,6 +65,8 @@ function hsbColor(value: unknown, fallback: string): string {
 const supported = new Set<PlayerLayerKind>([
   'artwork', 'songTitle', 'artistName', 'progressBar', 'elapsed', 'remaining',
   'playPause', 'previous', 'next', 'qualityBadge', 'upNext', 'close',
+  'albumName', 'text', 'line', 'shuffle', 'repeat', 'queue',
+  'threeDotMenu', 'volumeKnob', 'lyrics', 'lyricsInline', 'favorite', 'releaseInfo',
 ]);
 
 export function parsePlayerTemplate(input: unknown): EclipsePlayerTemplate {
@@ -97,6 +104,9 @@ export function parsePlayerTemplate(input: unknown): EclipsePlayerTemplate {
       color: hsbColor(appearance.tint, '#ffffff'),
       fontSize: finite(text.fontSize, 8, 120) ?? 26,
       align: text.alignment === 'center' ? 'center' : text.alignment === 'trailing' ? 'right' : 'left',
+      content: typeof text.content === 'string' ? text.content.slice(0, 180) : '',
+      weight: text.weight === 'bold' ? 'bold' : text.weight === 'semibold'
+        ? 'semibold' : text.weight === 'medium' ? 'medium' : 'normal',
     });
   }
   if (!layers.length) throw new Error('This player layout has no supported visible layers.');

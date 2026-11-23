@@ -21,9 +21,9 @@ describe('Eclipse Studio v4 player layout import', () => {
   it('accepts known layout and keeps only supported layers', () => {
     const parsed = parsePlayerTemplate(fixture);
     expect(parsed.name).toBe('Test Monolith');
-    expect(parsed.layers.map((layer) => layer.kind)).toEqual(['songTitle', 'artwork']);
+    expect(parsed.layers.map((layer) => layer.kind)).toEqual(['songTitle', 'artwork', 'lyricsInline']);
     expect(parsed.layers[0].fontSize).toBe(56);
-    expect(parsed.skippedLayers).toBe(1);
+    expect(parsed.skippedLayers).toBe(0);
     expect(parsed.background.startsWith('rgba(')).toBe(true);
   });
 
@@ -41,5 +41,20 @@ describe('Eclipse Studio v4 player layout import', () => {
       { ...fixture.layers[1], transform: { x: 999, y: 0.5, width: 1, height: 1 } },
     ] });
     expect(parsed.layers).toHaveLength(1);
+  });
+
+  it('accepts richer Eclipse Studio controls but skips unknown cast transports', () => {
+    const kinds = ['albumName', 'shuffle', 'repeat', 'queue', 'volumeKnob',
+      'favorite', 'releaseInfo', 'lyrics', 'text', 'line', 'connect', 'outputDevice'];
+    const parsed = parsePlayerTemplate({ ...fixture, layers: kinds.map((kind, i) => ({
+      kind, id: 'advanced-' + i, visible: true,
+      transform: { x: 0.1, y: 0.1, width: 0.15, height: 0.05 },
+      text: kind === 'text' ? { content: '<script>not executable</script>', weight: 'bold' } : {},
+    })) });
+    expect(parsed.layers).toHaveLength(10);
+    expect(parsed.skippedLayers).toBe(2);
+    expect(parsed.layers.find((layer) => layer.kind === 'text')?.content)
+      .toBe('<script>not executable</script>');
+    expect(parsed.layers.find((layer) => layer.kind === 'text')?.weight).toBe('bold');
   });
 });
