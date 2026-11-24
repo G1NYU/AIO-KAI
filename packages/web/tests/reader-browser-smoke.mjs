@@ -42,7 +42,7 @@ try {
           case 'tracker-logout': state.trackerConnected = false; data = { isLoggedIn: false }; break;
           case 'track-records': data = nodes(state.trackRecord ? [state.trackRecord] : []); break;
           case 'tracker-search': data = { trackSearches: [{ remoteId: '44', title: 'Original tracker match', totalChapters: 2, publishingType: 'Manga', publishingStatus: 'Finished', startDate: '2025' }] }; break;
-          case 'tracker-bind': state.trackRecord = { id: 91, trackerId: 1, title: 'Original tracker match', lastChapterRead: 0, totalChapters: 2 }; data = { trackRecord: state.trackRecord }; break;
+          case 'tracker-bind': if (a.remoteId !== '44') throw new Error('Expected lossless tracker ID'); state.trackRecord = { id: 91, trackerId: 1, title: 'Original tracker match', lastChapterRead: 0, totalChapters: 2 }; data = { trackRecord: state.trackRecord }; break;
           case 'tracker-sync': state.trackRecord.lastChapterRead = 1; data = { trackRecords: [state.trackRecord] }; break;
           case 'tracker-unbind': state.trackRecord = null; data = { clientMutationId: null }; break;
           case 'chapter-flags': data = { chapters: chapters.filter((chapter) => a.ids.includes(chapter.id)).map((chapter) => { if (typeof a.read === 'boolean') { chapter.isRead = a.read; if (!a.read) chapter.lastPageRead = 0; } if (typeof a.bookmarked === 'boolean') chapter.isBookmarked = a.bookmarked; return { id: chapter.id, isRead: chapter.isRead, isBookmarked: !!chapter.isBookmarked, lastPageRead: chapter.lastPageRead }; }) }; break;

@@ -299,7 +299,11 @@ fn execute(
         ReadAction::TrackerLogout { id } => reader.logout_tracker(id),
         ReadAction::TrackRecords { manga_id } => reader.track_records(manga_id),
         ReadAction::TrackerSearch { id, query } => reader.search_tracker(id, &query),
-        ReadAction::TrackerBind { manga_id, id, remote_id } => reader.bind_tracker(manga_id, id, remote_id),
+        ReadAction::TrackerBind { manga_id, id, remote_id } => {
+            let id_value = remote_id.parse::<i64>().map_err(|_| "Invalid tracker match.")?;
+            if id_value <= 0 || id_value.to_string() != remote_id { return Err("Invalid tracker match."); }
+            reader.bind_tracker(manga_id, id, id_value)
+        }
         ReadAction::TrackerUnbind { manga_id, record_id } => reader.unbind_tracker(manga_id, record_id),
         ReadAction::TrackerSync { manga_id } => reader.sync_tracker_progress(manga_id),
         ReadAction::ChapterFlags { ids, read, bookmarked } => reader.update_chapter_flags(&ids, read, bookmarked),

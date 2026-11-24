@@ -5,7 +5,7 @@ import { readRequest } from '@/lib/hosts/shell/reading';
 
 export type Tracker = { id: number; name: string; isLoggedIn: boolean; supportsReadingDates: boolean; supportsPrivateTracking: boolean };
 type Record = { id: number; trackerId: number; title: string; lastChapterRead: number; totalChapters: number; displayScore?: string };
-type Match = { remoteId: number | string; title: string; totalChapters: number; publishingType: string; publishingStatus: string; startDate: string };
+type Match = { remoteId: string; title: string; totalChapters: number; publishingType: string; publishingStatus: string; startDate: string };
 type Props = { mangaId: number; title: string; busy: boolean; run(work: () => Promise<void>): Promise<void>; openAccounts(): void };
 
 export function MangaTracking({ mangaId, title, busy, run, openAccounts }: Props) {
@@ -45,6 +45,6 @@ export function MangaTracking({ mangaId, title, busy, run, openAccounts }: Props
     </form>
     {matches?.map((match) => <button key={String(match.remoteId)} className="tsugi-read-row" aria-pressed={selected?.remoteId === match.remoteId} disabled={busy} onClick={() => setSelected(match)}><span><strong className="block">{match.title}</strong><small className="text-[--tsugi-muted]">{[match.publishingType, match.publishingStatus, match.startDate].filter(Boolean).join(' · ')}</small></span><span>{match.totalChapters || '—'}</span></button>)}
     {matches?.length === 0 && <p><Trans id="No tracker matches found.">No tracker matches found.</Trans></p>}
-    {selected && <div className="flex flex-wrap items-center gap-3"><strong>{selected.title}</strong><button className="tsugi-read-action" disabled={busy || !Number.isSafeInteger(Number(selected.remoteId)) || Number(selected.remoteId) <= 0} onClick={() => void run(async () => { await readRequest({ kind: 'tracker-bind', mangaId, id: provider, remoteId: Number(selected.remoteId) }); setSelected(null); setMatches(null); await refresh(); })}><Trans id="Link selected series">Link selected series</Trans></button></div>}</>}
+    {selected && <div className="flex flex-wrap items-center gap-3"><strong>{selected.title}</strong><button className="tsugi-read-action" disabled={busy || !/^[1-9][0-9]{0,18}$/.test(selected.remoteId)} onClick={() => void run(async () => { await readRequest({ kind: 'tracker-bind', mangaId, id: provider, remoteId: selected.remoteId }); setSelected(null); setMatches(null); await refresh(); })}><Trans id="Link selected series">Link selected series</Trans></button></div>}</>}
   </section>;
 }

@@ -15,7 +15,7 @@ export type ReadAction =
   | { kind: 'tracker-login' | 'tracker-logout'; id: number }
   | { kind: 'track-records' | 'tracker-sync'; mangaId: number }
   | { kind: 'tracker-search'; id: number; query: string }
-  | { kind: 'tracker-bind'; mangaId: number; id: number; remoteId: number }
+  | { kind: 'tracker-bind'; mangaId: number; id: number; remoteId: string }
   | { kind: 'tracker-unbind'; mangaId: number; recordId: number };
 
 export function supportsReadingSection(): boolean {

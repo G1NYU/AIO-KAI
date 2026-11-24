@@ -1136,7 +1136,7 @@ impl ReadRuntime {
         }
         self.client.slow().mutation(
             "mutation TsugiBindTrack($input: BindTrackInput!) { bindTrack(input: $input) { trackRecord { id trackerId title lastChapterRead totalChapters } } }",
-            "bindTrack", json!({"mangaId": manga_id, "trackerId": id, "remoteId": remote_id}))
+            "bindTrack", json!({"mangaId": manga_id, "trackerId": id, "remoteId": remote_id.to_string()}))
     }
 
     pub fn unbind_tracker(&self, manga_id: i32, record_id: i32) -> Result<Value, &'static str> {
@@ -1924,7 +1924,7 @@ mod tests {
             ("query TsugiTrackerSearchContract($input: SearchTrackerInput!) { searchTracker(input: $input) @skip(if: true) { trackSearches { remoteId title totalChapters publishingType publishingStatus startDate } } }", json!({"input": {"trackerId": 1, "query": "original fixture"}})),
             ("mutation TsugiTrackerLoginContract($input: LoginTrackerOAuthInput!) { loginTrackerOAuth(input: $input) @skip(if: true) { isLoggedIn } }", json!({"input": {"trackerId": 1, "callbackUrl": "http://127.0.0.1/fixture"}})),
             ("mutation TsugiTrackerLogoutContract($input: LogoutTrackerInput!) { logoutTracker(input: $input) @skip(if: true) { isLoggedIn } }", json!({"input": {"trackerId": 1}})),
-            ("mutation TsugiTrackerBindContract($input: BindTrackInput!) { bindTrack(input: $input) @skip(if: true) { trackRecord { id trackerId title lastChapterRead totalChapters } } }", json!({"input": {"mangaId": manga_id, "trackerId": 1, "remoteId": 44}})),
+            ("mutation TsugiTrackerBindContract($input: BindTrackInput!) { bindTrack(input: $input) @skip(if: true) { trackRecord { id trackerId title lastChapterRead totalChapters } } }", json!({"input": {"mangaId": manga_id, "trackerId": 1, "remoteId": "44"}})),
             ("mutation TsugiTrackerUnbindContract($input: UnbindTrackInput!) { unbindTrack(input: $input) @skip(if: true) { clientMutationId } }", json!({"input": {"recordId": 1, "deleteRemoteTrack": false}})),
             ("mutation TsugiTrackerSyncContract($input: TrackProgressInput!) { trackProgress(input: $input) @skip(if: true) { trackRecords { id trackerId title lastChapterRead totalChapters } } }", json!({"input": {"mangaId": manga_id}})),
         ] {
@@ -2115,11 +2115,7 @@ mod tests {
         .is_err());
         fs::remove_dir_all(data).expect("clean disposable reading data");
     }
-}
 
-#[cfg(test)]
-mod tracker_oauth_tests {
-    use super::*;
     #[test]
     fn oauth_callback_requires_matching_state_path_and_provider() {
         let redirect = url::Url::parse("http://127.0.0.1:12345/tracker/oauth/fixture").unwrap();
@@ -2134,5 +2130,28 @@ mod tracker_oauth_tests {
         assert!(tracker_callback(&(target + "&code=second"), &redirect, &state, 1).is_none());
         assert!(tracker_auth_url(1, "https://myanimelist.net/v1/oauth2/authorize?response_type=code", &state).is_ok());
         assert!(tracker_auth_url(1, "https://myanimelist.net.example.test/v1/oauth2/authorize", &state).is_err());
+    }
+
+    #[test]
+    fn tracker_callback_accepts_one_loopback_request_without_echoing_secret() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let address = listener.local_addr().unwrap();
+        let redirect = url::Url::parse(&format!("http://{address}/tracker/oauth/fixture")).unwrap();
+        let state = json!({"redirectUrl": redirect.as_str(), "trackerId": 2, "nonce": "fixture"});
+        let mut callback = redirect.clone();
+        callback.query_pairs_mut().append_pair("access_token", "fixture-token").append_pair("state", &state.to_string());
+        let target = format!("{}?{}", callback.path(), callback.query().unwrap());
+        let client = std::thread::spawn(move || {
+            let mut connection = std::net::TcpStream::connect(address).unwrap();
+            connection.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+            connection.write_all(format!("GET {target} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n").as_bytes()).unwrap();
+            let mut response = String::new();
+            connection.read_to_string(&mut response).unwrap();
+            assert!(response.starts_with("HTTP/1.1 200 OK"));
+            assert!(!response.contains("fixture-token"));
+        });
+        let value = await_tracker_callback(listener, &redirect, &state, 2, &AtomicBool::new(false)).unwrap();
+        assert_eq!(value, callback.to_string());
+        client.join().unwrap();
     }
 }

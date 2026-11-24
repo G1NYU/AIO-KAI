@@ -80,7 +80,7 @@ pub enum ReadAction {
     TrackerLogout { id: i32 },
     TrackRecords { manga_id: i32 },
     TrackerSearch { id: i32, query: String },
-    TrackerBind { manga_id: i32, id: i32, remote_id: i64 },
+    TrackerBind { manga_id: i32, id: i32, remote_id: String },
     TrackerUnbind { manga_id: i32, record_id: i32 },
     TrackerSync { manga_id: i32 },
     ChapterFlags { ids: Vec<i32>, read: Option<bool>, bookmarked: Option<bool> },
