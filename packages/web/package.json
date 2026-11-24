@@ -7,7 +7,7 @@
     "dev": "rsbuild dev",
     "dev:standalone": "rsbuild dev --env-mode standalone",
     "build": "rsbuild build",
-    "build:standalone": "rsbuild build --env-mode standalone",
+    "build:standalone": "pnpm run i18n:extract && rsbuild build --env-mode standalone",
     "typecheck": "tsc --noEmit",
     "preview": "rsbuild preview",
     "lint": "eslint src",

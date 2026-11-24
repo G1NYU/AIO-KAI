@@ -43,8 +43,6 @@ jobs:
         run: pnpm exec vitest run packages/web/tests/desktop-area.test.ts packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts packages/web/tests/player-template.test.ts packages/web/tests/player-layout.test.ts packages/web/tests/music-feature-pack.test.ts packages/web/tests/music-lyrics.test.ts packages/web/tests/music-history.test.ts packages/web/tests/eclipse-appearance.test.ts packages/web/tests/music-library.test.ts packages/web/tests/audio-profiles.test.ts
       - name: Build standalone web
         run: pnpm -F @aiostreams/web build:standalone
-      - name: Extract translation sources
-        run: pnpm -F @aiostreams/web i18n:extract
       - uses: actions/upload-artifact@v7
         with:
           name: tsugi-source-catalogs

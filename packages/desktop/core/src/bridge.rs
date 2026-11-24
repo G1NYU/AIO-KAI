@@ -64,7 +64,7 @@ pub enum ReadAction {
     AddStore { index: String },
     RemoveStore { index: String },
     RefreshExtensions,
-    Extensions { offset: u32 },
+    Extensions { offset: u32, query: Option<String>, store: Option<String> },
     InstallExtension { package: String },
     UninstallExtension { package: String },
     Catalogue { source: String, page: u32, mode: String, query: Option<String> },

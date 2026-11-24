@@ -999,7 +999,7 @@ impl ReadRuntime {
     }
 
     fn add_store_inner(&self, index: &str) -> Result<Value, &'static str> {
-        self.client.mutation(
+        self.client.slow().mutation(
             "mutation TsugiAddStore($input: AddExtensionStoreInput!) { addExtensionStore(input: $input) { extensionStore { name badgeLabel indexUrl signingKey isLegacy } } }",
             "addExtensionStore",
             json!({ "indexUrl": index }),
@@ -1034,13 +1034,29 @@ impl ReadRuntime {
     }
 
     pub fn extensions(&self, offset: u32) -> Result<Value, &'static str> {
-        if offset > 100_000 {
-            return Err("Invalid extension catalogue offset.");
+        self.search_extensions(offset, "", None)
+    }
+
+    pub fn search_extensions(&self, offset: u32, term: &str, store: Option<&str>) -> Result<Value, &'static str> {
+        if offset > 100_000 || term.chars().count() > 200 || term.chars().any(char::is_control) {
+            return Err("Invalid extension catalogue request.");
         }
+        if let Some(index) = store {
+            if index.len() > 2048 || index.chars().any(char::is_control)
+                || !self.query(ReadOperation::Stores)?["nodes"].as_array().is_some_and(|nodes| nodes.iter().any(|node| node["indexUrl"] == index))
+            {
+                return Err("Extension repository is not registered.");
+            }
+        }
+        let term = term.trim();
+        let filter = if term.is_empty() { Value::Null } else {
+            json!({"or": [{"name": {"includesInsensitive": term}}, {"pkgName": {"includesInsensitive": term}}, {"lang": {"equalTo": term}}]})
+        };
+        let condition = store.map(|index| json!({"storeIndexUrl": index}));
         let result = self.client.document(
-            "query TsugiExtensions($offset: Int!) { extensions(first: 100, offset: $offset) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
+            "query TsugiExtensions($offset: Int!, $filter: ExtensionFilter, $condition: ExtensionCondition) { extensions(first: 100, offset: $offset, filter: $filter, condition: $condition) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
             "extensions",
-            json!({ "offset": offset }),
+            json!({ "offset": offset, "filter": filter, "condition": condition }),
         )?;
         let nodes = result["nodes"].as_array().ok_or("Invalid extension catalogue.")?;
         if nodes.len() > 100 || !result["totalCount"].is_u64() {
@@ -1129,7 +1145,7 @@ impl ReadRuntime {
             CatalogueMode::Search(query) if !query.trim().is_empty() && query.chars().count() <= 200 => ("SEARCH", Some(query)),
             CatalogueMode::Search(_) => return Err("Invalid reading search."),
         };
-        self.client.mutation(
+        self.client.slow().mutation(
             "mutation TsugiCatalogue($input: FetchSourceMangaInput!) { fetchSourceManga(input: $input) { hasNextPage mangas { id sourceId title author thumbnailUrl inLibrary } } }",
             "fetchSourceManga",
             json!({ "source": source, "page": page, "type": kind, "query": query }),
@@ -1140,7 +1156,7 @@ impl ReadRuntime {
         if id <= 0 {
             return Err("Invalid manga identifier.");
         }
-        self.client.mutation(
+        self.client.slow().mutation(
             "mutation TsugiManga($input: FetchMangaAndChaptersInput!) { fetchMangaAndChapters(input: $input) { manga { id sourceId title author artist description genre thumbnailUrl inLibrary } chapters { id name mangaId chapterNumber sourceOrder pageCount isRead lastPageRead } } }",
             "fetchMangaAndChapters",
             json!({ "id": id, "fetchManga": true, "fetchChapters": true }),
@@ -1786,6 +1802,11 @@ mod tests {
         assert_eq!(entry["extensionLib"], "1.6");
         assert_eq!(entry["versionName"], "1.6.1");
         assert_eq!(entry["isInstalled"], false);
+        let matching = managed.search_extensions(0, "FIXTURE", Some(&store.url)).expect("search whole store");
+        assert_eq!(matching["totalCount"], 1);
+        assert_eq!(matching["nodes"][0]["pkgName"], "org.tsugi.fixture");
+        assert_eq!(managed.search_extensions(0, "no matching extension", None).unwrap()["totalCount"], 0);
+        assert!(managed.search_extensions(0, "", Some("https://example.invalid/repo.json")).is_err());
         assert!(managed.extensions(100).unwrap()["nodes"].as_array().unwrap().is_empty());
         // Upstream settings persistence is asynchronous (SettingDelegate
         // launches a StateFlow collector). Verify the config write before

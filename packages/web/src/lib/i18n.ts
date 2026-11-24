@@ -161,7 +161,8 @@ export async function activate(requested: string): Promise<void> {
   if (latest !== requested) return;
   formatTag = formatTagFor(locale);
   setFormatLocale(formatTag);
-  i18n.loadAndActivate({ locale, messages });
+  // Fall back to the source catalog for missing translated entries.
+  i18n.loadAndActivate({ locale, messages: { ...sourceMessages, ...messages } });
   setUiText(uiWords());
   const html = document.documentElement;
   html.lang = locale;

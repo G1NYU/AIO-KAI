@@ -4,7 +4,7 @@ import { appBridge, ask } from './bridge';
 export type ReadAction =
   | { kind: 'status' | 'sources' | 'library' | 'stores' | 'refresh-extensions' }
   | { kind: 'add-store' | 'remove-store'; index: string }
-  | { kind: 'extensions'; offset: number }
+  | { kind: 'extensions'; offset: number; query?: string; store?: string }
   | { kind: 'install-extension' | 'uninstall-extension'; package: string }
   | { kind: 'catalogue'; source: string; page: number; mode: 'popular' | 'latest' | 'search'; query?: string }
   | { kind: 'manga' | 'chapter'; id: number }
