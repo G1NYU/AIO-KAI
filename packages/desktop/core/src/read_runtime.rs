@@ -1,6 +1,6 @@
-//! Isolated Windows reading runtime broker. No arbitrary GraphQL, URLs,
-//! extension installation, or webview-visible credentials. Not yet wired to
-//! the app: process ownership and the fixed API are tested in CI first.
+//! Isolated Windows reading runtime broker. No arbitrary GraphQL or
+//! webview-visible credentials. Explicit repository metadata operations only;
+//! executable extensions are not installed yet. Not wired to the app.
 use std::fs;
 use std::io::Read;
 use std::net::{Ipv4Addr, TcpListener};
@@ -36,7 +36,7 @@ impl ReadOperation {
                 "query TsugiSources { sources(first: 100) { nodes { id name lang displayName supportsLatest } totalCount } }"
             }
             Self::Stores => {
-                "query TsugiStores { extensionStores(first: 100) { nodes { name isLegacy } totalCount } }"
+                "query TsugiStores { extensionStores(first: 100) { nodes { name badgeLabel indexUrl signingKey isLegacy } totalCount } }"
             }
             Self::Library => {
                 "query TsugiLibrary { mangas(condition: { inLibrary: true }, first: 100) { nodes { id title inLibrary } totalCount } }"
@@ -148,13 +148,13 @@ impl ReadClient {
         decode(operation, reply)
     }
 
-    fn mutation(
+    fn document(
         &self,
         document: &'static str,
         key: &'static str,
-        input: Value,
+        variables: Value,
     ) -> Result<Value, &'static str> {
-        let reply = self.send_document(document, json!({ "input": input }), Some(&self.authorization))?;
+        let reply = self.send_document(document, variables, Some(&self.authorization))?;
         if reply.status != 200
             || reply.body.get("errors").is_some_and(|errors| !errors.is_null())
         {
@@ -165,6 +165,15 @@ impl ReadClient {
             return Err("Reading server returned an invalid result.");
         }
         Ok(value)
+    }
+
+    fn mutation(
+        &self,
+        document: &'static str,
+        key: &'static str,
+        input: Value,
+    ) -> Result<Value, &'static str> {
+        self.document(document, key, json!({ "input": input }))
     }
 
     fn page(&self, path: &PagePath) -> Result<PageImage, &'static str> {
@@ -241,6 +250,33 @@ fn decode(operation: ReadOperation, reply: Reply) -> Result<Value, &'static str>
         }
     }
     Ok(value)
+}
+
+/// The native repository input accepts the current index.pb format and
+/// legacy indexes. Do not accept credentials, queries, local paths or IPs.
+fn repository_index(value: &str) -> Result<url::Url, &'static str> {
+    let invalid = "Invalid reading repository URL.";
+    if value.len() > 2048 || value.trim() != value || value.chars().any(char::is_control) {
+        return Err(invalid);
+    }
+    let parsed = url::Url::parse(value).map_err(|_| invalid)?;
+    let Some(url::Host::Domain(host)) = parsed.host() else {
+        return Err(invalid);
+    };
+    if parsed.scheme() != "https"
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+        || parsed.port().is_some()
+        || !host.contains('.')
+        || host.ends_with(".localhost")
+        || host.ends_with(".local")
+        || !["/index.pb", "/repo.json", "/index.min.json"].iter().any(|suffix| parsed.path().ends_with(suffix))
+    {
+        return Err(invalid);
+    }
+    Ok(parsed)
 }
 
 /// A page capability derived only from the fixed chapter-pages response.
@@ -394,6 +430,65 @@ impl ReadRuntime {
         self.client.query(operation)
     }
 
+    /// Explicitly added by a trusted native caller after user confirmation.
+    /// This validates the initial index URL only; it is not an SSRF sandbox
+    /// for the upstream engine or a signature/trust check for executable code.
+    pub fn add_store(&self, index: &str) -> Result<Value, &'static str> {
+        let index = repository_index(index)?;
+        self.add_store_inner(index.as_str())
+    }
+
+    fn add_store_inner(&self, index: &str) -> Result<Value, &'static str> {
+        self.client.mutation(
+            "mutation TsugiAddStore($input: AddExtensionStoreInput!) { addExtensionStore(input: $input) { extensionStore { name badgeLabel indexUrl signingKey isLegacy } } }",
+            "addExtensionStore",
+            json!({ "indexUrl": index }),
+        )
+    }
+
+    /// Remove an existing registered store, not an arbitrary remote endpoint.
+    /// This does not uninstall any previously installed extensions.
+    pub fn remove_store(&self, index: &str) -> Result<Value, &'static str> {
+        let stores = self.query(ReadOperation::Stores)?;
+        if !stores["nodes"].as_array().is_some_and(|nodes| {
+            nodes.iter().any(|node| node["indexUrl"] == index)
+        }) {
+            return Err("Reading repository is not registered.");
+        }
+        self.client.mutation(
+            "mutation TsugiRemoveStore($input: RemoveExtensionStoreInput!) { removeExtensionStore(input: $input) { extensionStore { name indexUrl } } }",
+            "removeExtensionStore",
+            json!({ "indexUrl": index }),
+        )
+    }
+
+    pub fn refresh_extensions(&self) -> Result<(), &'static str> {
+        // Refresh can involve thousands of entries. Do not fetch an unbounded
+        // response; read the actual list with the paginated query below.
+        self.client.mutation(
+            "mutation TsugiRefreshExtensions($input: FetchExtensionsInput!) { fetchExtensions(input: $input) { __typename } }",
+            "fetchExtensions",
+            json!({}),
+        )?;
+        Ok(())
+    }
+
+    pub fn extensions(&self, offset: u32) -> Result<Value, &'static str> {
+        if offset > 100_000 {
+            return Err("Invalid extension catalogue offset.");
+        }
+        let result = self.client.document(
+            "query TsugiExtensions($offset: Int!) { extensions(first: 100, offset: $offset) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
+            "extensions",
+            json!({ "offset": offset }),
+        )?;
+        let nodes = result["nodes"].as_array().ok_or("Invalid extension catalogue.")?;
+        if nodes.len() > 100 || !result["totalCount"].is_u64() {
+            return Err("Invalid extension catalogue.");
+        }
+        Ok(result)
+    }
+
     /// The backend's source ID is LongString, never a JS number.
     pub fn catalogue(&self, source: &str, page: u32, mode: CatalogueMode<'_>) -> Result<Value, &'static str> {
         if source.parse::<i64>().is_err() || page == 0 || page > 1000 {
@@ -489,8 +584,11 @@ impl Drop for ReadRuntime {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::net::TcpStream;
     use std::path::PathBuf;
+    use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+    use std::thread::JoinHandle;
 
     #[test]
     fn large_source_id_survives_without_js_rounding() {
@@ -533,6 +631,134 @@ mod tests {
             assert!(PagePath::parse(path, 7, 0).is_err());
         }
         assert_eq!(image_mime(b"<svg/>"), None);
+    }
+
+    #[test]
+    fn rejects_non_repository_urls() {
+        for url in [
+            "https://example.test/mihon/index.pb",
+            "https://example.test/repo.json",
+            "https://example.test/index.min.json",
+        ] {
+            assert!(repository_index(url).is_ok());
+        }
+        for url in [
+            "http://example.test/index.pb",
+            "https://127.0.0.1/index.pb",
+            "https://localhost/index.pb",
+            "https://host.local/index.pb",
+            "https://example.test:444/index.pb",
+            "https://user@example.test/index.pb",
+            "https://example.test/index.pb?token=x",
+            "https://example.test/index.pb#part",
+            "file:///index.pb",
+            "https://example.test/other",
+        ] {
+            assert!(repository_index(url).is_err());
+        }
+    }
+
+    // Encode the documented upstream 1.6 protobuf fields directly. This
+    // fixture is metadata only; its APK/JAR URLs are never fetched.
+    fn varint(mut value: u64, out: &mut Vec<u8>) {
+        while value >= 128 {
+            out.push((value as u8 & 127) | 128);
+            value >>= 7;
+        }
+        out.push(value as u8);
+    }
+
+    fn field(out: &mut Vec<u8>, number: u64, bytes: &[u8]) {
+        varint(number << 3 | 2, out);
+        varint(bytes.len() as u64, out);
+        out.extend_from_slice(bytes);
+    }
+
+    fn fixture_index() -> Vec<u8> {
+        let mut resources = Vec::new();
+        field(&mut resources, 1, b"https://example.invalid/fixture.apk");
+        field(&mut resources, 2, b"https://example.invalid/fixture.png");
+        let mut source = Vec::new();
+        varint(8, &mut source);
+        varint(12345, &mut source);
+        field(&mut source, 2, b"Fixture source");
+        field(&mut source, 3, b"en");
+        let mut extension = Vec::new();
+        field(&mut extension, 1, b"Tsugi Fixture");
+        field(&mut extension, 2, b"org.tsugi.fixture");
+        field(&mut extension, 3, &resources);
+        field(&mut extension, 4, b"1.6");
+        varint(40, &mut extension);
+        varint(1, &mut extension);
+        field(&mut extension, 6, b"1.6.1");
+        varint(56, &mut extension);
+        varint(1, &mut extension);
+        field(&mut extension, 8, &source);
+        let mut list = Vec::new();
+        field(&mut list, 1, &extension);
+        let mut contact = Vec::new();
+        field(&mut contact, 1, b"https://example.invalid");
+        let mut store = Vec::new();
+        field(&mut store, 1, b"Tsugi Fixture Store");
+        field(&mut store, 2, b"Fixture");
+        field(&mut store, 3, b"0000000000000000000000000000000000000000000000000000000000000000");
+        field(&mut store, 4, &contact);
+        field(&mut store, 101, &list);
+        store
+    }
+
+    struct FixtureStore {
+        url: String,
+        stop: Arc<AtomicBool>,
+        worker: Option<JoinHandle<()>>,
+    }
+
+    impl FixtureStore {
+        fn start() -> Self {
+            let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+            let port = listener.local_addr().unwrap().port();
+            listener.set_nonblocking(true).unwrap();
+            let stop = Arc::new(AtomicBool::new(false));
+            let stopped = Arc::clone(&stop);
+            let worker = std::thread::spawn(move || {
+                let body = fixture_index();
+                while !stopped.load(Ordering::Acquire) {
+                    let Ok((mut stream, _)) = listener.accept() else {
+                        std::thread::sleep(Duration::from_millis(20));
+                        continue;
+                    };
+                    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+                    let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
+                    let mut request = Vec::new();
+                    for byte in (&mut stream).bytes().take(8192) {
+                        let Ok(byte) = byte else { break };
+                        request.push(byte);
+                        if request.ends_with(b"\r\n\r\n") { break; }
+                    }
+                    if request.starts_with(b"GET /index.pb HTTP/1.") {
+                        let header = format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                        let _ = stream.write_all(header.as_bytes());
+                        let _ = stream.write_all(&body);
+                    } else {
+                        let _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                    }
+                }
+            });
+            Self {
+                url: format!("http://127.0.0.1:{port}/index.pb"),
+                stop,
+                worker: Some(worker),
+            }
+        }
+    }
+
+    impl Drop for FixtureStore {
+        fn drop(&mut self) {
+            self.stop.store(true, Ordering::Release);
+            if let Some(worker) = self.worker.take() {
+                let _ = worker.join();
+            }
+        }
     }
 
     #[test]
@@ -583,6 +809,24 @@ mod tests {
         let details = managed.manga(manga_id).expect("retrieve saved progress");
         assert_eq!(details["chapters"][0]["isRead"], true);
         assert_eq!(details["chapters"][0]["lastPageRead"], 1);
+        // Private test-only path: production add_store accepts HTTPS only.
+        let store = FixtureStore::start();
+        let added = managed.add_store_inner(&store.url).expect("protobuf store metadata");
+        assert_eq!(added["extensionStore"]["name"], "Tsugi Fixture Store");
+        assert_eq!(added["extensionStore"]["isLegacy"], false);
+        let stores = managed.query(ReadOperation::Stores).unwrap();
+        assert!(stores["nodes"].as_array().unwrap().iter().any(|node| node["indexUrl"] == store.url));
+        managed.refresh_extensions().expect("refresh protobuf extension catalogue");
+        let extensions = managed.extensions(0).expect("extension catalogue");
+        let entry = extensions["nodes"].as_array().unwrap().iter().find(|node| node["pkgName"] == "org.tsugi.fixture").expect("fixture extension metadata");
+        assert_eq!(entry["extensionLib"], "1.6");
+        assert_eq!(entry["versionName"], "1.6.1");
+        assert_eq!(entry["isInstalled"], false);
+        assert!(managed.extensions(100).unwrap()["nodes"].as_array().unwrap().is_empty());
+        managed.remove_store(&store.url).expect("remove fixture store");
+        assert!(managed.query(ReadOperation::Stores).unwrap()["nodes"].as_array().unwrap().is_empty());
+        managed.refresh_extensions().expect("refresh removed store");
+        assert!(managed.extensions(0).unwrap()["nodes"].as_array().unwrap().is_empty());
         let port = managed.client.port;
         drop(managed);
         assert!(TcpStream::connect_timeout(

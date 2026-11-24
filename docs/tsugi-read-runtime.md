@@ -168,3 +168,21 @@ progress, then stops the process. This tests live upstream behavior without
 external extension installs. It does not prove external extension compatibility
 or persistence across restart. Production lifecycle and permissions remain
 outstanding; no launcher entry or shipping package change yet.
+
+## Extension store metadata integration
+
+Run 45393657292 passed all native tests including original local comic search,
+chapter pages, library and progress. Add the fixed upstream store add/remove,
+refresh and paginated extension queries (100 rows; only selected metadata).
+The generated local fixture uses the actual 1.6 protobuf field numbering and
+asserts store metadata, extension version/API metadata, pagination, removal
+and refresh. No real APK/JAR is installed or fetched. The test-only loopback
+fixture calls the private method; native user-input store addition validates
+HTTPS index.pb, repo.json or index.min.json URLs, rejecting userinfo, fragments,
+queries, IP literals and local names. This is initial URL validation, not a
+network sandbox; upstream store metadata/redirects and installed extensions
+can cause further requests. Before wiring a UI, require explicit repository
+confirmation, show store identity/signing key, do not treat adding a store as
+permission to execute its extensions. Actual third-party install/update and
+trust review, persistent runtime ownership, app packaging and native Read UI
+remain outstanding. Keep all work on the separate reading branch.
