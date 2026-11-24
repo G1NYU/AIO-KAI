@@ -5,6 +5,9 @@ import {
   parseCatalogItems, catalogTrack, loadCatalog, loadDetail, parseDetail, parseSearchResults,
 } from '../src/lib/music/eclipse';
 
+import { providerFor } from '../src/lib/music/providers';
+import type { MusicConnection } from '../src/lib/music/connections';
+
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Eclipse public addon compatibility', () => {
@@ -168,4 +171,62 @@ describe('Eclipse public addon compatibility', () => {
     expect(detail.albums).toHaveLength(1);
   });
 
+});
+
+describe('unified music provider boundary', () => {
+  const connection: MusicConnection = {
+    id: 'legacy',
+    url: 'https://provider.test/profile/manifest.json?config=synthetic',
+    manifest: { id: 'test', name: 'Test', version: '1', resources: ['search', 'stream', 'catalog'] },
+  };
+  it('routes search, catalogs, details and playback through the bound provider', async () => {
+    const requests: { url: string; signal?: AbortSignal | null }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, opts: RequestInit) => {
+      requests.push({ url, signal: opts.signal });
+      const path = new URL(url).pathname;
+      if (path.endsWith('/manifest.json')) return new Response(JSON.stringify({
+        ...connection.manifest, catalogs: [{ id: 'hits', type: 'track', name: 'Hits' }],
+      }));
+      if (path.endsWith('/search')) return new Response(JSON.stringify({ tracks: [
+        { id: 'track/1', title: 'Song', artist: 'Artist' },
+      ] }));
+      if (path.endsWith('/catalog/hits')) return new Response(JSON.stringify({ items: [
+        { id: 'track/1', type: 'track', title: 'Song', artist: 'Artist' },
+      ] }));
+      if (path.endsWith('/album/a')) return new Response(JSON.stringify({
+        id: 'a', title: 'Album', tracks: [{ id: 'track/1', title: 'Song', artist: 'Artist' }],
+      }));
+      return new Response(JSON.stringify({ url: 'https://audio.example/song.flac' }));
+    }));
+    const provider = providerFor(connection);
+    const signal = new AbortController().signal;
+    expect(provider.kind).toBe('eclipse');
+    const result = await provider.search('Artist & Song', signal);
+    expect(result.tracks[0].id).toBe('track/1');
+    const catalogs = await provider.catalogs(signal);
+    expect(catalogs[0].id).toBe('hits');
+    expect((await provider.catalog(catalogs[0], 0, signal))[0].id).toBe('track/1');
+    expect((await provider.detail({ id: 'a', type: 'album', title: 'Album' }, signal)).title).toBe('Album');
+    expect((await provider.resolve(result.tracks[0], signal)).url).toBe('https://audio.example/song.flac');
+    expect(requests).toHaveLength(5);
+    expect(requests.every(({ url, signal: requestSignal }) =>
+      new URL(url).origin === 'https://provider.test' &&
+      new URL(url).searchParams.get('config') === 'synthetic' && requestSignal === signal)).toBe(true);
+    expect(new URL(requests[0].url).searchParams.get('q')).toBe('Artist & Song');
+    expect(new URL(requests[4].url).pathname).toBe('/profile/stream/track%2F1');
+  });
+  it('returns no catalog shelves when a provider does not advertise catalogs', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      ...connection.manifest, resources: ['search', 'stream'],
+      catalogs: [{ id: 'hits', type: 'track', name: 'Hits' }],
+    }))));
+    expect(await providerFor(connection).catalogs()).toEqual([]);
+  });
+  it('fails closed on an unregistered provider and never calls the network', () => {
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    expect(() => providerFor({ ...connection, kind: 'unknown' } as unknown as MusicConnection))
+      .toThrow('Unsupported music provider.');
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });

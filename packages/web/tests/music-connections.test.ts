@@ -44,3 +44,17 @@ describe('remembered music sources', () => {
     expect(readMusicSources()).toEqual([]);
   });
 });
+
+describe('provider discriminator migration', () => {
+  it('keeps existing stored source IDs and explicit Eclipse provider kinds', () => {
+    saveMusicSources(true, [{ ...example, kind: 'eclipse' }]);
+    expect(readMusicSources()).toEqual([{ ...example, kind: 'eclipse' }]);
+  });
+  it('rejects unknown provider kinds instead of guessing an addon transport', () => {
+    values.set('aiostreams-desktop-music-remember-v1', 'true');
+    values.set('aiostreams-desktop-music-sources-v1', JSON.stringify([
+      { ...example, kind: 'future-provider' },
+    ]));
+    expect(readMusicSources()).toEqual([]);
+  });
+});

@@ -4,10 +4,11 @@ import { Trans } from '@lingui/react/macro';
 import { BiArrowBack, BiDisc, BiPlay } from 'react-icons/bi';
 import { FiArrowUpRight, FiPlay, FiSettings } from 'react-icons/fi';
 import {
-  catalogTrack, loadAddon, loadCatalog, loadDetail,
+  catalogTrack,
   type EclipseCatalogDefinition, type EclipseCatalogItem, type EclipseDetail, type EclipseTrack,
 } from '@/lib/music/eclipse';
 import type { MusicConnection } from '@/lib/music/connections';
+import { providerFor } from '@/lib/music/providers';
 import type { TrendingRecording } from '@/lib/music/discovery';
 import { MusicCharts } from './charts';
 import type { RecentMusicPlay } from '@/lib/music/history';
@@ -52,7 +53,7 @@ export function MusicCollection({
     setDetail(null);
     setError('');
     setLoading(true);
-    loadDetail(source.url, current, controller.signal).then((result) => {
+    providerFor(source).detail(current, controller.signal).then((result) => {
       if (!controller.signal.aborted) setDetail(result);
     }).catch(() => {
       if (!controller.signal.aborted) setError(t`This collection is unavailable from the addon.`);
@@ -60,7 +61,7 @@ export function MusicCollection({
       if (!controller.signal.aborted) setLoading(false);
     });
     return () => controller.abort();
-  }, [current, source.url]);
+  }, [current, source]);
 
   React.useEffect(() => {
     if (!selected) return;
@@ -168,13 +169,13 @@ export function MusicDiscover({
     async function refresh() {
       if (!source) return;
       try {
-        const manifest = await loadAddon(source.url, controller.signal);
-        const catalogs = manifest.resources.includes('catalog') ? (manifest.catalogs ?? []) : [];
+        const provider = providerFor(source);
+        const catalogs = await provider.catalogs(controller.signal);
         if (controller.signal.aborted) return;
         setHasCatalog(catalogs.length > 0);
         const rows = await Promise.all(catalogs.map(async (catalog): Promise<Shelf> => {
           try {
-            return { catalog, items: await loadCatalog(source.url, catalog, 0, controller.signal), unavailable: false };
+            return { catalog, items: await provider.catalog(catalog, 0, controller.signal), unavailable: false };
           } catch {
             return { catalog, items: [], unavailable: true };
           }
@@ -188,7 +189,7 @@ export function MusicDiscover({
     }
     void refresh();
     return () => controller.abort();
-  }, [source?.id, source?.url]);
+  }, [source]);
 
   function openCatalogItem(row: Shelf, item: EclipseCatalogItem) {
     if (!source) return;

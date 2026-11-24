@@ -4,13 +4,14 @@ import { Trans } from '@lingui/react/macro';
 import { BiDisc, BiSearch } from 'react-icons/bi';
 import { FiMenu, FiSearch, FiX, FiArrowUpRight, FiPlus } from 'react-icons/fi';
 import {
-  loadAddon, loadStore, manifestUrlFor, resolveTrack, searchAddonAll,
+  loadAddon, loadStore, manifestUrlFor,
   type EclipseCatalogItem, type EclipseStoreEntry, type EclipseTrack,
 } from '@/lib/music/eclipse';
 import {
   readMusicSources, remembersMusicSources, saveMusicSources,
   type MusicConnection,
 } from '@/lib/music/connections';
+import { providerFor } from '@/lib/music/providers';
 import { MusicPlayer, type RepeatMode } from './player';
 import { MusicLibrary } from './library';
 import { useRememberedMusicFolder } from './use-remembered-folder';
@@ -48,7 +49,6 @@ export function MusicPage({
   const [rememberSources, setRememberSources] = React.useState(remembersMusicSources);
   const [selectedId, setSelectedId] = React.useState(() => readMusicSources()[0]?.id ?? '');
   const activeSource = connections.find((source) => source.id === selectedId);
-  const activeUrl = activeSource?.url ?? '';
   const activeAddon = activeSource?.manifest ?? null;
   const connectedName = activeAddon?.name ?? '';
   const [playingSourceId, setPlayingSourceId] = React.useState('');
@@ -212,8 +212,8 @@ export function MusicPage({
       const existing = connections.find((source) => source.url === url);
       const id = existing?.id ?? crypto.randomUUID();
       setConnections((previous) => existing
-        ? previous.map((source) => source.id === id ? { id, url, manifest: addon } : source)
-        : [...previous, { id, url, manifest: addon }]);
+        ? previous.map((source) => source.id === id ? { id, url, manifest: addon, kind: 'eclipse' as const } : source)
+        : [...previous, { id, url, manifest: addon, kind: 'eclipse' as const }]);
       setSelectedId(id);
       setManifestInput('');
       setSearchError('');
@@ -230,7 +230,7 @@ export function MusicPage({
 
   async function search(event: React.FormEvent) {
     event.preventDefault();
-    if (!activeUrl || !query.trim()) return;
+    if (!activeSource || !query.trim()) return;
     const request = ++generation.current;
     setSearching(true);
     setConnecting(false);
@@ -239,7 +239,7 @@ export function MusicPage({
     setTracks([]);
     setCollections([]);
     try {
-      const result = await searchAddonAll(activeUrl, query.trim());
+      const result = await providerFor(activeSource).search(query.trim());
       if (request === generation.current) {
         setTracks(result.tracks);
         setCollections([...result.albums, ...result.artists, ...result.playlists]);
@@ -264,7 +264,7 @@ export function MusicPage({
     const request = ++generation.current;
     setSearching(true);
     try {
-      const result = await searchAddonAll(source.url, term);
+      const result = await providerFor(source).search(term);
       if (request === generation.current) {
         setTracks(result.tracks);
         setCollections([...result.albums, ...result.artists, ...result.playlists]);
@@ -294,7 +294,7 @@ export function MusicPage({
     setQuality('');
     setResolving(true);
     try {
-      const stream = await resolveTrack(source.url, track);
+      const stream = await providerFor(source).resolve(track);
       if (request !== playbackRequest.current) return;
       setQuality(stream.quality ?? stream.format ?? '');
       setStreamUrl(stream.url);
@@ -457,7 +457,7 @@ export function MusicPage({
       return;
     }
     try {
-      const result = await searchAddonAll(source.url, entry.artist + ' ' + entry.title);
+      const result = await providerFor(source).search(entry.artist + ' ' + entry.title);
       const match = result.tracks.find(track =>
         entry.isrc && track.isrc === entry.isrc) ??
         result.tracks.find(track => normalized(track.title) === normalized(entry.title) &&
