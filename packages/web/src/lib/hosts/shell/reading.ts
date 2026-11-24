@@ -47,27 +47,64 @@ export function isReaderPagePath(path: unknown): path is string {
 
 // The native image capability is a single-slot cache. Transfer each image
 // completely into a local blob before issuing the next image operation.
-// Both covers and chapter pages use this queue; no remote image URLs enter
-// the webview and queued covers can be abandoned when their card unmounts.
-let imageTail: Promise<void> = Promise.resolve();
-export function readImage(
-  action: Extract<ReadAction, { kind: 'page' }> | { kind: 'cover'; id: number },
-  signal?: AbortSignal,
-): Promise<string> {
-  const operation = imageTail.then(async () => {
-    signal?.throwIfAborted();
-    const result = await readRequest<{ path: string; index?: number }>(action);
-    signal?.throwIfAborted();
-    if (!isReaderPagePath(result.path) || (action.kind === 'page' && result.index !== action.index))
-      throw new Error(t({ id: "Invalid reading image.", message: "Invalid reading image." }));
-    const response = await fetch(result.path, { cache: 'no-store', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000) });
-    if (!response.ok) throw new Error(t({ id: "Could not load reading image.", message: "Could not load reading image." }));
-    const blob = await response.blob();
-    signal?.throwIfAborted();
-    if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(blob.type) || blob.size === 0 || blob.size > 24 * 1024 * 1024)
-      throw new Error(t({ id: "Invalid reading image.", message: "Invalid reading image." }));
-    return URL.createObjectURL(blob);
+// Reading pages take priority over queued covers, while one in-flight native
+// transfer remains atomic. Covers cache compressed bytes only, not object URLs.
+type ImageAction = Extract<ReadAction, { kind: 'page' }> | { kind: 'cover'; id: number };
+type ImageJob = { action: ImageAction; signal?: AbortSignal; resolve(url: string): void; reject(error: unknown): void };
+const imageQueue: ImageJob[] = [];
+const coverCache = new Map<number, Blob>();
+let coverBytes = 0;
+let imageRunning = false;
+function cachedCover(id: number) {
+  const blob = coverCache.get(id);
+  if (blob) { coverCache.delete(id); coverCache.set(id, blob); }
+  return blob;
+}
+function rememberCover(id: number, blob: Blob) {
+  const prior = coverCache.get(id);
+  if (prior) coverBytes -= prior.size;
+  coverCache.delete(id);
+  coverCache.set(id, blob);
+  coverBytes += blob.size;
+  while (coverCache.size > 48 || coverBytes > 32 * 1024 * 1024) {
+    const oldest = coverCache.keys().next().value;
+    if (oldest === undefined) break;
+    coverBytes -= coverCache.get(oldest)!.size;
+    coverCache.delete(oldest);
+  }
+}
+async function transferImage(action: ImageAction, signal?: AbortSignal): Promise<string> {
+  signal?.throwIfAborted();
+  const cached = action.kind === 'cover' ? cachedCover(action.id) : undefined;
+  if (cached) return URL.createObjectURL(cached);
+  const result = await readRequest<{ path: string; index?: number }>(action);
+  signal?.throwIfAborted();
+  if (!isReaderPagePath(result.path) || (action.kind === 'page' && result.index !== action.index))
+    throw new Error(t({ id: "Invalid reading image.", message: "Invalid reading image." }));
+  const response = await fetch(result.path, { cache: 'no-store', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error(t({ id: "Could not load reading image.", message: "Could not load reading image." }));
+  const blob = await response.blob();
+  signal?.throwIfAborted();
+  const limit = action.kind === 'cover' ? 4 * 1024 * 1024 : 24 * 1024 * 1024;
+  if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(blob.type) || blob.size === 0 || blob.size > limit)
+    throw new Error(t({ id: "Invalid reading image.", message: "Invalid reading image." }));
+  if (action.kind === 'cover') rememberCover(action.id, blob);
+  return URL.createObjectURL(blob);
+}
+function pumpImages() {
+  if (imageRunning) return;
+  while (imageQueue.length) {
+    const priority = imageQueue.findIndex((job) => job.action.kind === 'page');
+    const [job] = imageQueue.splice(priority < 0 ? 0 : priority, 1);
+    if (job.signal?.aborted) { job.reject(job.signal.reason); continue; }
+    imageRunning = true;
+    void transferImage(job.action, job.signal).then(job.resolve, job.reject).finally(() => { imageRunning = false; pumpImages(); });
+    return;
+  }
+}
+export function readImage(action: ImageAction, signal?: AbortSignal): Promise<string> {
+  return new Promise((resolve, reject) => {
+    imageQueue.push({ action, signal, resolve, reject });
+    pumpImages();
   });
-  imageTail = operation.then(() => undefined, () => undefined);
-  return operation;
 }

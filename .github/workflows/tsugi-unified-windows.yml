@@ -41,6 +41,19 @@ jobs:
       - run: pnpm -F @aiostreams/web lint
       - name: Desktop navigation and music regression tests
         run: pnpm exec vitest run packages/web/tests/reader-utils.test.ts packages/web/tests/desktop-area.test.ts packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts packages/web/tests/player-template.test.ts packages/web/tests/player-layout.test.ts packages/web/tests/music-feature-pack.test.ts packages/web/tests/music-lyrics.test.ts packages/web/tests/music-history.test.ts packages/web/tests/eclipse-appearance.test.ts packages/web/tests/music-library.test.ts packages/web/tests/audio-profiles.test.ts
+      - name: Browser interaction smoke (no desktop packaging)
+        run: |
+          npm install --prefix "$RUNNER_TEMP/tsugi-reader-browser" --no-audit --no-fund --no-save playwright@1.58.2
+          "$RUNNER_TEMP/tsugi-reader-browser/node_modules/.bin/playwright" install chromium
+          pnpm -F @aiostreams/web i18n:extract
+          pnpm -F @aiostreams/web dev:standalone --host 127.0.0.1 --port 4179 > "$RUNNER_TEMP/tsugi-reader-dev.log" 2>&1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          export TSUGI_READER_PLAYWRIGHT="$RUNNER_TEMP/tsugi-reader-browser/node_modules/playwright/index.mjs"
+          if ! node packages/web/tests/reader-browser-smoke.mjs; then
+            tail -80 "$RUNNER_TEMP/tsugi-reader-dev.log"
+            exit 1
+          fi
       - name: Build standalone web
         if: github.event_name == 'workflow_dispatch'
         run: pnpm -F @aiostreams/web build:standalone
