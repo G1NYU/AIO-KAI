@@ -12,9 +12,11 @@ type Props = {
 
 // A continuous repeating sine-like stroke; no audio capture or animation timers.
 const WAVE = (() => {
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- SVG path coordinates, not UI copy.
   let path = 'M -64 16';
   for (let i = 0; i < 82; i++) {
     const x = -64 + i * 16;
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- SVG path coordinates, not UI copy.
     path += ` Q ${x + 8} ${i % 2 ? 23 : 9} ${x + 16} 16`;
   }
   return path;
