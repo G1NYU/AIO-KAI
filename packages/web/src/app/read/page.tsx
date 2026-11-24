@@ -1,7 +1,7 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiArrowLeft, FiBookOpen, FiChevronRight, FiCompass, FiGrid, FiSearch, FiSettings, FiFilm, FiHeadphones, FiGlobe, FiClock, FiBook, FiRefreshCw } from 'react-icons/fi';
+import { FiArrowLeft, FiBookOpen, FiChevronRight, FiCompass, FiGrid, FiSearch, FiSettings, FiFilm, FiHeadphones, FiGlobe, FiClock, FiBook, FiRefreshCw, FiBookmark } from 'react-icons/fi';
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { prepareReading, readRequest, readImage } from '@/lib/hosts/shell/reading';
@@ -20,7 +20,8 @@ type Catalogue = { mangas: Manga[]; hasNextPage: boolean };
 type Reader = { chapter: Chapter; count: number; index: number };
 type Tab = 'library' | 'browse' | 'settings';
 type BrowseTab = 'sources' | 'extensions' | 'search';
-type SettingsPage = 'browse' | 'sources' | 'repositories' | 'reader' | null;
+type SettingsPage = 'browse' | 'sources' | 'repositories' | 'reader' | 'trackers' | null;
+type Tracker = { id: number; name: string; isLoggedIn: boolean; supportsReadingDates: boolean; supportsPrivateTracking: boolean };
 type SearchGroup = { source: Source; result?: Catalogue; error?: string };
 type Mode = 'popular' | 'latest' | 'search';
 
@@ -67,7 +68,9 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
   const [expandedSynopsis, setExpandedSynopsis] = React.useState(false);
   const [chapterFilter, setChapterFilter] = React.useState('');
   const [chapterOrder, setChapterOrder] = React.useState<'asc' | 'desc'>('asc');
-  const [chapterState, setChapterState] = React.useState<'all' | 'unread' | 'read'>('all');
+  const [chapterState, setChapterState] = React.useState<'all' | 'unread' | 'read' | 'bookmarked'>('all');
+  const [selectedChapters, setSelectedChapters] = React.useState<number[]>([]);
+  const [trackers, setTrackers] = React.useState<Nodes<Tracker> | null>(null);
   const [extensionFailures, setExtensionFailures] = React.useState<Record<string, string>>({});
   const active = React.useRef(true);
 
@@ -144,6 +147,7 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
   function openSettings(next: SettingsPage) {
     setSettingsPage(next); setError('');
     if (next === 'reader') setReaderPreferences(readReaderPreferences());
+    if (next === 'trackers') void run(async () => setTrackers(await readRequest<Nodes<Tracker>>({ kind: 'trackers' })));
     if (next === 'repositories') void run(loadStores);
   }
   async function catalogue(mode: Mode, page = 1, selection = source, term = query.trim()) {
@@ -157,6 +161,7 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
     setExpandedSynopsis(false);
     setChapterFilter('');
     setChapterState('all');
+    setSelectedChapters([]);
     const data = await readRequest<Details>({ kind: 'manga', id });
     setDetails(data);
     content.current?.scrollTo(0, 0);
@@ -177,6 +182,14 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
     if (!Number.isSafeInteger(result.pageCount) || result.pageCount < 1 || result.pageCount > 2000) throw new Error(t({ id: "This chapter has no supported pages.", message: "This chapter has no supported pages." }));
     const index = chapter.isRead || !readReaderPreferences().resume ? 0 : Math.max(0, Math.min(chapter.lastPageRead || 0, result.pageCount - 1));
     setReader({ chapter, count: result.pageCount, index });
+  }
+  async function changeChapters(ids: number[], patch: { read?: boolean; bookmarked?: boolean }) {
+    if (!ids.length) return;
+    if (ids.length > 2000) throw new Error(t({ id: "Select at most 2000 chapters.", message: "Select at most 2000 chapters." }));
+    const response = await readRequest<{ chapters: Pick<Chapter, 'id' | 'isRead' | 'isBookmarked' | 'lastPageRead'>[] }>({ kind: 'chapter-flags', ids, ...patch });
+    const updated = new Map(response.chapters.map((chapter) => [chapter.id, chapter]));
+    setDetails((old) => old ? { ...old, chapters: old.chapters.map((chapter) => ({ ...chapter, ...updated.get(chapter.id) })) } : old);
+    setSelectedChapters([]);
   }
   async function changeExtension(extension: Extension) {
     setExtensionFailures((old) => { const next = { ...old }; delete next[extension.pkgName]; return next; });
@@ -199,7 +212,7 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
   const recent = allLibrary.filter((manga) => manga.lastReadChapter).sort((a, b) => Number(b.lastReadChapter?.lastReadAt || 0) - Number(a.lastReadChapter?.lastReadAt || 0));
   const libraryRows = (libraryView === 'reading' ? recent.filter((manga) => !manga.lastReadChapter?.isRead || !!manga.unreadCount) : allLibrary).filter((manga) => (manga.title + ' ' + (manga.author || '')).toLowerCase().includes(libraryFilter.trim().toLowerCase())).sort((a, b) => librarySort === 'recent' ? Number(b.lastReadChapter?.lastReadAt || 0) - Number(a.lastReadChapter?.lastReadAt || 0) : a.title.localeCompare(b.title));
   const rows = tab === 'library' ? libraryRows : browse?.result.mangas || [];
-  const chapterRows = details ? chapterGroups(details.chapters).map((group) => group.filter((chapter) => (chapter.name + ' ' + (chapter.scanlator || '')).toLowerCase().includes(chapterFilter.toLowerCase()) && (chapterState === 'all' || (chapterState === 'read') === chapter.isRead))).filter((group) => group.length) : [];
+  const chapterRows = details ? chapterGroups(details.chapters).map((group) => group.filter((chapter) => (chapter.name + ' ' + (chapter.scanlator || '')).toLowerCase().includes(chapterFilter.toLowerCase()) && (chapterState === 'all' || (chapterState === 'bookmarked' ? chapter.isBookmarked : (chapterState === 'read') === chapter.isRead)))).filter((group) => group.length) : [];
   if (chapterOrder === 'desc') chapterRows.reverse();
   const mangaRow = (manga: Manga) => <button className="tsugi-manga-card" key={manga.id} disabled={busy && (!globalSearching || globalStopping)} onClick={() => {
     if (globalSearching) {
@@ -255,23 +268,37 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
           </div>
         </div>
       </div>
-      <div className="tsugi-reading-list-header"><h3 className="text-xl font-medium"><Trans id="Chapters">Chapters</Trans> <span className="text-sm text-[--tsugi-muted]">({chapterRows.length})</span></h3><div className="tsugi-reading-filters"><input className="tsugi-read-input" value={chapterFilter} onChange={(event) => setChapterFilter(event.target.value)} placeholder={t({ id: "Find a chapter", message: "Find a chapter" })} aria-label={t({ id: "Find a chapter", message: "Find a chapter" })} /><select className="tsugi-read-input" aria-label={t({ id: "Chapter status", message: "Chapter status" })} value={chapterState} onChange={(event) => setChapterState(event.target.value as typeof chapterState)}><option value="all"><Trans id="All chapters">All chapters</Trans></option><option value="unread"><Trans id="Unread">Unread</Trans></option><option value="read"><Trans id="Read">Read</Trans></option></select><button className="tsugi-read-action" onClick={() => setChapterOrder(chapterOrder === 'asc' ? 'desc' : 'asc')}>{chapterOrder === 'asc' ? t({ id: "Oldest first", message: "Oldest first" }) : t({ id: "Newest first", message: "Newest first" })}</button></div></div>
+      <div className="tsugi-reading-list-header"><h3 className="text-xl font-medium"><Trans id="Chapters">Chapters</Trans> <span className="text-sm text-[--tsugi-muted]">({chapterRows.length})</span></h3><div className="tsugi-reading-filters"><input className="tsugi-read-input" value={chapterFilter} onChange={(event) => setChapterFilter(event.target.value)} placeholder={t({ id: "Find a chapter", message: "Find a chapter" })} aria-label={t({ id: "Find a chapter", message: "Find a chapter" })} /><select className="tsugi-read-input" aria-label={t({ id: "Chapter status", message: "Chapter status" })} value={chapterState} onChange={(event) => setChapterState(event.target.value as typeof chapterState)}><option value="all"><Trans id="All chapters">All chapters</Trans></option><option value="unread"><Trans id="Unread">Unread</Trans></option><option value="read"><Trans id="Read">Read</Trans></option><option value="bookmarked"><Trans id="Bookmarked">Bookmarked</Trans></option></select><button className="tsugi-read-action" onClick={() => setChapterOrder(chapterOrder === 'asc' ? 'desc' : 'asc')}>{chapterOrder === 'asc' ? t({ id: "Oldest first", message: "Oldest first" }) : t({ id: "Newest first", message: "Newest first" })}</button></div></div>
       {!details.chapters.length && <p><Trans id="No chapters found.">No chapters found.</Trans></p>}
       {!chapterRows.length && details.chapters.length > 0 && <p className="py-6 text-[--tsugi-muted]"><Trans id="No chapters match your filters.">No chapters match your filters.</Trans></p>}
+      {!!chapterRows.length && <div className="tsugi-chapter-selection">
+        <label><input type="checkbox" checked={chapterRows.flat().every((chapter) => selectedChapters.includes(chapter.id))} disabled={busy || chapterRows.flat().length > 2000} onChange={(event) => setSelectedChapters(event.target.checked ? chapterRows.flat().map((chapter) => chapter.id) : [])} /><Trans id="Select visible chapters">Select visible chapters</Trans></label>
+        {!!selectedChapters.length && <><span>{selectedChapters.length} <Trans id="selected">selected</Trans></span><button className="tsugi-read-action" disabled={busy} onClick={() => void run(() => changeChapters(selectedChapters, { read: true }))}><Trans id="Mark read">Mark read</Trans></button><button className="tsugi-read-action" disabled={busy} onClick={() => void run(() => changeChapters(selectedChapters, { read: false }))}><Trans id="Mark unread">Mark unread</Trans></button><button className="tsugi-read-action" disabled={busy} onClick={() => void run(() => changeChapters(selectedChapters, { bookmarked: true }))}><Trans id="Bookmark">Bookmark</Trans></button><button className="tsugi-read-action" onClick={() => setSelectedChapters([])}><Trans id="Clear selection">Clear selection</Trans></button></>}
+      </div>}
       {chapterRows.map((group) => {
         const first = group[0];
-        const chapterRow = (chapter: Chapter) => <button className="tsugi-read-row tsugi-chapter-row" key={chapter.id} disabled={busy} onClick={() => void run(() => openChapter(chapter))}><span><span className="block font-medium">{chapter.name}</span><span className="text-xs text-[--tsugi-muted]">{chapter.scanlator || (group.length > 1 ? t({ id: "Unknown translation group", message: "Unknown translation group" }) : '')}</span></span><span className="text-xs text-[--tsugi-muted]">{chapter.isRead ? t({ id: "Read", message: "Read" }) : chapter.lastPageRead > 0 ? t({ id: "Resume", message: "Resume" }) : t({ id: "Unread", message: "Unread" })}</span></button>;
+        const chapterRow = (chapter: Chapter) => <div className="tsugi-chapter-list-item" key={chapter.id}>
+          <input type="checkbox" checked={selectedChapters.includes(chapter.id)} disabled={busy} aria-label={t({ id: "Select chapter", message: "Select chapter" }) + ' ' + chapter.name} onChange={(event) => setSelectedChapters((ids) => event.target.checked ? [...ids, chapter.id] : ids.filter((id) => id !== chapter.id))} />
+          <button className="tsugi-read-row tsugi-chapter-row" disabled={busy} onClick={() => void run(() => openChapter(chapter))}><span><span className="block font-medium">{chapter.name}</span><span className="text-xs text-[--tsugi-muted]">{chapter.scanlator || (group.length > 1 ? t({ id: "Unknown translation group", message: "Unknown translation group" }) : '')}</span></span><span className="text-xs text-[--tsugi-muted]">{chapter.isRead ? t({ id: "Read", message: "Read" }) : chapter.lastPageRead > 0 ? t({ id: "Resume", message: "Resume" }) : t({ id: "Unread", message: "Unread" })}</span></button>
+          <button className="tsugi-reader-icon" disabled={busy} aria-pressed={!!chapter.isBookmarked} aria-label={chapter.isBookmarked ? t({ id: "Remove bookmark", message: "Remove bookmark" }) : t({ id: "Bookmark chapter", message: "Bookmark chapter" })} onClick={() => void run(() => changeChapters([chapter.id], { bookmarked: !chapter.isBookmarked }))}><FiBookmark aria-hidden /></button>
+        </div>;
         return group.length === 1 ? chapterRow(first) : <details key={first.id} className="tsugi-chapter-versions"><summary><span className="font-medium">{first.name}</span><span className="text-xs text-[--tsugi-muted]">{group.length} <Trans id="versions">versions</Trans></span></summary><div className="pl-5">{group.map(chapterRow)}</div></details>;
       })}
     </section> : tab === 'settings' ? (
       <section className="tsugi-read-settings">
         <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm text-[--tsugi-muted]" aria-label={t({ id: "Settings path", message: "Settings path" })}>
           <button disabled={busy} onClick={() => openSettings(null)}><Trans id="Settings">Settings</Trans></button>
-          {settingsPage === 'reader' ? <><FiChevronRight aria-hidden /><span><Trans id="Reader">Reader</Trans></span></> : settingsPage && <><FiChevronRight aria-hidden /><button disabled={busy} onClick={() => openSettings('browse')}><Trans id="Browse">Browse</Trans></button></>}
+          {settingsPage === 'reader' || settingsPage === 'trackers' ? <><FiChevronRight aria-hidden /><span>{settingsPage === 'reader' ? t({ id: "Reader", message: "Reader" }) : t({ id: "Trackers", message: "Trackers" })}</span></> : settingsPage && <><FiChevronRight aria-hidden /><button disabled={busy} onClick={() => openSettings('browse')}><Trans id="Browse">Browse</Trans></button></>}
           {(settingsPage === 'sources' || settingsPage === 'repositories') && <><FiChevronRight aria-hidden /><button disabled={busy} onClick={() => openSettings('sources')}><Trans id="Sources">Sources</Trans></button></>}
           {settingsPage === 'repositories' && <><FiChevronRight aria-hidden /><span><Trans id="Extension repositories">Extension repositories</Trans></span></>}
         </nav>
-        {settingsPage === null ? <div className="tsugi-reading-settings-index">{settingRow(t({ id: "Browse", message: "Browse" }), t({ id: "Manage manga sources and extensions.", message: "Manage manga sources and extensions." }), 'browse')}{settingRow(t({ id: "Reader", message: "Reader" }), t({ id: "Set the default reading layout, appearance and controls.", message: "Set the default reading layout, appearance and controls." }), 'reader')}</div>
+        {settingsPage === null ? <div className="tsugi-reading-settings-index">{settingRow(t({ id: "Browse", message: "Browse" }), t({ id: "Manage manga sources and extensions.", message: "Manage manga sources and extensions." }), 'browse')}{settingRow(t({ id: "Reader", message: "Reader" }), t({ id: "Set the default reading layout, appearance and controls.", message: "Set the default reading layout, appearance and controls." }), 'reader')}{settingRow(t({ id: "Trackers", message: "Trackers" }), t({ id: "See tracking services available in the reading engine.", message: "See tracking services available in the reading engine." }), 'trackers')}</div>
+          : settingsPage === 'trackers' ? <section className="tsugi-reading-settings-index">
+              <h2 className="text-xl font-semibold"><Trans id="Trackers">Trackers</Trans></h2>
+              <p className="text-sm text-[--tsugi-muted]"><Trans id="Chapter progress is saved locally. External account linking and synchronization are not enabled in this build.">Chapter progress is saved locally. External account linking and synchronization are not enabled in this build.</Trans></p>
+              {trackers?.nodes.map((tracker) => <div key={tracker.id} className="tsugi-read-row"><span>{tracker.name}</span><span className="text-sm text-[--tsugi-muted]">{tracker.isLoggedIn ? t({ id: "Connected in reading engine", message: "Connected in reading engine" }) : t({ id: "Not connected", message: "Not connected" })}</span></div>)}
+              <button className="tsugi-read-action self-start" disabled={busy} onClick={() => openSettings('trackers')}><Trans id="Refresh trackers">Refresh trackers</Trans></button>
+            </section>
           : settingsPage === 'reader' ? <ReaderSettings value={readerPreferences} onChange={(value) => { setReaderPreferences(value); saveReaderPreferences(value); }} />
           : settingsPage === 'browse' ? settingRow(t({ id: "Sources", message: "Sources" }), t({ id: "Manage extension sources and repositories.", message: "Manage extension sources and repositories." }), 'sources')
           : settingsPage === 'sources' ? settingRow(t({ id: "Extension repositories", message: "Extension repositories" }), t({ id: "Add or remove trusted extension stores.", message: "Add or remove trusted extension stores." }), 'repositories')

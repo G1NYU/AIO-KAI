@@ -1413,3 +1413,12 @@ body:has(.tsugi-chapter-reader[data-focus='hidden']) .tsugi-reading-music { disp
 .tsugi-global-palettes button[aria-pressed='true'] { border-color:var(--tsugi-accent); background:var(--tsugi-wash); }
 .tsugi-global-swatch { display:flex; align-items:center; justify-content:center; width:100%; height:38px; border:1px solid; }
 .tsugi-global-swatch i { width:20px; height:20px; }
+
+.tsugi-chapter-selection { display:flex; flex-wrap:wrap; align-items:center; gap:9px; padding:10px 0; color:var(--tsugi-muted); font-size:.8rem; }
+.tsugi-chapter-selection label { display:flex; align-items:center; gap:8px; }
+.tsugi-chapter-selection input,.tsugi-chapter-list-item input { accent-color:var(--tsugi-accent); }
+.tsugi-chapter-list-item { display:flex; align-items:center; gap:10px; padding-inline:4px; border-bottom:1px solid var(--tsugi-line); }
+.tsugi-chapter-list-item .tsugi-chapter-row { flex:1; min-width:0; border:0; }
+.tsugi-chapter-list-item .tsugi-reader-icon { flex:none; }
+.tsugi-chapter-list-item .tsugi-reader-icon[aria-pressed='true'] { color:var(--tsugi-accent); }
+.tsugi-chapter-list-item .tsugi-reader-icon[aria-pressed='true'] svg { fill:currentColor; }

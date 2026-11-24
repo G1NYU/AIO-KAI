@@ -7,6 +7,7 @@ export type ReadingChapter = {
   sourceOrder?: number;
   scanlator?: string | null;
   isRead: boolean;
+  isBookmarked?: boolean;
   lastPageRead: number;
   pageCount: number;
 };

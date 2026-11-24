@@ -2,7 +2,7 @@ import { t } from '@lingui/core/macro';
 import { appBridge, ask } from './bridge';
 
 export type ReadAction =
-  | { kind: 'prepare' | 'status' | 'sources' | 'library' | 'stores' | 'refresh-extensions' }
+  | { kind: 'prepare' | 'status' | 'sources' | 'library' | 'stores' | 'refresh-extensions' | 'trackers' }
   | { kind: 'add-store' | 'remove-store'; index: string }
   | { kind: 'extensions'; offset: number; query?: string; store?: string; language?: string; installed?: boolean }
   | { kind: 'install-extension' | 'uninstall-extension'; package: string }
@@ -10,7 +10,8 @@ export type ReadAction =
   | { kind: 'manga' | 'chapter' | 'cover'; id: number }
   | { kind: 'set-library'; id: number; inLibrary: boolean }
   | { kind: 'page'; chapterId: number; index: number }
-  | { kind: 'progress'; chapterId: number; index: number; finished: boolean };
+  | { kind: 'progress'; chapterId: number; index: number; finished: boolean }
+  | { kind: 'chapter-flags'; ids: number[]; read?: boolean; bookmarked?: boolean };
 
 export function supportsReadingSection(): boolean {
   const bridge = appBridge();

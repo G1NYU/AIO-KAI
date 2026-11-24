@@ -28,6 +28,7 @@ pub enum ReadOperation {
     Sources,
     Stores,
     Library,
+    Trackers,
 }
 
 impl ReadOperation {
@@ -40,6 +41,7 @@ impl ReadOperation {
             Self::Stores => {
                 "query TsugiStores { extensionStores(first: 100) { nodes { name badgeLabel indexUrl signingKey isLegacy } totalCount } }"
             }
+            Self::Trackers => "query TsugiTrackers { trackers(first: 50) { nodes { id name isLoggedIn supportsReadingDates supportsPrivateTracking } totalCount } }",
             Self::Library => {
                 "query TsugiLibrary { mangas(condition: { inLibrary: true }, first: 100) { nodes { id title author thumbnailUrl inLibrary unreadCount lastReadChapter { id name lastPageRead pageCount isRead lastReadAt } } totalCount } }"
             }
@@ -52,6 +54,7 @@ impl ReadOperation {
             Self::Sources => "sources",
             Self::Stores => "extensionStores",
             Self::Library => "mangas",
+            Self::Trackers => "trackers",
         }
     }
 }
@@ -1188,7 +1191,7 @@ impl ReadRuntime {
             return Err("Invalid manga identifier.");
         }
         self.client.slow().mutation(
-            "mutation TsugiManga($input: FetchMangaAndChaptersInput!) { fetchMangaAndChapters(input: $input) { manga { id sourceId title author artist description genre thumbnailUrl inLibrary } chapters { id name mangaId chapterNumber sourceOrder scanlator pageCount isRead lastPageRead } } }",
+            "mutation TsugiManga($input: FetchMangaAndChaptersInput!) { fetchMangaAndChapters(input: $input) { manga { id sourceId title author artist description genre thumbnailUrl inLibrary } chapters { id name mangaId chapterNumber sourceOrder scanlator pageCount isRead isBookmarked lastPageRead } } }",
             "fetchMangaAndChapters",
             json!({ "id": id, "fetchManga": true, "fetchChapters": true }),
         )
@@ -1243,6 +1246,29 @@ impl ReadRuntime {
 
     pub fn page(&self, chapter: &ChapterPages, index: usize) -> Result<PageImage, &'static str> {
         self.client.page(chapter.paths.get(index).ok_or("Reading page is out of range.")?)
+    }
+
+    /// Explicit local chapter-management actions; never fetch remote images
+    /// merely to mark a chapter or set its bookmark.
+    pub fn update_chapter_flags(&self, ids: &[i32], read: Option<bool>, bookmarked: Option<bool>) -> Result<Value, &'static str> {
+        if ids.is_empty() || ids.len() > 2000 || ids.iter().any(|id| *id <= 0)
+            || (read.is_none() && bookmarked.is_none()) {
+            return Err("Invalid chapter selection.");
+        }
+        let mut ids = ids.to_vec();
+        ids.sort_unstable();
+        ids.dedup();
+        let mut patch = json!({});
+        if let Some(read) = read {
+            patch["isRead"] = json!(read);
+            if !read { patch["lastPageRead"] = json!(0); }
+        }
+        if let Some(bookmarked) = bookmarked { patch["isBookmarked"] = json!(bookmarked); }
+        self.client.mutation(
+            "mutation TsugiChapterFlags($input: UpdateChaptersInput!) { updateChapters(input: $input) { chapters { id isRead isBookmarked lastPageRead } } }",
+            "updateChapters",
+            json!({"ids": ids, "patch": patch}),
+        )
     }
 
     pub fn save_progress(&self, chapter: &ChapterPages, index: usize, finished: bool) -> Result<Value, &'static str> {
@@ -1692,6 +1718,7 @@ mod tests {
             ReadOperation::Sources,
             ReadOperation::Stores,
             ReadOperation::Library,
+            ReadOperation::Trackers,
         ] {
             let value = managed.query(operation).expect("fixed reading query");
             assert!(value["nodes"].is_array());
@@ -1725,6 +1752,15 @@ mod tests {
         let progress = managed.save_progress(&pages, 1, true).expect("save reading progress");
         assert_eq!(progress["chapter"]["lastPageRead"], 1);
         assert_eq!(progress["chapter"]["isRead"], true);
+        assert!(managed.update_chapter_flags(&[], Some(true), None).is_err());
+        assert!(managed.update_chapter_flags(&[id], None, None).is_err());
+        let flags = managed.update_chapter_flags(&[id], Some(false), Some(true)).expect("mark unread and bookmark");
+        assert_eq!(flags["chapters"][0]["isRead"], false);
+        assert_eq!(flags["chapters"][0]["isBookmarked"], true);
+        assert_eq!(flags["chapters"][0]["lastPageRead"], 0);
+        managed.save_progress(&pages, 1, true).expect("restore completed progress");
+        let trackers = managed.query(ReadOperation::Trackers).expect("available native trackers");
+        assert!(trackers["nodes"].as_array().unwrap().iter().any(|tracker| tracker["id"] == 1 && tracker["isLoggedIn"] == false));
         let library = managed.set_library(manga_id, true).expect("add fixture to library");
         assert_eq!(library["manga"]["inLibrary"], true);
         let list = managed.query(ReadOperation::Library).expect("library query");
@@ -1749,6 +1785,7 @@ mod tests {
         assert!(list["nodes"].as_array().unwrap().iter().any(|item| item["id"] == manga_id.to_string()));
         let details = managed.manga(manga_id).expect("persisted reading progress");
         assert_eq!(details["chapters"][0]["id"], id);
+        assert_eq!(details["chapters"][0]["isBookmarked"], true);
         assert_eq!(details["chapters"][0]["isRead"], true);
         assert_eq!(details["chapters"][0]["lastPageRead"], 1);
         let reopened = managed.chapter(id).expect("reopened chapter");

@@ -289,6 +289,8 @@ fn execute(
         ReadAction::Status => reader.query(ReadOperation::Status),
         ReadAction::Sources => reader.query(ReadOperation::Sources),
         ReadAction::Library => reader.query(ReadOperation::Library),
+        ReadAction::Trackers => reader.query(ReadOperation::Trackers),
+        ReadAction::ChapterFlags { ids, read, bookmarked } => reader.update_chapter_flags(&ids, read, bookmarked),
         ReadAction::Stores => reader.query(ReadOperation::Stores),
         ReadAction::AddStore { index } => {
             if !confirm_store(owner, &index) { return Err("Repository registration cancelled."); }

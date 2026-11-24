@@ -75,6 +75,8 @@ pub enum ReadAction {
     Chapter { id: i32 },
     Page { chapter_id: i32, index: usize },
     Progress { chapter_id: i32, index: usize, finished: bool },
+    Trackers,
+    ChapterFlags { ids: Vec<i32>, read: Option<bool>, bookmarked: Option<bool> },
 }
 
 #[derive(Debug, Deserialize)]
