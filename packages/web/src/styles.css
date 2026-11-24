@@ -1078,3 +1078,59 @@ html[data-blur-spoilers]:not([data-tv])
 @media (prefers-reduced-motion:reduce) {
   .tsugi-gateway-link,.tsugi-volume-range { transition:none; }
 }
+
+/* Independent library — editorial typography and lines, never boxed playlist cards. */
+.tsugi-library { min-width:0; }
+.tsugi-library-list-item {
+  color:var(--tsugi-muted);
+  background:transparent;
+  border-left:2px solid transparent;
+  transition:background .15s ease,color .15s ease;
+}
+.tsugi-library-list-item:hover {color:var(--tsugi-ink);background:var(--tsugi-wash);}
+.tsugi-library-list-item[aria-current='page'] {
+  border-left-color:var(--tsugi-accent);
+  color:var(--tsugi-ink);
+  background:var(--tsugi-wash);
+}
+.tsugi-library-input {
+  border:0;
+  border-bottom:1px solid var(--tsugi-line);
+  border-radius:0;
+  padding:12px 4px;
+  background:transparent;
+  color:var(--tsugi-ink);
+  outline-offset:3px;
+  font-size:.875rem;
+}
+.tsugi-library-input::placeholder {color:var(--tsugi-muted);}
+.tsugi-library-action {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 0;
+  color:var(--tsugi-muted);
+  background:transparent;
+  border-bottom:1px solid transparent;
+  transition:color .16s ease,border-color .16s ease;
+}
+.tsugi-library-action:hover {
+  color:var(--tsugi-ink);
+  border-bottom-color:var(--tsugi-accent);
+}
+.tsugi-library-tracks li:hover {background:var(--tsugi-wash);}
+.tsugi-local-track:hover {color:var(--tsugi-accent);}
+.tsugi-library img {border-radius:4px;}
+/* More usable featured art/text balance on tall and ultrawide monitors. */
+.tsugi-hub-feature {min-height:clamp(320px,42vh,570px);}
+.tsugi-hub-feature .tsugi-hub-feature-art img {object-position:center 35%;}
+.tsugi-hub-feature h3 {max-width:14ch;line-height:1.04;}
+.tsugi-mini-player [data-ui='tsugi-volume'] {align-self:center;}
+@media (min-width:1700px) {
+  .tsugi-gateway-nav {padding-inline:1.5vw;}
+  .tsugi-library {padding-inline:clamp(0px,1vw,22px);}
+}
+@media (max-width:760px) {
+  .tsugi-hub-feature {min-height:350px;}
+  .tsugi-library-tracks {max-width:100%;}
+}

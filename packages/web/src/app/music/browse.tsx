@@ -236,7 +236,7 @@ export function MusicDiscover({
       {featured && featuredRow && (
         <section className="tsugi-hub-feature relative grid min-h-[310px] overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(230px,37%)]"
           aria-label={t`Featured music`}>
-          <div className="relative z-10 flex min-w-0 flex-col justify-end px-3 py-8 sm:px-7 lg:py-12">
+          <div className="relative z-10 flex min-w-0 flex-col justify-center px-3 py-8 sm:px-7 lg:py-12">
             <span className="tsugi-eyebrow"><Trans>Featured from your source</Trans></span>
             <h3 className="mt-5 line-clamp-2 text-[clamp(2.4rem,4vw,5rem)] font-semibold leading-tight tracking-[-.06em]">
               {featured.title}
