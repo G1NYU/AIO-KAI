@@ -1113,7 +1113,7 @@ impl ReadRuntime {
     pub fn track_records(&self, manga_id: i32) -> Result<Value, &'static str> {
         if manga_id <= 0 { return Err("Invalid manga identifier."); }
         self.client.document(
-            "query TsugiTrackRecords($id: Int!) { trackRecords(condition: {mangaId: $id}, first: 20) { nodes { id trackerId title lastChapterRead totalChapters displayScore } totalCount } }",
+            "query TsugiTrackRecords($id: Int!) { trackRecords(condition: {mangaId: $id}, first: 20) { nodes { id trackerId title lastChapterRead totalChapters } totalCount } }",
             "trackRecords", json!({"id": manga_id}))
     }
 
@@ -1122,7 +1122,7 @@ impl ReadRuntime {
             return Err("Invalid tracker search.");
         }
         self.client.slow().mutation(
-            "mutation TsugiTrackerSearch($input: SearchTrackerInput!) { searchTracker(input: $input) { trackSearches { remoteId title totalChapters publishingType publishingStatus startDate } } }",
+            "query TsugiTrackerSearch($input: SearchTrackerInput!) { searchTracker(input: $input) { trackSearches { remoteId title totalChapters publishingType publishingStatus startDate } } }",
             "searchTracker", json!({"trackerId": id, "query": query.trim()}))
     }
 
@@ -1917,6 +1917,21 @@ mod tests {
         managed.save_progress(&pages, 1, true).expect("restore completed progress");
         let trackers = managed.query(ReadOperation::Trackers).expect("available native trackers");
         assert!(trackers["nodes"].as_array().unwrap().iter().any(|tracker| tracker["id"] == 1 && tracker["isLoggedIn"] == false));
+        // Validate the actual generated GraphQL schema without contacting a
+        // provider or mutating account data. Skip directives prevent execution
+        // but the engine still validates field, argument and input types.
+        for (document, variables) in [
+            ("query TsugiTrackerSearchContract($input: SearchTrackerInput!) { searchTracker(input: $input) @skip(if: true) { trackSearches { remoteId title totalChapters publishingType publishingStatus startDate } } }", json!({"input": {"trackerId": 1, "query": "original fixture"}})),
+            ("mutation TsugiTrackerLoginContract($input: LoginTrackerOAuthInput!) { loginTrackerOAuth(input: $input) @skip(if: true) { isLoggedIn } }", json!({"input": {"trackerId": 1, "callbackUrl": "http://127.0.0.1/fixture"}})),
+            ("mutation TsugiTrackerLogoutContract($input: LogoutTrackerInput!) { logoutTracker(input: $input) @skip(if: true) { isLoggedIn } }", json!({"input": {"trackerId": 1}})),
+            ("mutation TsugiTrackerBindContract($input: BindTrackInput!) { bindTrack(input: $input) @skip(if: true) { trackRecord { id trackerId title lastChapterRead totalChapters } } }", json!({"input": {"mangaId": manga_id, "trackerId": 1, "remoteId": 44}})),
+            ("mutation TsugiTrackerUnbindContract($input: UnbindTrackInput!) { unbindTrack(input: $input) @skip(if: true) { clientMutationId } }", json!({"input": {"recordId": 1, "deleteRemoteTrack": false}})),
+            ("mutation TsugiTrackerSyncContract($input: TrackProgressInput!) { trackProgress(input: $input) @skip(if: true) { trackRecords { id trackerId title lastChapterRead totalChapters } } }", json!({"input": {"mangaId": manga_id}})),
+        ] {
+            let response = managed.client.send_document(document, variables, Some(&managed.client.authorization)).expect("tracker GraphQL contract response");
+            assert_eq!(response.status, 200);
+            assert!(response.body.get("errors").is_none_or(Value::is_null), "tracker GraphQL schema contract: {}", document);
+        }
         let records = managed.track_records(manga_id).expect("real tracker records query");
         assert_eq!(records["totalCount"], 0);
         assert!(managed.sync_tracker_progress(manga_id).is_err());
