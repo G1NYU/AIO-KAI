@@ -72,10 +72,11 @@ export function MusicCollection({
   if (!current) return null;
   return (
     <section role="dialog" aria-modal="true" aria-label={t`Music collection`}
-      className="fixed inset-0 z-40 overflow-y-auto bg-[#100e17] text-white">
-      <div className="mx-auto min-h-screen max-w-6xl px-6 py-7 sm:px-10">
+      className="tsugi-player-dialog fixed inset-0 z-40 overflow-y-auto">
+      <div aria-hidden className="tsugi-chrome-wash" />
+      <div className="mx-auto min-h-screen max-w-6xl px-6 pb-32 pt-14 sm:px-10">
         <button type="button" onClick={nested ? () => setNested(null) : onClose}
-          className="mb-9 inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-white/65 hover:bg-white/10">
+          className="mb-9 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white/65 hover:bg-white/10">
           <BiArrowBack aria-hidden /> <Trans>Back to music</Trans>
         </button>
         <header className="mb-9 flex flex-wrap items-end gap-7">
@@ -103,7 +104,7 @@ export function MusicCollection({
             {detail.tracks.map((track, at) => (
               <button key={track.id + ':' + at} type="button"
                 onClick={() => { onPlay(source, detail.tracks, at); onClose(); }}
-                className="flex w-full items-center gap-4 rounded-xl border border-white/[0.05] bg-white/[0.035] px-4 py-3 text-left hover:bg-white/[0.09]">
+                className="flex w-full items-center gap-4 rounded-xl border border-white/[0.05] bg-white/[0.035] px-4 py-3 text-left transition-colors hover:bg-white/[0.09]">
                 <span className="w-6 text-right text-xs text-white/35">{at + 1}</span>
                 <Cover src={track.artworkURL} size="small" />
                 <span className="min-w-0 flex-1">

@@ -1,7 +1,7 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { BiArrowBack, BiDisc, BiFilm, BiMusic, BiSearch } from 'react-icons/bi';
+import { BiArrowBack, BiDisc, BiFilm, BiSearch } from 'react-icons/bi';
 import {
   loadAddon, loadStore, manifestUrlFor, resolveTrack, searchAddonAll,
   type EclipseCatalogItem, type EclipseStoreEntry, type EclipseTrack,
@@ -292,53 +292,54 @@ export function MusicPage({
 
   return (
     <main data-page="music" style={{ display: visible ? 'block' : 'none' }}
-      className="min-h-screen bg-[#0B0B11] px-6 py-7 pb-44 text-[#E9EAF2] sm:px-10">
+      className="tsugi-music-root min-h-screen px-6 pb-44 pt-16 sm:px-10">
+      <div aria-hidden className="tsugi-chrome-wash" />
       <div className="mx-auto max-w-[1440px]">
-        <nav aria-label={t`Media sections`} className="mb-12 flex items-center justify-between gap-4">
-          <button type="button" onClick={openWelcome} className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-[--muted] hover:bg-white/[0.08] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+        <nav aria-label={t`Media sections`} className="mb-8 flex items-center justify-between gap-4">
+          <button type="button" onClick={openWelcome}
+            className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-[--tsugi-muted] transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline focus-visible:outline-2">
             <BiArrowBack aria-hidden /> <Trans>All media</Trans>
           </button>
-          <button type="button" onClick={openVideo} className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+          <button type="button" onClick={openVideo}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm transition-colors hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-2">
             <BiFilm aria-hidden /> <Trans>Movies & TV</Trans>
           </button>
         </nav>
 
-        <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-4">
+        <header className="tsugi-music-header mb-8 flex flex-wrap items-end justify-between gap-6">
+          <div className="space-y-5">
             <TsugiBrand />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#A7A0BC]">
-                <Trans>Independent listening</Trans>
-              </p>
-              <h1 className="mt-1 text-4xl font-semibold tracking-tight"><Trans>Music</Trans></h1>
+              <p className="tsugi-eyebrow"><Trans>Independent listening</Trans></p>
+              <h1 className="mt-2 text-[clamp(2.4rem,4vw,4.2rem)] font-semibold tracking-tight"><Trans>Music</Trans></h1>
             </div>
           </div>
-          <BiMusic aria-hidden className="text-3xl text-[#BDD8E5]" />
+          <div className="flex items-center gap-3 text-xs" style={{color:'var(--tsugi-muted)'}}>
+            <span className="size-1.5 rounded-full" style={{background:'var(--tsugi-accent)'}} />
+            <span className="max-w-60 truncate">{connectedName || activeSource?.manifest.name || ''}</span>
+          </div>
         </header>
 
-        <nav className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4"
+        <nav className="mb-9 flex flex-wrap items-center justify-between gap-4"
           aria-label={t`Music sections`}>
-          <div className="flex items-center gap-2" role="tablist">
+          <div className="tsugi-music-tabs" role="tablist">
             <button type="button" role="tab" aria-selected={tab === 'discover'}
-              onClick={() => setTab('discover')}
-              className={tab === 'discover' ? 'rounded-full bg-[#BDD5F1] px-5 py-2.5 text-sm font-semibold text-[#15141C]' : 'rounded-full px-5 py-2.5 text-sm text-white/55 hover:bg-white/10'}>
+              onClick={() => setTab('discover')} className="px-5 py-2.5">
               <Trans>Discover</Trans>
             </button>
             <button type="button" role="tab" aria-selected={tab === 'search'}
-              onClick={() => setTab('search')}
-              className={tab === 'search' ? 'rounded-full bg-[#BDD5F1] px-5 py-2.5 text-sm font-semibold text-[#15141C]' : 'rounded-full px-5 py-2.5 text-sm text-white/55 hover:bg-white/10'}>
+              onClick={() => setTab('search')} className="px-5 py-2.5">
               <Trans>Search</Trans>
             </button>
             <button type="button" role="tab" aria-selected={tab === 'sources'}
-              onClick={() => setTab('sources')}
-              className={tab === 'sources' ? 'rounded-full bg-[#BDD5F1] px-5 py-2.5 text-sm font-semibold text-[#15141C]' : 'rounded-full px-5 py-2.5 text-sm text-white/55 hover:bg-white/10'}>
+              onClick={() => setTab('sources')} className="px-5 py-2.5">
               <Trans>Sources</Trans>
             </button>
           </div>
           {connections.length > 0 && (
             <select aria-label={t`Active music source`} value={selectedId}
               onChange={(event) => switchSource(event.target.value)}
-              className="max-w-60 rounded-xl border border-[#373442] bg-[#1C1A25] px-4 py-2 text-sm text-white">
+              className="tsugi-source-select max-w-60 px-4 py-2.5 text-sm">
               {connections.map((source) =>
                 <option key={source.id} value={source.id}>{source.manifest.name}</option>)}
             </select>
@@ -349,7 +350,7 @@ export function MusicPage({
           onFind={(song) => { void findChartTrack(song); }} />}
 
         <section aria-labelledby="music-source-heading" style={{ display: tab === 'sources' ? 'block' : 'none' }}
-          className="mb-10 space-y-4 rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
+          className="tsugi-discover-card mb-10 space-y-4 p-6 sm:p-8">
           <h2 id="music-source-heading" className="text-2xl font-semibold">
             <Trans>Connect a music source</Trans>
           </h2>
@@ -362,9 +363,9 @@ export function MusicPage({
               type="url" required autoComplete="off" spellCheck={false}
               value={manifestInput} onChange={(e) => setManifestInput(e.target.value)}
               placeholder="https://example.com/manifest.json"
-              className="min-w-0 flex-1 rounded-xl border border-white/15 bg-black/20 px-4 py-3 text-sm text-white placeholder:text-[--muted] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300"
+              className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm placeholder:text-[--muted] focus-visible:outline focus-visible:outline-2"
             />
-            <button type="submit" disabled={connecting} className="rounded-xl bg-violet-200 px-6 py-3 text-sm font-semibold text-slate-950 disabled:opacity-50">
+            <button type="submit" disabled={connecting} className="rounded-xl px-6 py-3 text-sm font-semibold disabled:opacity-50" style={{background:'var(--tsugi-accent)',color:'var(--tsugi-canvas)'}}>
               {connecting ? <Trans>Connecting…</Trans> : <Trans>Connect</Trans>}
             </button>
           </form>
@@ -404,9 +405,9 @@ export function MusicPage({
             <form onSubmit={search} className="flex flex-col gap-3 sm:flex-row">
               <input aria-label={t`Search music`} value={query} onChange={(e) => setQuery(e.target.value)}
                 placeholder={t`Artist, album or track`}
-                className="min-w-0 flex-1 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-[--muted] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300" />
+                className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm placeholder:text-[--muted] focus-visible:outline focus-visible:outline-2" />
               <button type="submit" disabled={searching || !query.trim()}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-6 py-3 text-sm disabled:opacity-50">
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-6 py-3 text-sm disabled:opacity-50">
                 <BiSearch aria-hidden />{searching ? <Trans>Searching…</Trans> : <Trans>Search</Trans>}
               </button>
             </form>
@@ -418,7 +419,7 @@ export function MusicPage({
                   {collections.map((item) => (
                     <button key={item.type + ':' + item.id} type="button"
                       onClick={() => setSelectedCollection(item)}
-                      className="w-36 shrink-0 text-left">
+                      className="w-36 shrink-0 text-left transition-transform hover:-translate-y-0.5">
                       {item.artworkURL
                         ? <img src={item.artworkURL} alt="" loading="lazy" referrerPolicy="no-referrer"
                             className="aspect-square w-full rounded-xl object-cover" />
@@ -432,11 +433,11 @@ export function MusicPage({
                 </div>
               </section>
             )}
-            <ul className="space-y-2">
+            <ul className="space-y-1">
               {tracks.map((track, at) => (
                 <li key={track.id}>
                   <button type="button" onClick={() => activeSource && void play(track, at, activeSource)}
-                    className="flex w-full items-center gap-4 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-start hover:bg-white/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+                    data-ui="music-track-row" className="flex w-full items-center gap-4 px-4 py-3 text-start focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
                     {track.artworkURL
                       ? <img src={track.artworkURL} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-12 rounded-lg object-cover" />
                       : <BiDisc aria-hidden className="text-2xl text-violet-200" />}
@@ -471,7 +472,7 @@ export function MusicPage({
           </p>}
           {store.length === 0 && !storeError &&
             <p className="text-sm text-[--muted]"><Trans>Loading community addons…</Trans></p>}
-          <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm">
+          <div className="tsugi-discover-card mb-4 p-5 text-sm">
             <h3 className="font-semibold"><Trans>DebridVault library</Trans></h3>
             <p className="mt-2 max-w-2xl text-white/55">
               <Trans>Manage your personal Real-Debrid or TorBox music library in DebridVault. This website is not itself an Eclipse addon manifest.</Trans>
@@ -483,7 +484,7 @@ export function MusicPage({
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {store.map((addon) => (
-              <article key={addon.id} className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+              <article key={addon.id} className="tsugi-discover-card flex flex-col gap-3 p-5">
                 <div className="flex items-center gap-3">
                   {addon.icon
                     ? <img src={addon.icon} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-12 rounded-xl object-contain" />
