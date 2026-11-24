@@ -11,6 +11,8 @@ mod music_stream;
 pub mod now_playing;
 pub mod playback;
 pub mod player;
+#[cfg(windows)]
+pub mod read_runtime;
 pub mod render;
 pub mod sound;
 pub mod thumbnails;

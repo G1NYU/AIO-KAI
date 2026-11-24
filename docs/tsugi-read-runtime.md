@@ -130,3 +130,25 @@ reject any data on negative probes, and require a second successful authenticate
 query on the same endpoint after both negative probes. Bare 404, redirects and
 arbitrary errors still fail closed. No auth setting, server code or network
 binding is changed. Full smoke and clean shutdown must pass before integration.
+
+## Native broker implementation milestone
+
+Smoke run 45387367416 passed all pinned-runtime gates. Add a Windows-only native
+broker using the same official JAR/JRE layout, OS-generated random Basic
+credentials, fixed loopback endpoint, disabled proxy/redirects, bounded response
+size and timeouts, fixed read-only GraphQL operations for status, sources,
+installed stores and library. Preserve 64-bit source IDs as strings. Negative
+credentials must fail with a Basic challenge and no protected data. The live
+CI test starts the actual runtime from Rust, queries these operations, drops
+the owned child, checks port closure and deletes only its disposable fixture.
+The old PowerShell security gate remains independent and mandatory.
+
+This is not yet a production runtime or shipping package. Fresh directories
+only: persistent config/library lifecycle, owner-only data permissions, process
+identity before auth, Windows job ownership and graceful shutdown must be
+resolved before enabling Read in the application. No arbitrary GraphQL or
+extension installation exposed. Do not copy this isolated implementation into
+shipping code without completing those requirements. The next step is to
+connect the production lifecycle and a real Read entry, then add extension
+store management and authorized source/chapter/page operations. No music code
+or user data is touched.

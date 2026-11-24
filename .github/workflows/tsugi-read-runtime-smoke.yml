@@ -7,6 +7,10 @@ on:
       - '.github/workflows/tsugi-read-runtime-smoke.yml'
       - 'packages/desktop/scripts/fetch-read-tools.ps1'
       - 'packages/desktop/scripts/test-read-runtime.ps1'
+      - 'packages/desktop/core/src/read_runtime.rs'
+      - 'packages/desktop/core/src/lib.rs'
+      - 'packages/desktop/core/Cargo.toml'
+      - 'packages/desktop/Cargo.lock'
   workflow_dispatch:
 
 permissions:
@@ -30,4 +34,23 @@ jobs:
         run: ./packages/desktop/scripts/fetch-read-tools.ps1 -Destination "$env:RUNNER_TEMP/tsugi-read-runtime"
       - name: Validate isolated local reading server
         run: ./packages/desktop/scripts/test-read-runtime.ps1 -Runtime "$env:RUNNER_TEMP/tsugi-read-runtime"
-
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/desktop
+      - name: Validate native reading broker
+        working-directory: packages/desktop
+        run: cargo test --locked -p aiostreams-desktop-core --lib read_runtime::tests -- --skip packaged_runtime
+      - name: Exercise native broker against packaged server
+        working-directory: packages/desktop
+        run: |
+          $env:TSUGI_READ_RUNTIME = "$env:RUNNER_TEMP/tsugi-read-runtime"
+          $env:TSUGI_READ_FIXTURE = "$env:RUNNER_TEMP/tsugi-read-native-fixture"
+          try {
+            cargo test --locked -p aiostreams-desktop-core --lib read_runtime::tests::packaged_runtime -- --ignored
+            if ($LASTEXITCODE -ne 0) { throw 'Native reading runtime test failed' }
+          } finally {
+            if (Test-Path -LiteralPath $env:TSUGI_READ_FIXTURE) {
+              Remove-Item -LiteralPath $env:TSUGI_READ_FIXTURE -Recurse -Force
+            }
+          }

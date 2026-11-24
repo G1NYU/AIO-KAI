@@ -67,6 +67,8 @@ dependencies = [
  "aiostreams-container",
  "aiostreams-thumbs",
  "aiostreams-upscale",
+ "base64 0.22.1",
+ "getrandom 0.4.3",
  "libloading",
  "log",
  "serde",
