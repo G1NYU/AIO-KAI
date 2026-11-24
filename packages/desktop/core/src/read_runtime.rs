@@ -462,6 +462,7 @@ mod private_storage {
     const FILE_ALL_ACCESS: u32 = 0x001f01ff;
     const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
     const READ_CONTROL: u32 = 0x00020000;
+    const FILE_READ_ATTRIBUTES: u32 = 0x80;
     const OPEN_REPARSE_POINT: u32 = 0x00200000;
     const BACKUP_SEMANTICS: u32 = 0x02000000;
 
@@ -587,10 +588,10 @@ mod private_storage {
 
         pub(super) fn verify(&self, path: &Path, directory: bool) -> Result<(), &'static str> {
             let file = fs::OpenOptions::new()
-                .access_mode(READ_CONTROL)
+                .access_mode(READ_CONTROL | FILE_READ_ATTRIBUTES)
                 .custom_flags(OPEN_REPARSE_POINT | BACKUP_SEMANTICS)
-                .open(path).map_err(|_| INVALID)?;
-            let info = file.metadata().map_err(|_| INVALID)?;
+                .open(path).map_err(|_| "Could not open reading storage for security inspection.")?;
+            let info = file.metadata().map_err(|_| "Could not inspect reading storage attributes.")?;
             if info.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
                 || (directory && !info.is_dir()) || (!directory && !info.is_file())
             {
@@ -606,17 +607,22 @@ mod private_storage {
             };
             let _allocation = LocalAllocation(raw);
             if status != 0 || raw.is_null() || owner.is_null() || acl.is_null() {
-                return Err(INVALID);
+                return Err("Reading storage security descriptor is unavailable.");
             }
             let mut control = 0;
             let mut revision = 0;
             // SAFETY: owner, ACL and descriptor are owned by the live allocation.
-            if unsafe { EqualSid(owner, self.sid()) } == 0
-                || unsafe { GetSecurityDescriptorControl(raw, &mut control, &mut revision) } == 0
-                || control & 0x0004 == 0 || (directory && control & 0x1000 == 0)
-                || unsafe { (*acl).count } != 1
-            {
-                return Err(INVALID);
+            if unsafe { EqualSid(owner, self.sid()) } == 0 {
+                return Err("Reading storage owner does not match the current user.");
+            }
+            if unsafe { GetSecurityDescriptorControl(raw, &mut control, &mut revision) } == 0 {
+                return Err("Could not inspect reading storage DACL control flags.");
+            }
+            if control & 0x0004 == 0 || (directory && control & 0x1000 == 0) {
+                return Err("Reading storage DACL protection flags are invalid.");
+            }
+            if unsafe { (*acl).count } != 1 {
+                return Err("Reading storage DACL must contain exactly one ACE.");
             }
             let mut ace = null_mut();
             // SAFETY: the OS returned this ACL; the single ACE is within it.
@@ -631,8 +637,11 @@ mod private_storage {
                     && (*ace).mask == FILE_ALL_ACCESS
                     && if directory { (*ace).flags == 3 } else { matches!((*ace).flags, 0 | 16) }
             };
-            if !valid || unsafe { EqualSid(std::ptr::addr_of_mut!((*ace).sid_start).cast(), self.sid()) } == 0 {
-                return Err(INVALID);
+            if !valid {
+                return Err("Reading storage ACE type, mask or inheritance flags are invalid.");
+            }
+            if unsafe { EqualSid(std::ptr::addr_of_mut!((*ace).sid_start).cast(), self.sid()) } == 0 {
+                return Err("Reading storage ACE does not identify the current user.");
             }
             Ok(())
         }
@@ -1187,7 +1196,16 @@ mod tests {
         fs::create_dir(&parent).unwrap();
         let data = parent.join("private");
         let user = private_storage::CurrentUser::get().unwrap();
-        let first = ReadStorage::open(&data, 12345).unwrap();
+        // Isolate root creation/verification from inherited file checks.
+        // No real credentials or raw ACL/SID values are printed.
+        let probe = parent.join("probe");
+        assert!(user.create_root(&probe).expect("create private root"));
+        user.verify(&probe, true).expect("verify private root");
+        let probe_file = probe.join("probe.txt");
+        fs::write(&probe_file, b"fixture").unwrap();
+        user.verify(&probe_file, false).expect("verify inherited file permissions");
+        fs::remove_dir_all(&probe).unwrap();
+        let first = ReadStorage::open(&data, 12345).expect("initialize private reading storage");
         user.verify(&data, true).unwrap();
         for name in [".tsugi-read.lock", ".tsugi-read.key", "server.conf"] {
             user.verify(&data.join(name), false).unwrap();
