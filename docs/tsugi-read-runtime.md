@@ -186,3 +186,24 @@ confirmation, show store identity/signing key, do not treat adding a store as
 permission to execute its extensions. Actual third-party install/update and
 trust review, persistent runtime ownership, app packaging and native Read UI
 remain outstanding. Keep all work on the separate reading branch.
+
+## Persistent storage and restart acceptance
+
+Run 45394684700 passed the full local comic and Mihon 1.6 metadata fixture.
+Replace fresh-directory-only startup with a native-owned storage handle that
+creates its credential/config once, retains an exclusive OS file lock for the
+child lifetime, rejects uninitialized existing directories, and reopens the
+existing config without truncation. Loopback and port remain explicit JVM
+settings; passwords stay out of process arguments and bridge messages. The
+integration test rejects a simultaneous second broker, stops the first process,
+starts a fresh broker from disk, rechecks library membership, exact chapter ID,
+completion/last-page progress, page delivery and registered extension store,
+then removes the fixture store and cleans up only the test directory.
+
+This remains isolated pre-production code. The credential file and server.conf
+require owner-only Windows ACLs before shipping. The existing child termination
+is not a graceful shutdown guarantee; the test measures recovery after that
+termination, not crash-proof durability. Windows job ownership, verified
+listener process identity, and graceful shutdown remain required. A partial
+initialization fails closed rather than replacing an existing config. Actual
+extension install/update still requires a separate trust review and fixture.

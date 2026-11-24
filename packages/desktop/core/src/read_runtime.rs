@@ -2,7 +2,7 @@
 //! webview-visible credentials. Explicit repository metadata operations only;
 //! executable extensions are not installed yet. Not wired to the app.
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::net::{Ipv4Addr, TcpListener};
 use std::os::windows::process::CommandExt;
 use std::path::Path;
@@ -342,13 +342,80 @@ pub enum CatalogueMode<'a> {
     Search(&'a str),
 }
 
-/// Owns the launched process and private client. The first implementation
-/// deliberately accepts only a fresh native-owned data directory. Persistence,
-/// Windows job-object ownership, graceful shutdown, and extension trust must
-/// be implemented before this is used for a real user library.
+/// A native-owned reading data directory. Hold an exclusive OS file lock
+/// throughout the child lifetime. Never rewrite an existing server config:
+/// it contains the extension store preferences maintained by Suwayomi.
+/// The caller must supply a private, trusted app-data path. Production ACL,
+/// job-object ownership and graceful shutdown remain separate requirements.
+struct ReadStorage {
+    _lock: fs::File,
+    password: String,
+}
+
+impl ReadStorage {
+    fn open(data: &Path) -> Result<Self, &'static str> {
+        let fresh = match fs::create_dir(data) {
+            Ok(()) => true,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => false,
+            Err(_) => return Err("Could not create reading data directory."),
+        };
+        let metadata = fs::symlink_metadata(data)
+            .map_err(|_| "Could not inspect reading data directory.")?;
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            return Err("Invalid reading data directory.");
+        }
+        let lock_path = data.join(".tsugi-read.lock");
+        let key_path = data.join(".tsugi-read.key");
+        let config_path = data.join("server.conf");
+        let lock = if fresh {
+            fs::OpenOptions::new().read(true).write(true).create_new(true).open(&lock_path)
+        } else {
+            // Do not adopt an arbitrary existing Suwayomi directory.
+            for path in [&lock_path, &key_path, &config_path] {
+                let info = fs::symlink_metadata(path).map_err(|_| "Reading data is not initialized.")?;
+                if !info.is_file() || info.file_type().is_symlink() {
+                    return Err("Invalid reading storage file.");
+                }
+            }
+            fs::OpenOptions::new().read(true).write(true).open(&lock_path)
+        }.map_err(|_| "Could not open reading storage lock.")?;
+        lock.try_lock().map_err(|_| "Reading data is already in use.")?;
+        let password = if fresh {
+            let mut entropy = [0u8; 32];
+            getrandom::fill(&mut entropy).map_err(|_| "Could not secure reading runtime.")?;
+            let password = entropy.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+            let mut key = fs::OpenOptions::new().write(true).create_new(true).open(&key_path)
+                .map_err(|_| "Could not initialize reading credentials.")?;
+            key.write_all(password.as_bytes()).and_then(|_| key.sync_all())
+                .map_err(|_| "Could not save reading credentials.")?;
+            // The chosen port is supplied on every launch as a JVM property;
+            // this config is created once and then managed by Suwayomi.
+            let config = format!(
+                "server.ip = \"127.0.0.1\"\nserver.webUIEnabled = false\nserver.initialOpenInBrowserEnabled = false\nserver.systemTrayEnabled = false\nserver.kcefEnabled = false\nserver.authMode = \"basic_auth\"\nserver.authUsername = \"{USER}\"\nserver.authPassword = \"{password}\"\nserver.extensionStores = []\nserver.globalUpdateInterval = 0\n"
+            );
+            let mut file = fs::OpenOptions::new().write(true).create_new(true).open(&config_path)
+                .map_err(|_| "Could not initialize reading configuration.")?;
+            file.write_all(config.as_bytes()).and_then(|_| file.sync_all())
+                .map_err(|_| "Could not save reading configuration.")?;
+            password
+        } else {
+            let mut bytes = Vec::new();
+            fs::File::open(&key_path).map_err(|_| "Could not open reading credentials.")?
+                .take(65).read_to_end(&mut bytes).map_err(|_| "Could not read reading credentials.")?;
+            if bytes.len() != 64 || !bytes.iter().all(u8::is_ascii_hexdigit) {
+                return Err("Invalid reading credentials.");
+            }
+            String::from_utf8(bytes).map_err(|_| "Invalid reading credentials.")?
+        };
+        Ok(Self { _lock: lock, password })
+    }
+}
+
+/// Owns the launched process, private client and exclusive storage lock.
 pub struct ReadRuntime {
     child: Child,
     client: ReadClient,
+    _storage: ReadStorage,
 }
 
 impl ReadRuntime {
@@ -360,26 +427,15 @@ impl ReadRuntime {
         if !java.is_file() || !jar.is_file() {
             return Err("Reading runtime is incomplete.");
         }
-        fs::create_dir(data).map_err(|_| "Reading data directory must be fresh.")?;
         let data = std::path::absolute(data)
             .map_err(|_| "Could not locate reading data directory.")?;
-        let mut entropy = [0u8; 32];
-        getrandom::fill(&mut entropy).map_err(|_| "Could not secure reading runtime.")?;
-        let password = entropy
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let storage = ReadStorage::open(&data)?;
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
             .map_err(|_| "Could not allocate reading port.")?;
         let port = listener
             .local_addr()
             .map_err(|_| "Could not allocate reading port.")?
             .port();
-        let config = format!(
-            "server.ip = \"127.0.0.1\"\nserver.port = {port}\nserver.webUIEnabled = false\nserver.initialOpenInBrowserEnabled = false\nserver.systemTrayEnabled = false\nserver.kcefEnabled = false\nserver.authMode = \"basic_auth\"\nserver.authUsername = \"{USER}\"\nserver.authPassword = \"{password}\"\nserver.extensionRepos = []\nserver.globalUpdateInterval = 0\n"
-        );
-        fs::write(data.join("server.conf"), config)
-            .map_err(|_| "Could not configure reading runtime.")?;
         drop(listener);
         let child = Command::new(java)
             .arg(format!(
@@ -393,6 +449,8 @@ impl ReadRuntime {
                 "-Dsuwayomi.tachidesk.config.server.initialOpenInBrowserEnabled=false",
                 "-Dsuwayomi.tachidesk.config.server.systemTrayEnabled=false",
                 "-Dsuwayomi.tachidesk.config.server.kcefEnabled=false",
+                "-Dsuwayomi.tachidesk.config.server.authMode=basic_auth",
+                "-Dsuwayomi.tachidesk.config.server.authUsername=tsugi-read",
                 "-jar",
             ])
             .arg(jar)
@@ -405,7 +463,8 @@ impl ReadRuntime {
             .map_err(|_| "Could not start reading runtime.")?;
         let mut managed = Self {
             child,
-            client: ReadClient::new(port, &password),
+            client: ReadClient::new(port, &storage.password),
+            _storage: storage,
         };
         let deadline = Instant::now() + READY_TIMEOUT;
         while Instant::now() < deadline {
@@ -584,7 +643,6 @@ impl Drop for ReadRuntime {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
     use std::net::TcpStream;
     use std::path::PathBuf;
     use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
@@ -823,6 +881,30 @@ mod tests {
         assert_eq!(entry["versionName"], "1.6.1");
         assert_eq!(entry["isInstalled"], false);
         assert!(managed.extensions(100).unwrap()["nodes"].as_array().unwrap().is_empty());
+        // A second broker cannot start on the same live data directory.
+        assert!(ReadRuntime::start(&runtime, &data).is_err());
+        let first_port = managed.client.port;
+        drop(managed);
+        assert!(TcpStream::connect_timeout(
+            &std::net::SocketAddr::from((Ipv4Addr::LOCALHOST, first_port)),
+            Duration::from_secs(2)
+        ).is_err());
+        // Reopen using the durable native credential and existing config/DB,
+        // not an in-memory copy of the previous broker's state.
+        let managed = ReadRuntime::start(&runtime, &data).expect("reopen reading library");
+        let list = managed.query(ReadOperation::Library).expect("persisted library");
+        assert!(list["nodes"].as_array().unwrap().iter().any(|item| item["id"] == manga_id.to_string()));
+        let details = managed.manga(manga_id).expect("persisted reading progress");
+        assert_eq!(details["chapters"][0]["id"], id);
+        assert_eq!(details["chapters"][0]["isRead"], true);
+        assert_eq!(details["chapters"][0]["lastPageRead"], 1);
+        let reopened = managed.chapter(id).expect("reopened chapter");
+        assert_eq!(reopened.len(), 2);
+        assert_eq!(managed.page(&reopened, 1).unwrap().mime, "image/png");
+        let stores = managed.query(ReadOperation::Stores).expect("persisted extension stores");
+        assert!(stores["nodes"].as_array().unwrap().iter().any(|node| node["indexUrl"] == store.url));
+        managed.refresh_extensions().expect("refresh persisted store");
+        assert!(managed.extensions(0).unwrap()["nodes"].as_array().unwrap().iter().any(|node| node["pkgName"] == "org.tsugi.fixture"));
         managed.remove_store(&store.url).expect("remove fixture store");
         assert!(managed.query(ReadOperation::Stores).unwrap()["nodes"].as_array().unwrap().is_empty());
         managed.refresh_extensions().expect("refresh removed store");
