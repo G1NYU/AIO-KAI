@@ -14,6 +14,10 @@ import {
 import { MusicPlayer, type RepeatMode } from './player';
 import { MusicLibrary } from './library';
 import {
+  createLocalEqualizer, readAudioProfile, saveAudioProfile,
+  setLocalEqualizer, type AudioProfile, type LocalEqualizer,
+} from '@/lib/music/audio-profiles';
+import {
   addToMusicPlaylist, createMusicPlaylist, readMusicLibrary, saveMusicLibrary,
   savedTrack, type SavedMusicTrack,
 } from '@/lib/music/library';
@@ -79,6 +83,10 @@ export function MusicPage({
   const [duration, setDuration] = React.useState(0);
   const [quality, setQuality] = React.useState('');
   const [volume, setVolume] = React.useState(0.85);
+  const [audioProfile, setAudioProfile] = React.useState<AudioProfile>(readAudioProfile);
+  const [eqEnabled, setEqEnabled] = React.useState(false);
+  const [eqError, setEqError] = React.useState('');
+  const eqGraph = React.useRef<LocalEqualizer | null>(null);
   const [expanded, setExpanded] = React.useState(false);
   const [shuffle, setShuffle] = React.useState(false);
   const [repeat, setRepeat] = React.useState<RepeatMode>('off');
@@ -97,6 +105,44 @@ export function MusicPage({
   React.useEffect(() => {
     saveMusicLibrary(playlists);
   }, [playlists]);
+
+  React.useEffect(() => {
+    saveAudioProfile(audioProfile);
+  }, [audioProfile]);
+
+  React.useEffect(() => {
+    const element = audioRef.current;
+    const active = eqGraph.current;
+    if (active && (active.element !== element || playingSourceId !== LOCAL_SOURCE)) {
+      active.filters.forEach(filter => filter.disconnect());
+      void active.context.close();
+      eqGraph.current = null;
+    }
+    if (!element || playingSourceId !== LOCAL_SOURCE || !streamUrl) return;
+    if (!eqEnabled) {
+      if (eqGraph.current) setLocalEqualizer(eqGraph.current, audioProfile, false);
+      return;
+    }
+    try {
+      if (!eqGraph.current) eqGraph.current = createLocalEqualizer(element);
+      setLocalEqualizer(eqGraph.current, audioProfile, true);
+      void eqGraph.current.context.resume();
+      setEqError('');
+    } catch {
+      setEqError(t`Local audio EQ could not be initialized on this device.`);
+      setEqEnabled(false);
+    }
+  }, [streamUrl, playingSourceId, eqEnabled, audioProfile]);
+
+  React.useEffect(() => {
+    return () => {
+      if (eqGraph.current) {
+        eqGraph.current.filters.forEach(filter => filter.disconnect());
+        void eqGraph.current.context.close();
+        eqGraph.current = null;
+      }
+    };
+  }, []);
 
   React.useEffect(() => {
     const urls = localURLs.current;
@@ -477,7 +523,8 @@ export function MusicPage({
             {libraryError && <p role="alert" className="mb-6 text-sm text-amber-200">{libraryError}</p>}
             <MusicLibrary playlists={playlists} onChange={setPlaylists}
               onPlay={(entry) => { void playSavedTrack(entry); }}
-              playing={playing ? savedTrack(playing, playingSourceId) : null}
+              playing={playing && playingSourceId !== LOCAL_SOURCE
+                ? savedTrack(playing, playingSourceId) : null}
               localTracks={localTracks}
               onImportLocal={importLocalFiles}
               onPlayLocal={(track) => playLocalTrack(track,
@@ -702,7 +749,10 @@ export function MusicPage({
             if (Number.isFinite(audio.duration)) setDuration(audio.duration);
           }}
           onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)}
-          onPlay={() => setPaused(false)}
+          onPlay={() => {
+            setPaused(false);
+            if (eqGraph.current) void eqGraph.current.context.resume();
+          }}
           onPause={() => setPaused(true)}
           onEnded={() => next(true)}
           onError={() => setPlayError(t`The browser audio engine could not play this stream.`)} />
@@ -717,6 +767,8 @@ export function MusicPage({
           connections.find((item) => item.id === playingSourceId)?.manifest.name ?? '',
         queue, index: queueIndex, paused, loading: resolving, error: playError,
         position, duration, volume, quality, expanded, shuffle, repeat,
+        audioProfile, eqEnabled, eqAvailable: playingSourceId === LOCAL_SOURCE, eqError,
+        onAudioProfile: setAudioProfile, onEqEnabled: setEqEnabled,
         onExpanded: setExpanded, onToggle: toggle, onNext: next,
         onPrevious: previous, onSeek: seek, onVolume: changeVolume,
         onShuffle: setShuffle, onRepeat: setRepeat,

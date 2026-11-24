@@ -13,6 +13,7 @@ import { PlayerSettings } from './player-settings';
 import { WaveSeeker } from './wave-seeker';
 import { VolumeControl } from './volume-control';
 import { storage } from '@/lib/storage';
+import type { AudioProfile } from '@/lib/music/audio-profiles';
 import { applyEclipseAppearance, notifyEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import { PLAYER_PALETTES, readPlayerTheme, savePlayerTheme, type PlayerPalette, type PlayerThemeId } from '@/lib/music/player-theme';
 
@@ -33,6 +34,12 @@ export type MusicPlayerProps = {
   expanded: boolean;
   shuffle: boolean;
   repeat: RepeatMode;
+  audioProfile: AudioProfile;
+  eqEnabled: boolean;
+  eqAvailable: boolean;
+  eqError: string;
+  onAudioProfile(profile: AudioProfile): void;
+  onEqEnabled(value: boolean): void;
   onExpanded(value: boolean): void;
   onToggle(): void;
   onNext(auto?: boolean): void;
@@ -263,6 +270,9 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
               stage={stageId} onStage={changeStage}
               importedName={importedTemplate?.name || (importedTemplate ? t`Imported Studio layout` : undefined)}
               theme={theme} onTheme={changeTheme}
+              audioProfile={p.audioProfile} onAudioProfile={p.onAudioProfile}
+              eqEnabled={p.eqEnabled} eqAvailable={p.eqAvailable}
+              onEqEnabled={p.onEqEnabled} eqError={p.eqError}
               showHeader={showHeader}
               studioContained={studioContained}
               onStudioContained={(value) => {
