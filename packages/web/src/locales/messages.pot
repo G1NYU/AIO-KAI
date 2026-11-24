@@ -1069,6 +1069,7 @@ msgstr ""
 msgid "Close player"
 msgstr ""
 
+#: src/app/music/junction-player.tsx
 #: src/app/music/studio-player.tsx
 msgid "Close queue"
 msgstr ""
@@ -1907,6 +1908,7 @@ msgstr ""
 msgid "Faster"
 msgstr ""
 
+#: src/app/music/junction-player.tsx
 #: src/app/music/studio-player.tsx
 msgid "Favorite"
 msgstr ""
@@ -2590,6 +2592,7 @@ msgstr ""
 msgid "Loading community addons…"
 msgstr ""
 
+#: src/app/music/junction-player.tsx
 #: src/app/music/studio-player.tsx
 msgid "Loading lyrics…"
 msgstr ""
@@ -2632,10 +2635,12 @@ msgstr ""
 msgid "Lower subtitles"
 msgstr ""
 
+#: src/app/music/junction-player.tsx
 #: src/app/music/studio-player.tsx
 msgid "Lyrics"
 msgstr ""
 
+#: src/app/music/junction-player.tsx
 #: src/app/music/studio-player.tsx
 msgid "Lyrics are temporarily unavailable."
 msgstr ""
@@ -2695,10 +2700,16 @@ msgstr ""
 msgid "Match the video's frame rate"
 msgstr ""
 
+#: src/app/desktop-landing/page.tsx
+#: src/app/music/player.tsx
+msgid "Matte black"
+msgstr ""
+
 #: src/components/shell/window-controls.tsx
 msgid "Maximise"
 msgstr ""
 
+#: src/app/desktop-landing/page.tsx
 #: src/app/music/page.tsx
 msgid "Media sections"
 msgstr ""
@@ -2745,6 +2756,11 @@ msgstr ""
 
 #: src/lib/format.ts
 msgid "Missing"
+msgstr ""
+
+#: src/app/desktop-landing/page.tsx
+#: src/app/music/player.tsx
+msgid "Mocha"
 msgstr ""
 
 #: src/app/settings/subtitles.tsx
@@ -3028,6 +3044,7 @@ msgstr ""
 msgid "No live TV here"
 msgstr ""
 
+#: src/app/music/junction-player.tsx
 #: src/app/music/studio-player.tsx
 msgid "No matching lyrics found."
 msgstr ""
@@ -3205,6 +3222,7 @@ msgid "Notifications"
 msgstr ""
 
 #: src/app/history/_components/sessions.tsx
+#: src/app/music/junction-player.tsx
 #: src/app/music/player.tsx
 msgid "Now playing"
 msgstr ""
@@ -3826,6 +3844,7 @@ msgstr ""
 msgid "Player options"
 msgstr ""
 
+#: src/app/desktop-landing/page.tsx
 #: src/app/music/player.tsx
 msgid "Player theme"
 msgstr ""
@@ -3999,6 +4018,7 @@ msgstr ""
 msgid "Quality"
 msgstr ""
 
+#: src/app/music/junction-player.tsx
 #: src/app/music/studio-player.tsx
 msgid "Queue"
 msgstr ""
@@ -4273,6 +4293,7 @@ msgstr ""
 msgid "Reset theme"
 msgstr ""
 
+#: src/app/music/junction-player.tsx
 #: src/app/music/player.tsx
 msgid "Resolving audio…"
 msgstr ""
@@ -4692,6 +4713,7 @@ msgstr ""
 msgid "Show subtitles later"
 msgstr ""
 
+#: src/app/music/junction-player.tsx
 #: src/app/music/studio-player.tsx
 msgid "Show synchronized lyrics"
 msgstr ""
@@ -5911,6 +5933,7 @@ msgstr ""
 msgid "Up"
 msgstr ""
 
+#: src/app/music/junction-player.tsx
 #: src/app/music/player.tsx
 #: src/app/music/studio-player.tsx
 #: src/features/player/next-episode.tsx
@@ -6081,6 +6104,7 @@ msgstr ""
 msgid "Voice search failed"
 msgstr ""
 
+#: src/app/music/junction-player.tsx
 #: src/app/music/player.tsx
 #: src/app/music/studio-player.tsx
 #: src/features/player/volume.tsx
