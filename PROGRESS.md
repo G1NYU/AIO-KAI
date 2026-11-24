@@ -425,3 +425,7 @@ Cohesion follow-up: signed-in movie shell reads the same destination definitions
 Added native music bridge acceptance with deterministic synthetic metadata and mocked audio events: one load, pause/resume from the chapter dock, no stop during reading or Music round-trip, stop on entering Movies. This is a protocol/state test, not actual YouTube or WebView playback. No provider or production playback changes.
 
 Run 45445486671 passed typecheck, lint, 74 unit tests and Windows compile; browser proceeded through local audio in chapter, focus mode, round-trip and same-page assertions, then timed out because the retained reader's closing flag stayed true after a successful navigation callback. Clear closing before the callback and assert the Chapters button is enabled after return. Recheck with the additional synthetic native transport test. Packaging skipped.
+
+## Repository rename and project README
+
+Repository renamed G1NYU/AIO-KAI to G1NYU/TSUGI. Run 45446115121 passed 74 unit tests, TypeScript, lint, Windows compilation and browser local audio and simulated native music continuity through Read. Replace inherited README on the active feature branch and main with matching project documentation, flat brush-mark asset, portable setup, actual capability/status and upstream credit. Main remains the upstream code baseline; no code merge, packaging, release or workflow changes. Documentation-only commits use [skip ci] to prevent main's inherited release workflow from starting. Physical Windows acceptance remains pending.
