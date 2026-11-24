@@ -158,6 +158,18 @@ impl ReadClient {
         if reply.status != 200
             || reply.body.get("errors").is_some_and(|errors| !errors.is_null())
         {
+            #[cfg(test)]
+            {
+                // Classify only fixed markers, never log the raw response.
+                let errors = reply.body["errors"].to_string();
+                let markers = ["ConnectException", "SocketTimeoutException", "UnknownHostException",
+                    "SerializationException", "MissingFieldException", "IllegalArgumentException",
+                    "ConfigException", "Unauthorized", "Forbidden", "Exception while fetching data",
+                    "Failed to fetch extension store", "Invalid store", "404", "Connection refused"];
+                let found: Vec<_> = markers.into_iter().filter(|marker| errors.contains(marker)).collect();
+                eprintln!("Reading operation {key}: HTTP {}; error count {}; classes/markers {:?}",
+                    reply.status, reply.body["errors"].as_array().map_or(0, Vec::len), found);
+            }
             return Err("Reading server rejected the operation.");
         }
         let value = reply.body["data"][key].clone();
@@ -353,7 +365,7 @@ struct ReadStorage {
 }
 
 impl ReadStorage {
-    fn open(data: &Path) -> Result<Self, &'static str> {
+    fn open(data: &Path, port: u16) -> Result<Self, &'static str> {
         let fresh = match fs::create_dir(data) {
             Ok(()) => true,
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => false,
@@ -388,10 +400,11 @@ impl ReadStorage {
                 .map_err(|_| "Could not initialize reading credentials.")?;
             key.write_all(password.as_bytes()).and_then(|_| key.sync_all())
                 .map_err(|_| "Could not save reading credentials.")?;
-            // The chosen port is supplied on every launch as a JVM property;
-            // this config is created once and then managed by Suwayomi.
+            // Preserve the original, smoke-tested config shape on first launch.
+            // Suwayomi migrates extensionRepos to extensionStores; do not
+            // overwrite either field when reopening the database.
             let config = format!(
-                "server.ip = \"127.0.0.1\"\nserver.webUIEnabled = false\nserver.initialOpenInBrowserEnabled = false\nserver.systemTrayEnabled = false\nserver.kcefEnabled = false\nserver.authMode = \"basic_auth\"\nserver.authUsername = \"{USER}\"\nserver.authPassword = \"{password}\"\nserver.extensionStores = []\nserver.globalUpdateInterval = 0\n"
+                "server.ip = \"127.0.0.1\"\nserver.port = {port}\nserver.webUIEnabled = false\nserver.initialOpenInBrowserEnabled = false\nserver.systemTrayEnabled = false\nserver.kcefEnabled = false\nserver.authMode = \"basic_auth\"\nserver.authUsername = \"{USER}\"\nserver.authPassword = \"{password}\"\nserver.extensionRepos = []\nserver.globalUpdateInterval = 0\n"
             );
             let mut file = fs::OpenOptions::new().write(true).create_new(true).open(&config_path)
                 .map_err(|_| "Could not initialize reading configuration.")?;
@@ -429,13 +442,13 @@ impl ReadRuntime {
         }
         let data = std::path::absolute(data)
             .map_err(|_| "Could not locate reading data directory.")?;
-        let storage = ReadStorage::open(&data)?;
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
             .map_err(|_| "Could not allocate reading port.")?;
         let port = listener
             .local_addr()
             .map_err(|_| "Could not allocate reading port.")?
             .port();
+        let storage = ReadStorage::open(&data, port)?;
         drop(listener);
         let child = Command::new(java)
             .arg(format!(
@@ -449,8 +462,6 @@ impl ReadRuntime {
                 "-Dsuwayomi.tachidesk.config.server.initialOpenInBrowserEnabled=false",
                 "-Dsuwayomi.tachidesk.config.server.systemTrayEnabled=false",
                 "-Dsuwayomi.tachidesk.config.server.kcefEnabled=false",
-                "-Dsuwayomi.tachidesk.config.server.authMode=basic_auth",
-                "-Dsuwayomi.tachidesk.config.server.authUsername=tsugi-read",
                 "-jar",
             ])
             .arg(jar)
@@ -645,7 +656,7 @@ mod tests {
     use super::*;
     use std::net::TcpStream;
     use std::path::PathBuf;
-    use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+    use std::sync::{Arc, atomic::{AtomicBool, AtomicUsize, Ordering}};
     use std::thread::JoinHandle;
 
     #[test]
@@ -768,6 +779,7 @@ mod tests {
     struct FixtureStore {
         url: String,
         stop: Arc<AtomicBool>,
+        requests: Arc<AtomicUsize>,
         worker: Option<JoinHandle<()>>,
     }
 
@@ -778,6 +790,8 @@ mod tests {
             listener.set_nonblocking(true).unwrap();
             let stop = Arc::new(AtomicBool::new(false));
             let stopped = Arc::clone(&stop);
+            let requests = Arc::new(AtomicUsize::new(0));
+            let served = Arc::clone(&requests);
             let worker = std::thread::spawn(move || {
                 let body = fixture_index();
                 while !stopped.load(Ordering::Acquire) {
@@ -794,6 +808,7 @@ mod tests {
                         if request.ends_with(b"\r\n\r\n") { break; }
                     }
                     if request.starts_with(b"GET /index.pb HTTP/1.") {
+                        served.fetch_add(1, Ordering::Relaxed);
                         let header = format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
                         let _ = stream.write_all(header.as_bytes());
                         let _ = stream.write_all(&body);
@@ -805,6 +820,7 @@ mod tests {
             Self {
                 url: format!("http://127.0.0.1:{port}/index.pb"),
                 stop,
+                requests,
                 worker: Some(worker),
             }
         }
@@ -869,7 +885,9 @@ mod tests {
         assert_eq!(details["chapters"][0]["lastPageRead"], 1);
         // Private test-only path: production add_store accepts HTTPS only.
         let store = FixtureStore::start();
-        let added = managed.add_store_inner(&store.url).expect("protobuf store metadata");
+        let added = managed.add_store_inner(&store.url);
+        eprintln!("Fixture index requests: {}", store.requests.load(Ordering::Relaxed));
+        let added = added.expect("protobuf store metadata");
         assert_eq!(added["extensionStore"]["name"], "Tsugi Fixture Store");
         assert_eq!(added["extensionStore"]["isLegacy"], false);
         let stores = managed.query(ReadOperation::Stores).unwrap();
@@ -883,6 +901,16 @@ mod tests {
         assert!(managed.extensions(100).unwrap()["nodes"].as_array().unwrap().is_empty());
         // A second broker cannot start on the same live data directory.
         assert!(ReadRuntime::start(&runtime, &data).is_err());
+        // Upstream settings persistence is asynchronous (SettingDelegate
+        // launches a StateFlow collector). Verify the config write before
+        // terminating the child. Never print the config or its contents.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let config = fs::read_to_string(data.join("server.conf")).unwrap_or_default();
+            if config.contains(&store.url) { break; }
+            assert!(Instant::now() < deadline, "Store preference was not persisted");
+            std::thread::sleep(Duration::from_millis(100));
+        }
         let first_port = managed.client.port;
         drop(managed);
         assert!(TcpStream::connect_timeout(

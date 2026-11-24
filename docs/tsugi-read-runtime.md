@@ -207,3 +207,20 @@ termination, not crash-proof durability. Windows job ownership, verified
 listener process identity, and graceful shutdown remain required. A partial
 initialization fails closed rather than replacing an existing config. Actual
 extension install/update still requires a separate trust review and fixture.
+
+## Restart regression investigation
+
+Run 45395695090 failed at the earlier protobuf add-store assertion, before
+attempting restart. Local comic reading, library/progress and standalone
+security checks still passed. The broker discarded the server's error details,
+so the root cause is not yet established. Restore the exact previously passing
+fresh config shape (initial port and legacy empty extensionRepos, which upstream
+migrates), remove the two newly introduced auth JVM overrides while preserving
+Basic Auth in the native-owned config and the negative-credential checks. This
+is a controlled regression isolation, not a confirmed fix. Log only HTTP status,
+error count, fixed exception markers, and fixture request count in tests. No raw
+GraphQL errors or credentials. Before restart, wait for the real store preference
+to reach server.conf: upstream SettingDelegate persists StateFlow changes
+asynchronously. Do not truncate or reset existing config. Production ACL,
+process identity, job ownership and graceful shutdown remain pending; do not
+ship this intermediate branch.
