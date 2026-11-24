@@ -1,7 +1,8 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiHeart, FiList, FiMessageSquare, FiVolume2, FiX } from 'react-icons/fi';
+import { FiHeart, FiList, FiMessageSquare, FiX } from 'react-icons/fi';
+import { VolumeControl } from './volume-control';
 import { BiDisc } from 'react-icons/bi';
 import type { MusicPlayerProps } from './player';
 import { Timeline, Transport } from './player';
@@ -82,10 +83,10 @@ export function JunctionPlayer({
         </div>
       </section>
 
-      <section className="relative flex min-w-0 flex-col justify-center gap-7 lg:pr-[3vw]">
+      <section className="tsugi-junction-content relative flex min-w-0 flex-col justify-center gap-7 lg:pr-[3vw]">
         <header className="min-w-0">
           <p className="tsugi-eyebrow"><Trans>Now playing</Trans></p>
-          <h1 className="mt-5 break-words text-[clamp(2.2rem,4.5vw,4.8rem)] font-semibold leading-[1.07] tracking-[-.055em]">
+          <h1 className="tsugi-track-title mt-5 break-words text-[clamp(2.2rem,4.5vw,4.8rem)] font-semibold leading-[1.07] tracking-[-.055em]">
             {song.title}
           </h1>
           <p className="mt-4 text-xl font-medium" style={{color:palette.foreground}}>{song.artist}</p>
@@ -134,14 +135,7 @@ export function JunctionPlayer({
               <FiList aria-hidden className="text-lg" />
             </button>
           </div>
-          <div className="flex items-center gap-3" style={{color:palette.muted}}>
-            <FiVolume2 aria-hidden className="text-lg" />
-            <input aria-label={t`Volume`} type="range" min={0} max={1} step={0.02}
-              value={p.volume} onChange={(event) => p.onVolume(Number(event.target.value))}
-              className="tsugi-range w-28 sm:w-36" style={{
-                background: `linear-gradient(to right, ${palette.accent} ${p.volume * 100}%, rgba(255,255,255,.16) ${p.volume * 100}%)`,
-              }} />
-          </div>
+          <VolumeControl value={p.volume} onChange={p.onVolume} />
         </div>
 
         {queueOpen && (

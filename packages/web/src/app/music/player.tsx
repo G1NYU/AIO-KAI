@@ -2,7 +2,7 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { BiDisc, BiPause, BiPlay } from 'react-icons/bi';
-import { FiChevronDown, FiMaximize2, FiMenu, FiRepeat, FiShuffle, FiSkipBack, FiSkipForward, FiVolume2 } from 'react-icons/fi';
+import { FiChevronDown, FiMaximize2, FiMenu, FiRepeat, FiShuffle, FiSkipBack, FiSkipForward } from 'react-icons/fi';
 import type { EclipseTrack } from '@/lib/music/eclipse';
 import { parsePlayerTemplate } from '@/lib/music/player-template';
 import { readPlayerStage, savePlayerStage, type PlayerStageId } from '@/lib/music/player-layout';
@@ -11,6 +11,7 @@ import { JunctionPlayer } from './junction-player';
 import { NOCTURNE_STAGE } from '@/lib/music/nocturne-stage';
 import { PlayerSettings } from './player-settings';
 import { WaveSeeker } from './wave-seeker';
+import { VolumeControl } from './volume-control';
 import { storage } from '@/lib/storage';
 import { applyEclipseAppearance, notifyEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import { PLAYER_PALETTES, readPlayerTheme, savePlayerTheme, type PlayerPalette, type PlayerThemeId } from '@/lib/music/player-theme';
@@ -207,11 +208,8 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
             <Timeline p={p} palette={palette} />
           </div>
           <div className="flex items-center justify-self-end gap-1.5 sm:gap-3">
-            <div className="hidden items-center gap-2 sm:flex">
-              <FiVolume2 aria-hidden className="text-lg" style={{color:palette.muted}} />
-              <input type="range" min={0} max={1} step={0.02} value={p.volume}
-                aria-label={t`Volume`} onChange={(e) => p.onVolume(Number(e.target.value))}
-                style={{background:`linear-gradient(to right, ${palette.accent} ${p.volume*100}%, rgba(255,255,255,.16) ${p.volume*100}%)`}} className="tsugi-range w-16 lg:w-24" />
+            <div className="hidden sm:block">
+              <VolumeControl compact value={p.volume} onChange={p.onVolume} />
             </div>
             <button type="button" onClick={() => p.onExpanded(true)} aria-label={t`Expand player`}
               className={buttonClass}><FiMaximize2 aria-hidden className="text-xl" /></button>
