@@ -18,6 +18,8 @@ export type PlayerLayer = {
   height: number;
   opacity: number;
   color: string;
+  /** A Studio tint is authoritative; otherwise use the current Tsugi palette. */
+  hasTint: boolean;
   fontSize: number;
   align: 'left' | 'center' | 'right';
   /** Static text from the Eclipse Studio export. Render as React text only. */
@@ -102,6 +104,7 @@ export function parsePlayerTemplate(input: unknown): EclipsePlayerTemplate {
       x, y, width, height,
       opacity: finite(appearance.opacity, 0, 1) ?? 1,
       color: hsbColor(appearance.tint, '#ffffff'),
+      hasTint: entry(appearance.tint),
       fontSize: finite(text.fontSize, 8, 120) ?? 26,
       align: text.alignment === 'center' ? 'center' : text.alignment === 'trailing' ? 'right' : 'left',
       content: typeof text.content === 'string' ? text.content.slice(0, 180) : '',

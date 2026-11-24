@@ -220,7 +220,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
           style={{backgroundColor:palette.canvas}}>
           <div aria-hidden className="tsugi-player-ambient" />
           <div className="flex min-h-dvh w-full flex-col px-[3vw] pb-10 pt-14">
-            <header className="tsugi-player-hud flex min-h-12 items-center justify-between gap-6">
+            <header className="tsugi-player-hud relative z-40 flex min-h-12 items-center justify-between gap-6">
               <button type="button" className={buttonClass}
                 aria-label={t`Minimise player`} onClick={() => p.onExpanded(false)}>
                 <FiChevronDown aria-hidden className="text-2xl" />

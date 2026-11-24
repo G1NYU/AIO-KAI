@@ -13,6 +13,7 @@ import { storage } from '@/lib/storage';
 
 /** Render only known player controls, never foreign HTML or remote scripts. */
 function stageColor(layer: PlayerLayer, palette: PlayerPalette): string {
+  if (layer.hasTint) return layer.color;
   if (layer.kind === 'line') return palette.border;
   if (layer.kind === 'qualityBadge' || layer.kind === 'progressBar') return palette.accent;
   if (['elapsed', 'remaining', 'upNext', 'releaseInfo', 'albumName'].includes(layer.kind))
@@ -201,10 +202,10 @@ export function EclipseStudioStage({
     }
   }
   return (
-    <div className="mx-auto max-w-full py-2"
-      style={{width: 'min(94vw, calc((100dvh - 116px) * 1.777778))'}}>
-      <div data-ui="tsugi-studio-stage" className="relative aspect-video w-full overflow-hidden"
-        style={{ backgroundColor: 'transparent', containerType: 'inline-size' }}>
+    <div data-ui="tsugi-studio-viewport"
+      className="fixed inset-0 h-dvh w-screen overflow-hidden">
+      <div data-ui="tsugi-studio-stage" className="relative h-full w-full overflow-hidden"
+        style={{ backgroundColor: template.background, containerType: 'inline-size' }}>
         {template.layers.map((layer) => (
           <div key={layer.id} className="absolute flex items-center justify-center"
             style={{

@@ -25,6 +25,18 @@ describe('Eclipse Studio v4 player layout import', () => {
     expect(parsed.layers[0].fontSize).toBe(56);
     expect(parsed.skippedLayers).toBe(0);
     expect(parsed.background.startsWith('rgba(')).toBe(true);
+    expect(parsed.layers[0].hasTint).toBe(false);
+  });
+
+  it('retains explicit Studio tints for fullscreen playback', () => {
+    const tinted = parsePlayerTemplate({ ...fixture, layers: [{
+      ...fixture.layers[0], appearance: {
+        opacity: 1, tint: { hue: 0.5, saturation: 0.8, brightness: 0.9, alpha: 0.7 },
+      },
+    }] });
+    expect(tinted.layers[0].hasTint).toBe(true);
+    expect(tinted.layers[0].color).toMatch(/^rgba\\(/);
+    expect(tinted.background.startsWith('rgba(')).toBe(true);
   });
 
   it('rejects executable or unsupported formats', () => {
