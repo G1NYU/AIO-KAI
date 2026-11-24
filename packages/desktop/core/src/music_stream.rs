@@ -17,6 +17,8 @@ pub(crate) struct Source {
     url: String,
     agent: ureq::Agent,
     failure: Mutex<Option<&'static str>>,
+    #[cfg(test)]
+    fixture: Option<Arc<Vec<u8>>>,
 }
 
 impl Source {
@@ -31,6 +33,8 @@ impl Source {
                 .build()
                 .into(),
             failure: Mutex::new(None),
+            #[cfg(test)]
+            fixture: None,
         })
     }
 
@@ -45,6 +49,22 @@ impl Source {
     }
 
     fn fetch(&self, start: u64, total: Option<u64>) -> Result<Chunk, &'static str> {
+        #[cfg(test)]
+        if let Some(bytes) = &self.fixture {
+            let size = bytes.len() as u64;
+            if start >= size || total.is_some_and(|known| known != size) {
+                return Err("Invalid fixture range.");
+            }
+            if start == 0 && !media_header(bytes) {
+                return Err("Invalid fixture header.");
+            }
+            let end = (start + CHUNK).min(size);
+            return Ok(Chunk {
+                start,
+                size,
+                bytes: bytes[start as usize..end as usize].to_vec(),
+            });
+        }
         if self.failure().is_some() {
             return Err("The media reader has stopped.");
         }
@@ -283,6 +303,104 @@ unsafe extern "C" fn close(cookie: *mut c_void) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Real pinned libmpv, no GUI, no sound device. A moving playback clock
+    // and an initialized audio track must both be observed, not just loadfile OK.
+    fn headless_decode(source: &Arc<Source>) {
+        use crate::mpv::{Event, Kind};
+        use std::path::PathBuf;
+        use std::time::Instant;
+
+        let library = PathBuf::from(
+            std::env::var_os("TSUGI_TEST_MPV").expect("TSUGI_TEST_MPV must point to libmpv"),
+        );
+        let mpv = Mpv::new(
+            &library,
+            &[
+                ("config", "no"),
+                ("idle", "yes"),
+                ("vid", "no"),
+                ("vo", "null"),
+                ("ao", "null"),
+                ("audio-display", "no"),
+                ("ytdl", "no"),
+                ("load-scripts", "no"),
+                ("force-window", "no"),
+            ],
+        )
+        .expect("initialize test decoder");
+        // SAFETY: caller owns source until after this function drops mpv.
+        unsafe { register(&mpv, source) }.expect("register test media reader");
+        mpv.command(&["loadfile", "tsugi-audio://track", "replace"])
+            .expect("load test media");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut loaded = false;
+        while Instant::now() < deadline {
+            match mpv.wait_event(0.1, |_| false) {
+                Some(Event::FileLoaded) => loaded = true,
+                Some(Event::EndFile { .. } | Event::Shutdown) => {
+                    panic!(
+                        "decoder ended before playback: {}",
+                        source.failure().unwrap_or("native decoder stopped")
+                    );
+                }
+                _ => {}
+            }
+            let time = mpv
+                .get_property("time-pos", Kind::Double)
+                .and_then(|value| value.as_f64())
+                .unwrap_or(0.0);
+            let audio = mpv
+                .get_property("audio-params", Kind::Json)
+                .is_some_and(|value| !value.is_null());
+            if loaded && audio && time > 0.2 {
+                println!("Native audio track initialized; playback clock advanced.");
+                return;
+            }
+        }
+        panic!(
+            "decoder did not start: {}",
+            source.failure().unwrap_or("playback clock did not advance")
+        );
+    }
+
+    #[test]
+    #[ignore = "requires pinned libmpv and generated test tones"]
+    fn headless_fixture_playback() {
+        let directory = std::path::PathBuf::from(
+            std::env::var_os("TSUGI_TEST_MEDIA_DIR").expect("TSUGI_TEST_MEDIA_DIR"),
+        );
+        for filename in ["tone.m4a", "tone.webm"] {
+            let bytes = std::fs::read(directory.join(filename)).expect("read generated tone");
+            let mut source = Source::new("https://example.test/unused");
+            Arc::get_mut(&mut source).expect("unique source").fixture = Some(Arc::new(bytes));
+            println!("Testing {filename} through the production callback.");
+            headless_decode(&source);
+        }
+    }
+
+    #[test]
+    #[ignore = "live provider test; service availability and runner IP vary"]
+    fn headless_live_playback() {
+        // Big Buck Bunny, Blender Foundation, CC BY 3.0.
+        // https://peach.blender.org/about/
+        // https://www.youtube.com/watch?v=YE7VzlLtp-4
+        // Do not change client identity, access requirements or signed media URLs.
+        let result = crate::youtube::music_request("audio", "YE7VzlLtp-4")
+            .expect("public sample audio resolution");
+        let url = result["url"].as_str().expect("direct audio URL");
+        let source = Source::new(url);
+        let opening = source.fetch(0, None).expect("opening media bytes");
+        println!("Opening range and media header verified.");
+        if opening.size > CHUNK {
+            let tail_start = (opening.size - 1) / CHUNK * CHUNK;
+            source
+                .fetch(tail_start, Some(opening.size))
+                .expect("tail media bytes");
+            println!("Tail range verified.");
+        }
+        headless_decode(&source);
+    }
 
     #[test]
     fn validates_range_bounds_and_total() {
