@@ -26,7 +26,7 @@ import {
   readMusicLibrary, saveMusicLibrary,
   savedTrack, type SavedMusicTrack,
 } from '@/lib/music/library';
-import { TsugiBrand } from '@/components/tsugi-brand';
+import { TsugiBrand, TsugiMediaIcon } from '@/components/tsugi-brand';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 import type { TrendingRecording } from '@/lib/music/discovery';
@@ -704,8 +704,8 @@ export function MusicPage({
             <TsugiBrand />
           </button>
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className="tsugi-category-link" onClick={openVideo}><Trans id="Movies & TV">Movies & TV</Trans></button>
-            {desktopArea?.openRead && <button type="button" className="tsugi-category-link" onClick={desktopArea.openRead}><Trans id="Read">Read</Trans></button>}
+            <button type="button" className="tsugi-category-link" onClick={openVideo}><TsugiMediaIcon area="video" /><Trans id="Movies & TV">Movies & TV</Trans></button>
+            {desktopArea?.openRead && <button type="button" className="tsugi-category-link" onClick={desktopArea.openRead}><TsugiMediaIcon area="read" /><Trans id="Read">Read</Trans></button>}
             {desktopArea && <button type="button" className="tsugi-category-link" onClick={desktopArea.openSettings}><Trans id="App settings">App settings</Trans></button>}
             <button type="button" className="tsugi-icon-action" onClick={() => setTab('search')}
               aria-label={t`Search music`}>

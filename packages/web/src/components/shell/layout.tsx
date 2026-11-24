@@ -229,6 +229,7 @@ export function WebLayout() {
       isCurrent: pathname === '/',
       onClick: () => navigate(to.home),
     },
+    ...(desktopArea ? [{ id: 'all-media', name: t({ id: 'All media', message: 'All media' }), iconType: BiHomeAlt2, isCurrent: false, onClick: desktopArea.openWelcome }] : []),
     ...(desktopArea ? [{
       id: 'music',
       name: t`Music`,
