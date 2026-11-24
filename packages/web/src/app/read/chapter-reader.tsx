@@ -203,6 +203,9 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
           }
           const action = closeAction.current;
           closeAction.current = null;
+          // Switching to Music keeps this reader mounted; release the busy
+          // state before executing the navigation callback.
+          setClosing(false);
           action();
           return;
         }

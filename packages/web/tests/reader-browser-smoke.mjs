@@ -268,6 +268,7 @@ try {
   assert.equal(await reader.locator('.tsugi-chapter-toolbar p').first().textContent(), chapterBefore);
   assert.deepEqual(await reader.locator('.tsugi-chapter-page').evaluateAll(nodes => nodes.map(n => n.getAttribute('data-reader-page'))), visiblePages);
   assert.equal(await page.locator('[data-ui="tsugi-audio-engine"]').evaluate(audio => audio.paused), false);
+  assert.equal(await reader.getByRole('button', { name: 'Chapters', exact: true }).isEnabled(), true);
   await capture('07-reading-with-music');
   await reader.getByRole('button', { name: 'Chapters', exact: true }).click();
   await rail.getByRole('button', { name: 'Movies & TV', exact: true }).click();
