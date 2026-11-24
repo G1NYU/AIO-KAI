@@ -285,7 +285,6 @@ function Standalone() {
               base={base}
               changeServer={leave}
               askAll={pickerServers(base).length > 0 ? askAll : undefined}
-              openMusic={desktop ? openMusic : undefined}
             />
           ) : (
             <ServerInfoProvider value={NO_SERVER_INFO}>
@@ -356,12 +355,10 @@ function Session({
   base,
   changeServer: leave,
   askAll,
-  openMusic,
 }: {
   base: string;
   changeServer?: () => void;
   askAll?: () => void;
-  openMusic?: () => void;
 }) {
   const desktopArea = React.useContext(DesktopAreaContext);
   const { phase, signIn, signInWithQuickConnect, switchUser, signOut, retry } =
