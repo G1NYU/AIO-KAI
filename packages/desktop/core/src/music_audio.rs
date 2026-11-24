@@ -72,6 +72,71 @@ fn allowed_url(value: &str) -> bool {
             .is_some_and(|host| host == "googlevideo.com" || host.ends_with(".googlevideo.com"))
 }
 
+// Probe only after a failed open, never to circumvent a server refusal.
+// No redirects, no saved response body, no signed URL in diagnostic output.
+fn probe_media(url: &str) -> &'static str {
+    if !allowed_url(url) {
+        return "Invalid stream URL.";
+    }
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(5)))
+        .https_only(true)
+        .max_redirects(0)
+        .http_status_as_error(false)
+        .build()
+        .into();
+    match agent.get(url).header("Range", "bytes=0-0").call() {
+        Ok(response) => probe_status(response.status().as_u16()),
+        Err(_) => "The HTTPS stream probe could not connect.",
+    }
+}
+
+fn probe_status(status: u16) -> &'static str {
+    match status {
+        200 | 206 => "HTTPS stream responds; native decoder or transport failed.",
+        401 => "The stream server requires authorization (HTTP 401).",
+        403 => "The stream server refused access (HTTP 403).",
+        404 => "The stream is not available (HTTP 404).",
+        410 => "The stream has expired or been removed (HTTP 410).",
+        416 => "The stream rejected the byte range (HTTP 416).",
+        429 => "The stream server is rate limiting playback (HTTP 429).",
+        300..=399 => "The stream server returned a redirect.",
+        500..=599 => "The stream server returned a server error.",
+        _ => "The stream server returned an unexpected HTTP status.",
+    }
+}
+
+// Recognize only fixed categories; never return a raw log, URL or query.
+fn classify_log(text: &str) -> Option<&'static str> {
+    let line = text.to_ascii_lowercase();
+    for (code, phrase) in [
+        (401, "401 unauthorized"),
+        (403, "403 forbidden"),
+        (404, "404 not found"),
+        (410, "410 gone"),
+        (416, "416 range"),
+        (429, "429 too many requests"),
+    ] {
+        if line.contains(phrase)
+            || line.contains(&format!("http error {code}"))
+            || line.contains(&format!("response code: {code}"))
+            || line.contains(&format!("returned error: {code}"))
+        {
+            return Some(probe_status(code));
+        }
+    }
+    if line.contains("certificate") || line.contains("tls handshake") {
+        return Some("Native audio HTTPS certificate or TLS handshake failed.");
+    }
+    if line.contains("audio device") || line.contains("audio output") {
+        return Some("Native audio output could not initialize.");
+    }
+    if line.contains("decoder") || line.contains("unrecognized file format") {
+        return Some("Native audio could not decode the returned media.");
+    }
+    None
+}
+
 fn report(
     emit: &Emit,
     request: &str,
@@ -98,6 +163,7 @@ fn fail(emit: &Emit, request: &str, message: &str) {
 struct Session {
     mpv: Mpv,
     request: String,
+    url: String,
     started: Instant,
     loaded: bool,
     position: f64,
@@ -133,6 +199,7 @@ impl Session {
         Ok(Self {
             mpv,
             request,
+            url: url.to_string(),
             started: now,
             loaded: false,
             position: 0.0,
@@ -150,13 +217,8 @@ impl Session {
             match event {
                 Event::FileLoaded => self.loaded = true,
                 Event::Log { text, .. } => {
-                    // Only classify known HTTP errors; never emit the raw log.
-                    if text.contains("403 Forbidden") || text.contains("HTTP error 403") {
-                        self.failure = Some("The stream server refused access (HTTP 403).");
-                    } else if text.contains("401 Unauthorized") {
-                        self.failure = Some("The stream server requires authorization (HTTP 401).");
-                    } else if text.contains("429 Too Many Requests") {
-                        self.failure = Some("The stream server is rate limiting playback (HTTP 429).");
+                    if let Some(message) = classify_log(&text) {
+                        self.failure = Some(message);
                     }
                 }
                 Event::EndFile { reason, .. } => {
@@ -170,12 +232,14 @@ impl Session {
                             None,
                         );
                     } else {
-                        fail(
-                            emit,
-                            &self.request,
-                            self.failure
-                                .unwrap_or("Native audio could not open or complete this stream."),
-                        );
+                        let message = self.failure.unwrap_or_else(|| {
+                            if self.loaded {
+                                "Native audio stopped unexpectedly during playback."
+                            } else {
+                                probe_media(&self.url)
+                            }
+                        });
+                        fail(emit, &self.request, message);
                     }
                     return false;
                 }
@@ -187,11 +251,8 @@ impl Session {
             }
         }
         if !self.loaded && self.started.elapsed() > Duration::from_secs(20) {
-            fail(
-                emit,
-                &self.request,
-                "Native audio timed out opening the stream.",
-            );
+            let message = self.failure.unwrap_or("Native audio timed out opening the stream.");
+            fail(emit, &self.request, message);
             return false;
         }
         if self.loaded && self.last_report.elapsed() >= Duration::from_millis(200) {
@@ -216,7 +277,14 @@ impl Session {
             } else {
                 "playing"
             };
-            report(emit, &self.request, status, self.position, self.duration, None);
+            report(
+                emit,
+                &self.request,
+                status,
+                self.position,
+                self.duration,
+                None,
+            );
             self.last_report = Instant::now();
         }
         true
@@ -224,7 +292,9 @@ impl Session {
 
     fn control(&self, action: &str, value: f64) -> Result<(), String> {
         match action {
-            "pause" => self.mpv.set_property("pause", if value > 0.0 { "yes" } else { "no" }),
+            "pause" => self
+                .mpv
+                .set_property("pause", if value > 0.0 { "yes" } else { "no" }),
             "volume" => self
                 .mpv
                 .set_property("volume", &(value.clamp(0.0, 1.0) * 100.0).to_string()),
@@ -257,7 +327,11 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                 report(emit, &request, "loading", 0.0, 0.0, None);
                 match Session::new(library, request.clone(), &url, volume) {
                     Ok(player) => session = Some(player),
-                    Err(_) => fail(emit, &request, "Could not initialize native audio playback."),
+                    Err(_) => fail(
+                        emit,
+                        &request,
+                        "Could not initialize native audio playback.",
+                    ),
                 }
             }
             Ok(Command::Control {
@@ -265,7 +339,10 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                 action,
                 value,
             }) => {
-                if session.as_ref().is_some_and(|player| player.request == request) {
+                if session
+                    .as_ref()
+                    .is_some_and(|player| player.request == request)
+                {
                     if action == "stop" {
                         session.take();
                     } else if value.is_finite()
@@ -292,6 +369,21 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn classifies_failures_without_exposing_stream_urls() {
+        assert_eq!(
+            classify_log("https: HTTP error 403 https://example.test/?private=hidden"),
+            Some(probe_status(403))
+        );
+        assert_eq!(
+            classify_log("The requested URL returned error: 429"),
+            Some(probe_status(429))
+        );
+        assert_eq!(classify_log("https://example.test/?private=hidden"), None);
+        assert!(probe_status(206).contains("responds"));
+        assert!(probe_status(416).contains("416"));
+    }
 
     #[test]
     fn only_direct_https_media_hosts_are_accepted() {

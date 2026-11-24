@@ -727,8 +727,8 @@ html[data-blur-spoilers]:not([data-tv])
   display:grid;
   grid-template-columns:minmax(0, .9fr) minmax(0, 1fr);
   align-items:center;
-  gap:clamp(3rem,8vw,9rem);
-  width:min(100%,1080px);
+  gap:clamp(2.5rem,6vw,6rem);
+  width:min(100%,960px);
 }
 .tsugi-entry-brand {
   display:flex;
@@ -746,12 +746,12 @@ html[data-blur-spoilers]:not([data-tv])
 }
 .tsugi-entry-mark svg {
   display:block;
-  width:clamp(104px,11vw,168px);
-  height:clamp(104px,11vw,168px);
+  width:clamp(104px,10vw,148px);
+  height:clamp(104px,10vw,148px);
 }
 .tsugi-landing .tsugi-entry-wordmark {
   font-family:'Avenir Next','Segoe UI Variable Display',Inter,sans-serif;
-  font-size:clamp(3.75rem,6.6vw,6.5rem);
+  font-size:clamp(3.75rem,6vw,5.75rem);
   font-style:italic;
   font-weight:610;
   letter-spacing:-.07em;
@@ -759,21 +759,13 @@ html[data-blur-spoilers]:not([data-tv])
   margin:0;
 }
 .tsugi-entry-index { min-width:0; }
-.tsugi-entry-heading {
-  margin:0 0 20px;
-  font-size:.75rem;
-  font-weight:600;
-  color:var(--tsugi-muted);
-  text-transform:uppercase;
-  letter-spacing:.18em !important;
-}
 .tsugi-entry-list { border-top:1px solid var(--tsugi-line); }
 .tsugi-entry-link {
   display:flex;
   align-items:center;
-  gap:clamp(14px,2vw,24px);
+  justify-content:center;
   width:100%;
-  min-height:clamp(76px,10vh,108px);
+  min-height:clamp(76px,10vh,100px);
   padding:18px 12px;
   border-bottom:1px solid var(--tsugi-line);
   background:transparent;
@@ -781,6 +773,13 @@ html[data-blur-spoilers]:not([data-tv])
   text-align:start;
   cursor:pointer;
   transition:background .16s ease,color .16s ease;
+}
+.tsugi-entry-label-group {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:clamp(14px,1.8vw,22px);
+  min-width:0;
 }
 .tsugi-entry-icon {
   flex:none;
@@ -802,7 +801,7 @@ html[data-blur-spoilers]:not([data-tv])
   flex:none;
   align-items:center;
   gap:5px;
-  margin-inline-start:2px;
+  margin-inline-start:4px;
   color:var(--tsugi-muted);
   opacity:.45;
 }

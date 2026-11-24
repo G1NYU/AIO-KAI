@@ -71,13 +71,15 @@ export function DesktopLandingPage({
           </div>
 
           <nav className="tsugi-entry-index" aria-label={t`Media sections`}>
-            <h2 className="tsugi-entry-heading"><Trans>Media sections</Trans></h2>
+            <h2 className="sr-only"><Trans>Media sections</Trans></h2>
             <div className="tsugi-entry-list">
               {sections.map(({ id, label, Icon, open }) => (
                 <button key={id} type="button" onClick={open} className="tsugi-entry-link">
-                  <Icon aria-hidden className="tsugi-entry-icon" />
-                  <span className="tsugi-entry-label">{label}</span>
-                  <span aria-hidden className="tsugi-entry-dots"><i /><i /><i /></span>
+                  <span className="tsugi-entry-label-group">
+                    <Icon aria-hidden className="tsugi-entry-icon" />
+                    <span className="tsugi-entry-label">{label}</span>
+                    <span aria-hidden className="tsugi-entry-dots"><i /><i /><i /></span>
+                  </span>
                 </button>
               ))}
             </div>
