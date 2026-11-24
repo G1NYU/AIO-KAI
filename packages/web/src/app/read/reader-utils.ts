@@ -50,3 +50,20 @@ export function cleanSynopsis(text: string): string {
     .replace(/^\s*[-*_]{3,}\s*$/gm, '')
     .replace(/\n{3,}/g, '\n\n').trim();
 }
+
+export function nextPageIndex(index: number, count: number, mode: ReaderMode, delta: number): number {
+  const step = mode === 'spread' ? 2 : 1;
+  return Math.min(Math.max(0, count - 1), Math.max(0, index + step * delta));
+}
+
+export function visibleReadingPage(rects: { index: number; top: number; bottom: number }[], line: number): number | undefined {
+  // Select the page crossing a stable reading line; in a gap choose nearest.
+  let closest: number | undefined;
+  let distance = Infinity;
+  for (const rect of rects) {
+    const d = line < rect.top ? rect.top - line : line > rect.bottom ? line - rect.bottom : 0;
+    if (d < distance) { closest = rect.index; distance = d; }
+    if (distance === 0) break;
+  }
+  return closest;
+}
