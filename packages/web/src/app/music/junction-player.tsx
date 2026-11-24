@@ -161,7 +161,7 @@ export function JunctionPlayer({
                     style={{color:index === p.index ? palette.accent : palette.foreground}}>
                     <span className="w-5 shrink-0 text-right tabular-nums opacity-60">{index + 1}</span>
                     <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                    <span className="max-w-[35%] truncate opacity-55">{item.artist}</span>
+                    <span className="max-w-[35%] truncate opacity-50">{item.artist}</span>
                   </button>
                 </li>
               ))}

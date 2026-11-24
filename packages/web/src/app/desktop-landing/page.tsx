@@ -59,7 +59,7 @@ export function DesktopLandingPage({
           <div className="tsugi-landing-join hidden min-h-56 items-center justify-center xl:flex" aria-hidden>
             <span className="tsugi-join-orbit tsugi-join-orbit-one" />
             <span className="tsugi-join-orbit tsugi-join-orbit-two" />
-            <span className="tsugi-join-center">つ</span>
+            <span className="tsugi-join-center"><TsugiBrand markOnly /></span>
           </div>
         </div>
 

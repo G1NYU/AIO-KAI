@@ -2,8 +2,7 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import {
-  BiChevronDown, BiDisc, BiExpand, BiListUl, BiPause, BiPlay,
-  BiRepeat, BiShuffle, BiSkipNext, BiSkipPrevious, BiVolumeFull,
+  BiChevronDown, BiDisc, BiListUl, BiPause, BiPlay, BiVolumeFull,
 } from 'react-icons/bi';
 import { FiExpand, FiRepeat, FiShuffle, FiSkipBack, FiSkipForward, FiVolume2 } from 'react-icons/fi';
 import type { EclipseTrack } from '@/lib/music/eclipse';
@@ -102,7 +101,7 @@ export function Timeline({ p, palette }: { p: MusicPlayerProps; palette: PlayerP
         aria-label={t`Seek position`}
         style={{background:`linear-gradient(to right, ${palette.accent} ${progress}%, rgba(255,255,255,.16) ${progress}%)`}}
         className="tsugi-range min-w-0 flex-1" />
-      <span className="w-10">{musicTime(Math.max(0,p.duration-p.position))}</span>
+      <span className="w-10">-{musicTime(Math.max(0,p.duration-p.position))}</span>
     </div>
   );
 }

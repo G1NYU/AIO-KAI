@@ -6,13 +6,30 @@ import { JUNCTION_STAGE } from '../src/lib/music/junction-stage';
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe('AIO-KAI music theme pack', () => {
+describe('Tsugi music theme pack', () => {
   it('only accepts bundled, validated theme names', () => {
-    expect(DEFAULT_PLAYER_THEME).toBe('aio-dark');
-    expect(Object.keys(PLAYER_PALETTES)).toHaveLength(3);
+    expect(DEFAULT_PLAYER_THEME).toBe('mocha');
+    expect(Object.keys(PLAYER_PALETTES)).toHaveLength(5);
+    expect(isPlayerTheme('mocha')).toBe(true);
+    expect(isPlayerTheme('matte')).toBe(true);
     expect(isPlayerTheme('nightfall')).toBe(true);
     expect(isPlayerTheme('__proto__')).toBe(false);
     expect(isPlayerTheme('https://elsewhere.test/skin.css')).toBe(false);
+  });
+
+  it('maintains readable contrast in every bundled player theme', () => {
+    const luminance = (hex: string) => {
+      const rgb = [1,3,5].map((at) => parseInt(hex.slice(at, at + 2), 16) / 255)
+        .map((x) => x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4);
+      return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+    };
+    for (const palette of Object.values(PLAYER_PALETTES)) {
+      const foreground = luminance(palette.foreground);
+      const canvas = luminance(palette.canvas);
+      const contrast = (Math.max(foreground, canvas) + 0.05) /
+        (Math.min(foreground, canvas) + 0.05);
+      expect(contrast).toBeGreaterThan(7);
+    }
   });
 
   it('ships a rich Junction stage with real lyrics, queue and player transport', () => {
