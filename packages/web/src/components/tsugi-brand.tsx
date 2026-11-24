@@ -28,9 +28,9 @@ export function TsugiBrand({
 /** Original filled glyphs. Negative space ties all three to the same grid. */
 export function TsugiMediaIcon({ area, className = '' }: { area: 'video' | 'music' | 'read'; className?: string }) {
   return <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true" className={`tsugi-media-icon ${className}`}>
-    {area === 'video' ? <path fillRule="evenodd" d="M4 12h24v15H4V12Zm9 3v9l8-4.5-8-4.5ZM3 6l23-4 1 6-23 4-1-6Zm5-1 3 5 3-.5-3-5L8 5Zm10-2 3 5 3-.5-3-5-3 .5Z" />
-      : area === 'music' ? <path d="M13 5 27 2v20a5 5 0 1 1-3-4.6V9l-8 2v15a5 5 0 1 1-3-4.6V5Z" />
-      : <path d="M3 5c5.8 0 9.2 1.6 12 4.1V28c-3.1-2.8-7-4.1-12-4.1V5Zm26 0c-5.8 0-9.2 1.6-12 4.1V28c3.1-2.8 7-4.1 12-4.1V5Z" />}
+    {area === 'video' ? <path fillRule="evenodd" d="M5 6h22a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Zm8 4v12l8-6-8-6Z" />
+      : area === 'music' ? <path fillRule="evenodd" d="M16 3a13 13 0 0 0-13 13v6a5 5 0 0 0 5 5h3V15H7a9 9 0 0 1 18 0h-4v12h3a5 5 0 0 0 5-5v-6A13 13 0 0 0 16 3Z" />
+      : <path fillRule="evenodd" d="M5 4h9l2 2 2-2h9v23h-9l-2 2-2-2H5V4Zm3 4v16h6l2 1.5V9l-2-1H8Zm11 0v12l2-1.5 2 1.5V8h-4Z" />}
   </svg>;
 }
 

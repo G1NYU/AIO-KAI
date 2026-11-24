@@ -712,7 +712,9 @@ export function MusicPage({
           </>} />
         </header>
 
-        <nav className="tsugi-music-navigation mb-8 flex items-center gap-8"
+        <div className="tsugi-music-section-header">
+          {tab !== 'library' && <h1><Trans>Music</Trans></h1>}
+        <nav className="tsugi-music-navigation flex items-center"
           aria-label={t`Music sections`}>
           <button type="button" aria-current={tab === 'discover' ? 'page' : undefined}
             onClick={() => setTab('discover')}><Trans>Discover</Trans></button>
@@ -721,6 +723,7 @@ export function MusicPage({
           <button type="button" aria-current={tab === 'library' ? 'page' : undefined}
             onClick={() => setTab('library')}><Trans>Library</Trans></button>
         </nav>
+        </div>
 
         {tab === 'discover' && <MusicDiscover source={activeSource} onPlay={playCollection}
           onFind={(song) => { void findChartTrack(song); }}

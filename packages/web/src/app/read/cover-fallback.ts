@@ -1,4 +1,4 @@
-import { storage, storedMap } from '@/lib/storage';
+import { storage, storedMap } from '../../lib/storage';
 
 type Title = { title: string; author?: string | null; inLibrary: boolean };
 const ENABLED = 'tsugi-library-cover-fallback-v1';

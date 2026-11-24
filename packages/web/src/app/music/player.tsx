@@ -2,7 +2,7 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { BiDisc, BiPause, BiPlay } from 'react-icons/bi';
-import { FiChevronDown, FiMaximize2, FiMenu, FiRepeat, FiShuffle, FiSkipBack, FiSkipForward } from 'react-icons/fi';
+import { FiChevronDown, FiHeart, FiList, FiMaximize2, FiMenu, FiRepeat, FiShuffle, FiSkipBack, FiSkipForward } from 'react-icons/fi';
 import type { EclipseTrack } from '@/lib/music/eclipse';
 import { parsePlayerTemplate } from '@/lib/music/player-template';
 import { readPlayerStage, savePlayerStage, type PlayerStageId } from '@/lib/music/player-layout';
@@ -195,9 +195,9 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
             className="tsugi-mini-track flex min-w-0 items-center gap-3 text-left focus-visible:outline focus-visible:outline-2">
             <Artwork track={track} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-white">{track.title}</span>
-              <span className="block truncate text-xs text-white/55">{track.artist}</span>
-              {p.quality && <span className="block truncate text-[10px]" style={{color:palette.muted}}>{p.quality}</span>}
+              <span className="tsugi-mini-title block truncate font-semibold">{track.title}</span>
+              <span className="tsugi-mini-artist block truncate">{track.artist}</span>
+              {(p.sourceName || p.quality) && <span className="tsugi-mini-meta block truncate">{[p.sourceName, p.quality].filter(Boolean).join(' · ')}</span>}
             </span>
           </button>
           <div className="tsugi-mini-transport flex w-full flex-col items-center gap-1">
@@ -205,7 +205,26 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
             <Timeline p={p} palette={palette} />
           </div>
           <div className="tsugi-mini-tools flex items-center justify-self-end gap-3">
-            <div className="hidden sm:block">
+            {p.canFavorite && <button type="button" className={buttonClass} onClick={p.onFavorite}
+              aria-label={t`Save playing track`} aria-pressed={p.isFavorite}>
+              <FiHeart aria-hidden className="text-lg" fill={p.isFavorite ? 'currentColor' : 'none'} />
+            </button>}
+            <details className="tsugi-mini-queue" data-ui="mini-queue">
+              <summary className="tsugi-control" aria-label={t`Playback queue`}>
+                <FiList aria-hidden /><span className="tsugi-mini-queue-count">{p.queue.length}</span>
+              </summary>
+              <div className="tsugi-mini-queue-panel">
+                <h2><Trans>Playback queue</Trans></h2>
+                <ol>{p.queue.map((item, at) => <li key={item.id + ':' + at}>
+                  <button type="button" aria-current={at === p.index ? 'true' : undefined} disabled={p.loading}
+                    onClick={event => { p.onQueue(at); event.currentTarget.closest('details')?.removeAttribute('open'); }}>
+                    <span className="tsugi-mini-queue-number">{at + 1}</span>
+                    <span className="min-w-0"><strong className="block truncate">{item.title}</strong><small className="block truncate">{item.artist}</small></span>
+                  </button>
+                </li>)}</ol>
+              </div>
+            </details>
+            <div className="tsugi-mini-volume">
               <VolumeControl compact value={p.volume} onChange={p.onVolume} />
             </div>
             <button type="button" onClick={() => p.onExpanded(true)} aria-label={t`Expand player`}

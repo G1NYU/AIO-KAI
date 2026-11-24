@@ -328,6 +328,18 @@ try {
   await page.waitForFunction(() => window.__readerFixture.nativeMessages.some(m => m.type === 'music-audio-load'));
   const nativeRequest = await page.evaluate(() => window.__readerFixture.nativeRequest);
   assert.ok(nativeRequest);
+  const miniQueue = music.locator('[data-ui="mini-queue"]');
+  await miniQueue.locator('summary').click();
+  await miniQueue.locator('button[aria-current="true"]').filter({ hasText: 'Native fixture track' }).waitFor();
+  await miniQueue.locator('summary').click();
+  assert.equal(await miniQueue.getAttribute('open'), null);
+  const miniSave = music.getByRole('button', { name: 'Save playing track', exact: true });
+  await miniSave.waitFor();
+  const wasSaved = await miniSave.getAttribute('aria-pressed');
+  await miniSave.click();
+  assert.notEqual(await miniSave.getAttribute('aria-pressed'), wasSaved);
+  await miniSave.click();
+  await capture('08-mini-player');
   await music.getByRole('button', { name: 'Expand player', exact: true }).click();
   const expanded = music.getByRole('dialog', { name: 'Now playing', exact: true });
   await expanded.waitFor();
