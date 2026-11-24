@@ -40,6 +40,7 @@ try {
           const data = message.operation === 'search' ? { musicResponsiveListItemRenderer: {
             playlistItemData: { videoId: 'abcdefghijk' },
             flexColumns: [{ musicResponsiveListItemFlexColumnRenderer: { text: { runs: [{ text: 'Native fixture track' }] } } }],
+            thumbnail: { musicThumbnailRenderer: { thumbnail: { thumbnails: [{ url: 'https://lh3.googleusercontent.com/tsugi-fixture=w120-h120', width: 120, height: 120 }] } } },
           } } : message.operation === 'audio' ? { url: 'https://www.youtube.com/watch?v=abcdefghijk', format: 'fixture' } : {};
           emit({ type: 'youtube-music-result', request: message.request, data, error: null });
           return;
@@ -103,6 +104,13 @@ try {
   });
   // Deny unrelated external requests; the test uses only original fixtures.
   await page.route('**/*', (route) => route.request().url().startsWith(origin + '/') ? route.fallback() : route.abort());
+  const artworkRequests = [];
+  await page.route('https://lh3.googleusercontent.com/tsugi-fixture=*', async route => {
+    artworkRequests.push(route.request().url());
+    // Simulate a CDN refusing the larger variant. The original must still display.
+    if (route.request().url().endsWith('=w1024-h1024')) await route.fulfill({ status:404 });
+    else await route.fulfill({ status:200, contentType:'image/png', body:image });
+  });
   await page.goto(origin, { waitUntil: 'domcontentloaded' });
   const landing = page.locator('[data-page="desktop-landing"]');
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).waitFor();
@@ -182,6 +190,10 @@ try {
   await page.getByRole('button', { name: /Original source/ }).click();
   await page.locator('.tsugi-manga-card').first().click();
   await page.getByRole('heading', { name: 'Tsugi Original Fixture' }).waitFor();
+  assert.equal(await page.locator('.tsugi-series-layout').evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').length), 2);
+  const artColumn = await page.locator('.tsugi-series-layout .tsugi-manga-detail').boundingBox();
+  const chapterColumn = await page.locator('.tsugi-series-chapters').boundingBox();
+  assert.ok(artColumn.x + artColumn.width < chapterColumn.x, 'manga metadata and chapters occupy distinct columns');
   await capture('04-reading-details');
   await page.getByRole('button', { name: 'Bookmark chapter', exact: true }).first().click();
   await page.getByRole('button', { name: 'Remove bookmark', exact: true }).first().waitFor();
@@ -297,6 +309,14 @@ try {
   await page.waitForFunction(() => window.__readerFixture.nativeMessages.some(m => m.type === 'music-audio-load'));
   const nativeRequest = await page.evaluate(() => window.__readerFixture.nativeRequest);
   assert.ok(nativeRequest);
+  await music.getByRole('button', { name: 'Expand player', exact: true }).click();
+  const expanded = music.getByRole('dialog', { name: 'Now playing', exact: true });
+  await expanded.waitFor();
+  await expanded.locator('img[src*="tsugi-fixture=w120-h120"]').waitFor();
+  await page.waitForFunction(() => [...document.querySelectorAll('.tsugi-player-dialog img')].some(img => img.src.includes('tsugi-fixture=w120-h120') && img.complete && img.naturalWidth > 0));
+  assert.ok(artworkRequests.some(url => url.endsWith('=w1024-h1024')), 'expanded player requests a larger original');
+  await capture('08-expanded-player');
+  await expanded.getByRole('button', { name: 'Minimise player', exact: true }).click();
   await music.getByRole('button', { name: 'Read', exact: true }).click();
   await rail.waitFor();
   await page.locator('.tsugi-manga-card').first().click();

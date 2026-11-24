@@ -2,7 +2,7 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { BiArrowBack, BiDisc, BiPlay } from 'react-icons/bi';
-import { FiArrowUpRight, FiPlay, FiSettings } from 'react-icons/fi';
+import { FiPlay, FiSettings } from 'react-icons/fi';
 import {
   catalogTrack,
   type EclipseCatalogDefinition, type EclipseCatalogItem, type EclipseDetail, type EclipseTrack,
@@ -226,8 +226,7 @@ export function MusicDiscover({
     <section aria-label={t`Music discovery`} className="tsugi-hub space-y-14">
       <header className="flex flex-wrap items-end justify-between gap-5">
         <div>
-          <p className="tsugi-eyebrow"><Trans>Listen</Trans></p>
-          <h2 className="mt-2 text-[clamp(2rem,4vw,4rem)] font-semibold tracking-[-.05em]">
+          <h2 className="text-[clamp(2rem,3vw,3rem)] font-semibold tracking-[-.035em]">
             <Trans>Discover</Trans>
           </h2>
         </div>
@@ -238,17 +237,16 @@ export function MusicDiscover({
       {error && <p role="alert" className="text-sm text-amber-200">{error}</p>}
 
       {featured && featuredRow && (
-        <section className="tsugi-hub-feature relative grid min-h-[310px] overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(230px,37%)]"
+        <section className="tsugi-hub-feature tsugi-feature-composition" data-art={featured.artworkURL ? 'true' : 'false'}
           aria-label={t`Featured music`}>
-          <div className="relative z-10 flex min-w-0 flex-col justify-center px-3 py-8 sm:px-7 lg:py-12">
-            <span className="tsugi-eyebrow"><Trans>Featured from your source</Trans></span>
-            <h3 className="mt-5 line-clamp-2 text-[clamp(2.4rem,4vw,5rem)] font-semibold leading-tight tracking-[-.06em]">
+          <div className="tsugi-feature-copy">
+            <h3 className="line-clamp-3 text-[clamp(2rem,3.8vw,4.2rem)] font-semibold leading-tight tracking-[-.045em]">
               {featured.title}
             </h3>
             <p className="mt-3 truncate text-sm text-[--tsugi-muted]">{featured.artist ?? featured.album ?? featuredRow.catalog.name}</p>
-            <button type="button" className="tsugi-primary-action mt-8 inline-flex w-fit items-center gap-2"
+            <button type="button" className="tsugi-read-action tsugi-series-primary mt-6 inline-flex w-fit items-center gap-2"
               onClick={() => openCatalogItem(featuredRow, featured)}>
-              {featured.type === 'track' ? <FiPlay aria-hidden /> : <FiArrowUpRight aria-hidden />}
+              {featured.type === 'track' && <FiPlay aria-hidden />}
               {featured.type === 'track' ? <Trans>Play</Trans> : <Trans>Explore</Trans>}
             </button>
           </div>
@@ -265,7 +263,6 @@ export function MusicDiscover({
         <section aria-label={t`Recently played`}>
           <div className="mb-5 flex items-center justify-between gap-4">
             <h3 className="text-2xl font-semibold"><Trans>Recently played</Trans></h3>
-            <span className="text-xs text-[--tsugi-muted]"><Trans>Your rotation</Trans></span>
           </div>
           <div className="tsugi-music-shelf flex gap-5 overflow-x-auto pb-5">
             {recentFromSource.slice(0, 12).map((item) => (

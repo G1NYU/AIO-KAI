@@ -1731,3 +1731,45 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   .tsugi-read-media-header { padding:8px 10px; }
   :root[data-host='desktop'] .tsugi-index .tsugi-index-wordmark { font-size:clamp(4rem,14vw,6rem); }
 }
+
+/* Media detail composition: information and action on the left, the
+   actual collection on the right, like the supplied Harbor picker grid. */
+.tsugi-series-layout { display:grid; grid-template-columns:minmax(0,1fr); gap:28px; }
+.tsugi-series-layout .tsugi-manga-detail { border-bottom:0; padding-bottom:0; }
+.tsugi-series-chapters { min-width:0; }
+.tsugi-series-chapters > .tsugi-reading-list-header:first-child { margin-top:0; }
+.tsugi-series-chapters .tsugi-chapter-row { min-height:56px; padding-block:10px; }
+.tsugi-series-chapters .tsugi-chapter-row .text-xs { font-size:12px; }
+.tsugi-series-actions .tsugi-series-primary { order:-1; }
+.tsugi-read-action.tsugi-series-primary { background:var(--tsugi-ink); color:var(--tsugi-canvas); border:1px solid var(--tsugi-ink); font-weight:650; }
+.tsugi-read-action.tsugi-series-primary:hover:not(:disabled) { background:var(--tsugi-accent); color:var(--tsugi-on-accent); }
+@media(min-width:1200px) {
+  .tsugi-series-layout { grid-template-columns:minmax(240px,300px) minmax(0,1fr); gap:clamp(28px,3vw,48px); align-items:start; }
+  .tsugi-series-layout .tsugi-manga-detail { display:flex; flex-direction:column; gap:20px; position:sticky; top:0; max-height:calc(100dvh - 200px); overflow:auto; scrollbar-width:thin; }
+  .tsugi-series-layout .tsugi-manga-detail > .tsugi-manga-cover { width:min(100%,240px); flex:none; }
+  .tsugi-series-layout .tsugi-manga-detail h2 { font-size:clamp(25px,2.1vw,34px); line-height:1.12; }
+  .tsugi-series-layout .tsugi-manga-detail p { font-size:14px; line-height:1.55; }
+  .tsugi-series-actions { flex-direction:column; align-items:stretch; }
+  .tsugi-series-actions > button { justify-content:center; }
+  .tsugi-series-chapters .tsugi-reading-list-header { margin-top:0; }
+  .tsugi-series-chapters .tsugi-reading-filters { flex-wrap:wrap; }
+}
+/* Actual artwork is the focal point, not a generic patterned dashboard hero. */
+:root[data-host='desktop'] .tsugi-hub-feature.tsugi-feature-composition {
+  display:grid; grid-template-columns:minmax(0,1fr); gap:clamp(24px,4vw,60px); align-items:center;
+  min-height:0; max-width:1200px; background:transparent; padding:0 0 32px;
+  overflow:visible; border-bottom:1px solid var(--tsugi-line);
+}
+:root[data-host='desktop'] .tsugi-hub-feature.tsugi-feature-composition::before,
+:root[data-host='desktop'] .tsugi-hub-feature.tsugi-feature-composition::after { display:none; }
+.tsugi-feature-copy { min-width:0; padding:8px 0; }
+:root[data-host='desktop'] .tsugi-feature-composition .tsugi-hub-feature-art {
+  position:relative; inset:auto; opacity:1; order:-1; mask-image:none; -webkit-mask-image:none;
+  width:100%; max-width:360px; aspect-ratio:1; background:var(--tsugi-surface); border:0;
+}
+:root[data-host='desktop'] .tsugi-feature-composition .tsugi-hub-feature-art img { width:100%; height:100%; object-fit:cover; object-position:center; border-radius:2px; }
+:root[data-host='desktop'] .tsugi-feature-composition h3 { max-width:20ch; }
+:root[data-host='desktop'] .tsugi-hub > section { margin-top:32px; }
+@media(min-width:760px) {
+  :root[data-host='desktop'] .tsugi-hub-feature.tsugi-feature-composition[data-art='true'] { grid-template-columns:minmax(200px,340px) minmax(0,1fr); }
+}

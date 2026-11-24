@@ -253,7 +253,8 @@ export function ReadPage({ visible }: {
     {error && <div role="alert" className="tsugi-read-error mb-4">{error}</div>}
     {details ? <section>
       <button className="tsugi-read-action mb-6" disabled={busy} onClick={() => { setDetails(null); setError(''); if (tab === 'library') void run(loadLibrary); content.current?.scrollTo(0, 0); }}><FiArrowLeft aria-hidden /><Trans id="Back">Back</Trans></button>
-      <div className="tsugi-manga-detail">
+      <div className="tsugi-series-layout">
+      <aside className="tsugi-manga-detail">
         <MangaCover manga={details.manga} />
         <div className="min-w-0">
           <h2 className="text-3xl font-semibold tracking-tight">{details.manga.title}</h2>
@@ -263,13 +264,14 @@ export function ReadPage({ visible }: {
             <p className="whitespace-pre-wrap">{expandedSynopsis ? cleanSynopsis(details.manga.description) : cleanSynopsis(details.manga.description).slice(0, 650) + (cleanSynopsis(details.manga.description).length > 650 ? '…' : '')}</p>
             {cleanSynopsis(details.manga.description).length > 650 && <button className="tsugi-library-action mt-2" onClick={() => setExpandedSynopsis(!expandedSynopsis)}>{expandedSynopsis ? t({ id: "Show less", message: "Show less" }) : t({ id: "Read more", message: "Read more" })}</button>}
           </div>}
-          <div className="my-5 flex flex-wrap gap-3">
+          <div className="tsugi-series-actions my-5 flex flex-wrap gap-3">
             <button className="tsugi-read-action" disabled={busy} onClick={() => void run(async () => { const inLibrary = !details.manga.inLibrary; await readRequest({ kind: 'set-library', id: Number(details.manga.id), inLibrary }); setDetails({ ...details, manga: { ...details.manga, inLibrary } }); })}>{details.manga.inLibrary ? t({ id: "Remove from library", message: "Remove from library" }) : t({ id: "Add to library", message: "Add to library" })}</button>
-            {details.chapters.length > 0 && <button className="tsugi-read-action" disabled={busy} onClick={() => void run(() => openChapter(firstChapter(details.chapters)!))}><FiBookOpen aria-hidden /><Trans id="Start or resume reading">Start or resume reading</Trans></button>}
+            {details.chapters.length > 0 && <button className="tsugi-read-action tsugi-series-primary" disabled={busy} onClick={() => void run(() => openChapter(firstChapter(details.chapters)!))}><FiBookOpen aria-hidden /><Trans id="Start or resume reading">Start or resume reading</Trans></button>}
             <button className="tsugi-read-action" aria-expanded={trackingOpen} disabled={busy} onClick={() => setTrackingOpen(!trackingOpen)}><Trans id="Tracking">Tracking</Trans></button>
           </div>
         </div>
-      </div>
+      </aside>
+      <div className="tsugi-series-chapters">
       {trackingOpen && <MangaTracking key={details.manga.id} mangaId={Number(details.manga.id)} title={details.manga.title} busy={busy} run={run} openAccounts={() => { switchTab('settings'); openSettings('trackers'); }} />}
       <div className="tsugi-reading-list-header"><h3 className="text-xl font-medium"><Trans id="Chapters">Chapters</Trans> <span className="text-sm text-[--tsugi-muted]">({chapterRows.length})</span></h3><div className="tsugi-reading-filters"><input className="tsugi-read-input" value={chapterFilter} onChange={(event) => setChapterFilter(event.target.value)} placeholder={t({ id: "Find a chapter", message: "Find a chapter" })} aria-label={t({ id: "Find a chapter", message: "Find a chapter" })} /><select className="tsugi-read-input" aria-label={t({ id: "Chapter status", message: "Chapter status" })} value={chapterState} onChange={(event) => setChapterState(event.target.value as typeof chapterState)}><option value="all"><Trans id="All chapters">All chapters</Trans></option><option value="unread"><Trans id="Unread">Unread</Trans></option><option value="read"><Trans id="Read">Read</Trans></option><option value="bookmarked"><Trans id="Bookmarked">Bookmarked</Trans></option></select><button className="tsugi-read-action" onClick={() => setChapterOrder(chapterOrder === 'asc' ? 'desc' : 'asc')}>{chapterOrder === 'asc' ? t({ id: "Oldest first", message: "Oldest first" }) : t({ id: "Newest first", message: "Newest first" })}</button></div></div>
       {!details.chapters.length && <p><Trans id="No chapters found.">No chapters found.</Trans></p>}
@@ -287,6 +289,8 @@ export function ReadPage({ visible }: {
         </div>;
         return group.length === 1 ? chapterRow(first) : <details key={first.id} className="tsugi-chapter-versions"><summary><span className="font-medium">{first.name}</span><span className="text-xs text-[--tsugi-muted]">{group.length} <Trans id="versions">versions</Trans></span></summary><div className="pl-5">{group.map(chapterRow)}</div></details>;
       })}
+      </div>
+      </div>
     </section> : tab === 'settings' ? (
       <section className="tsugi-read-settings">
         <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm text-[--tsugi-muted]" aria-label={t({ id: "Settings path", message: "Settings path" })}>
