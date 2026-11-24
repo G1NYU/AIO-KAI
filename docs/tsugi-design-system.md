@@ -1,27 +1,24 @@
-# Tsugi / Sumi
+# Tsugi desktop design system
 
-Design direction: Japanese editorial minimalism, quiet surfaces and strong typography. The name Sumi (ink) is a palette, not a new product or a separate theme engine.
+## Current direction
 
-## Foundation
+Use typography, alignment and useful controls rather than decorative numbering, arrows, marketing copy or theme branding. The launcher contains a single Tsugi identity, a small 次 (next) and three direct media destinations. Japanese lettering is a restrained part of the brand, not a visual motif repeated throughout the interface.
 
-- Canvas #101214, surface #171A1D, panel #202428, line #363C41, paper text #E8E6DF, secondary text #A3ABB0, ice focus/accent #A8D3E5.
-- Sumi is the default for fresh preferences; previously saved palette IDs remain unchanged. Other palettes and imported appearance are still available.
-- Focus is icy blue even when Mocha or an imported purple palette is active. Input focus is not a content accent.
-- Desktop text: Segoe UI Variable with local fallbacks, consistent heading/display stack. No external font downloads.
-- Use 0–2px radii on forms, navigation and settings; preserve circular media controls, avatars and the native player surface. Avoid card shells around empty space.
-- Preserve the existing brush mark and use the new filled film, waveform and open-book glyphs for media destinations.
-- Launcher: typographic identity plus indexed, full-width media destinations, keyboard focus, responsive layout. No network art or animation dependency.
-- Movie onboarding: centered identity above unboxed form; shared canvas, visible category navigation and app settings even before server configuration.
-- Music and Read retain their working layouts, media engines and focus behavior; share typography, category glyphs and square controls. Signed-in video exposes All media.
+- Shared dark canvas #101214, surface #171A1D, panel #202428, line #363C41, text #E8E6DF, secondary text #A3ABB0, ice focus/accent #A8D3E5.
+- The fresh default is labeled Default in both settings surfaces. Retain the existing internal palette key for compatibility; no user-facing theme name or migration is needed. All other saved palettes remain available.
+- Text-field focus is icy blue independently of the selected palette. Preserve visible keyboard focus.
+- Consistent Segoe UI Variable text/display stack with local fallbacks; no font download. Use Japanese system font fallbacks for 次.
+- Flat forms and navigation; preserve circular media controls, avatars, artwork behavior and native player surfaces.
+- Shared filled film, waveform and open-book icons. No additional launcher glyphs unless they perform a function.
+- Movie onboarding: centered identity above unboxed form; shared canvas and direct category navigation.
+- Music and Read retain their working layouts, media engines and focus behavior. Signed-in video exposes All media.
 
 ## References
 
-Pley grouped libraries and destination navigation: https://github.com/pley-media-server/pley/blob/main/apps/web/src/components/Sidebar.tsx (reference only; no source copied).
-Seanime CSS tokens and consistent media shell: https://github.com/5rahim/seanime (seanime-web/src/app/globals.css).
-User's Windows screenshot of the inherited video onboarding form.
+Publisher summaries: Kenya Hara, Designing Design and White (https://www.lars-mueller-publishers.com/designing-design and https://www.lars-mueller-publishers.com/white), on emptiness and restraint; Josef Müller-Brockmann, Grid systems in graphic design (https://niggli.ch/en/products/rastersysteme-fur-die-visuele-gestaltung), on alignment and grids.
+Primary design guidance: Dieter Rams (https://www.vitsoe.com/eu/about/good-design); Apple typography and layout (https://developer.apple.com/design/human-interface-guidelines/typography and https://developer.apple.com/design/human-interface-guidelines/layout); W3C Japanese Text Layout (https://www.w3.org/TR/jlreq/).
+Implementation references: Pley grouped destinations and Seanime shared tokens. No source copied.
 
 ## Acceptance
 
-Browser checks compare actual computed styles, logo centering, keyboard-visible focus after palette changes, category navigation and previously existing reading/music regression flows. Actual signed-in video home/settings visual review, Windows native frame, modal focus and real YouTube continuity remain required. Do not equate browser smoke with Windows visual QA.
-
-Run 45441655423 passed Windows check, TypeScript and lint, then failed two outdated unit assertions (old default/count of palettes and exact quote style in explicit Read translation ID). Update expected palette set to six, preserve the old names and human-readable translation guard. Add optional real browser screenshots from the synthetic smoke fixture as a short-lived source-only CI artifact (launcher, onboarding, library, details, reader, music; no accounts or external media). No Windows packaging trigger. Visual QA remains pending.
+Browser checks validate exact launcher labels, one media icon per destination, Japanese brand lettering, centered movie setup, square controls and independent focus colors. Synthetic screenshots are uploaded by source-only CI. Actual signed-in video home/settings visual review, Windows native frame, modal focus and real YouTube continuity remain required. Do not equate browser smoke with Windows visual QA.

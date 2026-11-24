@@ -88,6 +88,10 @@ try {
   const landing = page.locator('[data-page="desktop-landing"]');
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).waitFor();
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'sumi');
+  assert.deepEqual(await landing.locator('.tsugi-index-link').allTextContents(), ['Movies & TV', 'Music', 'Read']);
+  assert.equal(await landing.locator('.tsugi-index-link svg').count(), 3);
+  assert.equal(await landing.locator('.tsugi-index-kanji').textContent(), '次');
+  assert.equal(await landing.getByRole('heading', { name: 'Tsugi', exact: true }).count(), 1);
   await capture('01-launcher');
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).click();
   const entry = page.locator('.tsugi-video-entry');
@@ -123,7 +127,7 @@ try {
   assert.equal(await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).getAttribute('aria-pressed'), 'true');
   await page.getByRole('dialog').getByRole('button', { name: 'Mocha', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'mocha');
-  await page.getByRole('dialog').getByRole('button', { name: 'Sumi', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Default', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
   await capture('03-reading-library');
   await rail.getByRole('button', { name: 'Settings', exact: true }).click();
