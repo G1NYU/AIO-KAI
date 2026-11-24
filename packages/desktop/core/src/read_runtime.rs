@@ -448,11 +448,238 @@ pub enum CatalogueMode<'a> {
     Search(&'a str),
 }
 
+// Create the reading root with a protected DACL before any credential is
+// written. Inspect real filesystem handles (including reparse-point checks)
+// rather than parsing localized command output or trusting an inherited ACL.
+mod private_storage {
+    use super::*;
+    use std::ffi::c_void;
+    use std::os::windows::ffi::OsStrExt;
+    use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+    use std::ptr::{null, null_mut};
+
+    const INVALID: &str = "Reading storage permissions are not private.";
+    const FILE_ALL_ACCESS: u32 = 0x001f01ff;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    const READ_CONTROL: u32 = 0x00020000;
+    const OPEN_REPARSE_POINT: u32 = 0x00200000;
+    const BACKUP_SEMANTICS: u32 = 0x02000000;
+
+    #[repr(C)]
+    struct SecurityAttributes {
+        length: u32,
+        descriptor: *mut c_void,
+        inherit: i32,
+    }
+
+    #[repr(C)]
+    struct Acl {
+        revision: u8,
+        reserved: u8,
+        size: u16,
+        count: u16,
+        reserved2: u16,
+    }
+
+    #[repr(C)]
+    struct AllowedAce {
+        kind: u8,
+        flags: u8,
+        size: u16,
+        mask: u32,
+        sid_start: u32,
+    }
+
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetCurrentProcess() -> *mut c_void;
+        fn LocalFree(memory: *mut c_void) -> *mut c_void;
+        fn CreateDirectoryW(path: *const u16, attributes: *const SecurityAttributes) -> i32;
+    }
+
+    #[link(name = "advapi32")]
+    unsafe extern "system" {
+        fn OpenProcessToken(process: *mut c_void, access: u32, token: *mut *mut c_void) -> i32;
+        fn GetTokenInformation(token: *mut c_void, class: i32, buffer: *mut c_void, length: u32, needed: *mut u32) -> i32;
+        fn ConvertSidToStringSidW(sid: *mut c_void, text: *mut *mut u16) -> i32;
+        fn ConvertStringSecurityDescriptorToSecurityDescriptorW(text: *const u16, revision: u32, descriptor: *mut *mut c_void, size: *mut u32) -> i32;
+        fn GetSecurityInfo(handle: *mut c_void, object: i32, info: u32, owner: *mut *mut c_void, group: *mut *mut c_void, dacl: *mut *mut Acl, sacl: *mut *mut Acl, descriptor: *mut *mut c_void) -> u32;
+        fn GetSecurityDescriptorControl(descriptor: *mut c_void, control: *mut u16, revision: *mut u32) -> i32;
+        fn GetAce(acl: *mut Acl, index: u32, ace: *mut *mut c_void) -> i32;
+        fn EqualSid(first: *mut c_void, second: *mut c_void) -> i32;
+    }
+
+    struct LocalAllocation(*mut c_void);
+    impl Drop for LocalAllocation {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                // SAFETY: this pointer is owned and was allocated by a Win32
+                // API documented to return memory freed by LocalFree.
+                unsafe { LocalFree(self.0); }
+            }
+        }
+    }
+
+    pub(super) struct CurrentUser {
+        // TOKEN_USER begins with a SID_AND_ATTRIBUTES, whose first field
+        // is a pointer into this aligned, owned token-information buffer.
+        buffer: Vec<usize>,
+    }
+
+    impl CurrentUser {
+        pub(super) fn get() -> Result<Self, &'static str> {
+            let mut raw = null_mut();
+            // SAFETY: the process pseudo-handle is valid; raw is an out pointer.
+            if unsafe { OpenProcessToken(GetCurrentProcess(), 0x0008, &mut raw) } == 0
+                || raw.is_null()
+            {
+                return Err(INVALID);
+            }
+            // SAFETY: successful OpenProcessToken gives us an owned handle.
+            let token = unsafe { OwnedHandle::from_raw_handle(raw) };
+            let mut size = 0;
+            // SAFETY: documented size query for TokenUser (1).
+            unsafe { GetTokenInformation(token.as_raw_handle(), 1, null_mut(), 0, &mut size); }
+            if !(16..=65536).contains(&size) {
+                return Err(INVALID);
+            }
+            let mut buffer = vec![0usize; (size as usize).div_ceil(std::mem::size_of::<usize>())];
+            let capacity = (buffer.len() * std::mem::size_of::<usize>()) as u32;
+            // SAFETY: buffer is aligned and writable for capacity bytes.
+            if unsafe { GetTokenInformation(token.as_raw_handle(), 1, buffer.as_mut_ptr().cast(), capacity, &mut size) } == 0
+                || size > capacity || buffer[0] == 0
+            {
+                return Err(INVALID);
+            }
+            Ok(Self { buffer })
+        }
+
+        fn sid(&self) -> *mut c_void {
+            self.buffer[0] as *mut c_void
+        }
+
+        fn sid_string(&self) -> Result<String, &'static str> {
+            let mut raw = null_mut();
+            // SAFETY: SID is backed by the live TOKEN_USER buffer.
+            if unsafe { ConvertSidToStringSidW(self.sid(), &mut raw) } == 0 || raw.is_null() {
+                return Err(INVALID);
+            }
+            let _allocation = LocalAllocation(raw.cast());
+            // SAFETY: successful conversion returns a NUL-terminated string.
+            let mut len = 0;
+            while len < 256 && unsafe { *raw.add(len) } != 0 {
+                len += 1;
+            }
+            if len == 256 {
+                return Err(INVALID);
+            }
+            // SAFETY: len was obtained from the allocated string.
+            String::from_utf16(unsafe { std::slice::from_raw_parts(raw, len) }).map_err(|_| INVALID)
+        }
+
+        pub(super) fn create_root(&self, path: &Path) -> Result<bool, &'static str> {
+            let sid = self.sid_string()?;
+            // Explicit owner and one inheritable full-access ACE for the
+            // current user only. P prevents inheritance from the parent.
+            let descriptor = format!("O:{sid}D:P(A;OICI;FA;;;{sid})");
+            create_with_descriptor(path, &descriptor)
+        }
+
+        pub(super) fn verify(&self, path: &Path, directory: bool) -> Result<(), &'static str> {
+            let file = fs::OpenOptions::new()
+                .access_mode(READ_CONTROL)
+                .custom_flags(OPEN_REPARSE_POINT | BACKUP_SEMANTICS)
+                .open(path).map_err(|_| INVALID)?;
+            let info = file.metadata().map_err(|_| INVALID)?;
+            if info.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+                || (directory && !info.is_dir()) || (!directory && !info.is_file())
+            {
+                return Err(INVALID);
+            }
+            let mut owner = null_mut();
+            let mut acl = null_mut();
+            let mut raw = null_mut();
+            // SAFETY: file handle stays live and all output pointers are valid.
+            // SE_FILE_OBJECT=1, OWNER_SECURITY_INFORMATION|DACL_SECURITY_INFORMATION=5.
+            let status = unsafe {
+                GetSecurityInfo(file.as_raw_handle(), 1, 5, &mut owner, null_mut(), &mut acl, null_mut(), &mut raw)
+            };
+            let _allocation = LocalAllocation(raw);
+            if status != 0 || raw.is_null() || owner.is_null() || acl.is_null() {
+                return Err(INVALID);
+            }
+            let mut control = 0;
+            let mut revision = 0;
+            // SAFETY: owner, ACL and descriptor are owned by the live allocation.
+            if unsafe { EqualSid(owner, self.sid()) } == 0
+                || unsafe { GetSecurityDescriptorControl(raw, &mut control, &mut revision) } == 0
+                || control & 0x0004 == 0 || (directory && control & 0x1000 == 0)
+                || unsafe { (*acl).count } != 1
+            {
+                return Err(INVALID);
+            }
+            let mut ace = null_mut();
+            // SAFETY: the OS returned this ACL; the single ACE is within it.
+            if unsafe { GetAce(acl, 0, &mut ace) } == 0 || ace.is_null() {
+                return Err(INVALID);
+            }
+            let ace = ace.cast::<AllowedAce>();
+            // SAFETY: inspect the OS-provided ACE header; only accept ordinary
+            // access-allowed ACEs with sufficient space for a SID.
+            let valid = unsafe {
+                (*ace).kind == 0 && (*ace).size >= 16
+                    && (*ace).mask == FILE_ALL_ACCESS
+                    && if directory { (*ace).flags == 3 } else { matches!((*ace).flags, 0 | 16) }
+            };
+            if !valid || unsafe { EqualSid(std::ptr::addr_of_mut!((*ace).sid_start).cast(), self.sid()) } == 0 {
+                return Err(INVALID);
+            }
+            Ok(())
+        }
+    }
+
+    fn create_with_descriptor(path: &Path, descriptor: &str) -> Result<bool, &'static str> {
+        let wide: Vec<u16> = descriptor.encode_utf16().chain([0]).collect();
+        let mut raw = null_mut();
+        // SAFETY: input is NUL-terminated, raw is a valid out pointer.
+        if unsafe { ConvertStringSecurityDescriptorToSecurityDescriptorW(wide.as_ptr(), 1, &mut raw, null_mut()) } == 0
+            || raw.is_null()
+        {
+            return Err(INVALID);
+        }
+        let _allocation = LocalAllocation(raw);
+        let attributes = SecurityAttributes {
+            length: std::mem::size_of::<SecurityAttributes>() as u32,
+            descriptor: raw,
+            inherit: 0,
+        };
+        let mut path: Vec<u16> = path.as_os_str().encode_wide().collect();
+        if path.contains(&0) {
+            return Err(INVALID);
+        }
+        path.push(0);
+        // SAFETY: path and security descriptor remain live through the call.
+        if unsafe { CreateDirectoryW(path.as_ptr(), &attributes) } != 0 {
+            Ok(true)
+        } else if std::io::Error::last_os_error().raw_os_error() == Some(183) {
+            Ok(false)
+        } else {
+            Err(INVALID)
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn create_public_fixture(path: &Path, user: &CurrentUser) {
+        let sid = user.sid_string().unwrap();
+        assert!(create_with_descriptor(path, &format!("O:{sid}D:P(A;OICI;FA;;;WD)")).unwrap());
+    }
+}
+
 /// A native-owned reading data directory. Hold an exclusive OS file lock
 /// throughout the child lifetime. Never rewrite an existing server config:
 /// it contains the extension store preferences maintained by Suwayomi.
-/// The caller must supply a private, trusted app-data path. Production ACL,
-/// job-object ownership and graceful shutdown remain separate requirements.
+/// The caller must supply a trusted, current-user app-data parent path.
+/// Root and sensitive files must pass the owner-only ACL checks.
 struct ReadStorage {
     _lock: fs::File,
     password: String,
@@ -460,16 +687,9 @@ struct ReadStorage {
 
 impl ReadStorage {
     fn open(data: &Path, port: u16) -> Result<Self, &'static str> {
-        let fresh = match fs::create_dir(data) {
-            Ok(()) => true,
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => false,
-            Err(_) => return Err("Could not create reading data directory."),
-        };
-        let metadata = fs::symlink_metadata(data)
-            .map_err(|_| "Could not inspect reading data directory.")?;
-        if !metadata.is_dir() || metadata.file_type().is_symlink() {
-            return Err("Invalid reading data directory.");
-        }
+        let user = private_storage::CurrentUser::get()?;
+        let fresh = user.create_root(data)?;
+        user.verify(data, true)?;
         let lock_path = data.join(".tsugi-read.lock");
         let key_path = data.join(".tsugi-read.key");
         let config_path = data.join("server.conf");
@@ -478,10 +698,7 @@ impl ReadStorage {
         } else {
             // Do not adopt an arbitrary existing Suwayomi directory.
             for path in [&lock_path, &key_path, &config_path] {
-                let info = fs::symlink_metadata(path).map_err(|_| "Reading data is not initialized.")?;
-                if !info.is_file() || info.file_type().is_symlink() {
-                    return Err("Invalid reading storage file.");
-                }
+                user.verify(path, false)?;
             }
             fs::OpenOptions::new().read(true).write(true).open(&lock_path)
         }.map_err(|_| "Could not open reading storage lock.")?;
@@ -514,6 +731,10 @@ impl ReadStorage {
             }
             String::from_utf8(bytes).map_err(|_| "Invalid reading credentials.")?
         };
+        // Inheritance must also have protected all newly created files.
+        for path in [&lock_path, &key_path, &config_path] {
+            user.verify(path, false)?;
+        }
         Ok(Self { _lock: lock, password })
     }
 }
@@ -955,6 +1176,33 @@ mod tests {
         assert_eq!(unsafe { WaitForSingleObject(leaf.as_raw_handle(), 10_000) }, WAIT_OBJECT_0);
         parent.wait().unwrap();
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn reading_storage_requires_private_acl_and_preserves_existing_data() {
+        let mut entropy = [0u8; 16];
+        getrandom::fill(&mut entropy).unwrap();
+        let unique = entropy.iter().map(|b| format!("{b:02x}")).collect::<String>();
+        let parent = std::env::temp_dir().join(format!("tsugi-read-acl-{unique}"));
+        fs::create_dir(&parent).unwrap();
+        let data = parent.join("private");
+        let user = private_storage::CurrentUser::get().unwrap();
+        let first = ReadStorage::open(&data, 12345).unwrap();
+        user.verify(&data, true).unwrap();
+        for name in [".tsugi-read.lock", ".tsugi-read.key", "server.conf"] {
+            user.verify(&data.join(name), false).unwrap();
+        }
+        assert!(ReadStorage::open(&data, 12346).is_err());
+        let password = first.password.clone();
+        drop(first);
+        let reopened = ReadStorage::open(&data, 12346).unwrap();
+        assert!(reopened.password == password);
+        drop(reopened);
+        let public = parent.join("public");
+        private_storage::create_public_fixture(&public, &user);
+        assert!(ReadStorage::open(&public, 12345).is_err());
+        assert!(!public.join(".tsugi-read.key").exists());
+        fs::remove_dir_all(parent).unwrap();
     }
 
     #[test]
