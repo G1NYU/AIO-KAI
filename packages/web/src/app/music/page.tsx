@@ -350,6 +350,24 @@ export function MusicPage({
     });
   }
 
+  function togglePlayingFavorite() {
+    if (!playing || playingSourceId === LOCAL_SOURCE) return;
+    const entry = savedTrack(playing, playingSourceId);
+    setPlaylists((current) => {
+      const existing = current.find((list) => list.id === SAVED_PLAYLIST_ID);
+      if (!existing) return [...current, addToMusicPlaylist({
+        ...createMusicPlaylist(t`Saved tracks`), id: SAVED_PLAYLIST_ID,
+      }, entry)];
+      const liked = existing.tracks.some(track =>
+        track.id === entry.id && track.sourceId === entry.sourceId);
+      return current.map(list => list.id !== SAVED_PLAYLIST_ID ? list : {
+        ...list, tracks: liked
+          ? list.tracks.filter(track => !(track.id === entry.id && track.sourceId === entry.sourceId))
+          : addToMusicPlaylist(list,entry).tracks,
+      });
+    });
+  }
+
   async function playSavedTrack(entry: SavedMusicTrack) {
     setLibraryError('');
     if (localURLs.current.has(entry.id)) {
@@ -773,6 +791,10 @@ export function MusicPage({
         queue, index: queueIndex, paused, loading: resolving, error: playError,
         position, duration, volume, quality, expanded, shuffle, repeat,
         audioProfile, eqEnabled, eqAvailable: playingSourceId === LOCAL_SOURCE, eqError,
+        isFavorite: !!playing && !!playlists.find(list => list.id === SAVED_PLAYLIST_ID)
+          ?.tracks.some(track => track.id === playing.id && track.sourceId === playingSourceId),
+        canFavorite: playingSourceId !== LOCAL_SOURCE,
+        onFavorite: togglePlayingFavorite,
         onAudioProfile: setAudioProfile, onEqEnabled: setEqEnabled,
         onExpanded: setExpanded, onToggle: toggle, onNext: next,
         onPrevious: previous, onSeek: seek, onVolume: changeVolume,

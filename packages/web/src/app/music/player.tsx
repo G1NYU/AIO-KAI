@@ -38,6 +38,9 @@ export type MusicPlayerProps = {
   eqEnabled: boolean;
   eqAvailable: boolean;
   eqError: string;
+  isFavorite: boolean;
+  canFavorite: boolean;
+  onFavorite(): void;
   onAudioProfile(profile: AudioProfile): void;
   onEqEnabled(value: boolean): void;
   onExpanded(value: boolean): void;

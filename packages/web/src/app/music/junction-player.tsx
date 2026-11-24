@@ -8,7 +8,6 @@ import type { MusicPlayerProps } from './player';
 import { Timeline, Transport } from './player';
 import type { PlayerPalette } from '@/lib/music/player-theme';
 import { fetchTrackLyrics, lyricAt, type TrackLyrics } from '@/lib/music/lyrics';
-import { storage } from '@/lib/storage';
 
 /** A responsive Tsugi composition; imported Studio templates use their own renderer. */
 export function JunctionPlayer({
@@ -23,14 +22,6 @@ export function JunctionPlayer({
   const [lyrics, setLyrics] = React.useState<TrackLyrics | null>(null);
   const [lyricsBusy, setLyricsBusy] = React.useState(false);
   const [lyricsError, setLyricsError] = React.useState('');
-  const [favorite, setFavorite] = React.useState(false);
-  const favoriteKey = p.sourceName + ':' + (song?.id ?? '');
-
-  React.useEffect(() => {
-    const saved = storage.get<string[]>('tsugi-local-favorites-v1');
-    setFavorite(Array.isArray(saved) && saved.includes(favoriteKey));
-  }, [favoriteKey]);
-
   React.useEffect(() => {
     setLyrics(null);
     setLyricsError('');
@@ -46,15 +37,6 @@ export function JunctionPlayer({
     });
     return () => controller.abort();
   }, [lyricsOpen, song]);
-
-  function toggleFavorite() {
-    const saved = storage.get<string[]>('tsugi-local-favorites-v1');
-    const entries = Array.isArray(saved) ? saved.filter((v): v is string => typeof v === 'string') : [];
-    const next = favorite ? entries.filter((v) => v !== favoriteKey) :
-      [...entries.filter((v) => v !== favoriteKey), favoriteKey];
-    storage.set('tsugi-local-favorites-v1', next.slice(-500));
-    setFavorite(!favorite);
-  }
 
   if (!song) return null;
   const next = p.queue[p.index + 1];
@@ -121,8 +103,9 @@ export function JunctionPlayer({
           style={{borderColor:palette.border}}>
           <div className="flex items-center gap-1">
             <button type="button" className="tsugi-control flex size-11 items-center justify-center"
-              aria-pressed={favorite} aria-label={t`Favorite`} onClick={toggleFavorite}>
-              <FiHeart aria-hidden className="text-lg" fill={favorite ? palette.accent : 'none'} />
+              aria-pressed={p.isFavorite} aria-label={t`Favorite`}
+              disabled={!p.canFavorite} onClick={p.onFavorite}>
+              <FiHeart aria-hidden className="text-lg" fill={p.isFavorite ? palette.accent : 'none'} />
             </button>
             <button type="button" className="tsugi-control flex size-11 items-center justify-center"
               aria-label={t`Lyrics`} aria-pressed={lyricsOpen}
