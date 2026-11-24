@@ -1,0 +1,32 @@
+name: Tsugi Read Runtime Smoke
+
+on:
+  push:
+    branches: [feature/tsugi-read-runtime]
+    paths:
+      - '.github/workflows/tsugi-read-runtime-smoke.yml'
+      - 'packages/desktop/scripts/fetch-read-tools.ps1'
+      - 'packages/desktop/scripts/test-read-runtime.ps1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tsugi-read-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    if: github.ref == 'refs/heads/feature/tsugi-read-runtime'
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+      - name: Fetch and verify pinned reading runtime
+        run: ./packages/desktop/scripts/fetch-read-tools.ps1 -Destination "$env:RUNNER_TEMP/tsugi-read-runtime"
+      - name: Validate isolated local reading server
+        run: ./packages/desktop/scripts/test-read-runtime.ps1 -Runtime "$env:RUNNER_TEMP/tsugi-read-runtime"
