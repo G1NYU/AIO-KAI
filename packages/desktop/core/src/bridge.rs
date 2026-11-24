@@ -139,6 +139,16 @@ pub enum Inbound {
         operation: String,
         value: String,
     },
+    MusicAudioLoad {
+        request: String,
+        url: String,
+        volume: f64,
+    },
+    MusicAudioControl {
+        request: String,
+        action: String,
+        value: f64,
+    },
     /// Asks for an `audio-devices` answer.
     AudioDevices,
     /// A subtitle file the user dropped or picked, base64-encoded.
@@ -355,6 +365,13 @@ pub enum Outbound {
     YoutubeMusicResult {
         request: String,
         data: Option<Value>,
+        error: Option<String>,
+    },
+    MusicAudioState {
+        request: String,
+        status: String,
+        position: f64,
+        duration: f64,
         error: Option<String>,
     },
     PlayerState {

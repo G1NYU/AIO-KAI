@@ -13,6 +13,7 @@ import {
 } from '@/lib/music/connections';
 import { providerFor } from '@/lib/music/providers';
 import { supportsYouTubeMusic } from '@/lib/hosts/shell/youtube-music';
+import { appBridge, type ShellMessage } from '@/lib/hosts/shell/bridge';
 import { MusicPlayer, type RepeatMode } from './player';
 import { MusicLibrary } from './library';
 import { useRememberedMusicFolder } from './use-remembered-folder';
@@ -107,7 +108,34 @@ export function MusicPage({
   const [repeat, setRepeat] = React.useState<RepeatMode>('off');
   const audioRef = React.useRef<HTMLAudioElement>(null);
   const playbackRequest = React.useRef(0);
+  const nativeAudio = React.useRef<{ request: string; sourceId: string; track: EclipseTrack; recorded: boolean; timer?: ReturnType<typeof setTimeout> } | null>(null);
+  const nativeEvent = React.useRef<(message: Extract<ShellMessage, { type: 'music-audio-state' }>) => void>(() => {});
+  const volumeRef = React.useRef(volume);
+  volumeRef.current = volume;
   const generation = React.useRef(0);
+
+  function nativeControl(action: 'stop' | 'pause' | 'seek' | 'volume', value = 0) {
+    const current = nativeAudio.current;
+    if (current) appBridge()?.send({ type: 'music-audio-control', request: current.request, action, value });
+  }
+
+  function stopNativeAudio() {
+    const current = nativeAudio.current;
+    if (!current) return;
+    clearTimeout(current.timer);
+    nativeAudio.current = null;
+    appBridge()?.send({ type: 'music-audio-control', request: current.request, action: 'stop', value: 0 });
+  }
+
+  React.useEffect(() => {
+    const unsubscribe = appBridge()?.subscribe(message => {
+      if (message.type === 'music-audio-state') nativeEvent.current(message);
+    });
+    return () => {
+      stopNativeAudio();
+      unsubscribe?.();
+    };
+  }, []);
 
   React.useEffect(() => {
     saveMusicSources(rememberSources, connections);
@@ -182,7 +210,12 @@ export function MusicPage({
   React.useEffect(() => {
     visibleRef.current = visible;
     if (!visible) {
-      // Do not play music over a movie; keep the track and provider in memory.
+      // Stop native playback and pending native requests before changing media environments.
+      if (nativeAudio.current || playingSourceId === YOUTUBE_MUSIC_ID) {
+        ++playbackRequest.current;
+        stopNativeAudio();
+        setResolving(false);
+      }
       audioRef.current?.pause();
       setPaused(true);
       setExpanded(false);
@@ -289,6 +322,7 @@ export function MusicPage({
 
   async function play(track: EclipseTrack, at: number, source: MusicConnection, fromQueue = false) {
     const request = ++playbackRequest.current;
+    stopNativeAudio();
     audioRef.current?.pause();
     releaseFolderURL();
     if (!fromQueue) setQueue(tracks);
@@ -314,13 +348,30 @@ export function MusicPage({
         return;
       }
       setQuality(stream.quality ?? stream.format ?? '');
-      setStreamUrl(stream.url);
-      setRecent((current) => mergeRecentPlays(current, makeRecentPlay(source.id, track)));
+      if (source.kind === 'youtube-music') {
+        const bridge = appBridge();
+        if (!bridge?.nativeMusicAudio) throw new Error(t`Native music playback is unavailable in this build.`);
+        const id = 'music-audio-' + request;
+        const timer = setTimeout(() => {
+          if (nativeAudio.current?.request !== id) return;
+          stopNativeAudio();
+          setResolving(false);
+          setPaused(true);
+          setPlayError(t`Native music playback timed out.`);
+        }, 30_000);
+        nativeAudio.current = { request: id, sourceId: source.id, track, recorded: false, timer };
+        bridge.send({ type: 'music-audio-load', request: id, url: stream.url, volume: volumeRef.current });
+      } else {
+        setStreamUrl(stream.url);
+        setRecent((current) => mergeRecentPlays(current, makeRecentPlay(source.id, track)));
+      }
     } catch (error) {
-      if (request === playbackRequest.current)
+      if (request === playbackRequest.current) {
+        stopNativeAudio();
         setPlayError(error instanceof Error ? error.message : t`The browser audio engine could not play this stream.`);
+      }
     } finally {
-      if (request === playbackRequest.current) setResolving(false);
+      if (request === playbackRequest.current && !nativeAudio.current) setResolving(false);
     }
   }
 
@@ -381,6 +432,7 @@ export function MusicPage({
       return;
     }
     const request = ++playbackRequest.current;
+    stopNativeAudio();
     audioRef.current?.pause();
     releaseFolderURL();
     if (!fromQueue) {
@@ -491,6 +543,10 @@ export function MusicPage({
   }
 
   function seek(seconds: number) {
+    if (nativeAudio.current && Number.isFinite(seconds)) {
+      if (!resolving) nativeControl('seek', Math.max(0, Math.min(seconds, duration || seconds)));
+      return;
+    }
     const audio = audioRef.current;
     if (!audio || !Number.isFinite(seconds)) return;
     const maximum = Number.isFinite(audio.duration) ? audio.duration : duration;
@@ -499,6 +555,15 @@ export function MusicPage({
   }
 
   function toggle() {
+    if (nativeAudio.current) {
+      if (!resolving) nativeControl('pause', paused ? 0 : 1);
+      return;
+    }
+    const source = connections.find(item => item.id === playingSourceId);
+    if (playing && source?.kind === 'youtube-music' && !resolving) {
+      void play(playing, queueIndex, source, true);
+      return;
+    }
     const audio = audioRef.current;
     if (!audio) return;
     if (audio.paused) {
@@ -512,6 +577,10 @@ export function MusicPage({
     const source = connections.find((item) => item.id === playingSourceId);
     if ((!source && !local) || !queue.length) return;
     if (auto && repeat === 'one') {
+      if (source?.kind === 'youtube-music' && playing) {
+        void play(playing, queueIndex, source, true);
+        return;
+      }
       seek(0);
       void audioRef.current?.play();
       return;
@@ -544,6 +613,8 @@ export function MusicPage({
   function changeVolume(value: number) {
     const safe = Math.min(1, Math.max(0, value));
     setVolume(safe);
+    volumeRef.current = safe;
+    nativeControl('volume', safe);
     if (audioRef.current) audioRef.current.volume = safe;
   }
 
@@ -573,6 +644,7 @@ export function MusicPage({
     }
     if (playingSourceId === id) {
       ++playbackRequest.current;
+      stopNativeAudio();
       audioRef.current?.pause();
       setPlaying(null);
       setPlayingSourceId('');
@@ -584,6 +656,34 @@ export function MusicPage({
       setExpanded(false);
     }
   }
+
+  nativeEvent.current = message => {
+    const current = nativeAudio.current;
+    if (!current || current.request !== message.request || !visibleRef.current) return;
+    if (message.status !== 'loading') {
+      clearTimeout(current.timer);
+      current.timer = undefined;
+    }
+    if (message.status === 'error') {
+      nativeAudio.current = null;
+      setResolving(false);
+      setPaused(true);
+      setPlayError(message.error || t`Native music playback failed.`);
+      return;
+    }
+    if (Number.isFinite(message.duration) && message.duration > 0) setDuration(message.duration);
+    if (Number.isFinite(message.position)) setPosition(Math.max(0, message.position));
+    setResolving(message.status === 'loading');
+    setPaused(message.status !== 'playing');
+    if (message.status === 'playing' && !current.recorded) {
+      current.recorded = true;
+      setRecent(previous => mergeRecentPlays(previous, makeRecentPlay(current.sourceId, current.track)));
+    }
+    if (message.status === 'ended') {
+      nativeAudio.current = null;
+      next(true);
+    }
+  };
 
   return (
     <main data-page="music" style={{ display: visible ? 'block' : 'none' }}

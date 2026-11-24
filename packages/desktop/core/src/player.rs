@@ -230,6 +230,8 @@ pub struct Player {
     auto_cache: Option<u64>,
     /// What mpv plays for each YouTube address handed to the page.
     youtube: Arc<Mutex<HashMap<String, String>>>,
+    music_library: PathBuf,
+    music_audio: Mutex<Option<crate::music_audio::MusicAudio>>,
     emit: Emit,
 }
 
@@ -318,6 +320,8 @@ impl Player {
             styled: Mutex::default(),
             auto_cache,
             youtube: Arc::default(),
+            music_library: library.to_path_buf(),
+            music_audio: Mutex::default(),
             emit,
         })
     }
@@ -354,12 +358,8 @@ impl Player {
         if request.len() > 100 || value.len() > 800 || operation.len() > 10 {
             return;
         }
-        if IN_FLIGHT
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
-                (n < 4).then_some(n + 1)
-            })
-            .is_err()
-        {
+        if IN_FLIGHT.fetch_add(1, Ordering::AcqRel) >= 4 {
+            IN_FLIGHT.fetch_sub(1, Ordering::AcqRel);
             (self.emit)(Outbound::YoutubeMusicResult {
                 request,
                 data: None,
@@ -390,6 +390,56 @@ impl Player {
                 data: None,
                 error: Some("Could not start YouTube Music request.".into()),
             });
+        }
+    }
+
+    pub fn load_music_audio(&self, request: String, url: String, volume: f64) {
+        use crate::music_audio::{Command, MusicAudio};
+        if request.len() > 100 || url.len() > 16384 {
+            return;
+        }
+        if let Ok(mut audio) = self.music_audio.lock() {
+            if audio.is_none() {
+                *audio = MusicAudio::new(self.music_library.clone(), self.emit.clone()).ok();
+            }
+            if let Some(audio) = &*audio
+                && audio.send(Command::Load {
+                    request: request.clone(),
+                    url,
+                    volume,
+                })
+            {
+                return;
+            }
+        }
+        (self.emit)(Outbound::MusicAudioState {
+            request,
+            status: "error".into(),
+            position: 0.0,
+            duration: 0.0,
+            error: Some("Native music engine is unavailable.".into()),
+        });
+    }
+
+    pub fn control_music_audio(&self, request: String, action: String, value: f64) {
+        if request.len() <= 100
+            && action.len() <= 10
+            && let Ok(audio) = self.music_audio.lock()
+            && let Some(audio) = &*audio
+        {
+            audio.send(crate::music_audio::Command::Control {
+                request,
+                action,
+                value,
+            });
+        }
+    }
+
+    pub fn stop_music_audio(&self) {
+        if let Ok(audio) = self.music_audio.lock()
+            && let Some(audio) = &*audio
+        {
+            audio.send(crate::music_audio::Command::Stop);
         }
     }
 
@@ -719,6 +769,10 @@ impl Player {
 
 impl Drop for Player {
     fn drop(&mut self) {
+        // Stop the independent music engine before tearing down video playback.
+        if let Ok(audio) = self.music_audio.get_mut() {
+            audio.take();
+        }
         // Dropping the sender ends the worker after what was sent.
         self.requests.take();
         if let Some(worker) = self.worker.take() {

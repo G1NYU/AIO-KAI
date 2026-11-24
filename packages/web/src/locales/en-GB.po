@@ -3008,6 +3008,18 @@ msgstr "Mute key"
 msgid "Name"
 msgstr "Name"
 
+#: src/app/music/page.tsx
+msgid "Native music playback failed."
+msgstr "Native music playback failed."
+
+#: src/app/music/page.tsx
+msgid "Native music playback is unavailable in this build."
+msgstr "Native music playback is unavailable in this build."
+
+#: src/app/music/page.tsx
+msgid "Native music playback timed out."
+msgstr "Native music playback timed out."
+
 #: src/app/settings/interface.tsx
 msgid "Navigation"
 msgstr "Navigation"

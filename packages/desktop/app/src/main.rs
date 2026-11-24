@@ -547,6 +547,9 @@ pub fn handle(
             load,
             external: to_external,
         } => {
+            if let Some(p) = player.as_ref() {
+                p.stop_music_audio();
+            }
             let local = |path: &str| downloads.is_local(path);
             let done = if to_external {
                 Some(external.load(&load, &local))
@@ -682,6 +685,32 @@ pub fn handle(
                     data: None,
                     error: Some("Desktop music engine is unavailable.".into()),
                 });
+            }
+        }
+        Inbound::MusicAudioLoad {
+            request,
+            url,
+            volume,
+        } => {
+            if let Some(p) = player.as_ref() {
+                p.load_music_audio(request, url, volume);
+            } else {
+                emit(Outbound::MusicAudioState {
+                    request,
+                    status: "error".into(),
+                    position: 0.0,
+                    duration: 0.0,
+                    error: Some("Native music engine is unavailable.".into()),
+                });
+            }
+        }
+        Inbound::MusicAudioControl {
+            request,
+            action,
+            value,
+        } => {
+            if let Some(p) = player.as_ref() {
+                p.control_music_audio(request, action, value);
             }
         }
         Inbound::AudioDevices => {
