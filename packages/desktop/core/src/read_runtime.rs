@@ -827,8 +827,10 @@ mod tests {
                         std::thread::sleep(Duration::from_millis(20));
                         continue;
                     };
-                    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-                    let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
+                    // Accepted Winsock sockets can inherit the listener's nonblocking mode.
+                    stream.set_nonblocking(false).expect("blocking fixture connection");
+                    stream.set_read_timeout(Some(Duration::from_secs(2))).expect("fixture read timeout");
+                    stream.set_write_timeout(Some(Duration::from_secs(2))).expect("fixture write timeout");
                     let mut request = Vec::new();
                     for byte in (&mut stream).bytes().take(8192) {
                         let Ok(byte) = byte else { break };
@@ -861,6 +863,21 @@ mod tests {
                 let _ = worker.join();
             }
         }
+    }
+
+    #[test]
+    fn fixture_store_serves_complete_index() {
+        let store = FixtureStore::start();
+        let probe: ureq::Agent = ureq::Agent::config_builder()
+            .proxy(None)
+            .timeout_global(Some(Duration::from_secs(3)))
+            .build().into();
+        let mut response = probe.get(&store.url).call().expect("fixture HTTP readiness");
+        assert_eq!(response.status().as_u16(), 200);
+        let mut body = Vec::new();
+        response.body_mut().as_reader().read_to_end(&mut body).unwrap();
+        assert_eq!(body, fixture_index());
+        assert_eq!(store.requests.load(Ordering::Relaxed), 1);
     }
 
     #[test]

@@ -264,3 +264,7 @@ On failure, the workflow reports only fixed diagnostic markers found in the
 runtime's own log files; no raw messages or credentials. This is diagnostic
 isolation, not a bypass of repository validation. Production integration remains
 blocked pending persistence and lifecycle validation.
+
+## Windows fixture socket correction
+
+Run 45398273458 at bb8b81b (job 138459776629) passed normal JVM shutdown, reopened library, persisted reading progress and page images. The separate store test failed before the Java mutation: the Rust readiness probe returned Windows socket error 10053 (ConnectionAborted). The fixture's listener is nonblocking; accepted Winsock sockets can inherit that mode, so reading immediately may fail before headers arrive. Explicitly set each accepted fixture socket to blocking mode, check timeout configuration, and add an ordinary unit test for status, exact protobuf body and request count. Keep both packaged-runtime tests unchanged and mandatory. This is a test-fixture change only, not a production network or security-policy change. Windows CI must confirm the diagnosis; extension store persistence remains unverified. Next: inspect the new smoke run, then verify lifecycle containment and extension execution before exposing the Read route. No desktop installer or main-branch change.
