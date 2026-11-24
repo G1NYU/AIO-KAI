@@ -1,7 +1,7 @@
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 
-/** Two precise interlocking pieces: flat geometry, no decorative container. */
+/** Original brush-stroke つ (the opening sound of Tsugi), in a restrained seal. */
 export function TsugiBrand({
   markOnly = false,
   className = '',
@@ -11,15 +11,13 @@ export function TsugiBrand({
 }) {
   return (
     <span className={`inline-flex items-center gap-3 ${className}`} aria-label={t`Tsugi`}>
-      <svg viewBox="0 0 64 64" aria-hidden="true"
-        className="size-9 shrink-0" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M9 10H40V22H23V42H9V10Z"
-          stroke="#BED8E5" strokeWidth="5" strokeLinejoin="miter" />
-        <path d="M55 54H24V42H41V22H55V54Z"
-          stroke="#9DA8B7" strokeWidth="5" strokeLinejoin="miter" />
+      <svg viewBox="0 0 128 128" aria-hidden="true"
+        className="size-9 shrink-0" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22 44 C43 34 71 27 91 35 C113 43 118 63 108 83 C98 102 75 113 51 116 C72 102 92 85 95 67 C98 52 87 46 72 46 C59 46 45 50 32 59 C26 63 18 58 18 52 C18 49 19 47 22 44 Z"
+          fill="var(--tsugi-ink, #CDD6F4)" />
       </svg>
       {!markOnly && (
-        <span className="text-xl font-semibold uppercase tracking-[0.17em] text-[#E8EDF0]">
+        <span className="text-lg font-semibold uppercase tracking-[0.12em] text-[--tsugi-ink]">
           <Trans>Tsugi</Trans>
         </span>
       )}
