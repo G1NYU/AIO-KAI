@@ -54,7 +54,14 @@ function kind(id: string): EclipseCatalogItem['type'] | null {
 function thumbnail(row: ObjectValue): string | undefined {
   const candidates = nodes(row.thumbnail ?? row.thumbnailRenderer, 'musicThumbnailRenderer', 1);
   const items = arr(obj(candidates[0]?.thumbnail).thumbnails);
-  return items.map(item => safeHttpsUrl(obj(item).url)).filter((url): url is string => !!url).at(-1);
+  // Some renderer responses are not sorted by size. Choose the largest
+  // declared thumbnail, using provider order only when dimensions are absent.
+  return items.map((item, index) => {
+    const entry = obj(item);
+    const width = Number(entry.width);
+    const height = Number(entry.height);
+    return { url: safeHttpsUrl(entry.url), area: Number.isFinite(width * height) && width > 0 && height > 0 ? width * height : 0, index };
+  }).filter(item => item.url).sort((a, b) => b.area - a.area || b.index - a.index)[0]?.url;
 }
 function duration(row: ObjectValue, subtitle: ObjectValue[]): number | undefined {
   const fixed = arr(row.fixedColumns).map(col => text(obj(obj(col).musicResponsiveListItemFixedColumnRenderer).text));

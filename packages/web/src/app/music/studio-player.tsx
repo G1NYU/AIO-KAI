@@ -8,6 +8,7 @@ import type { MusicPlayerProps } from './player';
 import type { EclipsePlayerTemplate, PlayerLayer } from '@/lib/music/player-template';
 import type { PlayerPalette } from '@/lib/music/player-theme';
 import { musicTime } from './player';
+import { MusicArtwork } from './music-artwork';
 import { fetchTrackLyrics, lyricAt, type TrackLyrics } from '@/lib/music/lyrics';
 import { storage } from '@/lib/storage';
 
@@ -156,8 +157,7 @@ export function EclipseStudioStage({
         return <span className="text-center text-xs text-white/55"><Trans>No matching lyrics found.</Trans></span>;
       case 'artwork':
         return song.artworkURL
-          ? <img src={song.artworkURL} alt="" draggable={false} referrerPolicy="no-referrer"
-              className="tsugi-studio-artwork size-full object-cover" />
+          ? <MusicArtwork source={song.artworkURL} className="tsugi-studio-artwork size-full object-cover" />
           : <span className="flex size-full items-center justify-center bg-[#282138]">
               <BiDisc aria-hidden className="text-6xl" />
             </span>;

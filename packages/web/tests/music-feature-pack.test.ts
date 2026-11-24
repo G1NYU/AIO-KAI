@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchTrendingRecordings, parseTrendingRecordings } from '../src/lib/music/discovery';
-import { DEFAULT_PLAYER_THEME, isPlayerTheme, PLAYER_PALETTES } from '../src/lib/music/player-theme';
+import { DEFAULT_PLAYER_THEME, isPlayerTheme, PLAYER_PALETTES, PLAYER_ACCENTS, isPlayerAccent, withPlayerAccent } from '../src/lib/music/player-theme';
 import { NOCTURNE_STAGE } from '../src/lib/music/nocturne-stage';
 import { JUNCTION_STAGE } from '../src/lib/music/junction-stage';
+import { expandedArtwork } from '../src/lib/music/artwork';
+import { parseYouTubeMusicResults } from '../src/lib/music/youtube-music';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -84,5 +86,37 @@ describe('ListenBrainz provider-independent discovery', () => {
     expect(await fetchTrendingRecordings()).toEqual([]);
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('private data included'); }));
     await expect(fetchTrendingRecordings()).rejects.toThrow('currently unreachable');
+  });
+});
+
+describe('Independent accents and expanded album artwork', () => {
+  it('keeps canvas independent of the selected accent', () => {
+    for (const palette of Object.values(PLAYER_PALETTES)) {
+      for (const id of Object.keys(PLAYER_ACCENTS)) {
+        if (!isPlayerAccent(id)) throw new Error('invalid preset');
+        const result = withPlayerAccent(palette, id);
+        expect(result.canvas).toBe(palette.canvas);
+        expect(result.accent).toBe(PLAYER_ACCENTS[id]);
+      }
+    }
+    expect(isPlayerAccent('__proto__')).toBe(false);
+    expect(withPlayerAccent({ ...PLAYER_PALETTES.sumi, canvas: 'rgb(245 245 245)', foreground: 'rgb(20 20 26)' }, 'silver').accent).toBe('rgb(20 20 26)');
+  });
+  it('requests larger exact Google album artwork while preserving its aspect and options', () => {
+    expect(expandedArtwork('https://lh3.googleusercontent.com/album=w120-h120-l90-rj')).toBe('https://lh3.googleusercontent.com/album=w1024-h1024-l90-rj');
+    expect(expandedArtwork('https://lh3.googleusercontent.com/album=w120-h60')).toBe('https://lh3.googleusercontent.com/album=w1024-h512');
+    expect(expandedArtwork('https://lh3.googleusercontent.com/album=s200-c')).toBe('https://lh3.googleusercontent.com/album=s1024-c');
+    for (const url of ['https://lh3.googleusercontent.com/album=w1200-h1200', 'https://lh3.googleusercontent.com/album=w120-h120?sig=test', 'https://lh3.googleusercontent.com.example.test/album=w120-h120', 'blob:local', 'https://i.ytimg.com/vi/abcdefghijk/default.jpg']) expect(expandedArtwork(url)).toBe(url);
+  });
+  it('selects the largest declared YouTube Music thumbnail, not the last one', () => {
+    const large = 'https://lh3.googleusercontent.com/art=w544-h544';
+    const result = parseYouTubeMusicResults({ musicResponsiveListItemRenderer: {
+      playlistItemData: { videoId: 'abcdefghijk' },
+      flexColumns: [{ musicResponsiveListItemFlexColumnRenderer: { text: { runs: [{ text: 'Fixture song' }] } } }],
+      thumbnail: { musicThumbnailRenderer: { thumbnail: { thumbnails: [
+        { url: large, width: 544, height: 544 }, { url: 'https://lh3.googleusercontent.com/art=w60-h60', width: 60, height: 60 },
+      ] } } },
+    } });
+    expect(result.tracks[0]?.artworkURL).toBe(large);
   });
 });

@@ -1682,9 +1682,9 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 :root[data-host='desktop'] .tsugi-reading-header h1 { font-size:clamp(28px,2.4vw,40px); letter-spacing:-.04em; }
 :root[data-host='desktop'] .tsugi-reading-global { width:min(440px,48%); padding:0; border:0; }
 :root[data-host='desktop'] .tsugi-reading-global input { font-size:14px; min-height:42px; padding:0 12px; background:var(--tsugi-surface); border:1px solid var(--tsugi-line); }
-:root[data-host='desktop'] :is(.tsugi-category-link,.tsugi-read-action,.tsugi-read-input) { font-size:14px; min-height:40px; }
-:root[data-host='desktop'] .tsugi-read-action { padding:9px 15px; }
-:root[data-host='desktop'] .tsugi-read-input { padding:9px 12px; }
+:root[data-host='desktop'] :is(.tsugi-category-link,.tsugi-read-root .tsugi-read-action,.tsugi-read-root .tsugi-read-input,.tsugi-empty-actions .tsugi-read-action) { font-size:14px; min-height:40px; }
+:root[data-host='desktop'] .tsugi-read-root .tsugi-read-action { padding:9px 15px; }
+:root[data-host='desktop'] .tsugi-read-root .tsugi-read-input { padding:9px 12px; }
 :root[data-host='desktop'] .tsugi-read-settings { max-width:1100px; }
 :root[data-host='desktop'] .tsugi-reading-settings-index { gap:0; }
 :root[data-host='desktop'] .tsugi-reading-settings-index > h2 { font-size:23px; margin:12px 0; }

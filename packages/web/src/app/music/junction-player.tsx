@@ -3,6 +3,7 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { FiHeart, FiList, FiMessageSquare, FiX } from 'react-icons/fi';
 import { VolumeControl } from './volume-control';
+import { MusicArtwork } from './music-artwork';
 import { BiDisc } from 'react-icons/bi';
 import type { MusicPlayerProps } from './player';
 import { Timeline, Transport } from './player';
@@ -49,8 +50,7 @@ export function JunctionPlayer({
           <div className="tsugi-junction-art-glow pointer-events-none absolute inset-10 -z-10"
             style={{ background: palette.accent }} />
           {song.artworkURL
-            ? <img src={song.artworkURL} alt="" draggable={false} referrerPolicy="no-referrer"
-                className="tsugi-junction-art aspect-square w-full object-cover" />
+            ? <MusicArtwork source={song.artworkURL} className="tsugi-junction-art aspect-square w-full object-cover" />
             : <span className="tsugi-junction-art flex aspect-square items-center justify-center"
                 style={{ background: palette.panel, color:palette.muted }}>
                 <BiDisc aria-hidden className="text-[clamp(4rem,9vw,8rem)]" />
