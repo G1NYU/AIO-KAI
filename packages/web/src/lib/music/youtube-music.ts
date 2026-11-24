@@ -1,9 +1,9 @@
 /* eslint-disable lingui/no-unlocalized-strings -- provider protocol and remote metadata */
-import { safeHttpsUrl, type EclipseCatalogItem, type EclipseDetail, type EclipseSearchResults, type EclipseTrack } from './eclipse';
+import { safeHttpsUrl, type EclipseCatalogDefinition, type EclipseCatalogItem, type EclipseDetail, type EclipseSearchResults, type EclipseTrack } from './eclipse';
 import type { MusicProvider } from './providers';
 
 type ObjectValue = Record<string, unknown>;
-type Operation = 'search' | 'browse' | 'audio';
+type Operation = 'search' | 'browse' | 'audio' | 'home';
 export type YouTubeMusicRequest = (operation: Operation, value: string, signal?: AbortSignal) => Promise<unknown>;
 
 const obj = (value: unknown): ObjectValue =>
@@ -118,14 +118,54 @@ export function parseYouTubeMusicDetail(root: unknown, item: EclipseCatalogItem)
   };
 }
 
+type HomeShelf = { definition: EclipseCatalogDefinition; items: EclipseCatalogItem[] };
+
+/** Home shelves keep provider titles and item identities, not invented chart ranks.
+ * Mixed shelves retain their source title but are split by playable item type. */
+export function parseYouTubeMusicHome(root: unknown): HomeShelf[] {
+  const shelves: HomeShelf[] = [];
+  const sections = [
+    ...nodes(root, 'musicCarouselShelfRenderer', 30),
+    ...nodes(root, 'musicShelfRenderer', 30),
+  ];
+  for (const [index, section] of sections.entries()) {
+    const header = obj(obj(section.header).musicCarouselShelfBasicHeaderRenderer);
+    const name = text(header.title) || text(section.title);
+    if (!name) continue;
+    const result = parseYouTubeMusicResults(section.contents);
+    const tracks: EclipseCatalogItem[] = result.tracks.map(track => ({
+      id: track.id, type: 'track', title: track.title, artist: track.artist,
+      album: track.album, artworkURL: track.artworkURL,
+      durationMs: track.duration === undefined ? undefined : track.duration * 1000,
+    }));
+    const groups: EclipseCatalogItem[][] = [tracks, result.albums, result.artists, result.playlists];
+    for (const items of groups) {
+      const type = items[0]?.type;
+      if (!type) continue;
+      shelves.push({ definition: { id: 'home:' + index + ':' + type, name, type }, items: items.slice(0, 30) });
+      if (shelves.length >= 16) return shelves;
+    }
+  }
+  return shelves;
+}
+
 export function youtubeMusicProvider(request: YouTubeMusicRequest): MusicProvider {
+  // The discovery page calls catalogs() and then catalog() on this same
+  // provider. Fetch once, rather than issuing parallel remote browse requests.
+  let home: HomeShelf[] = [];
   return {
     kind: 'youtube-music',
     async search(query, signal) {
       return parseYouTubeMusicResults(await request('search', query.trim().slice(0, 200), signal));
     },
-    async catalogs() { return []; },
-    async catalog() { return []; },
+    async catalogs(signal) {
+      home = parseYouTubeMusicHome(await request('home', '', signal));
+      return home.map(shelf => shelf.definition);
+    },
+    async catalog(definition, skip = 0) {
+      if (skip > 0) return [];
+      return home.find(shelf => shelf.definition.id === definition.id && shelf.definition.type === definition.type)?.items ?? [];
+    },
     async detail(item, signal) {
       if (item.type === 'track' || !browseId(item.id)) throw new Error('Invalid YouTube Music collection.');
       return parseYouTubeMusicDetail(await request('browse', item.id, signal), item);

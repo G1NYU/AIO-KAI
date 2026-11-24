@@ -318,7 +318,11 @@ fn start_session(
     match Session::new(library, request.clone(), source, volume) {
         Ok(player) => Some(player),
         Err(_) => {
-            fail(emit, &request, "Could not initialize native audio playback.");
+            fail(
+                emit,
+                &request,
+                "Could not initialize native audio playback.",
+            );
             None
         }
     }

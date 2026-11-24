@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readMusicSources, remembersMusicSources, saveMusicSources, youtubeMusicConnection } from '../src/lib/music/connections';
 
-import { youtubeMusicProvider } from '../src/lib/music/youtube-music';
+import { parseYouTubeMusicHome, youtubeMusicProvider } from '../src/lib/music/youtube-music';
 
 const values = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -86,5 +86,62 @@ describe('YouTube Music native playback target', () => {
     for (const invalid of [url + '&list=extra', 'https://www.youtube.com/watch?v=zyxwvutsrqp', 'https://example.test/audio']) {
       await expect(youtubeMusicProvider(async () => ({ url: invalid })).resolve(track)).rejects.toThrow();
     }
+  });
+});
+
+describe('YouTube Music home catalogues', () => {
+  const row = (title: string, navigationEndpoint: object) => ({
+    musicTwoRowItemRenderer: {
+      title: { runs: [{ text: title }] }, navigationEndpoint,
+      subtitle: { runs: [{ text: 'Fixture artist' }] },
+      thumbnailRenderer: {
+        musicThumbnailRenderer: { thumbnail: { thumbnails: [{ url: 'https://example.test/cover.jpg' }] } },
+      },
+    },
+  });
+  const home = {
+    contents: {
+      sectionListRenderer: {
+        contents: [
+          { musicCarouselShelfRenderer: {
+            header: { musicCarouselShelfBasicHeaderRenderer: { title: { runs: [{ text: 'From the provider' }] } } },
+            contents: [
+              row('Track', { watchEndpoint: { videoId: 'abcdefghijk' } }),
+              row('Track duplicate', { watchEndpoint: { videoId: 'abcdefghijk' } }),
+              row('Album', { browseEndpoint: { browseId: 'MPREfixture' } }),
+              row('Invalid', { watchEndpoint: { videoId: 'short' } }),
+            ],
+          } },
+          { musicShelfRenderer: {
+            title: { runs: [{ text: 'Unsupported' }] },
+            contents: [row('Invalid', { browseEndpoint: { browseId: 'FEmusic_library' } })],
+          } },
+        ],
+      },
+    },
+  };
+
+  it('keeps real shelf titles, artwork and validated identities; separates mixed collections', () => {
+    const shelves = parseYouTubeMusicHome(home);
+    expect(shelves.map(shelf => shelf.definition)).toEqual([
+      { id: 'home:0:track', name: 'From the provider', type: 'track' },
+      { id: 'home:0:album', name: 'From the provider', type: 'album' },
+    ]);
+    expect(shelves[0]?.items).toMatchObject([{ id: 'abcdefghijk', title: 'Track', artworkURL: 'https://example.test/cover.jpg' }]);
+    expect(shelves[1]?.items).toMatchObject([{ id: 'MPREfixture', title: 'Album' }]);
+    expect(parseYouTubeMusicHome(null)).toEqual([]);
+  });
+
+  it('loads one home response per discovery refresh and exposes only its own catalogues', async () => {
+    const request = vi.fn(async () => home);
+    const provider = youtubeMusicProvider(request);
+    const signal = new AbortController().signal;
+    const definitions = await provider.catalogs(signal);
+    expect(request).toHaveBeenCalledWith('home', '', signal);
+    const first = definitions[0]!;
+    expect(await provider.catalog(first, 0, signal)).toHaveLength(1);
+    expect(await provider.catalog(first, 30, signal)).toEqual([]);
+    expect(await provider.catalog({ ...first, id: 'unknown' })).toEqual([]);
+    expect(request).toHaveBeenCalledTimes(1);
   });
 });
