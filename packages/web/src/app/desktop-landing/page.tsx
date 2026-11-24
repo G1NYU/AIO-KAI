@@ -1,7 +1,8 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiFilm, FiHeadphones, FiMenu } from 'react-icons/fi';
+import { FiMenu } from 'react-icons/fi';
+import { TsugiFilmIcon, TsugiMusicIcon } from '@/components/tsugi-icons';
 import { readLaunchThemeMode, readWatchColors, saveLaunchThemeMode } from '@/lib/launcher-theme';
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { applyEclipseAppearance } from '@/lib/music/eclipse-appearance';
@@ -44,8 +45,8 @@ export function DesktopLandingPage({
   }
 
   const sections = [
-    { id: 'video', label: t`Watch`, description: t`Movies & TV`, Icon: FiFilm, open: openVideo },
-    { id: 'music', label: t`Listen`, description: t`Music`, Icon: FiHeadphones, open: openMusic },
+    { id: 'video', label: t`Watch`, description: t`Movies & TV`, Icon: TsugiFilmIcon, open: openVideo },
+    { id: 'music', label: t`Listen`, description: t`Music`, Icon: TsugiMusicIcon, open: openMusic },
   ];
 
   return (
@@ -79,14 +80,13 @@ export function DesktopLandingPage({
       <div className="tsugi-entry-stage">
         <div className="tsugi-entry-composition">
           <div className="tsugi-entry-brand">
-            <svg className="tsugi-entry-geometry" viewBox="0 0 200 200" aria-hidden="true">
-              <g fill="none" stroke="currentColor" strokeWidth="1">
-                <path d="M75 5H195V85H155V125H115V195H5V115H45V75H75Z" />
-                <path d="M75 5V75H155V125M45 75H75V115H115V195M5 115H45V155H115" />
-                <path d="M155 5V45H195M5 155H45V195" />
-              </g>
+            <svg className="tsugi-entry-geometry" viewBox="0 0 240 160" aria-hidden="true">
+              {/* An original folded-paper composition: three interlocking ribbons. */}
+              <path d="M10 80 65 25 120 80 92 108 65 81 37 108Z" fill="currentColor" opacity=".72" />
+              <path d="M65 25 120 25 175 80 120 135 92 108 120 80Z" fill="currentColor" opacity=".38" />
+              <path d="M120 25 175 25 230 80 175 135 120 135 175 80Z" fill="currentColor" opacity=".16" />
+              <path d="M65 25 120 80 92 108M120 25 175 80 120 135M175 25 230 80 175 135" fill="none" stroke="currentColor" strokeWidth="1" opacity=".65" />
             </svg>
-            <span className="tsugi-entry-kanji" aria-hidden="true" lang="ja">{'\u6b21'}</span>
             <h1 className="tsugi-entry-wordmark"><Trans>Tsugi</Trans></h1>
           </div>
 
