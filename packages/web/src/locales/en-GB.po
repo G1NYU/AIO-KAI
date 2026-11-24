@@ -531,10 +531,6 @@ msgstr "Albums"
 msgid "Albums, artists and playlists"
 msgstr "Albums, artists and playlists"
 
-#: src/app/music/browse.tsx
-msgid "Albums, playlists and songs from your connected music source."
-msgstr "Albums, playlists and songs from your connected music source."
-
 #: src/app/discover/page.tsx
 #: src/app/favourites/page.tsx
 #: src/components/media/kind-tabs.tsx
@@ -925,7 +921,7 @@ msgid "Cancel"
 msgstr "Cancel"
 
 #: src/app/desktop-landing/page.tsx
-#: src/app/music/player.tsx
+#: src/app/music/player-settings.tsx
 msgid "Carbon"
 msgstr "Carbon"
 
@@ -1056,6 +1052,8 @@ msgstr "Clear rating"
 msgid "Clear selection"
 msgstr "Clear selection"
 
+#: src/app/music/page.tsx
+#: src/app/music/player-settings.tsx
 #: src/components/shell/crash-report.tsx
 #: src/components/shell/window-controls.tsx
 #: src/features/player/mini-player.tsx
@@ -1171,8 +1169,8 @@ msgid "Connect a music source"
 msgstr "Connect a music source"
 
 #: src/app/music/browse.tsx
-msgid "Connect a music source to explore its catalogs."
-msgstr "Connect a music source to explore its catalogs."
+msgid "Connect a music source to browse albums, playlists and tracks."
+msgstr "Connect a music source to browse albums, playlists and tracks."
 
 #: src/app/music/page.tsx
 msgid "Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device."
@@ -1493,7 +1491,7 @@ msgid "Deep purple"
 msgstr "Deep purple"
 
 #. No colour of its own
-#: src/app/music/player.tsx
+#: src/app/music/player-settings.tsx
 #: src/app/settings/_components/version-settings.tsx
 #: src/app/settings/subtitles.tsx
 #: src/app/settings/theme.tsx
@@ -1594,6 +1592,7 @@ msgid "Discord refused the status: {message}"
 msgstr "Discord refused the status: {message}"
 
 #: src/app/discover/page.tsx
+#: src/app/music/browse.tsx
 #: src/app/music/page.tsx
 #: src/app/settings/apps.tsx
 #: src/app/settings/interface.tsx
@@ -1798,10 +1797,6 @@ msgstr "Enter this code under Quick Connect in an app already signed in, or appr
 msgid "Enter your password."
 msgstr "Enter your password."
 
-#: src/app/desktop-landing/page.tsx
-msgid "Enter your video library and connected sources."
-msgstr "Enter your video library and connected sources."
-
 #: src/app/servers/page.tsx
 msgid "Enter your video server address. Compatible Jellyfin servers work too."
 msgstr "Enter your video server address. Compatible Jellyfin servers work too."
@@ -1859,10 +1854,6 @@ msgstr "Everyone"
 #: src/app/history/page.tsx
 msgid "Everything"
 msgstr "Everything"
-
-#: src/app/desktop-landing/page.tsx
-msgid "Everything connects."
-msgstr "Everything connects."
 
 #: src/features/downloads/download-button.tsx
 msgid "Everything unwatched"
@@ -1928,6 +1919,14 @@ msgstr "Favourite"
 #: src/features/live-tv/live-tv.ts
 msgid "Favourites"
 msgstr "Favourites"
+
+#: src/app/music/browse.tsx
+msgid "Featured from your source"
+msgstr "Featured from your source"
+
+#: src/app/music/browse.tsx
+msgid "Featured music"
+msgstr "Featured music"
 
 #: src/app/settings/browsing.tsx
 msgid "Featured on home"
@@ -2275,7 +2274,7 @@ msgstr "Image"
 msgid "Import"
 msgstr "Import"
 
-#: src/app/music/player.tsx
+#: src/app/music/player-settings.tsx
 msgid "Import Studio layout"
 msgstr "Import Studio layout"
 
@@ -2317,16 +2316,12 @@ msgstr "In the navigation only"
 msgid "In this collection"
 msgstr "In this collection"
 
-#: src/app/music/page.tsx
-msgid "Independent listening"
-msgstr "Independent listening"
-
 #: src/app/music/charts.tsx
 msgid "Independent music discovery"
 msgstr "Independent music discovery"
 
 #: src/app/desktop-landing/page.tsx
-#: src/app/music/player.tsx
+#: src/app/music/player-settings.tsx
 msgid "Ink"
 msgstr "Ink"
 
@@ -2407,7 +2402,7 @@ msgstr "Joining the party…"
 msgid "Jump through the video"
 msgstr "Jump through the video"
 
-#: src/app/music/player.tsx
+#: src/app/music/player-settings.tsx
 msgid "Junction"
 msgstr "Junction"
 
@@ -2490,7 +2485,7 @@ msgstr "Large"
 msgid "Later"
 msgstr "Later"
 
-#: src/app/music/player.tsx
+#: src/app/music/player-settings.tsx
 msgid "Layout"
 msgstr "Layout"
 
@@ -2562,9 +2557,9 @@ msgstr "List"
 msgid "List only my languages"
 msgstr "List only my languages"
 
-#: src/app/desktop-landing/page.tsx
-msgid "Listen through your independent music addons."
-msgstr "Listen through your independent music addons."
+#: src/app/music/browse.tsx
+msgid "Listen"
+msgstr "Listen"
 
 #: src/app/music/charts.tsx
 msgid "ListenBrainz charts"
@@ -2660,6 +2655,10 @@ msgstr "Magenta"
 msgid "Main"
 msgstr "Main"
 
+#: src/app/music/browse.tsx
+msgid "Manage music sources"
+msgstr "Manage music sources"
+
 #: src/app.tsx
 msgid "Manage servers"
 msgstr "Manage servers"
@@ -2704,7 +2703,7 @@ msgid "Match the video's frame rate"
 msgstr "Match the video's frame rate"
 
 #: src/app/desktop-landing/page.tsx
-#: src/app/music/player.tsx
+#: src/app/music/player-settings.tsx
 msgid "Matte black"
 msgstr "Matte black"
 
@@ -2713,7 +2712,6 @@ msgid "Maximise"
 msgstr "Maximise"
 
 #: src/app/desktop-landing/page.tsx
-#: src/app/music/page.tsx
 msgid "Media sections"
 msgstr "Media sections"
 
@@ -2762,7 +2760,7 @@ msgid "Missing"
 msgstr "Missing"
 
 #: src/app/desktop-landing/page.tsx
-#: src/app/music/player.tsx
+#: src/app/music/player-settings.tsx
 msgid "Mocha"
 msgstr "Mocha"
 
@@ -2861,15 +2859,10 @@ msgstr "mpv.conf, input.conf, scripts and shaders in this folder apply to the bu
 
 #: src/app.tsx
 #: src/app/desktop-landing/page.tsx
-#: src/app/music/page.tsx
 #: src/app/servers/page.tsx
 #: src/components/shell/layout.tsx
 msgid "Music"
 msgstr "Music"
-
-#: src/app/desktop-landing/page.tsx
-msgid "Music and moving pictures, joined without binding their accounts together."
-msgstr "Music and moving pictures, joined without binding their accounts together."
 
 #: src/app/music/browse.tsx
 msgid "Music collection"
@@ -2886,6 +2879,10 @@ msgstr "Music player"
 #: src/app/music/page.tsx
 msgid "Music sections"
 msgstr "Music sections"
+
+#: src/app/music/page.tsx
+msgid "Music settings"
+msgstr "Music settings"
 
 #: src/features/player/picture-in-picture.tsx
 #: src/features/player/volume.tsx
@@ -2988,7 +2985,7 @@ msgid "Night mode"
 msgstr "Night mode"
 
 #: src/app/desktop-landing/page.tsx
-#: src/app/music/player.tsx
+#: src/app/music/player-settings.tsx
 msgid "Nightfall"
 msgstr "Nightfall"
 
@@ -3105,7 +3102,7 @@ msgstr "No versions match."
 msgid "No versions were found."
 msgstr "No versions were found."
 
-#: src/app/music/player.tsx
+#: src/app/music/player-settings.tsx
 msgid "Nocturne"
 msgstr "Nocturne"
 
@@ -3685,6 +3682,7 @@ msgstr "Pink"
 #: src/app/item/_components/header.tsx
 #: src/app/item/_components/no-details.tsx
 #: src/app/live-tv/_components/channel-details.tsx
+#: src/app/music/browse.tsx
 #: src/app/music/player.tsx
 #: src/app/music/studio-player.tsx
 #: src/components/media/hero.tsx
@@ -3832,7 +3830,7 @@ msgstr "Played here"
 msgid "Player"
 msgstr "Player"
 
-#: src/app/music/player.tsx
+#: src/app/music/player-settings.tsx
 msgid "Player layout"
 msgstr "Player layout"
 
@@ -3848,8 +3846,13 @@ msgstr "Player link"
 msgid "Player options"
 msgstr "Player options"
 
-#: src/app/desktop-landing/page.tsx
+#: src/app/music/player-settings.tsx
 #: src/app/music/player.tsx
+msgid "Player settings"
+msgstr "Player settings"
+
+#: src/app/desktop-landing/page.tsx
+#: src/app/music/player-settings.tsx
 msgid "Player theme"
 msgstr "Player theme"
 
@@ -4118,6 +4121,10 @@ msgstr "Recent"
 #: src/app/search/page.tsx
 msgid "Recent searches"
 msgstr "Recent searches"
+
+#: src/app/music/browse.tsx
+msgid "Recently played"
+msgstr "Recently played"
 
 #: src/features/party/party-layer.tsx
 msgid "Reconnecting to the party…"
@@ -4545,8 +4552,8 @@ msgstr "Seek"
 msgid "Seek bar previews"
 msgstr "Seek bar previews"
 
-#: src/app/music/player.tsx
 #: src/app/music/studio-player.tsx
+#: src/app/music/wave-seeker.tsx
 msgid "Seek position"
 msgstr "Seek position"
 
@@ -4602,10 +4609,6 @@ msgstr "Sends once the party is back"
 msgid "Sends this device's details and the app's recent log to the server, with a code to give whoever looks into it."
 msgstr "Sends this device's details and the app's recent log to the server, with a code to give whoever looks into it."
 
-#: src/app/desktop-landing/page.tsx
-msgid "Separate worlds. One place."
-msgstr "Separate worlds. One place."
-
 #: src/app/settings/subtitles.tsx
 msgid "Serif"
 msgstr "Serif"
@@ -4631,6 +4634,7 @@ msgstr "Set by hand"
 msgid "Set up addon"
 msgstr "Set up addon"
 
+#: src/app/desktop-landing/page.tsx
 #: src/app/settings/page.tsx
 #: src/components/shell/layout.tsx
 msgid "Settings"
@@ -4696,6 +4700,10 @@ msgstr "Show messages over the video"
 #: src/app/servers/page.tsx
 msgid "Show on the profile picker"
 msgstr "Show on the profile picker"
+
+#: src/app/music/player-settings.tsx
+msgid "Show player header"
+msgstr "Show player header"
 
 #: src/app/music/studio-player.tsx
 msgid "Show queue"
@@ -4980,10 +4988,6 @@ msgstr "Source"
 #: src/app/settings/about.tsx
 msgid "Source code"
 msgstr "Source code"
-
-#: src/app/music/page.tsx
-msgid "Sources"
-msgstr "Sources"
 
 #: src/lib/input/keys.ts
 msgid "Space"
@@ -5851,6 +5855,7 @@ msgid "Try them"
 msgstr "Try them"
 
 #: src/app.tsx
+#: src/app/desktop-landing/page.tsx
 #: src/components/tsugi-brand.tsx
 msgid "Tsugi"
 msgstr "Tsugi"
@@ -5938,7 +5943,6 @@ msgid "Up"
 msgstr "Up"
 
 #: src/app/music/junction-player.tsx
-#: src/app/music/player.tsx
 #: src/app/music/studio-player.tsx
 #: src/features/player/next-episode.tsx
 msgid "Up next"
@@ -6440,6 +6444,10 @@ msgstr "Your {name}"
 msgid "Your badges"
 msgstr "Your badges"
 
+#: src/app/music/browse.tsx
+msgid "Your music starts here"
+msgstr "Your music starts here"
+
 #: src/lib/playback/player-choice.ts
 msgid "Your own {name}"
 msgstr "Your own {name}"
@@ -6463,6 +6471,10 @@ msgstr "Your player plays in another app, which can't follow a party. Choose the
 #: src/app/item/_components/rating.tsx
 msgid "Your rating"
 msgstr "Your rating"
+
+#: src/app/music/browse.tsx
+msgid "Your rotation"
+msgstr "Your rotation"
 
 #: src/app/settings/cache.tsx
 msgid "Your watch history and totals."
