@@ -24,3 +24,8 @@ export function initialDesktopArea(
 ): DesktopArea {
   return !isDesktop || (hasSavedServer && !hasReadSection) ? 'video' : 'welcome';
 }
+
+/** Music is intentionally exclusive with the native video environment. */
+export function allowsMusicPlayback(area: DesktopArea): boolean {
+  return area !== 'video';
+}

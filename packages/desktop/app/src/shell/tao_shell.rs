@@ -246,7 +246,7 @@ pub fn run(app: App) {
     #[cfg(windows)]
     let reading = crate::reading::bundled_runtime_path(&args, web.as_deref()).map(|runtime| {
         let proxy = proxy.clone();
-        std::sync::Arc::new(crate::reading::Worker::new(runtime, data_dir.join("reading"), move |message| {
+        std::sync::Arc::new(crate::reading::Worker::new(runtime, data_dir.join("reading"), window.hwnd() as isize, move |message| {
             let _ = proxy.send_event(UserEvent::Emit(receive_script(&message)));
         }))
     });

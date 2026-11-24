@@ -53,7 +53,7 @@ import { InputSetup } from './components/shell/input-setup';
 import { CrashReportDialog } from './components/shell/crash-report';
 import { SplashEnd } from './lib/splash';
 import { BiMusic } from 'react-icons/bi';
-import { DesktopAreaContext, initialDesktopArea, type DesktopArea } from './lib/desktop-area';
+import { DesktopAreaContext, initialDesktopArea, allowsMusicPlayback, type DesktopArea } from './lib/desktop-area';
 import { DesktopLandingPage } from './app/desktop-landing/page';
 import { MusicPage } from './app/music/page';
 import { ReadPage, ReadSetupPage } from './app/read/page';
@@ -294,6 +294,8 @@ function Standalone() {
         <ServerInfoProvider value={NO_SERVER_INFO}>
           <MusicPage
             visible={area === 'music'}
+            playbackAllowed={allowsMusicPlayback(area)}
+            reading={area === 'read'}
             openVideo={openVideo}
             openWelcome={openWelcome}
           />

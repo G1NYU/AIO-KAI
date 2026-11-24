@@ -1389,3 +1389,11 @@ button.tsugi-read-row:hover:not(:disabled) { background:var(--tsugi-surface); }
 .tsugi-chapter-reader[data-focus-enabled='true'] > header { inset-block-start:0; }
 .tsugi-chapter-reader[data-focus-enabled='true'] > footer { inset-block-end:0; }
 .tsugi-chapter-reader[data-focus-enabled='true'] .tsugi-chapter-toolbar:focus-within { opacity:1; pointer-events:auto; }
+
+.tsugi-category-link { color:var(--tsugi-muted); padding:7px 10px; font-size:.85rem; }
+.tsugi-category-link:hover { color:var(--tsugi-ink); background:var(--tsugi-wash); }
+.tsugi-reading-music { position:fixed; inset-inline-end:18px; bottom:14px; z-index:41; display:flex; align-items:center; gap:9px; max-width:min(360px,90vw); padding:9px 12px; border:1px solid var(--tsugi-line); background:var(--tsugi-panel); color:var(--tsugi-ink); font-size:.75rem; }
+.tsugi-reading-music span { min-width:0; }
+.tsugi-reading-music button { flex:none; color:var(--tsugi-accent); }
+body:has(.tsugi-chapter-reader) .tsugi-reading-music { bottom:74px; }
+body:has(.tsugi-chapter-reader[data-focus='hidden']) .tsugi-reading-music { display:none; }

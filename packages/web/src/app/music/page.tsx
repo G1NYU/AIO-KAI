@@ -28,6 +28,7 @@ import {
 } from '@/lib/music/library';
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { applyEclipseAppearance } from '@/lib/music/eclipse-appearance';
+import { useDesktopArea } from '@/lib/desktop-area';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 import type { TrendingRecording } from '@/lib/music/discovery';
 import { makeRecentPlay, mergeRecentPlays, readRecentPlays, storeRecentPlays, type RecentMusicPlay } from '@/lib/music/history';
@@ -39,11 +40,16 @@ export function MusicPage({
   openVideo,
   openWelcome,
   visible,
+  playbackAllowed,
+  reading,
 }: {
   openVideo(): void;
   openWelcome(): void;
   visible: boolean;
+  playbackAllowed: boolean;
+  reading: boolean;
 }) {
+  const desktopArea = useDesktopArea();
   const [store, setStore] = React.useState<EclipseStoreEntry[]>([]);
   const [storeError, setStoreError] = React.useState('');
   const [manifestInput, setManifestInput] = React.useState('');
@@ -76,7 +82,8 @@ export function MusicPage({
   const localTracks = React.useMemo(() => [...sessionTracks, ...folderTracks], [sessionTracks, folderTracks]);
   const localURLs = React.useRef(new Map<string,string>());
   const folderURL = React.useRef<string | null>(null);
-  const visibleRef = React.useRef(visible);
+  const playbackAllowedRef = React.useRef(playbackAllowed);
+  playbackAllowedRef.current = playbackAllowed;
   const LOCAL_SOURCE = 'tsugi-local';
   const [settingsOpen, setSettingsOpen] = React.useState(() => readMusicSources().length === 0);
 
@@ -208,9 +215,12 @@ export function MusicPage({
   }, [settingsOpen]);
 
   React.useEffect(() => {
-    visibleRef.current = visible;
-    if (!visible) {
-      // Stop native playback and pending native requests before changing media environments.
+    if (!visible) setExpanded(false);
+  }, [visible]);
+
+  React.useEffect(() => {
+    if (!playbackAllowed) {
+      // Stop native music before entering the native video environment.
       if (nativeAudio.current || playingSourceId === YOUTUBE_MUSIC_ID) {
         ++playbackRequest.current;
         stopNativeAudio();
@@ -220,7 +230,7 @@ export function MusicPage({
       setPaused(true);
       setExpanded(false);
     }
-  }, [visible]);
+  }, [playbackAllowed]);
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -340,7 +350,7 @@ export function MusicPage({
     try {
       const stream = await providerFor(source).resolve(track);
       if (request !== playbackRequest.current) return;
-      if (!visibleRef.current) {
+      if (!playbackAllowedRef.current) {
         setPlaying(null);
         setPlayingSourceId('');
         setQueue([]);
@@ -454,7 +464,7 @@ export function MusicPage({
       if (file) {
         const selected = await file.getFile();
         if (request !== playbackRequest.current) return;
-        if (!visibleRef.current) {
+        if (!playbackAllowedRef.current) {
           setPlaying(null);
           setPlayingSourceId('');
           setQueue([]);
@@ -659,7 +669,7 @@ export function MusicPage({
 
   nativeEvent.current = message => {
     const current = nativeAudio.current;
-    if (!current || current.request !== message.request || !visibleRef.current) return;
+    if (!current || current.request !== message.request || !playbackAllowedRef.current) return;
     if (message.status !== 'loading') {
       clearTimeout(current.timer);
       current.timer = undefined;
@@ -686,6 +696,13 @@ export function MusicPage({
   };
 
   return (
+    <>
+    {reading && playing && <div className="tsugi-reading-music" data-ui="reading-music-controls">
+      <span className="truncate" title={playing.title}>{playing.title}</span>
+      <button type="button" disabled={resolving} onClick={toggle} aria-label={paused ? t({ id: "Play", message: "Play" }) : t({ id: "Pause", message: "Pause" })}>{paused ? t({ id: "Play", message: "Play" }) : t({ id: "Pause", message: "Pause" })}</button>
+      <button type="button" onClick={() => next()} aria-label={t({ id: "Next track", message: "Next track" })}><Trans id="Next">Next</Trans></button>
+      <button type="button" onClick={() => desktopArea?.openMusic()}><Trans id="Music">Music</Trans></button>
+    </div>}
     <main data-page="music" style={{ display: visible ? 'block' : 'none' }}
       className="tsugi-music-root min-h-screen px-6 pb-36 pt-14 sm:px-[3vw]">
       <div className="w-full">
@@ -693,7 +710,9 @@ export function MusicPage({
           <button type="button" onClick={openWelcome} className="tsugi-brand-action" aria-label={t`All media`}>
             <TsugiBrand />
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className="tsugi-category-link" onClick={openVideo}><Trans id="Movies & TV">Movies & TV</Trans></button>
+            {desktopArea?.openRead && <button type="button" className="tsugi-category-link" onClick={desktopArea.openRead}><Trans id="Read">Read</Trans></button>}
             <button type="button" className="tsugi-icon-action" onClick={() => setTab('search')}
               aria-label={t`Search music`}>
               <FiSearch aria-hidden className="text-xl" />
@@ -1000,5 +1019,6 @@ export function MusicPage({
         },
       }} />
     </main>
+    </>
   );
 }

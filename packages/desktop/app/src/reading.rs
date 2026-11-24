@@ -152,7 +152,7 @@ pub struct Worker {
 }
 
 impl Worker {
-    pub fn new(runtime: PathBuf, data: PathBuf, emit: impl Fn(Outbound) + Send + Sync + 'static) -> Self {
+    pub fn new(runtime: PathBuf, data: PathBuf, owner: isize, emit: impl Fn(Outbound) + Send + Sync + 'static) -> Self {
         let (tx, rx) = mpsc::sync_channel::<Request>(4);
         let stop = Arc::new(AtomicBool::new(false));
         let cache: Cache = Arc::new(Mutex::new(None));
@@ -180,7 +180,7 @@ impl Worker {
                     if preparing {
                         return Ok(json!({"ready": true}));
                     }
-                    execute(reader.as_ref().unwrap(), &mut chapter, &images, &mut serial, action)
+                    execute(reader.as_ref().unwrap(), &mut chapter, &images, &mut serial, owner, action)
                 })();
                 if !stopped.load(Ordering::Acquire) {
                     answer(&reply, request, result);
@@ -252,19 +252,19 @@ fn answer(emit: &Emit, request: String, result: Result<Value, &'static str>) {
 
 // Every executable install requires a native dialog. A web message is
 // insufficient consent, even if it came from the bundled origin.
-fn confirm(title: &str, message: &str) -> bool {
+fn confirm(owner: isize, title: &str, message: &str) -> bool {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        IDYES, MB_DEFBUTTON2, MB_ICONWARNING, MB_YESNO, MessageBoxW,
+        IDYES, MB_DEFBUTTON2, MB_ICONWARNING, MB_SETFOREGROUND, MB_YESNO, MessageBoxW,
     };
     let message: Vec<u16> = message.encode_utf16().chain([0]).collect();
     let title: Vec<u16> = title.encode_utf16().chain([0]).collect();
     // SAFETY: NUL-terminated UTF-16 strings live for the duration of the dialog.
-    unsafe { MessageBoxW(std::ptr::null_mut(), message.as_ptr(), title.as_ptr(), MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDYES }
+    unsafe { MessageBoxW(owner as windows_sys::Win32::Foundation::HWND, message.as_ptr(), title.as_ptr(), MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2 | MB_SETFOREGROUND) == IDYES }
 }
 
-fn confirm_store(index: &str) -> bool {
+fn confirm_store(owner: isize, index: &str) -> bool {
     if index.len() > 2048 || index.chars().any(char::is_control) { return false; }
-    confirm("Tsugi reading repository", &format!("Register this reading repository?\n\n{index}\n\nOnly add repositories you trust. Registering a store does not install its extensions."))
+    confirm(owner, "Tsugi reading repository", &format!("Register this reading repository?\n\n{index}\n\nOnly add repositories you trust. Registering a store does not install its extensions."))
 }
 
 fn stage_image(cache: &Cache, serial: &mut u64, image: aiostreams_desktop_core::read_runtime::PageImage) -> Result<Value, &'static str> {
@@ -281,6 +281,7 @@ fn execute(
     chapter: &mut Option<(i32, ChapterPages)>,
     cache: &Cache,
     serial: &mut u64,
+    owner: isize,
     action: ReadAction,
 ) -> Result<Value, &'static str> {
     match action {
@@ -290,7 +291,7 @@ fn execute(
         ReadAction::Library => reader.query(ReadOperation::Library),
         ReadAction::Stores => reader.query(ReadOperation::Stores),
         ReadAction::AddStore { index } => {
-            if !confirm_store(&index) { return Err("Repository registration cancelled."); }
+            if !confirm_store(owner, &index) { return Err("Repository registration cancelled."); }
             reader.add_store(&index)
         }
         ReadAction::RemoveStore { index } => reader.remove_store(&index),
@@ -298,7 +299,7 @@ fn execute(
         ReadAction::InstallExtension { package } => {
             let review = reader.review_extension(&package)?;
             let message = format!("Install executable extension code?\n\n{}\n\nExtensions run with your Windows account permissions, not inside a security sandbox. Package signatures are not independently verified, and the repository may redirect downloads. Only continue if you trust the publisher.", review.description());
-            if !confirm("Tsugi extension installation", &message) {
+            if !confirm(owner, "Tsugi extension installation", &message) {
                 return Err("Extension installation cancelled.");
             }
             reader.install_reviewed_extension(review)
@@ -307,7 +308,7 @@ fn execute(
             if package.len() > 200 || package.chars().any(char::is_control) {
                 return Err("Invalid extension package.");
             }
-            if !confirm("Tsugi extension removal", &format!("Uninstall {package}?")) {
+            if !confirm(owner, "Tsugi extension removal", &format!("Uninstall {package}?")) {
                 return Err("Extension removal cancelled.");
             }
             *chapter = None;
