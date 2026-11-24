@@ -74,6 +74,8 @@ impl Source {
             .get(&self.url)
             .header("Range", format!("bytes={start}-{end}"))
             .header("Accept-Encoding", "identity")
+            // Each bounded request must work even when a server closes TLS.
+            .header("Connection", "close")
             .call()
             .map_err(|_| "Music HTTPS transport could not connect.")?;
         let status = response.status().as_u16();
@@ -394,19 +396,14 @@ mod tests {
         assert!(base.starts_with("https://127.0.0.1:"));
         let source_for = |name: &str| {
             let mut source = Source::new(&format!("{base}/{name}"));
-            Arc::get_mut(&mut source).expect("unique source").agent =
-                ureq::Agent::config_builder()
-                    .timeout_global(Some(Duration::from_secs(8)))
-                    .https_only(true)
-                    .max_redirects(0)
-                    .http_status_as_error(false)
-                    .tls_config(
-                        TlsConfig::builder()
-                            .root_certs(roots.clone())
-                            .build(),
-                    )
-                    .build()
-                    .into();
+            Arc::get_mut(&mut source).expect("unique source").agent = ureq::Agent::config_builder()
+                .timeout_global(Some(Duration::from_secs(8)))
+                .https_only(true)
+                .max_redirects(0)
+                .http_status_as_error(false)
+                .tls_config(TlsConfig::builder().root_certs(roots.clone()).build())
+                .build()
+                .into();
             source
         };
         let large = source_for("range.bin");
@@ -423,7 +420,10 @@ mod tests {
                 "whole",
                 "Stream server did not honor the audio byte range (HTTP 200).",
             ),
-            ("bad-header", "Stream response has an invalid Content-Range."),
+            (
+                "bad-header",
+                "Stream response has an invalid Content-Range.",
+            ),
             (
                 "html",
                 "HTTPS response does not contain a recognized MP4 or WebM audio header.",
@@ -446,8 +446,8 @@ mod tests {
         // https://www.youtube.com/watch?v=YE7VzlLtp-4
         // Do not change client identity, access requirements or signed media URLs.
         let id = std::env::var("TSUGI_TEST_VIDEO_ID").unwrap_or_else(|_| "YE7VzlLtp-4".into());
-        let result = crate::youtube::music_request("audio", &id)
-            .expect("public sample audio resolution");
+        let result =
+            crate::youtube::music_request("audio", &id).expect("public sample audio resolution");
         println!("Provider issued a direct audio URL (not logged).");
         let url = result["url"].as_str().expect("direct audio URL");
         let source = Source::new(url);

@@ -23,8 +23,9 @@ DATA = {
 
 
 class RangeHandler(http.server.BaseHTTPRequestHandler):
-    def log_message(self, *_):
-        pass
+    def log_message(self, fmt, *args):
+        # Log fixture requests only; this server has no production URLs.
+        print(fmt % args, flush=True)
 
     def do_GET(self):
         name = self.path.lstrip("/")

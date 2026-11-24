@@ -427,7 +427,9 @@ mod music_tests {
             Err("YouTube requires bot verification on this network (LOGIN_REQUIRED).")
         );
         assert_eq!(
-            music_playability(&json!({"status": "LOGIN_REQUIRED", "reason": "private account data"})),
+            music_playability(
+                &json!({"status": "LOGIN_REQUIRED", "reason": "private account data"})
+            ),
             Err("YouTube requires sign-in for this track (LOGIN_REQUIRED).")
         );
         assert!(music_playability(&json!({"status": "UNPLAYABLE"})).is_err());
