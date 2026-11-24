@@ -11,7 +11,12 @@ export type ReadAction =
   | { kind: 'set-library'; id: number; inLibrary: boolean }
   | { kind: 'page'; chapterId: number; index: number }
   | { kind: 'progress'; chapterId: number; index: number; finished: boolean }
-  | { kind: 'chapter-flags'; ids: number[]; read?: boolean; bookmarked?: boolean };
+  | { kind: 'chapter-flags'; ids: number[]; read?: boolean; bookmarked?: boolean }
+  | { kind: 'tracker-login' | 'tracker-logout'; id: number }
+  | { kind: 'track-records' | 'tracker-sync'; mangaId: number }
+  | { kind: 'tracker-search'; id: number; query: string }
+  | { kind: 'tracker-bind'; mangaId: number; id: number; remoteId: number }
+  | { kind: 'tracker-unbind'; mangaId: number; recordId: number };
 
 export function supportsReadingSection(): boolean {
   const bridge = appBridge();
@@ -30,7 +35,7 @@ export async function readRequest<T>(action: ReadAction): Promise<T> {
   if (action.kind === 'prepare' ? !supportsReadingSection() : !supportsReading()) throw new Error(t({ id: "Reading is not available in this app.", message: "Reading is not available in this app." }));
   const request = 'read-' + Date.now() + '-' + ++sequence;
   const response = await ask({ type: 'read-request', request, action }, 'read-result', {
-    timeoutMs: action.kind === 'prepare' ? 20 * 60_000 : 180_000, matches: (message) => message.request === request,
+    timeoutMs: action.kind === 'prepare' ? 20 * 60_000 : action.kind === 'tracker-login' ? 240_000 : 180_000, matches: (message) => message.request === request,
   });
   if (response.error || response.data == null) throw new Error(response.error || t({ id: "Reading request returned no data.", message: "Reading request returned no data." }));
   return response.data as T;

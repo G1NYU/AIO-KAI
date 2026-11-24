@@ -180,7 +180,7 @@ impl Worker {
                     if preparing {
                         return Ok(json!({"ready": true}));
                     }
-                    execute(reader.as_ref().unwrap(), &mut chapter, &images, &mut serial, owner, action)
+                    execute(reader.as_ref().unwrap(), &mut chapter, &images, &mut serial, owner, &stopped, action)
                 })();
                 if !stopped.load(Ordering::Acquire) {
                     answer(&reply, request, result);
@@ -282,6 +282,7 @@ fn execute(
     cache: &Cache,
     serial: &mut u64,
     owner: isize,
+    stopped: &AtomicBool,
     action: ReadAction,
 ) -> Result<Value, &'static str> {
     match action {
@@ -290,6 +291,17 @@ fn execute(
         ReadAction::Sources => reader.query(ReadOperation::Sources),
         ReadAction::Library => reader.query(ReadOperation::Library),
         ReadAction::Trackers => reader.query(ReadOperation::Trackers),
+        ReadAction::TrackerLogin { id } => {
+            if !matches!(id, 1 | 2) { return Err("This tracker login is not enabled yet."); }
+            if !confirm(owner, "Tsugi tracker", "Connect this tracker account in your default browser?") { return Err("Tracker connection cancelled."); }
+            reader.login_tracker(id, crate::platform::open_external, stopped)
+        }
+        ReadAction::TrackerLogout { id } => reader.logout_tracker(id),
+        ReadAction::TrackRecords { manga_id } => reader.track_records(manga_id),
+        ReadAction::TrackerSearch { id, query } => reader.search_tracker(id, &query),
+        ReadAction::TrackerBind { manga_id, id, remote_id } => reader.bind_tracker(manga_id, id, remote_id),
+        ReadAction::TrackerUnbind { manga_id, record_id } => reader.unbind_tracker(manga_id, record_id),
+        ReadAction::TrackerSync { manga_id } => reader.sync_tracker_progress(manga_id),
         ReadAction::ChapterFlags { ids, read, bookmarked } => reader.update_chapter_flags(&ids, read, bookmarked),
         ReadAction::Stores => reader.query(ReadOperation::Stores),
         ReadAction::AddStore { index } => {

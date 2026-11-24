@@ -2,7 +2,8 @@
 //! webview-visible credentials. Explicit repository metadata operations only;
 //! executable extensions are not installed yet. Not wired to the app.
 use std::fs;
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::net::{Ipv4Addr, TcpListener};
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::os::windows::process::CommandExt;
@@ -905,6 +906,83 @@ impl ReadJob {
     }
 }
 
+// Suwayomi's documented OAuth relay returns the provider callback to the
+// redirectUrl in state. Keep the listener, nonce, callback and provider token
+// in native code; never send an authorization URL or callback to the webview.
+fn tracker_callback(target: &str, redirect: &url::Url, state: &Value, id: i32) -> Option<String> {
+    if target.len() > 16_384 || !target.starts_with("/tracker/oauth/") || target.starts_with("//") {
+        return None;
+    }
+    let callback = redirect.join(target).ok()?;
+    if callback.origin() != redirect.origin() || callback.path() != redirect.path() || callback.fragment().is_some() {
+        return None;
+    }
+    let params: Vec<_> = callback.query_pairs().collect();
+    let one = |key: &str| {
+        let mut matches = params.iter().filter(|(k, _)| k == key);
+        let value = matches.next()?.1.as_ref();
+        if value.is_empty() || matches.next().is_some() { None } else { Some(value) }
+    };
+    if serde_json::from_str::<Value>(one("state")?).ok()?.ne(state) {
+        return None;
+    }
+    let key = if id == 1 { "code" } else if id == 2 { "access_token" } else { return None };
+    if params.iter().any(|(k, _)| k == "error") || one(key)?.len() > 8192 {
+        return None;
+    }
+    Some(callback.to_string())
+}
+
+fn tracker_auth_url(id: i32, raw: &str, state: &Value) -> Result<url::Url, &'static str> {
+    let (host, path) = match id {
+        1 => ("myanimelist.net", "/v1/oauth2/authorize"),
+        2 => ("anilist.co", "/api/v2/oauth/authorize"),
+        _ => return Err("This tracker login is not enabled yet."),
+    };
+    let mut url = url::Url::parse(raw).map_err(|_| "Invalid tracker authorization URL.")?;
+    if url.scheme() != "https" || url.host_str() != Some(host) || url.port().is_some()
+        || !url.username().is_empty() || url.password().is_some() || url.path() != path
+        || url.fragment().is_some() || url.query_pairs().any(|(key, _)| key == "state") {
+        return Err("Invalid tracker authorization URL.");
+    }
+    url.query_pairs_mut().append_pair("state", &state.to_string());
+    Ok(url)
+}
+
+fn await_tracker_callback(listener: TcpListener, redirect: &url::Url, state: &Value, id: i32, stop: &AtomicBool) -> Result<String, &'static str> {
+    listener.set_nonblocking(true).map_err(|_| "Could not prepare tracker callback.")?;
+    let deadline = Instant::now() + Duration::from_secs(110);
+    while Instant::now() < deadline && !stop.load(Ordering::Acquire) {
+        match listener.accept() {
+            Ok((mut stream, peer)) => {
+                if !peer.ip().is_loopback() { continue; }
+                let _ = stream.set_nonblocking(false);
+                let _ = stream.set_read_timeout(Some(Duration::from_secs(1)));
+                let _ = stream.set_write_timeout(Some(Duration::from_secs(1)));
+                let mut first = String::new();
+                // Bound both the request size and processing time. No request
+                // logging, referrer, remote script or echo of the callback.
+                let received = BufReader::new((&mut stream).take(16_385)).read_line(&mut first).is_ok();
+                let mut words = first.split_whitespace();
+                let callback = if received && words.next() == Some("GET") {
+                    words.next().and_then(|target| tracker_callback(target, redirect, state, id))
+                } else { None };
+                let (status, body) = if callback.is_some() {
+                    ("200 OK", "Authorization received. Return to Tsugi to see the connection result.")
+                } else {
+                    ("400 Bad Request", "Invalid or expired Tsugi authorization request.")
+                };
+                let reply = format!("HTTP/1.1 {status}\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{body}", body.len());
+                let _ = stream.write_all(reply.as_bytes());
+                if let Some(callback) = callback { return Ok(callback); }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(100)),
+            Err(_) => return Err("Tracker callback listener failed."),
+        }
+    }
+    Err("Tracker authorization expired or was cancelled. Try again.")
+}
+
 /// Owns the launched process, private client, kill-on-close job and exclusive storage lock.
 pub struct ReadRuntime {
     child: Child,
@@ -999,6 +1077,84 @@ impl ReadRuntime {
 
     pub fn query(&self, operation: ReadOperation) -> Result<Value, &'static str> {
         self.client.query(operation)
+    }
+
+    pub fn login_tracker(&self, id: i32, open: impl FnOnce(&str), stop: &AtomicBool) -> Result<Value, &'static str> {
+        if !matches!(id, 1 | 2) { return Err("This tracker login is not enabled yet."); }
+        let tracker = self.client.document(
+            "query TsugiTrackerAuth($id: Int!) { tracker(id: $id) { id isLoggedIn authUrl } }",
+            "tracker", json!({"id": id}))?;
+        if tracker["isLoggedIn"] == true { return Err("Tracker is already connected."); }
+        let raw = tracker["authUrl"].as_str().ok_or("Tracker authorization is unavailable.")?;
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|_| "Could not open tracker callback.")?;
+        let port = listener.local_addr().map_err(|_| "Could not open tracker callback.")?.port();
+        let mut nonce = [0u8; 32];
+        getrandom::fill(&mut nonce).map_err(|_| "Could not secure tracker authorization.")?;
+        let nonce: String = nonce.iter().map(|b| format!("{b:02x}")).collect();
+        let redirect = url::Url::parse(&format!("http://127.0.0.1:{port}/tracker/oauth/{nonce}")).map_err(|_| "Invalid tracker callback.")?;
+        let state = json!({"redirectUrl": redirect.as_str(), "trackerId": id, "clientName": "Tsugi", "nonce": nonce});
+        let auth = tracker_auth_url(id, raw, &state)?;
+        open(auth.as_str());
+        let callback = await_tracker_callback(listener, &redirect, &state, id, stop)?;
+        let result = self.client.slow().mutation(
+            "mutation TsugiTrackerLogin($input: LoginTrackerOAuthInput!) { loginTrackerOAuth(input: $input) { isLoggedIn } }",
+            "loginTrackerOAuth", json!({"trackerId": id, "callbackUrl": callback}))?;
+        if result["isLoggedIn"] != true { return Err("Tracker did not confirm the connection."); }
+        Ok(result)
+    }
+
+    pub fn logout_tracker(&self, id: i32) -> Result<Value, &'static str> {
+        if !matches!(id, 1 | 2) { return Err("This tracker logout is not enabled yet."); }
+        self.client.slow().mutation(
+            "mutation TsugiTrackerLogout($input: LogoutTrackerInput!) { logoutTracker(input: $input) { isLoggedIn } }",
+            "logoutTracker", json!({"trackerId": id}))
+    }
+
+    pub fn track_records(&self, manga_id: i32) -> Result<Value, &'static str> {
+        if manga_id <= 0 { return Err("Invalid manga identifier."); }
+        self.client.document(
+            "query TsugiTrackRecords($id: Int!) { trackRecords(condition: {mangaId: $id}, first: 20) { nodes { id trackerId title lastChapterRead totalChapters displayScore } totalCount } }",
+            "trackRecords", json!({"id": manga_id}))
+    }
+
+    pub fn search_tracker(&self, id: i32, query: &str) -> Result<Value, &'static str> {
+        if !matches!(id, 1 | 2) || query.trim().is_empty() || query.chars().count() > 200 || query.chars().any(char::is_control) {
+            return Err("Invalid tracker search.");
+        }
+        self.client.slow().mutation(
+            "mutation TsugiTrackerSearch($input: SearchTrackerInput!) { searchTracker(input: $input) { trackSearches { remoteId title totalChapters publishingType publishingStatus startDate } } }",
+            "searchTracker", json!({"trackerId": id, "query": query.trim()}))
+    }
+
+    pub fn bind_tracker(&self, manga_id: i32, id: i32, remote_id: i64) -> Result<Value, &'static str> {
+        if manga_id <= 0 || !matches!(id, 1 | 2) || remote_id <= 0 { return Err("Invalid tracker match."); }
+        // Upstream binds only a previously searched record. Never silently
+        // replace an existing link or guess a match from the manga title.
+        let records = self.track_records(manga_id)?;
+        if records["nodes"].as_array().is_some_and(|nodes| nodes.iter().any(|node| node["trackerId"] == id)) {
+            return Err("Unlink the existing tracker match before linking another.");
+        }
+        self.client.slow().mutation(
+            "mutation TsugiBindTrack($input: BindTrackInput!) { bindTrack(input: $input) { trackRecord { id trackerId title lastChapterRead totalChapters } } }",
+            "bindTrack", json!({"mangaId": manga_id, "trackerId": id, "remoteId": remote_id}))
+    }
+
+    pub fn unbind_tracker(&self, manga_id: i32, record_id: i32) -> Result<Value, &'static str> {
+        let records = self.track_records(manga_id)?;
+        if record_id <= 0 || !records["nodes"].as_array().is_some_and(|nodes| nodes.iter().any(|node| node["id"] == record_id)) {
+            return Err("Tracker match not found.");
+        }
+        self.client.slow().mutation(
+            "mutation TsugiUnbindTrack($input: UnbindTrackInput!) { unbindTrack(input: $input) { clientMutationId } }",
+            "unbindTrack", json!({"recordId": record_id, "deleteRemoteTrack": false}))
+    }
+
+    pub fn sync_tracker_progress(&self, manga_id: i32) -> Result<Value, &'static str> {
+        let records = self.track_records(manga_id)?;
+        if records["totalCount"].as_u64().unwrap_or(0) == 0 { return Err("Link this manga to a tracker first."); }
+        self.client.slow().mutation(
+            "mutation TsugiTrackProgress($input: TrackProgressInput!) { trackProgress(input: $input) { trackRecords { id trackerId title lastChapterRead totalChapters } } }",
+            "trackProgress", json!({"mangaId": manga_id}))
     }
 
     /// Explicitly added by a trusted native caller after user confirmation.
@@ -1761,6 +1917,12 @@ mod tests {
         managed.save_progress(&pages, 1, true).expect("restore completed progress");
         let trackers = managed.query(ReadOperation::Trackers).expect("available native trackers");
         assert!(trackers["nodes"].as_array().unwrap().iter().any(|tracker| tracker["id"] == 1 && tracker["isLoggedIn"] == false));
+        let records = managed.track_records(manga_id).expect("real tracker records query");
+        assert_eq!(records["totalCount"], 0);
+        assert!(managed.sync_tracker_progress(manga_id).is_err());
+        assert!(managed.search_tracker(1, "").is_err());
+        assert!(managed.bind_tracker(manga_id, 0, 1).is_err());
+        assert!(managed.unbind_tracker(manga_id, 123).is_err());
         let library = managed.set_library(manga_id, true).expect("add fixture to library");
         assert_eq!(library["manga"]["inLibrary"], true);
         let list = managed.query(ReadOperation::Library).expect("library query");
@@ -1937,5 +2099,25 @@ mod tests {
         )
         .is_err());
         fs::remove_dir_all(data).expect("clean disposable reading data");
+    }
+}
+
+#[cfg(test)]
+mod tracker_oauth_tests {
+    use super::*;
+    #[test]
+    fn oauth_callback_requires_matching_state_path_and_provider() {
+        let redirect = url::Url::parse("http://127.0.0.1:12345/tracker/oauth/fixture").unwrap();
+        let state = json!({"redirectUrl": redirect.as_str(), "trackerId": 1, "nonce": "fixture"});
+        let mut callback = redirect.clone();
+        callback.query_pairs_mut().append_pair("code", "fixture-code").append_pair("state", &state.to_string());
+        let target = format!("{}?{}", callback.path(), callback.query().unwrap());
+        assert!(tracker_callback(&target, &redirect, &state, 1).is_some());
+        assert!(tracker_callback(&target, &redirect, &state, 2).is_none());
+        assert!(tracker_callback(&target, &redirect, &json!({"nonce": "different"}), 1).is_none());
+        assert!(tracker_callback(&target.replace("/fixture?", "/wrong?"), &redirect, &state, 1).is_none());
+        assert!(tracker_callback(&(target + "&code=second"), &redirect, &state, 1).is_none());
+        assert!(tracker_auth_url(1, "https://myanimelist.net/v1/oauth2/authorize?response_type=code", &state).is_ok());
+        assert!(tracker_auth_url(1, "https://myanimelist.net.example.test/v1/oauth2/authorize", &state).is_err());
     }
 }
