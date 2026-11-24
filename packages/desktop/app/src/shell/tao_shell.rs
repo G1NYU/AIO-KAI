@@ -243,24 +243,49 @@ pub fn run(app: App) {
         }
     });
 
+    #[cfg(windows)]
+    let reading = crate::reading::bundled_runtime(&args, web.as_deref()).map(|runtime| {
+        let proxy = proxy.clone();
+        Rc::new(crate::reading::Worker::new(runtime, data_dir.join("reading"), move |message| {
+            let _ = proxy.send_event(UserEvent::Emit(receive_script(&message)));
+        }))
+    });
     let mut context = WebContext::new(Some(data_dir.join(platform::WEB_DATA_DIR)));
     let builder = WebViewBuilder::new_with_web_context(&mut context)
         .with_bounds(page_bounds(size))
         .with_transparent(true)
         .with_devtools(args.devtools)
         .with_initialization_script(bridge)
-        .with_custom_protocol("aiostreams".into(), move |_, req: Request<Vec<u8>>| {
+        .with_custom_protocol("aiostreams".into(), {
+            #[cfg(windows)]
+            let reading = reading.clone();
+            move |_, req: Request<Vec<u8>>| {
+            #[cfg(windows)]
+            if req.uri().path().starts_with("/__tsugi_read/page/") {
+                if let Some((mime, body)) = reading.as_ref().and_then(|worker| worker.image(req.uri().path())) {
+                    return Response::builder()
+                        .status(200)
+                        .header("Content-Type", mime)
+                        .header("Cache-Control", "no-store")
+                        .header("X-Content-Type-Options", "nosniff")
+                        .body(Cow::Owned(body)).unwrap();
+                }
+                return Response::builder().status(404).body(Cow::Owned(Vec::new())).unwrap();
+            }
             let served = serve(web.as_deref(), req.uri().path());
             Response::builder()
                 .status(served.status)
                 .header("Content-Type", served.content_type)
                 .body(Cow::Owned(served.body))
                 .unwrap()
+            }
         })
         .with_ipc_handler({
             let (player, proxy, app_origin) = (player.clone(), proxy.clone(), app_origin.clone());
             let (external, paths, updater) = (external.clone(), paths.clone(), updater.clone());
             let downloads = downloads.clone();
+            #[cfg(windows)]
+            let reading = reading.clone();
             move |req: Request<String>| {
                 let from = origin(&req.uri().to_string()).unwrap_or_default();
                 if from != app_origin {
@@ -270,6 +295,17 @@ pub fn run(app: App) {
                     let _ = proxy.send_event(event);
                 };
                 if let Some(message) = bridge::parse(req.body()) {
+                    #[cfg(windows)]
+                    let message = match message {
+                        bridge::Inbound::ReadRequest { request, action } => {
+                            if let Some(worker) = &reading {
+                                worker.request(request, action);
+                                return;
+                            }
+                            bridge::Inbound::ReadRequest { request, action }
+                        }
+                        other => other,
+                    };
                     handle(
                         message, &player, &external, &send, &paths, &updater, &downloads,
                     );
@@ -435,6 +471,11 @@ pub fn run(app: App) {
                 }
                 #[cfg(not(target_os = "macos"))]
                 {
+                    #[cfg(windows)]
+                    if let Some(worker) = &reading {
+                        window.set_visible(false);
+                        worker.close();
+                    }
                     drop(player);
                     external.close();
                     *flow = ControlFlow::Exit;

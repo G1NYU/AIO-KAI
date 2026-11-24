@@ -7,6 +7,8 @@ mod placement;
 mod platform;
 mod shell;
 mod updates;
+#[cfg(windows)]
+mod reading;
 
 use std::cell::RefCell;
 use std::path::{Component, Path, PathBuf};
@@ -248,7 +250,7 @@ fn about() -> String {
     )
 }
 
-fn bridge_script() -> String {
+fn bridge_script(reading: bool) -> String {
     include_str!("bridge.js")
         .replace("__PROTOCOL__", &PROTOCOL_VERSION.to_string())
         .replace(
@@ -260,6 +262,7 @@ fn bridge_script() -> String {
             &serde_json::to_string(platform::PLATFORM).unwrap(),
         )
         .replace("__PIP__", &platform::PIP.to_string())
+        .replace("__READING__", &reading.to_string())
         .replace(
             "__DEVICE__",
             &serde_json::to_string(&platform::device_name()).unwrap(),
@@ -333,6 +336,12 @@ fn main() {
         download_folder,
         upscaling_hook: data_dir.join("upscaling.glsl"),
     });
+    // Reading is available only to the exact bundled page, not a remote
+    // --web page, a replacement web directory, or a debug session.
+    #[cfg(windows)]
+    let reading = reading::bundled_runtime(&args, web.as_deref()).is_some();
+    #[cfg(not(windows))]
+    let reading = false;
     shell::run(App {
         args,
         web,
@@ -340,7 +349,7 @@ fn main() {
         app_origin,
         data_dir,
         paths,
-        bridge: bridge_script(),
+        bridge: bridge_script(reading),
     });
 }
 
@@ -686,6 +695,13 @@ pub fn handle(
                     error: Some("Desktop music engine is unavailable.".into()),
                 });
             }
+        }
+        Inbound::ReadRequest { request, .. } => {
+            emit(Outbound::ReadResult {
+                request,
+                data: None,
+                error: Some("Reading is unavailable in this desktop session.".into()),
+            });
         }
         Inbound::MusicAudioLoad {
             request,

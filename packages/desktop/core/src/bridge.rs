@@ -52,6 +52,27 @@ fn shown() -> bool {
     true
 }
 
+/// Fixed reading operations; the page cannot send arbitrary GraphQL,
+/// local paths, upstream URLs for pages, or authentication credentials.
+#[derive(Debug, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", rename_all_fields = "camelCase", deny_unknown_fields)]
+pub enum ReadAction {
+    Status,
+    Sources,
+    Library,
+    Stores,
+    AddStore { index: String },
+    RemoveStore { index: String },
+    RefreshExtensions,
+    Extensions { offset: u32 },
+    Catalogue { source: String, page: u32, mode: String, query: Option<String> },
+    Manga { id: i32 },
+    SetLibrary { id: i32, in_library: bool },
+    Chapter { id: i32 },
+    Page { chapter_id: i32, index: usize },
+    Progress { chapter_id: i32, index: usize, finished: bool },
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(
     tag = "type",
@@ -138,6 +159,10 @@ pub enum Inbound {
         request: String,
         operation: String,
         value: String,
+    },
+    ReadRequest {
+        request: String,
+        action: ReadAction,
     },
     MusicAudioLoad {
         request: String,
@@ -363,6 +388,11 @@ pub enum Outbound {
         original_language: Option<String>,
     },
     YoutubeMusicResult {
+        request: String,
+        data: Option<Value>,
+        error: Option<String>,
+    },
+    ReadResult {
         request: String,
         data: Option<Value>,
         error: Option<String>,

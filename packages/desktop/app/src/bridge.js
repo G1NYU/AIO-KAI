@@ -25,6 +25,7 @@
     miniPlayer: true,
     youtubeMusic: true,
     nativeMusicAudio: true,
+    reading: __READING__,
     pip: __PIP__,
     hours24: __HOURS24__,
     device: __DEVICE__,
