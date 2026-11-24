@@ -155,16 +155,16 @@ export function EclipseStudioStage({
       case 'artwork':
         return song.artworkURL
           ? <img src={song.artworkURL} alt="" draggable={false} referrerPolicy="no-referrer"
-              className="size-full rounded-none object-cover" />
+              className="tsugi-studio-artwork size-full object-cover" />
           : <span className="flex size-full items-center justify-center bg-[#282138]">
               <BiDisc aria-hidden className="text-6xl" />
             </span>;
-      case 'songTitle': return <span className="block truncate font-bold">{song.title}</span>;
+      case 'songTitle': return <span className="block truncate font-semibold tracking-tight">{song.title}</span>;
       case 'artistName': return <span className="block truncate">{song.artist}</span>;
       case 'elapsed': return <span>{musicTime(p.position)}</span>;
       case 'remaining': return <span>-{musicTime(Math.max(0, p.duration - p.position))}</span>;
       case 'qualityBadge': return p.quality
-        ? <span className="truncate text-sm font-bold uppercase">{p.quality}</span> : null;
+        ? <span className="truncate text-sm font-semibold uppercase">{p.quality}</span> : null;
       case 'upNext': return <span className="block truncate text-xs">
         {p.queue[p.index + 1]
           ? p.queue[p.index + 1].artist + ' · ' + p.queue[p.index + 1].title
@@ -223,7 +223,7 @@ export function EclipseStudioStage({
         ))}
         {queueOpen && (
           <aside aria-label={t`Up next`}
-            className="absolute inset-y-[10%] right-[4%] z-20 w-[min(390px,39%)] overflow-y-auto border p-4" style={{backgroundColor:palette.panel,borderColor:palette.border,color:palette.foreground}}>
+            className="tsugi-junction-secondary absolute inset-y-[10%] right-[4%] z-20 w-[min(390px,39%)] overflow-y-auto p-4" style={{backgroundColor:palette.panel,borderColor:palette.border,color:palette.foreground}}>
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-bold"><Trans>Up next</Trans> · {p.queue.length}</h3>
               <button type="button" aria-label={t`Close queue`} onClick={() => setQueueOpen(false)}
@@ -247,7 +247,7 @@ export function EclipseStudioStage({
         )}
         {optionsOpen && (
           <section aria-label={t`Player options`}
-            className="absolute right-[4%] top-[12%] z-30 w-52 space-y-1 border p-3" style={{backgroundColor:palette.panel,borderColor:palette.border,color:palette.foreground}}>
+            className="tsugi-junction-secondary absolute right-[4%] top-[12%] z-30 w-52 space-y-1 p-3" style={{backgroundColor:palette.panel,borderColor:palette.border,color:palette.foreground}}>
             <button type="button" onClick={() => { setQueueOpen(true); setOptionsOpen(false); }}
               className="block w-full rounded-none px-3 py-2 text-left text-xs hover:bg-white/10"><Trans>Show queue</Trans></button>
             <button type="button" onClick={() => { setLyricsOpen(true); setOptionsOpen(false); }}
