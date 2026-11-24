@@ -20,6 +20,7 @@ use crate::thumbnails::Previews;
 use crate::upscale::{DisplayProbe, Upscale};
 
 pub type Emit = Arc<dyn Fn(Outbound) + Send + Sync>;
+type MusicHeaderCache = Arc<Mutex<HashMap<String, crate::music_resolver::MediaHeaders>>>;
 
 /// Settings whose changes are worth a line in the log; the rest are routine.
 const LOGGED_PROPS: &[&str] = &[
@@ -231,6 +232,7 @@ pub struct Player {
     /// What mpv plays for each YouTube address handed to the page.
     youtube: Arc<Mutex<HashMap<String, String>>>,
     music_library: PathBuf,
+    music_headers: MusicHeaderCache,
     music_audio: Mutex<Option<crate::music_audio::MusicAudio>>,
     emit: Emit,
 }
@@ -321,6 +323,7 @@ impl Player {
             auto_cache,
             youtube: Arc::default(),
             music_library: library.to_path_buf(),
+            music_headers: Arc::default(),
             music_audio: Mutex::default(),
             emit,
         })
@@ -369,10 +372,26 @@ impl Player {
         }
         let emit = self.emit.clone();
         let fallback_request = request.clone();
+        let headers = self.music_headers.clone();
         let spawned = std::thread::Builder::new()
             .name("youtube-music".into())
             .spawn(move || {
-                let (data, error) = match crate::youtube::music_request(&operation, &value) {
+                let result = if cfg!(windows) && operation == "audio" {
+                    crate::music_resolver::resolve(&value).and_then(|resolved| {
+                        let url = resolved.data["url"].as_str().ok_or("Missing audio URL.")?;
+                        let mut cache = headers
+                            .lock()
+                            .map_err(|_| "Music resolver state unavailable.")?;
+                        if cache.len() >= 32 {
+                            cache.clear();
+                        }
+                        cache.insert(url.to_owned(), resolved.headers);
+                        Ok(resolved.data)
+                    })
+                } else {
+                    crate::youtube::music_request(&operation, &value)
+                };
+                let (data, error) = match result {
                     Ok(data) => (Some(data), None),
                     Err(error) => (None, Some(error.to_string())),
                 };
@@ -398,6 +417,26 @@ impl Player {
         if request.len() > 100 || url.len() > 16384 {
             return;
         }
+        let headers = if cfg!(windows) {
+            let Some(headers) = self
+                .music_headers
+                .lock()
+                .ok()
+                .and_then(|mut cache| cache.remove(&url))
+            else {
+                (self.emit)(Outbound::MusicAudioState {
+                    request,
+                    status: "error".into(),
+                    position: 0.0,
+                    duration: 0.0,
+                    error: Some("Resolve the track again before playback.".into()),
+                });
+                return;
+            };
+            headers
+        } else {
+            Vec::new()
+        };
         if let Ok(mut audio) = self.music_audio.lock() {
             if audio.is_none() {
                 *audio = MusicAudio::new(self.music_library.clone(), self.emit.clone()).ok();
@@ -406,6 +445,7 @@ impl Player {
                 && audio.send(Command::Load {
                     request: request.clone(),
                     url,
+                    headers,
                     volume,
                 })
             {

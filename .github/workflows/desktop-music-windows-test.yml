@@ -9,6 +9,8 @@ on:
       - 'packages/web/rsbuild.config.ts'
       - 'packages/desktop/app/**'
       - 'packages/desktop/core/**'
+      - 'packages/desktop/scripts/fetch-music-tools.ps1'
+      - 'packages/desktop/THIRD-PARTY.md'
 
 permissions:
   contents: read
@@ -42,6 +44,9 @@ jobs:
           workspaces: packages/desktop
       - name: Fetch pinned libmpv for x64
         run: ./packages/desktop/scripts/fetch-libs.ps1 -Arch x86_64
+      - name: Test native music core
+        working-directory: packages/desktop
+        run: cargo test --locked -p aiostreams-desktop-core --lib
       - name: Build Windows desktop application
         working-directory: packages/desktop
         run: cargo build --release
@@ -55,6 +60,7 @@ jobs:
           Copy-Item packages/desktop/vendor/x86_64/licenses "$current/licenses" -Recurse
           Copy-Item packages/desktop/vendor/x86_64/vulkan "$current/vulkan" -Recurse
           Copy-Item packages/desktop/THIRD-PARTY.md $current
+          ./packages/desktop/scripts/fetch-music-tools.ps1 -Destination "$current/music-tools"
           Copy-Item packages/web/dist-standalone "$current/web" -Recurse
           Copy-Item LICENSE $stage
           @'
@@ -76,7 +82,7 @@ jobs:
           $archive = [IO.Compression.ZipFile]::OpenRead($zip)
           try {
             $names = @($archive.Entries | ForEach-Object FullName)
-            foreach ($required in @('.portable', 'current/aiostreams-desktop.exe', 'current/web/index.html', 'LICENSE', 'README-TEST.txt')) {
+            foreach ($required in @('.portable', 'current/aiostreams-desktop.exe', 'current/music-tools/yt-dlp.exe', 'current/music-tools/deno.exe', 'current/web/index.html', 'LICENSE', 'README-TEST.txt')) {
               if ($required -notin $names) { throw "Portable artifact missing $required" }
             }
           } finally {

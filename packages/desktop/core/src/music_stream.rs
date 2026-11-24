@@ -15,14 +15,16 @@ const LOAD_FAILED: c_int = -13;
 
 pub(crate) struct Source {
     url: String,
+    headers: crate::music_resolver::MediaHeaders,
     agent: ureq::Agent,
     failure: Mutex<Option<&'static str>>,
 }
 
 impl Source {
-    pub(crate) fn new(url: &str) -> Arc<Self> {
+    pub(crate) fn new(url: &str, headers: crate::music_resolver::MediaHeaders) -> Arc<Self> {
         Arc::new(Self {
             url: url.to_owned(),
+            headers,
             agent: ureq::Agent::config_builder()
                 .timeout_global(Some(Duration::from_secs(8)))
                 .https_only(true)
@@ -49,13 +51,20 @@ impl Source {
             return Err("The media reader has stopped.");
         }
         let end = (start + CHUNK - 1).min(total.unwrap_or(MAX_SIZE) - 1);
-        let mut response = self
+        let request = self
             .agent
             .get(&self.url)
             .header("Range", format!("bytes={start}-{end}"))
             .header("Accept-Encoding", "identity")
             // Each bounded request must work even when a server closes TLS.
-            .header("Connection", "close")
+            .header("Connection", "close");
+        let request = self
+            .headers
+            .iter()
+            .fold(request, |req, (name, value)| {
+                req.header(name.as_str(), value.as_str())
+            });
+        let mut response = request
             .call()
             .map_err(|_| "Music HTTPS transport could not connect.")?;
         let status = response.status().as_u16();
@@ -314,7 +323,7 @@ mod tests {
 
     #[test]
     fn buffered_reads_and_seeks_need_no_network() {
-        let source = Source::new("https://example.test/unused");
+        let source = Source::new("https://example.test/unused", Vec::new());
         let mut reader = Reader {
             source,
             chunk: Chunk {

@@ -25,7 +25,7 @@ export const requestYouTubeMusic: YouTubeMusicRequest = (operation, value, signa
     const timer = setTimeout(() => {
       finish();
       reject(new Error('YouTube Music did not answer.'));
-    }, 15_000);
+    }, operation === 'audio' ? 35_000 : 15_000);
     const unsubscribe = bridge.subscribe(message => {
       if (message.type !== 'youtube-music-result' || message.request !== request) return;
       finish();

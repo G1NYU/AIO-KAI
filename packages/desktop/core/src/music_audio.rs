@@ -14,6 +14,7 @@ pub enum Command {
     Load {
         request: String,
         url: String,
+        headers: crate::music_resolver::MediaHeaders,
         volume: f64,
     },
     Control {
@@ -157,9 +158,15 @@ struct Session {
 }
 
 impl Session {
-    fn new(library: &Path, request: String, url: &str, volume: f64) -> Result<Self, String> {
+    fn new(
+        library: &Path,
+        request: String,
+        url: &str,
+        headers: crate::music_resolver::MediaHeaders,
+        volume: f64,
+    ) -> Result<Self, String> {
         // The Arc allocation remains stable across Session moves.
-        let source = Source::new(url);
+        let source = Source::new(url, headers);
         let mpv = Mpv::new(
             library,
             &[
@@ -304,6 +311,7 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
             Ok(Command::Load {
                 request,
                 url,
+                headers,
                 volume,
             }) => {
                 // A fresh instance isolates queued EOF/property events from the previous track.
@@ -313,7 +321,7 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                     continue;
                 }
                 report(emit, &request, "loading", 0.0, 0.0, None);
-                match Session::new(library, request.clone(), &url, volume) {
+                match Session::new(library, request.clone(), &url, headers, volume) {
                     Ok(player) => session = Some(player),
                     Err(_) => fail(
                         emit,
