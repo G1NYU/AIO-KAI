@@ -3,6 +3,8 @@
 // desktop EXE, Java download, user credentials or package artifact is used.
 import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 const { chromium } = await import(pathToFileURL(process.env.TSUGI_READER_PLAYWRIGHT).href);
 const origin = 'http://127.0.0.1:4179';
 const deadline = Date.now() + 180_000;
@@ -18,6 +20,9 @@ const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'en-GB' });
   page.setDefaultTimeout(30_000);
+  const screenshotDir = process.env.TSUGI_DESIGN_SCREENSHOTS;
+  if (screenshotDir) await mkdir(screenshotDir, { recursive: true });
+  const capture = async (name) => { if (screenshotDir) await page.screenshot({ path: join(screenshotDir, name + '.png'), animations: 'disabled' }); };
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript(() => {
@@ -83,6 +88,7 @@ try {
   const landing = page.locator('[data-page="desktop-landing"]');
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).waitFor();
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'sumi');
+  await capture('01-launcher');
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).click();
   const entry = page.locator('.tsugi-video-entry');
   const field = entry.getByRole('textbox', { name: /Server address/ });
@@ -96,6 +102,7 @@ try {
   const brand = await entry.locator('.tsugi-auth-brand').boundingBox();
   const card = await entry.locator('[data-ui="auth-card"]').boundingBox();
   assert.ok(Math.abs((brand.x + brand.width / 2) - (card.x + card.width / 2)) < 3, 'auth brand is centered over the form');
+  await capture('02-movie-setup');
   const mediaNav = page.locator('.tsugi-entry-media-nav');
   await mediaNav.getByRole('button', { name: 'App settings', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Mocha', exact: true }).click();
@@ -115,7 +122,10 @@ try {
   await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).waitFor();
   assert.equal(await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).getAttribute('aria-pressed'), 'true');
   await page.getByRole('dialog').getByRole('button', { name: 'Mocha', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'mocha');
+  await page.getByRole('dialog').getByRole('button', { name: 'Sumi', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+  await capture('03-reading-library');
   await rail.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: /Trackers See tracking services/ }).click();
   await page.getByText('MyAnimeList', { exact: true }).waitFor();
@@ -138,6 +148,7 @@ try {
   await page.getByRole('button', { name: /Original source/ }).click();
   await page.locator('.tsugi-manga-card').first().click();
   await page.getByRole('heading', { name: 'Tsugi Original Fixture' }).waitFor();
+  await capture('04-reading-details');
   await page.getByRole('button', { name: 'Bookmark chapter', exact: true }).first().click();
   await page.getByRole('button', { name: 'Remove bookmark', exact: true }).first().waitFor();
   await page.getByRole('checkbox', { name: 'Select chapter Chapter 1', exact: true }).check();
@@ -160,6 +171,7 @@ try {
   await reader.waitFor();
   assert.equal(await reader.getAttribute('data-mode'), 'scroll');
   await page.waitForFunction(() => [...document.querySelectorAll('.tsugi-chapter-page img')].filter((img) => img.complete && img.naturalWidth > 0).length >= 2);
+  await capture('05-reader');
   await page.locator('.tsugi-chapter-viewport').evaluate((root) => {
     const target = root.querySelector('[data-reader-page="1"]');
     root.scrollTop += target.getBoundingClientRect().top - root.getBoundingClientRect().top;
@@ -199,6 +211,7 @@ try {
   await music.locator('input[aria-label="Open local audio"]').setInputFiles({ name: 'Tsugi audio fixture.wav', mimeType: 'audio/wav', buffer: wav });
   await music.getByRole('button', { name: /Tsugi audio fixture/ }).click();
   await page.waitForFunction(() => { const audio = document.querySelector('[data-page="music"] audio'); return audio && !audio.paused && audio.currentTime > 0.1; });
+  await capture('06-music-library');
   const timeBefore = await page.locator('[data-page="music"] audio').evaluate((audio) => audio.currentTime);
   await music.getByRole('button', { name: 'Read', exact: true }).click();
   await rail.waitFor();

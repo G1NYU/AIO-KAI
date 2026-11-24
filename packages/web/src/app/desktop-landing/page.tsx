@@ -12,7 +12,7 @@ export function DesktopLandingPage({ openVideo, openMusic, openRead }: {
   const sections = [
     { id: 'video' as const, label: t({ id: "Movies & TV", message: "Movies & TV" }), description: t({ id: "Cinema, series and your watchlist.", message: "Cinema, series and your watchlist." }), open: openVideo },
     { id: 'music' as const, label: t({ id: "Music", message: "Music" }), description: t({ id: "Your albums, tracks and playlists.", message: "Your albums, tracks and playlists." }), open: openMusic },
-    ...(openRead ? [{ id: 'read' as const, label: t({ id: "Read", message: "Read" }), description: t({ id: "Manga, manhwa and your next chapter.", message: "Manga, manhwa and your next chapter." }), open: openRead }] : []),
+    ...(openRead ? [{ id: 'read' as const, label: t({ id: 'Read', message: 'Read' }), description: t({ id: "Manga, manhwa and your next chapter.", message: "Manga, manhwa and your next chapter." }), open: openRead }] : []),
   ];
   return <main data-page="desktop-landing" className="tsugi-landing tsugi-index">
     <header className="tsugi-index-header">

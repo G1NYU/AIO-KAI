@@ -8,8 +8,9 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('Tsugi music theme pack', () => {
   it('only accepts bundled, validated theme names', () => {
-    expect(DEFAULT_PLAYER_THEME).toBe('mocha');
-    expect(Object.keys(PLAYER_PALETTES)).toHaveLength(5);
+    expect(DEFAULT_PLAYER_THEME).toBe('sumi');
+    expect(Object.keys(PLAYER_PALETTES).sort()).toEqual(['aio-dark', 'carbon', 'matte', 'mocha', 'nightfall', 'sumi']);
+    expect(isPlayerTheme('sumi')).toBe(true);
     expect(isPlayerTheme('mocha')).toBe(true);
     expect(isPlayerTheme('matte')).toBe(true);
     expect(isPlayerTheme('nightfall')).toBe(true);

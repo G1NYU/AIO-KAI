@@ -50,10 +50,19 @@ jobs:
           server=$!
           trap 'kill "$server" 2>/dev/null || true' EXIT
           export TSUGI_READER_PLAYWRIGHT="$RUNNER_TEMP/tsugi-reader-browser/node_modules/playwright/index.mjs"
+          export TSUGI_DESIGN_SCREENSHOTS="$RUNNER_TEMP/tsugi-design-screenshots"
           if ! node packages/web/tests/reader-browser-smoke.mjs; then
             tail -80 "$RUNNER_TEMP/tsugi-reader-dev.log"
             exit 1
           fi
+      - name: Upload synthetic UI previews
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: tsugi-ui-previews
+          path: ${{ runner.temp }}/tsugi-design-screenshots/*.png
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Build standalone web
         if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package tsugi]')))
         run: pnpm -F @aiostreams/web build:standalone

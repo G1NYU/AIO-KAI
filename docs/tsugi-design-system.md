@@ -23,3 +23,5 @@ User's Windows screenshot of the inherited video onboarding form.
 ## Acceptance
 
 Browser checks compare actual computed styles, logo centering, keyboard-visible focus after palette changes, category navigation and previously existing reading/music regression flows. Actual signed-in video home/settings visual review, Windows native frame, modal focus and real YouTube continuity remain required. Do not equate browser smoke with Windows visual QA.
+
+Run 45441655423 passed Windows check, TypeScript and lint, then failed two outdated unit assertions (old default/count of palettes and exact quote style in explicit Read translation ID). Update expected palette set to six, preserve the old names and human-readable translation guard. Add optional real browser screenshots from the synthetic smoke fixture as a short-lived source-only CI artifact (launcher, onboarding, library, details, reader, music; no accounts or external media). No Windows packaging trigger. Visual QA remains pending.
