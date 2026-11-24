@@ -294,7 +294,8 @@ export function MusicPage({
 
   function importLocalFiles(files: File[]) {
     const supported = files.filter(file =>
-      /^audio\//.test(file.type) || /\.(mp3|m4a|flac|wav|ogg)$/i.test(file.name)).slice(0, 250);
+      /^audio\//.test(file.type) || /\.(mp3|m4a|flac|wav|ogg)$/i.test(file.name))
+      .slice(0, Math.max(0, 250 - localURLs.current.size));
     const tracks = supported.map(file => {
       const id = 'local:' + crypto.randomUUID();
       localURLs.current.set(id, URL.createObjectURL(file));

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AUDIO_PROFILES, isAudioProfile, readAudioProfile, saveAudioProfile } from '../src/lib/music/audio-profiles';
 const memory=new Map<string,string>();
 beforeEach(()=>{memory.clear();vi.stubGlobal('localStorage',{
@@ -6,6 +6,8 @@ beforeEach(()=>{memory.clear();vi.stubGlobal('localStorage',{
   setItem:(k:string,v:string)=>{memory.set(k,v);},
   removeItem:(k:string)=>{memory.delete(k);},
 });});
+afterEach(() => vi.unstubAllGlobals());
+
 describe('local audio equalizer profile settings',()=>{
   it('defaults to bypassed flat profile without existing preference',()=>{
     expect(readAudioProfile()).toBe('flat');

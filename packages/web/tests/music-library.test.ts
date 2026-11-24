@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createMusicPlaylist, addToMusicPlaylist, importMusicPlaylist,
   exportMusicPlaylist, saveMusicLibrary, readMusicLibrary, savedTrack,
@@ -14,6 +14,8 @@ beforeEach(() => {
   });
   vi.stubGlobal('crypto', { randomUUID: () => '11111111-2222-4333-8444-555555555555' });
 });
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe('independent Tsugi playlists', () => {
   it('creates, saves and reloads collections without stream credentials', () => {
