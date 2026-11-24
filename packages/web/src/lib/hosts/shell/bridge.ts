@@ -32,6 +32,12 @@ export type ShellMessage =
       originalLanguage?: string;
     }
   | {
+      type: 'youtube-music-result';
+      request: string;
+      data: unknown;
+      error: string | null;
+    }
+  | {
       type: 'player-state';
       positionMs?: number;
       durationMs?: number;
@@ -200,6 +206,7 @@ interface ShellBridge {
   pip?: boolean;
   /** The app can draw its video small over the page, with `player-frame`. */
   miniPlayer?: boolean;
+  youtubeMusic?: boolean;
   /** The app sends a controller's buttons as `gamepad` messages. */
   gamepadButtons?: boolean;
   /** The system's 12- or 24-hour clock, where the app can tell. */

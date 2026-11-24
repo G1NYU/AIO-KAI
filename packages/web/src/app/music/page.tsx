@@ -8,10 +8,11 @@ import {
   type EclipseCatalogItem, type EclipseStoreEntry, type EclipseTrack,
 } from '@/lib/music/eclipse';
 import {
-  readMusicSources, remembersMusicSources, saveMusicSources,
+  readMusicSources, remembersMusicSources, saveMusicSources, youtubeMusicConnection, YOUTUBE_MUSIC_ID,
   type MusicConnection,
 } from '@/lib/music/connections';
 import { providerFor } from '@/lib/music/providers';
+import { supportsYouTubeMusic } from '@/lib/hosts/shell/youtube-music';
 import { MusicPlayer, type RepeatMode } from './player';
 import { MusicLibrary } from './library';
 import { useRememberedMusicFolder } from './use-remembered-folder';
@@ -228,6 +229,15 @@ export function MusicPage({
     }
   }
 
+  function connectYouTubeMusic() {
+    if (!supportsYouTubeMusic()) return;
+    const source = youtubeMusicConnection();
+    setConnections(previous => previous.some(item => item.id === source.id) ? previous : [...previous, source]);
+    switchSource(source.id);
+    setTab('search');
+    setSettingsOpen(false);
+  }
+
   async function search(event: React.FormEvent) {
     event.preventDefault();
     if (!activeSource || !query.trim()) return;
@@ -296,6 +306,13 @@ export function MusicPage({
     try {
       const stream = await providerFor(source).resolve(track);
       if (request !== playbackRequest.current) return;
+      if (!visibleRef.current) {
+        setPlaying(null);
+        setPlayingSourceId('');
+        setQueue([]);
+        setQueueIndex(-1);
+        return;
+      }
       setQuality(stream.quality ?? stream.format ?? '');
       setStreamUrl(stream.url);
       setRecent((current) => mergeRecentPlays(current, makeRecentPlay(source.id, track)));
@@ -734,6 +751,11 @@ export function MusicPage({
           <p className="max-w-3xl text-sm leading-6 text-[--muted]">
             <Trans>Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device.</Trans>
           </p>
+          {supportsYouTubeMusic() && !connections.some(source => source.id === YOUTUBE_MUSIC_ID) && (
+            <button type="button" className="tsugi-library-action" onClick={connectYouTubeMusic}>
+              <FiPlus aria-hidden /> <Trans>Connect YouTube Music</Trans>
+            </button>
+          )}
           <form onSubmit={connect} className="flex flex-col gap-3 sm:flex-row">
             <input
               aria-label={t`Eclipse addon manifest URL`}

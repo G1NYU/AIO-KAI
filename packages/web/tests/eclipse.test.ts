@@ -6,6 +6,7 @@ import {
 } from '../src/lib/music/eclipse';
 
 import { providerFor } from '../src/lib/music/providers';
+import { parseYouTubeMusicResults, youtubeMusicProvider } from '../src/lib/music/youtube-music';
 import type { MusicConnection } from '../src/lib/music/connections';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -228,5 +229,47 @@ describe('unified music provider boundary', () => {
     expect(() => providerFor({ ...connection, kind: 'unknown' } as unknown as MusicConnection))
       .toThrow('Unsupported music provider.');
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('YouTube Music provider', () => {
+  function row(title: string, id: string, artist = 'Artist') {
+    return { musicResponsiveListItemRenderer: {
+      playlistItemData: { videoId: id },
+      flexColumns: [
+        { musicResponsiveListItemFlexColumnRenderer: { text: { runs: [{ text: title }] } } },
+        { musicResponsiveListItemFlexColumnRenderer: { text: { runs: [
+          { text: artist, navigationEndpoint: { browseEndpoint: { browseId: 'UCartist' } } },
+          { text: ' • ' }, { text: '3:09' },
+        ] } } },
+      ],
+    } };
+  }
+  const fixture = { contents: [row('Song', 'abcDEF_1234'), row('Duplicate', 'abcDEF_1234'),
+    row('Bad', 'invalid'), { musicTwoRowItemRenderer: {
+      title: { runs: [{ text: 'Album' }] },
+      navigationEndpoint: { browseEndpoint: { browseId: 'MPREalbum' } },
+    } }] };
+  it('parses music rows and collection identities without duplicate or unsafe IDs', () => {
+    const data = parseYouTubeMusicResults(fixture);
+    expect(data.tracks).toHaveLength(1);
+    expect(data.tracks[0]).toMatchObject({ title: 'Song', artist: 'Artist', duration: 189 });
+    expect(data.albums[0]).toMatchObject({ id: 'MPREalbum', title: 'Album' });
+  });
+  it('routes search, album detail and audio through the native transport', async () => {
+    const request = vi.fn(async (operation: string) => operation === 'audio'
+      ? { url: 'https://a.googlevideo.com/audio', format: 'audio/mp4' } : fixture);
+    const provider = youtubeMusicProvider(request);
+    const search = await provider.search('Artist');
+    expect((await provider.detail(search.albums[0])).tracks).toHaveLength(1);
+    expect((await provider.resolve(search.tracks[0])).url).toBe('https://a.googlevideo.com/audio');
+    expect(request.mock.calls.map(call => call[0])).toEqual(['search', 'browse', 'audio']);
+  });
+  it('refuses arbitrary track URLs and invalid identifiers', async () => {
+    const request = vi.fn(async () => ({ url: 'https://googlevideo.com.evil.test/file' }));
+    const provider = youtubeMusicProvider(request);
+    await expect(provider.resolve({ id: 'abcDEF_1234', title: 'Song', artist: 'Artist' })).rejects.toThrow('playable audio');
+    await expect(provider.resolve({ id: '../bad', title: 'Song', artist: 'Artist' })).rejects.toThrow('Invalid');
+    expect(request).toHaveBeenCalledTimes(1);
   });
 });

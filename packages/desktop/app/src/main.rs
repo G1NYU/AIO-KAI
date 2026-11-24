@@ -669,6 +669,21 @@ pub fn handle(
                 p.resolve_youtube(request, id);
             }
         }
+        Inbound::YoutubeMusicRequest {
+            request,
+            operation,
+            value,
+        } => {
+            if let Some(p) = player.as_ref() {
+                p.youtube_music_request(request, operation, value);
+            } else {
+                emit(Outbound::YoutubeMusicResult {
+                    request,
+                    data: None,
+                    error: Some("Desktop music engine is unavailable.".into()),
+                });
+            }
+        }
         Inbound::AudioDevices => {
             if let Some(p) = player.as_ref() {
                 p.audio_devices();

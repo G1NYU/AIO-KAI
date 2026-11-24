@@ -1201,6 +1201,10 @@ msgid "Connect multiple Eclipse music sources. Their private URLs are kept only 
 msgstr "Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device."
 
 #: src/app/music/page.tsx
+msgid "Connect YouTube Music"
+msgstr "Connect YouTube Music"
+
+#: src/app/music/page.tsx
 msgid "Connected music sources"
 msgstr "Connected music sources"
 

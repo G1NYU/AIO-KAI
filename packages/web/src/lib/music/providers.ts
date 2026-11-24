@@ -4,6 +4,7 @@ import {
   type EclipseCatalogDefinition, type EclipseCatalogItem, type EclipseDetail,
   type EclipseSearchResults, type EclipseStream, type EclipseTrack,
 } from './eclipse';
+import { youtubeMusicProvider } from './youtube-music';
 
 /** Shared metadata and resolved-audio contract. The UI never constructs a provider's
  * search, catalog, collection or stream URL. A native provider can supply a
@@ -33,6 +34,10 @@ const eclipseProvider: ProviderFactory = ({ url }) => ({
 
 const factories: Record<MusicProviderKind, ProviderFactory> = {
   eclipse: eclipseProvider,
+  'youtube-music': () => youtubeMusicProvider(async (operation, value, signal) => {
+    const { requestYouTubeMusic } = await import('../hosts/shell/youtube-music');
+    return requestYouTubeMusic(operation, value, signal);
+  }),
 };
 
 /** Missing kind means an existing Eclipse connection, not a guessed provider.

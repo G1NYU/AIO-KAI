@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { readMusicSources, remembersMusicSources, saveMusicSources } from '../src/lib/music/connections';
+import { readMusicSources, remembersMusicSources, saveMusicSources, youtubeMusicConnection } from '../src/lib/music/connections';
 
 const values = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -56,5 +56,13 @@ describe('provider discriminator migration', () => {
       { ...example, kind: 'future-provider' },
     ]));
     expect(readMusicSources()).toEqual([]);
+  });
+});
+
+describe('built-in YouTube Music connection', () => {
+  it('restores fixed provider metadata and ignores stored endpoint overrides', () => {
+    const source = youtubeMusicConnection();
+    saveMusicSources(true, [{ ...source, url: 'https://untrusted.example/' }, example]);
+    expect(readMusicSources()).toEqual([source, example]);
   });
 });

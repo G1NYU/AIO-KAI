@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -346,6 +346,50 @@ impl Player {
             });
         if let Err(e) = spawned {
             log::warn!("youtube: {e}");
+        }
+    }
+
+    pub fn youtube_music_request(&self, request: String, operation: String, value: String) {
+        static IN_FLIGHT: AtomicUsize = AtomicUsize::new(0);
+        if request.len() > 100 || value.len() > 800 || operation.len() > 10 {
+            return;
+        }
+        if IN_FLIGHT
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+                (n < 4).then_some(n + 1)
+            })
+            .is_err()
+        {
+            (self.emit)(Outbound::YoutubeMusicResult {
+                request,
+                data: None,
+                error: Some("Too many YouTube Music requests. Try again.".into()),
+            });
+            return;
+        }
+        let emit = self.emit.clone();
+        let fallback_request = request.clone();
+        let spawned = std::thread::Builder::new()
+            .name("youtube-music".into())
+            .spawn(move || {
+                let (data, error) = match crate::youtube::music_request(&operation, &value) {
+                    Ok(data) => (Some(data), None),
+                    Err(error) => (None, Some(error.to_string())),
+                };
+                IN_FLIGHT.fetch_sub(1, Ordering::AcqRel);
+                emit(Outbound::YoutubeMusicResult {
+                    request,
+                    data,
+                    error,
+                });
+            });
+        if spawned.is_err() {
+            IN_FLIGHT.fetch_sub(1, Ordering::AcqRel);
+            (self.emit)(Outbound::YoutubeMusicResult {
+                request: fallback_request,
+                data: None,
+                error: Some("Could not start YouTube Music request.".into()),
+            });
         }
     }
 
