@@ -267,6 +267,15 @@ fn confirm_store(index: &str) -> bool {
     confirm("Tsugi reading repository", &format!("Register this reading repository?\n\n{index}\n\nOnly add repositories you trust. Registering a store does not install its extensions."))
 }
 
+fn stage_image(cache: &Cache, serial: &mut u64, image: aiostreams_desktop_core::read_runtime::PageImage) -> Result<Value, &'static str> {
+    *serial = serial.checked_add(1).ok_or("Reading image counter exhausted.")?;
+    let path = format!("{PAGE_PREFIX}{serial}");
+    *cache.lock().map_err(|_| "Reading image cache unavailable.")? = Some(CachedImage {
+        path: path.clone(), mime: image.mime, bytes: image.bytes,
+    });
+    Ok(json!({"path": path}))
+}
+
 fn execute(
     reader: &ReadRuntime,
     chapter: &mut Option<(i32, ChapterPages)>,
@@ -316,6 +325,10 @@ fn execute(
             reader.catalogue(&source, page, mode)
         }
         ReadAction::Manga { id } => reader.manga(id),
+        ReadAction::Cover { id } => {
+            let image = reader.thumbnail(id)?;
+            stage_image(cache, serial, image)
+        }
         ReadAction::SetLibrary { id, in_library } => reader.set_library(id, in_library),
         ReadAction::Chapter { id } => {
             let pages = reader.chapter(id)?;
@@ -328,12 +341,9 @@ fn execute(
             let (_, pages) = chapter.as_ref().filter(|(id, _)| *id == chapter_id)
                 .ok_or("Open the reading chapter first.")?;
             let image = reader.page(pages, index)?;
-            *serial = serial.checked_add(1).ok_or("Reading page counter exhausted.")?;
-            let path = format!("{PAGE_PREFIX}{serial}");
-            *cache.lock().map_err(|_| "Reading image cache unavailable.")? = Some(CachedImage {
-                path: path.clone(), mime: image.mime, bytes: image.bytes,
-            });
-            Ok(json!({"path": path, "index": index}))
+            let mut result = stage_image(cache, serial, image)?;
+            result["index"] = json!(index);
+            Ok(result)
         }
         ReadAction::Progress { chapter_id, index, finished } => {
             let (_, pages) = chapter.as_ref().filter(|(id, _)| *id == chapter_id)

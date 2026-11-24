@@ -41,7 +41,7 @@ impl ReadOperation {
                 "query TsugiStores { extensionStores(first: 100) { nodes { name badgeLabel indexUrl signingKey isLegacy } totalCount } }"
             }
             Self::Library => {
-                "query TsugiLibrary { mangas(condition: { inLibrary: true }, first: 100) { nodes { id title inLibrary } totalCount } }"
+                "query TsugiLibrary { mangas(condition: { inLibrary: true }, first: 100) { nodes { id title author thumbnailUrl inLibrary } totalCount } }"
             }
         }
     }
@@ -1170,7 +1170,7 @@ impl ReadRuntime {
             return Err("Invalid manga identifier.");
         }
         self.client.slow().mutation(
-            "mutation TsugiManga($input: FetchMangaAndChaptersInput!) { fetchMangaAndChapters(input: $input) { manga { id sourceId title author artist description genre thumbnailUrl inLibrary } chapters { id name mangaId chapterNumber sourceOrder pageCount isRead lastPageRead } } }",
+            "mutation TsugiManga($input: FetchMangaAndChaptersInput!) { fetchMangaAndChapters(input: $input) { manga { id sourceId title author artist description genre thumbnailUrl inLibrary } chapters { id name mangaId chapterNumber sourceOrder scanlator pageCount isRead lastPageRead } } }",
             "fetchMangaAndChapters",
             json!({ "id": id, "fetchManga": true, "fetchChapters": true }),
         )
@@ -1191,7 +1191,7 @@ impl ReadRuntime {
         if id <= 0 {
             return Err("Invalid chapter identifier.");
         }
-        let value = self.client.mutation(
+        let value = self.client.slow().mutation(
             "mutation TsugiChapter($input: FetchChapterPagesInput!) { fetchChapterPages(input: $input) { pages chapter { id mangaId pageCount lastPageRead isRead } } }",
             "fetchChapterPages",
             json!({ "chapterId": id }),
@@ -1208,6 +1208,15 @@ impl ReadRuntime {
             PagePath::parse(value.as_str().ok_or("Invalid reading page path.")?, manga_id, index)
         }).collect::<Result<Vec<_>, _>>()?;
         Ok(ChapterPages { chapter_id: id, paths })
+    }
+
+    /// Fetch only the fixed, authenticated upstream manga-thumbnail endpoint.
+    /// No source-controlled image URL or arbitrary path enters the broker.
+    pub fn thumbnail(&self, id: i32) -> Result<PageImage, &'static str> {
+        if id <= 0 {
+            return Err("Invalid manga identifier.");
+        }
+        self.client.page(&PagePath(format!("/api/v1/manga/{id}/thumbnail")))
     }
 
     pub fn page(&self, chapter: &ChapterPages, index: usize) -> Result<PageImage, &'static str> {
@@ -1672,10 +1681,16 @@ mod tests {
         for filename in ["001.png", "002.png"] {
             fs::write(fixture.join(filename), &png).expect("fixture page");
         }
+        fs::write(fixture.parent().unwrap().join("cover.png"), &png).expect("fixture cover");
         let catalog = managed.catalogue("0", 1, CatalogueMode::Search("Tsugi Fixture")).expect("local catalogue search");
         let manga = catalog["mangas"].as_array().unwrap().iter().find(|item| item["title"] == "Tsugi Fixture").expect("fixture manga");
         let manga_id = manga["id"].as_i64().unwrap() as i32;
         let details = managed.manga(manga_id).expect("fixture chapters");
+        assert!(details["chapters"][0].get("scanlator").is_some());
+        assert!(managed.thumbnail(0).is_err());
+        let cover = managed.thumbnail(manga_id).expect("authenticated local manga thumbnail");
+        assert_eq!(cover.mime, "image/png");
+        assert!(!cover.bytes.is_empty());
         let id = details["chapters"][0]["id"].as_i64().unwrap() as i32;
         let pages = managed.chapter(id).expect("chapter page list");
         assert_eq!(pages.len(), 2);

@@ -7,7 +7,7 @@ export type ReadAction =
   | { kind: 'extensions'; offset: number; query?: string; store?: string }
   | { kind: 'install-extension' | 'uninstall-extension'; package: string }
   | { kind: 'catalogue'; source: string; page: number; mode: 'popular' | 'latest' | 'search'; query?: string }
-  | { kind: 'manga' | 'chapter'; id: number }
+  | { kind: 'manga' | 'chapter' | 'cover'; id: number }
   | { kind: 'set-library'; id: number; inLibrary: boolean }
   | { kind: 'page'; chapterId: number; index: number }
   | { kind: 'progress'; chapterId: number; index: number; finished: boolean };
@@ -43,4 +43,31 @@ export async function prepareReading(): Promise<void> {
 
 export function isReaderPagePath(path: unknown): path is string {
   return typeof path === 'string' && /^\/__tsugi_read\/page\/\d+$/.test(path);
+}
+
+// The native image capability is a single-slot cache. Transfer each image
+// completely into a local blob before issuing the next image operation.
+// Both covers and chapter pages use this queue; no remote image URLs enter
+// the webview and queued covers can be abandoned when their card unmounts.
+let imageTail: Promise<void> = Promise.resolve();
+export function readImage(
+  action: Extract<ReadAction, { kind: 'page' }> | { kind: 'cover'; id: number },
+  signal?: AbortSignal,
+): Promise<string> {
+  const operation = imageTail.then(async () => {
+    signal?.throwIfAborted();
+    const result = await readRequest<{ path: string; index?: number }>(action);
+    signal?.throwIfAborted();
+    if (!isReaderPagePath(result.path) || (action.kind === 'page' && result.index !== action.index))
+      throw new Error(t`Invalid reading image.`);
+    const response = await fetch(result.path, { cache: 'no-store', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000) });
+    if (!response.ok) throw new Error(t`Could not load reading image.`);
+    const blob = await response.blob();
+    signal?.throwIfAborted();
+    if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(blob.type) || blob.size === 0 || blob.size > 24 * 1024 * 1024)
+      throw new Error(t`Invalid reading image.`);
+    return URL.createObjectURL(blob);
+  });
+  imageTail = operation.then(() => undefined, () => undefined);
+  return operation;
 }
