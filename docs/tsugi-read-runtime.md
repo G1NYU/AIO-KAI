@@ -310,3 +310,8 @@ Run 45406838081 passed the native approval-path tests. Added a capability-gated 
 ## Unified Tsugi Windows build
 
 Added branch-only `tsugi-unified-windows.yml`: web typecheck/lint/music regressions/standalone assets, Windows native tests and release-mode executable build, staged music and reading tools, verified first-run preparation and loopback smoke, then ZIP audit. No tags, release publication, or main changes. The portable ZIP has a Start Tsugi.cmd first-run launcher: the unmodified pinned Suwayomi/Zulu bundle is fetched directly from upstream and checksum-verified, rather than redistributed until corresponding-source obligations are fully resolved. The original Tsugi launcher class is included. Subsequent launches can use the EXE directly. No external Java installation or independent Suwayomi app required. Exact Azul notice: https://docs.azul.com/core/tpls/november-2026/zulu25_jdk_tpl.html. CI and physical acceptance remain pending; public release remains gated.
+
+
+## Integrated Windows compilation repair
+
+Unified run 45408010246: web job passed (65 tests, typecheck, lint, standalone assets); Windows core passed 22 tests; runtime smoke 45408010162 passed 10 broker tests and all three packaged tests. The full desktop compile then failed E0277 at Wry custom protocol registration: Rc<Worker> is not Send or Sync. Worker already owns a synchronized image cache, synchronized queue and join state, and a Send+Sync emitter. Use Arc for the shared native worker instead of Rc; other UI-thread state is unchanged. Re-run unified build before claiming a downloadable ZIP.
