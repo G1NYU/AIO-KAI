@@ -42,8 +42,10 @@ jobs:
       - name: Desktop navigation and music regression tests
         run: pnpm exec vitest run packages/web/tests/reader-utils.test.ts packages/web/tests/desktop-area.test.ts packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts packages/web/tests/player-template.test.ts packages/web/tests/player-layout.test.ts packages/web/tests/music-feature-pack.test.ts packages/web/tests/music-lyrics.test.ts packages/web/tests/music-history.test.ts packages/web/tests/eclipse-appearance.test.ts packages/web/tests/music-library.test.ts packages/web/tests/audio-profiles.test.ts
       - name: Build standalone web
+        if: github.event_name == 'workflow_dispatch'
         run: pnpm -F @aiostreams/web build:standalone
       - uses: actions/upload-artifact@v7
+        if: github.event_name == 'workflow_dispatch'
         with:
           name: tsugi-source-catalogs
           retention-days: 7
@@ -51,6 +53,7 @@ jobs:
             packages/web/src/locales/en-GB.po
             packages/web/src/locales/messages.pot
       - uses: actions/upload-artifact@v7
+        if: github.event_name == 'workflow_dispatch'
         with:
           name: tsugi-standalone-web
           retention-days: 7
@@ -58,7 +61,7 @@ jobs:
           include-hidden-files: true
 
   windows-x64:
-    if: github.ref == 'refs/heads/feature/tsugi-read-runtime'
+    if: github.ref == 'refs/heads/feature/tsugi-read-runtime' && github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 75
     defaults:
@@ -95,6 +98,7 @@ jobs:
           Copy-Item packages/desktop/scripts/fetch-read-tools.ps1 $launcher
           Copy-Item LICENSE $stage
       - uses: actions/upload-artifact@v7
+        if: github.event_name == 'workflow_dispatch'
         with:
           name: tsugi-native-stage
           retention-days: 7
@@ -103,7 +107,7 @@ jobs:
 
   package:
     needs: [web, windows-x64]
-    if: github.ref == 'refs/heads/feature/tsugi-read-runtime'
+    if: github.ref == 'refs/heads/feature/tsugi-read-runtime' && github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 25
     defaults:

@@ -26,18 +26,18 @@ export function supportsReading(): boolean {
 
 let sequence = 0;
 export async function readRequest<T>(action: ReadAction): Promise<T> {
-  if (action.kind === 'prepare' ? !supportsReadingSection() : !supportsReading()) throw new Error(t`Reading is not available in this app.`);
+  if (action.kind === 'prepare' ? !supportsReadingSection() : !supportsReading()) throw new Error(t({ id: "Reading is not available in this app.", message: "Reading is not available in this app." }));
   const request = 'read-' + Date.now() + '-' + ++sequence;
   const response = await ask({ type: 'read-request', request, action }, 'read-result', {
     timeoutMs: action.kind === 'prepare' ? 20 * 60_000 : 180_000, matches: (message) => message.request === request,
   });
-  if (response.error || response.data == null) throw new Error(response.error || t`Reading request returned no data.`);
+  if (response.error || response.data == null) throw new Error(response.error || t({ id: "Reading request returned no data.", message: "Reading request returned no data." }));
   return response.data as T;
 }
 
 export async function prepareReading(): Promise<void> {
   const result = await readRequest<{ ready: boolean }>({ kind: 'prepare' });
-  if (result.ready !== true) throw new Error(t`Reading setup did not complete.`);
+  if (result.ready !== true) throw new Error(t({ id: "Reading setup did not complete.", message: "Reading setup did not complete." }));
   preparedInSession = true;
 }
 
@@ -59,13 +59,13 @@ export function readImage(
     const result = await readRequest<{ path: string; index?: number }>(action);
     signal?.throwIfAborted();
     if (!isReaderPagePath(result.path) || (action.kind === 'page' && result.index !== action.index))
-      throw new Error(t`Invalid reading image.`);
+      throw new Error(t({ id: "Invalid reading image.", message: "Invalid reading image." }));
     const response = await fetch(result.path, { cache: 'no-store', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000) });
-    if (!response.ok) throw new Error(t`Could not load reading image.`);
+    if (!response.ok) throw new Error(t({ id: "Could not load reading image.", message: "Could not load reading image." }));
     const blob = await response.blob();
     signal?.throwIfAborted();
     if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(blob.type) || blob.size === 0 || blob.size > 24 * 1024 * 1024)
-      throw new Error(t`Invalid reading image.`);
+      throw new Error(t({ id: "Invalid reading image.", message: "Invalid reading image." }));
     return URL.createObjectURL(blob);
   });
   imageTail = operation.then(() => undefined, () => undefined);

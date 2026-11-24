@@ -37,7 +37,7 @@ export function DesktopLandingPage({
   const sections = [
     { id: 'video', label: t`Movies & TV`, Icon: FiFilm, open: openVideo },
     { id: 'music', label: t`Music`, Icon: FiHeadphones, open: openMusic },
-    ...(openRead ? [{ id: 'read', label: t`Read`, Icon: FiBookOpen, open: openRead }] : []),
+    ...(openRead ? [{ id: 'read', label: t({ id: 'Read', message: 'Read' }), Icon: FiBookOpen, open: openRead }] : []),
   ];
 
   return (

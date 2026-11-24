@@ -85,12 +85,16 @@ export function ChapterReader({ title, chapter, count, start, chapters, previous
     const line = bounds.top + Math.min(bounds.height * 0.35, 220);
     // Inspect the actual page geometry. Pointer hit-testing fails in gaps
     // and when a settings drawer overlays the center of the viewport.
-    const nearby = [...pageElements.current.entries()].filter(([, node]) => {
-      const rect = node.getBoundingClientRect();
-      return rect.bottom >= bounds.top && rect.top <= bounds.bottom;
-    }).map(([index, node]) => {
-      const rect = node.getBoundingClientRect();
-      return { index, top: rect.top, bottom: rect.bottom };
+    let lo = 0, hi = count - 1;
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const rect = pageElements.current.get(mid)?.getBoundingClientRect();
+      if (!rect || rect.bottom >= line) hi = mid;
+      else lo = mid + 1;
+    }
+    const nearby = [lo - 1, lo, lo + 1].flatMap((index) => {
+      const rect = pageElements.current.get(index)?.getBoundingClientRect();
+      return rect ? [{ index, top: rect.top, bottom: rect.bottom }] : [];
     });
     const page = visibleReadingPage(nearby, line) ?? current.current;
     if (Number.isInteger(page) && page >= 0 && page < count && page !== current.current) {
@@ -101,7 +105,8 @@ export function ChapterReader({ title, chapter, count, start, chapters, previous
       setIndex(page);
     }
     // Reaching the actual end of the last loaded page, not merely fetching it.
-    const atEnd = page === count - 1 && memory.current[page]?.shown === true &&
+    const last = pageElements.current.get(count - 1)?.getBoundingClientRect();
+    const atEnd = !!last && last.top < bounds.bottom && last.bottom <= bounds.bottom + 12 && memory.current[count - 1]?.shown === true &&
       element.scrollHeight - element.scrollTop - element.clientHeight < 12;
     setReadAtEnd(atEnd);
     if (!completed.current && atEnd) finish.current = true;
@@ -159,7 +164,7 @@ export function ChapterReader({ title, chapter, count, start, chapters, previous
           } catch (error) {
             if (!alive()) return;
             failedSave.current = true;
-            setSaveError(error instanceof Error ? error.message : t`Could not save reading progress.`);
+            setSaveError(error instanceof Error ? error.message : t({ id: "Could not save reading progress.", message: "Could not save reading progress." }));
           }
         }
         if (!alive()) return;
@@ -195,7 +200,7 @@ export function ChapterReader({ title, chapter, count, start, chapters, previous
           memory.current[missing] = { url };
         } catch (error) {
           if (!alive() || !readerWindow(current.current, count, mode.current).includes(missing)) return;
-          memory.current[missing] = { url: '', error: error instanceof Error ? error.message : t`Could not load this page.` };
+          memory.current[missing] = { url: '', error: error instanceof Error ? error.message : t({ id: "Could not load this page.", message: "Could not load this page." }) };
         }
         publish();
       } finally { running = false; }
@@ -221,13 +226,13 @@ export function ChapterReader({ title, chapter, count, start, chapters, previous
     entry.shown = true;
     setPages({ ...memory.current });
     // A one-page chapter can be fully visible without a scroll event.
-    if (page === current.current && mode.current === 'scroll') trackScroll();
+    if (mode.current === 'scroll') queueScroll();
   }
   function imageFailed(page: number) {
     const entry = memory.current[page];
     if (!entry) return;
     if (entry.url) URL.revokeObjectURL(entry.url);
-    memory.current[page] = { url: '', error: t`Could not display this page.` };
+    memory.current[page] = { url: '', error: t({ id: "Could not display this page.", message: "Could not display this page." }) };
     setPages({ ...memory.current });
   }
   function retry(page: number) {
@@ -250,12 +255,12 @@ export function ChapterReader({ title, chapter, count, start, chapters, previous
   }
   React.useEffect(() => {
     function key(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !closing) { event.preventDefault(); if (settings) setSettings(false); else if (chapterMenu) setChapterMenu(false); else leave(onClose); return; }
       if (event.altKey || event.ctrlKey || event.metaKey || event.target instanceof HTMLInputElement ||
           event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement || closing) return;
-      if (event.key === 'Escape') { event.preventDefault(); if (settings) setSettings(false); else if (chapterMenu) setChapterMenu(false); else leave(onClose); return; }
       if (event.key.toLowerCase() === 'f') { setPreferences((old) => ({ ...old, focus: !old.focus })); return; }
       if (event.key.toLowerCase() === 's') { setSettings((old) => !old); setChapterMenu(false); return; }
-      if ((event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === ' ') && preferences.mode === 'scroll') {
+      if ((event.key === 'ArrowUp' || event.key === 'ArrowDown' || (event.key === ' ' && !(event.target instanceof HTMLButtonElement))) && preferences.mode === 'scroll') {
         event.preventDefault();
         viewport.current?.scrollBy({ top: event.key === 'ArrowUp' || (event.key === ' ' && event.shiftKey) ? -160 : 160, behavior: 'smooth' });
         return;
@@ -278,18 +283,19 @@ export function ChapterReader({ title, chapter, count, start, chapters, previous
   return <section className="tsugi-chapter-reader" data-mode={preferences.mode} data-fit={preferences.mode === 'scroll' ? 'width' : preferences.fit} data-background={preferences.background}
     data-focus={preferences.focus && !settings && !chapterMenu && !chromeVisible && !closing && !saveError ? 'hidden' : 'visible'}
     onPointerMove={(event) => {
+      if (!preferences.focus) return;
       const height = window.innerHeight;
       setChromeVisible(event.clientY < 105 || event.clientY > height - 90);
     }}>
 
     <header className="tsugi-chapter-toolbar">
-      <button className="tsugi-read-action" disabled={closing} onClick={() => leave(onClose)}><FiArrowLeft aria-hidden /><Trans>Chapters</Trans></button>
+      <button className="tsugi-read-action" disabled={closing} onClick={() => leave(onClose)}><FiArrowLeft aria-hidden /><Trans id="Chapters">Chapters</Trans></button>
       <div className="min-w-0 flex-1"><h2 className="truncate font-semibold">{title}</h2><p className="truncate text-xs text-[--tsugi-muted]">{chapter.name}{chapter.scanlator ? ' · ' + chapter.scanlator : ''}</p></div>
-      <button className="tsugi-read-action" aria-label={t`Chapter list`} aria-expanded={chapterMenu} onClick={() => { setChapterMenu(!chapterMenu); setSettings(false); }}><FiList aria-hidden /><span className="tsugi-reader-chapter-label">{chapter.name}</span></button>
-      <button className="tsugi-read-action" aria-label={t`Previous chapter`} disabled={closing || !previous} onClick={() => previous && leave(() => onChapter(previous))}><FiChevronLeft aria-hidden /></button>
-      <button className="tsugi-read-action" aria-label={t`Next chapter`} disabled={closing || !next} onClick={() => next && leave(() => onChapter(next))}><FiChevronRight aria-hidden /></button>
-      <button className="tsugi-read-action" aria-label={t`Reader settings`} aria-expanded={settings} onClick={() => { setSettings(!settings); setChapterMenu(false); }}><FiSettings aria-hidden /></button>
-      <button className="tsugi-read-action" aria-label={t`Focus mode`} aria-pressed={preferences.focus} onClick={() => { setPreferences((old) => ({ ...old, focus: !old.focus })); setChromeVisible(false); }}>{preferences.focus ? <FiMinimize aria-hidden /> : <FiMaximize aria-hidden />}</button>
+      <button className="tsugi-read-action" aria-label={t({ id: "Chapter list", message: "Chapter list" })} aria-expanded={chapterMenu} onClick={() => { setChapterMenu(!chapterMenu); setSettings(false); }}><FiList aria-hidden /><span className="tsugi-reader-chapter-label">{chapter.name}</span></button>
+      <button className="tsugi-read-action" aria-label={t({ id: "Previous chapter", message: "Previous chapter" })} disabled={closing || !previous} onClick={() => previous && leave(() => onChapter(previous))}><FiChevronLeft aria-hidden /></button>
+      <button className="tsugi-read-action" aria-label={t({ id: "Next chapter", message: "Next chapter" })} disabled={closing || !next} onClick={() => next && leave(() => onChapter(next))}><FiChevronRight aria-hidden /></button>
+      <button className="tsugi-read-action" aria-label={t({ id: "Reader settings", message: "Reader settings" })} aria-expanded={settings} onClick={() => { setSettings(!settings); setChapterMenu(false); }}><FiSettings aria-hidden /></button>
+      <button className="tsugi-read-action" aria-label={t({ id: "Focus mode", message: "Focus mode" })} aria-pressed={preferences.focus} onClick={() => { setPreferences((old) => ({ ...old, focus: !old.focus })); setChromeVisible(false); }}>{preferences.focus ? <FiMinimize aria-hidden /> : <FiMaximize aria-hidden />}</button>
     </header>
     <div className="tsugi-chapter-body">
       <div ref={viewport} className="tsugi-chapter-viewport" onScroll={queueScroll}
@@ -297,33 +303,33 @@ export function ChapterReader({ title, chapter, count, start, chapters, previous
         <div className="tsugi-chapter-pages" data-direction={preferences.rtl && preferences.mode !== 'scroll' ? 'rtl' : 'ltr'}>
           {displayed.map((page) => <div data-reader-page={page} className="tsugi-chapter-page" key={page}
             ref={(node) => { if (node) pageElements.current.set(page, node); else pageElements.current.delete(page); }}>
-            {pages[page]?.url ? <img src={pages[page].url} alt={t`Reading page` + ' ' + (page + 1)} onLoad={(event) => imageLoaded(page, event.currentTarget)} onError={() => imageFailed(page)} />
+            {pages[page]?.url ? <img src={pages[page].url} alt={t({ id: "Reading page", message: "Reading page" }) + ' ' + (page + 1)} onLoad={(event) => imageLoaded(page, event.currentTarget)} onError={() => imageFailed(page)} />
               : <div className="tsugi-chapter-placeholder" style={{ aspectRatio: ratios[page] || (preferences.mode === 'scroll' ? 0.62 : 0.72) }}>
                 <span>{page + 1} / {count}</span>
-                {pages[page]?.error ? <><p className="max-w-xs text-center text-xs">{pages[page].error}</p><button className="tsugi-read-action" onClick={() => retry(page)}><Trans>Retry page</Trans></button></> : <Trans>Loading page…</Trans>}
+                {pages[page]?.error ? <><p className="max-w-xs text-center text-xs">{pages[page].error}</p><button className="tsugi-read-action" onClick={() => retry(page)}><Trans id="Retry page">Retry page</Trans></button></> : <Trans id="Loading page…">Loading page…</Trans>}
               </div>}
           </div>)}
         </div>
       </div>
       {settings && <aside className="tsugi-chapter-settings"><ReaderSettings value={preferences} onChange={setPreferences} onClose={() => setSettings(false)} /></aside>}
       {chapterMenu && <aside className="tsugi-chapter-settings tsugi-reader-chapter-menu">
-        <h3 className="font-semibold"><Trans>Chapters</Trans></h3>
-        <input className="tsugi-read-input" value={chapterQuery} onChange={(event) => setChapterQuery(event.target.value)} placeholder={t`Find a chapter`} aria-label={t`Find a chapter`} />
-        <button className="tsugi-reader-link" onClick={() => setChapterDescending(!chapterDescending)}>{chapterDescending ? t`Newest first` : t`Oldest first`}</button>
-        {menuGroups.map((group) => <div key={group[0].id} className="tsugi-reader-chapter-group">{group.map((item) => <button key={item.id} className="tsugi-read-row" aria-current={item.id === chapter.id ? 'page' : undefined} disabled={closing || item.id === chapter.id} onClick={() => leave(() => onChapter(item))}><span>{item.name}{item.scanlator && <small className="block text-[--tsugi-muted]">{item.scanlator}</small>}</span><small>{item.isRead ? t`Read` : item.lastPageRead > 0 ? t`Resume` : ''}</small></button>)}</div>)}
+        <h3 className="font-semibold"><Trans id="Chapters">Chapters</Trans></h3>
+        <input className="tsugi-read-input" value={chapterQuery} onChange={(event) => setChapterQuery(event.target.value)} placeholder={t({ id: "Find a chapter", message: "Find a chapter" })} aria-label={t({ id: "Find a chapter", message: "Find a chapter" })} />
+        <button className="tsugi-reader-link" onClick={() => setChapterDescending(!chapterDescending)}>{chapterDescending ? t({ id: "Newest first", message: "Newest first" }) : t({ id: "Oldest first", message: "Oldest first" })}</button>
+        {menuGroups.map((group) => <div key={group[0].id} className="tsugi-reader-chapter-group">{group.map((item) => <button key={item.id} className="tsugi-read-row" aria-current={item.id === chapter.id ? 'page' : undefined} disabled={closing || item.id === chapter.id} onClick={() => leave(() => onChapter(item))}><span>{item.name}{item.scanlator && <small className="block text-[--tsugi-muted]">{item.scanlator}</small>}</span><small>{item.isRead ? t({ id: "Read", message: "Read" }) : item.lastPageRead > 0 ? t({ id: "Resume", message: "Resume" }) : ''}</small></button>)}</div>)}
       </aside>}
     </div>
     <footer className="tsugi-chapter-toolbar tsugi-chapter-footer">
-      <button className="tsugi-read-action" aria-label={t`Previous page`} disabled={closing || index === 0} onClick={() => turn(-1)}><FiChevronLeft aria-hidden /></button>
+      <button className="tsugi-read-action" aria-label={t({ id: "Previous page", message: "Previous page" })} disabled={closing || index === 0} onClick={() => turn(-1)}><FiChevronLeft aria-hidden /></button>
       <span className="tabular-nums text-sm">{index + 1} / {count}</span>
-      <button className="tsugi-read-action" aria-label={t`Next page`} disabled={closing || index + 1 >= count} onClick={() => turn(1)}><FiChevronRight aria-hidden /></button>
-      <input className="tsugi-chapter-jump" type="range" min={0} max={Math.max(1, count - 1)} value={index} disabled={count === 1 || closing} aria-label={t`Jump to page`} onChange={(event) => selectPage(Number(event.target.value))} />
-      <button className="tsugi-read-action" aria-label={t`Decrease page width`} onClick={() => setPreferences((old) => ({ ...old, width: Math.max(25, old.width - 5) }))}><FiMinus aria-hidden /></button>
-      <button className="tsugi-reader-link text-sm tabular-nums" aria-label={t`Reset page size`} onClick={() => setPreferences((old) => ({ ...old, width: READER_DEFAULTS.width }))}>{preferences.width}%</button>
-      <button className="tsugi-read-action" aria-label={t`Increase page width`} onClick={() => setPreferences((old) => ({ ...old, width: Math.min(100, old.width + 5) }))}><FiPlus aria-hidden /></button>
-      {canFinish && <button className="tsugi-read-action" disabled={closing} onClick={() => leave(next ? () => onChapter(next) : onClose, true)}>{next ? t`Finish and continue` : t`Finish chapter`}</button>}
-      {closing ? <span className="text-xs"><Trans>Saving progress…</Trans></span> : lastSaved !== null && <span className="text-xs text-[--tsugi-muted]"><Trans>Progress saved</Trans></span>}
+      <button className="tsugi-read-action" aria-label={t({ id: "Next page", message: "Next page" })} disabled={closing || index + 1 >= count} onClick={() => turn(1)}><FiChevronRight aria-hidden /></button>
+      <input className="tsugi-chapter-jump" type="range" min={0} max={Math.max(1, count - 1)} value={index} disabled={count === 1 || closing} aria-label={t({ id: "Jump to page", message: "Jump to page" })} onChange={(event) => selectPage(Number(event.target.value))} />
+      <button className="tsugi-read-action" aria-label={t({ id: "Decrease page width", message: "Decrease page width" })} onClick={() => setPreferences((old) => ({ ...old, width: Math.max(25, old.width - 5) }))}><FiMinus aria-hidden /></button>
+      <button className="tsugi-reader-link text-sm tabular-nums" aria-label={t({ id: "Reset page size", message: "Reset page size" })} onClick={() => setPreferences((old) => ({ ...old, width: READER_DEFAULTS.width }))}>{preferences.width}%</button>
+      <button className="tsugi-read-action" aria-label={t({ id: "Increase page width", message: "Increase page width" })} onClick={() => setPreferences((old) => ({ ...old, width: Math.min(100, old.width + 5) }))}><FiPlus aria-hidden /></button>
+      {canFinish && <button className="tsugi-read-action" disabled={closing} onClick={() => leave(next ? () => onChapter(next) : onClose, true)}>{next ? t({ id: "Finish and continue", message: "Finish and continue" }) : t({ id: "Finish chapter", message: "Finish chapter" })}</button>}
+      {closing ? <span className="text-xs"><Trans id="Saving progress…">Saving progress…</Trans></span> : lastSaved !== null && <span className="text-xs text-[--tsugi-muted]"><Trans id="Progress saved">Progress saved</Trans></span>}
     </footer>
-    {saveError && <div className="tsugi-read-error" role="alert">{saveError} <button className="tsugi-read-action" onClick={() => { failedSave.current = false; setSaveError(''); }}><Trans>Retry</Trans></button><button className="tsugi-read-action" onClick={onClose}><Trans>Exit without saving</Trans></button></div>}
+    {saveError && <div className="tsugi-read-error" role="alert">{saveError} <button className="tsugi-read-action" onClick={() => { failedSave.current = false; setSaveError(''); }}><Trans id="Retry">Retry</Trans></button><button className="tsugi-read-action" onClick={onClose}><Trans id="Exit without saving">Exit without saving</Trans></button></div>}
   </section>;
 }

@@ -1286,3 +1286,100 @@ button.tsugi-read-row:hover:not(:disabled) { background:var(--tsugi-surface); }
 .tsugi-chapter-settings select { border:1px solid var(--tsugi-line); padding:8px; background:var(--tsugi-surface); }
 .tsugi-chapter-settings input { accent-color:var(--tsugi-accent); }
 @media(max-width:680px) { .tsugi-manga-grid { grid-template-columns:repeat(auto-fill,minmax(108px,1fr)); gap:15px 10px; } .tsugi-manga-detail { grid-template-columns:100px minmax(0,1fr); gap:15px; } .tsugi-chapter-toolbar { gap:5px; padding:7px; } .tsugi-chapter-settings { width:36vw; padding:10px; } }
+
+/* Tsugi Read — desktop workspace. Flat navigation, quiet editorial typography. */
+.tsugi-read-workspace { position:fixed; inset:36px 0 0; display:flex; min-width:0; min-height:0; overflow:hidden; }
+.tsugi-reading-rail { flex:none; width:205px; display:flex; flex-direction:column; padding:24px 14px 18px; border-inline-end:1px solid var(--tsugi-line); background:var(--tsugi-canvas); overflow:auto; }
+.tsugi-reading-brand { display:flex; align-items:center; gap:13px; padding:9px 13px 24px; text-align:start; font-size:1.55rem; font-weight:700; letter-spacing:-.06em; }
+.tsugi-reading-brand svg { width:27px; height:27px; }
+.tsugi-reading-rail nav { display:flex; flex-direction:column; gap:3px; }
+.tsugi-reading-rail-label { display:block; margin:23px 12px 7px; color:var(--tsugi-muted); font-size:.65rem; letter-spacing:.12em; text-transform:uppercase; }
+.tsugi-reading-rail nav button,.tsugi-reading-rail-bottom button { display:flex; align-items:center; gap:12px; text-align:start; padding:11px 12px; color:var(--tsugi-muted); border-inline-start:2px solid transparent; font-size:.88rem; }
+.tsugi-reading-rail nav button svg,.tsugi-reading-rail-bottom button svg { flex:none; width:17px; height:17px; }
+.tsugi-reading-rail nav button[aria-current] { color:var(--tsugi-ink); border-inline-start-color:var(--tsugi-accent); background:var(--tsugi-wash); font-weight:600; }
+.tsugi-reading-rail nav button:hover:not(:disabled),.tsugi-reading-rail-bottom button:hover:not(:disabled) { color:var(--tsugi-ink); background:var(--tsugi-wash); }
+.tsugi-reading-rail button:disabled { opacity:.5; }
+.tsugi-reading-rail-bottom { display:flex; flex-direction:column; margin-top:auto; padding-top:30px; gap:3px; }
+.tsugi-reading-content { flex:1; min-width:0; min-height:0; overflow:auto; padding:30px clamp(22px,3vw,60px) 65px; }
+.tsugi-reading-header { display:flex; justify-content:space-between; gap:24px; align-items:flex-end; padding-bottom:26px; border-bottom:1px solid var(--tsugi-line); margin-bottom:30px; }
+.tsugi-reading-header h1 { font-size:clamp(2rem,3vw,3rem); font-weight:650; letter-spacing:-.055em; line-height:1.1; }
+.tsugi-reading-kicker { display:flex; align-items:center; gap:6px; color:var(--tsugi-muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.12em; margin-bottom:8px; }
+.tsugi-reading-global { display:flex; gap:12px; align-items:center; border-bottom:1px solid var(--tsugi-line); min-width:180px; width:min(340px,42%); padding:10px 0; color:var(--tsugi-muted); }
+.tsugi-reading-global input { flex:1; min-width:0; background:transparent; color:var(--tsugi-ink); font-size:.87rem; outline:none; }
+.tsugi-reading-global:focus-within { border-color:var(--tsugi-accent); }
+.tsugi-reading-global button:disabled { opacity:.35; }
+.tsugi-reading-list-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:24px 0 18px; }
+.tsugi-reading-filters { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.tsugi-reading-filters .tsugi-read-input { min-width:0; font-size:.83rem; }
+.tsugi-reading-list-header .tsugi-read-subnav { border-bottom:0; }
+.tsugi-manga-grid { grid-template-columns:repeat(auto-fill,minmax(155px,1fr)); gap:26px 18px; }
+.tsugi-manga-card { position:relative; }
+.tsugi-manga-card .tsugi-manga-cover { border:0; background:var(--tsugi-surface); }
+.tsugi-manga-card:hover .tsugi-manga-cover { outline:1px solid var(--tsugi-accent); }
+.tsugi-manga-unread { position:absolute; inset-block-start:7px; inset-inline-end:7px; min-width:24px; background:var(--tsugi-canvas); color:var(--tsugi-ink); font-size:.7rem; font-weight:650; padding:3px 6px; text-align:center; }
+.tsugi-manga-detail { grid-template-columns:minmax(150px,240px) minmax(0,1fr); gap:34px; }
+.tsugi-manga-detail h2 { font-size:clamp(1.7rem,3vw,2.8rem); max-width:32ch; }
+.tsugi-reading-resume { margin-bottom:32px; }
+.tsugi-reading-resume h2 { display:flex; align-items:center; gap:9px; font-size:1.15rem; font-weight:600; margin-bottom:15px; }
+.tsugi-reading-resume-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; }
+.tsugi-reading-resume-card { display:flex; align-items:center; gap:13px; text-align:start; border-bottom:1px solid var(--tsugi-line); padding:10px 2px; min-width:0; }
+.tsugi-reading-resume-card:hover { background:var(--tsugi-wash); }
+.tsugi-reading-resume-card .tsugi-manga-cover { width:52px; flex:none; }
+.tsugi-reading-resume-card > span { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
+.tsugi-reading-resume-card strong { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:.9rem; }
+.tsugi-reading-resume-card small { font-size:.73rem; color:var(--tsugi-muted); }
+.tsugi-reading-empty { display:flex; flex-direction:column; align-items:flex-start; gap:12px; max-width:480px; padding:55px 0; color:var(--tsugi-muted); }
+.tsugi-reading-empty > svg { width:38px; height:38px; color:var(--tsugi-accent); margin-bottom:8px; }
+.tsugi-reading-empty h2 { color:var(--tsugi-ink); font-size:1.55rem; font-weight:600; }
+.tsugi-reading-settings-index { display:flex; flex-direction:column; gap:10px; }
+.tsugi-reading-settings-index button { padding:18px 4px; }
+.tsugi-chapter-row { max-width:100%; }
+.tsugi-chapter-versions[open] { background:var(--tsugi-wash); }
+.tsugi-chapter-toolbar { padding:10px 18px; gap:11px; }
+.tsugi-chapter-toolbar .tsugi-read-action { border-color:transparent; background:transparent; }
+.tsugi-chapter-toolbar .tsugi-read-action:hover:not(:disabled) { background:var(--tsugi-wash); }
+.tsugi-chapter-reader[data-background='graphite'] .tsugi-chapter-viewport { background:#24242c; }
+.tsugi-chapter-reader[data-background='paper'] .tsugi-chapter-viewport { background:#e5e2dc; }
+.tsugi-chapter-reader[data-fit='height'] .tsugi-chapter-page { width:auto; max-width:100%; }
+.tsugi-chapter-reader[data-fit='height'] .tsugi-chapter-page img { width:auto; height:var(--reader-height); max-height:var(--reader-height); max-width:100%; object-fit:contain; }
+.tsugi-chapter-reader[data-fit='height'][data-mode='spread'] .tsugi-chapter-page { max-width:50%; }
+.tsugi-chapter-reader[data-fit='original'] .tsugi-chapter-page { width:auto; max-width:100%; }
+.tsugi-chapter-reader[data-fit='original'] .tsugi-chapter-page img { width:auto; max-width:100%; height:auto; }
+.tsugi-chapter-reader[data-fit='original'][data-mode='spread'] .tsugi-chapter-page { max-width:50%; }
+.tsugi-chapter-reader[data-fit='height'] .tsugi-chapter-placeholder,.tsugi-chapter-reader[data-fit='original'] .tsugi-chapter-placeholder { min-width:180px; }
+.tsugi-chapter-reader[data-focus='hidden'] .tsugi-chapter-toolbar { opacity:0; pointer-events:none; }
+.tsugi-chapter-reader[data-focus='hidden'] .tsugi-chapter-toolbar:focus-within { opacity:1; pointer-events:auto; }
+.tsugi-chapter-settings { width:min(320px,42vw); padding:20px; }
+.tsugi-reader-settings-content { display:flex; flex-direction:column; gap:19px; max-width:740px; }
+.tsugi-reader-settings-title { display:flex; align-items:center; gap:9px; }
+.tsugi-reader-settings-title h3 { flex:1; font-weight:600; font-size:1.05rem; }
+.tsugi-reader-settings-content .tsugi-read-subnav { gap:16px; font-size:.8rem; }
+.tsugi-reader-setting-group { display:flex; flex-direction:column; gap:10px; }
+.tsugi-reader-setting-group h4 { font-size:.85rem; font-weight:600; color:var(--tsugi-ink); }
+.tsugi-reader-setting-group small,.tsugi-reader-setting-toggle small { color:var(--tsugi-muted); font-size:.73rem; line-height:1.45; }
+.tsugi-reader-layout-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+.tsugi-reader-layout-options button { min-width:0; min-height:72px; border:1px solid var(--tsugi-line); padding:9px 5px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-size:.76rem; }
+.tsugi-reader-layout-options button svg { width:21px; height:21px; color:var(--tsugi-muted); }
+.tsugi-reader-layout-options button[aria-pressed='true'],.tsugi-reader-choice button[aria-pressed='true'] { background:var(--tsugi-wash); border-color:var(--tsugi-accent); color:var(--tsugi-ink); }
+.tsugi-reader-choice { display:flex; gap:4px; }
+.tsugi-reader-choice button { flex:1; border:1px solid var(--tsugi-line); min-width:0; font-size:.72rem; padding:8px 4px; }
+.tsugi-reader-choice button:disabled { opacity:.45; }
+.tsugi-reader-setting-toggle { display:flex!important; flex-direction:row!important; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--tsugi-line); padding:8px 0 13px; }
+.tsugi-reader-setting-toggle span { display:flex; flex-direction:column; gap:4px; }
+.tsugi-reader-setting-toggle strong { font-size:.8rem; font-weight:550; }
+.tsugi-reader-setting-toggle input { flex:none; width:16px; height:16px; accent-color:var(--tsugi-accent); }
+.tsugi-reader-zoom { display:flex; align-items:center; gap:7px; }
+.tsugi-reader-zoom input { flex:1; min-width:35px; accent-color:var(--tsugi-accent); }
+.tsugi-reader-zoom strong { width:35px; font-size:.75rem; text-align:end; }
+.tsugi-reader-icon { display:inline-flex; justify-content:center; align-items:center; width:30px; height:30px; color:var(--tsugi-muted); }
+.tsugi-reader-icon:hover { color:var(--tsugi-ink); background:var(--tsugi-wash); }
+.tsugi-reader-link { color:var(--tsugi-accent); text-align:start; font-size:.78rem; padding:4px 0; }
+.tsugi-reader-swatch { width:25px; height:25px; border:1px solid var(--tsugi-line); }
+.tsugi-reader-shortcuts { display:grid; grid-template-columns:1fr auto; gap:9px; font-size:.75rem; }
+.tsugi-reader-shortcuts dd { color:var(--tsugi-muted); }
+.tsugi-reader-chapter-menu .tsugi-read-row { font-size:.84rem; padding:10px 0; }
+.tsugi-reader-chapter-menu .tsugi-read-row[aria-current] { opacity:1; color:var(--tsugi-accent); }
+.tsugi-reader-chapter-menu .tsugi-read-row small { font-size:.7rem; }
+.tsugi-reader-chapter-label { max-width:110px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
+@media(max-width:900px) { .tsugi-reading-rail { width:165px; padding-inline:9px; } .tsugi-reading-content { padding-inline:20px; } .tsugi-manga-grid { grid-template-columns:repeat(auto-fill,minmax(125px,1fr)); } .tsugi-manga-detail { grid-template-columns:140px minmax(0,1fr); gap:19px; } }
+@media(max-width:650px) { .tsugi-reading-rail { width:65px; padding-inline:6px; } .tsugi-reading-rail nav button,.tsugi-reading-rail-bottom button { font-size:0; justify-content:center; gap:0; padding:12px 3px; } .tsugi-reading-rail-label,.tsugi-reading-brand strong { display:none; } .tsugi-reading-brand { padding:10px 0 20px; justify-content:center; } .tsugi-reading-content { padding:22px 14px; } .tsugi-reading-header { gap:10px; flex-wrap:wrap; } .tsugi-reading-global { width:100%; } .tsugi-manga-detail { grid-template-columns:110px minmax(0,1fr); gap:13px; } .tsugi-reader-chapter-label { display:none; } .tsugi-chapter-settings { width:48vw; padding:12px; } .tsugi-chapter-toolbar { padding:8px; gap:5px; } .tsugi-reader-layout-options { gap:3px; } }
