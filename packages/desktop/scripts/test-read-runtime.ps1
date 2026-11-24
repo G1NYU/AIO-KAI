@@ -14,6 +14,22 @@ New-Item -ItemType Directory -Path $data | Out-Null
 $process = $null
 $listener = $null
 $client = $null
+function Write-ReadingStartupDiagnostics {
+    # The fixture has no external source or user data. Still log only exception
+    # class and code symbol names, never exception messages or full log lines.
+    $logText = ((Get-Content -LiteralPath (Join-Path $data 'stdout.txt') -ErrorAction SilentlyContinue) + (Get-Content -LiteralPath (Join-Path $data 'stderr.txt') -ErrorAction SilentlyContinue)) -join "`n"
+    foreach ($marker in @('BindException', 'UnsupportedClassVersionError', 'NoClassDefFoundError', 'OutOfMemoryError', 'ConfigException', 'SQLException', 'ExceptionInInitializerError', 'Javalin started')) {
+        if ($logText.Contains($marker)) { Write-Host "Reading startup marker: $marker" }
+    }
+    $types = [regex]::Matches($logText, '(?m)^\s*(?:Caused by:\s*|Exception in thread "[^"]+"\s+)?((?:java|javax|kotlin|org|com|suwayomi|xyz|io|net)\.[A-Za-z0-9_.$]+(?:Exception|Error))(?=[:\s]|$)')
+    foreach ($type in ($types | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique -First 12)) {
+        Write-Host "Reading startup exception type: $type"
+    }
+    $frames = [regex]::Matches($logText, '(?m)^\s*at\s+((?:java|javax|kotlin|org|com|suwayomi|xyz|io|net)\.[A-Za-z0-9_.$<>]+)\(')
+    foreach ($frame in ($frames | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique -First 20)) {
+        Write-Host "Reading startup frame: $frame"
+    }
+}
 try {
     $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
     $listener.Start()
@@ -84,7 +100,10 @@ server.globalUpdateInterval = 0
     $lastPrinted = ''
     while ([DateTime]::UtcNow -lt $deadline) {
         $process.Refresh()
-        if ($process.HasExited) { throw "Reading server exited during startup (exit $($process.ExitCode))" }
+        if ($process.HasExited) {
+            Write-ReadingStartupDiagnostics
+            throw "Reading server exited during startup (exit $($process.ExitCode))"
+        }
         try {
             $result = Invoke-ReadingProbe $true
             $last = "HTTP $($result.Status)"
@@ -110,11 +129,7 @@ server.globalUpdateInterval = 0
     }
     if (-not $ready) {
         $portBound = @(Get-NetTCPConnection -OwningProcess $process.Id -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalAddress -eq '127.0.0.1' -and $_.LocalPort -eq $port }).Count -gt 0
-        # Classify only fixed startup markers; no raw server output, paths, or auth data.
-        $logText = ((Get-Content -LiteralPath (Join-Path $data 'stdout.txt') -ErrorAction SilentlyContinue) + (Get-Content -LiteralPath (Join-Path $data 'stderr.txt') -ErrorAction SilentlyContinue)) -join "`n"
-        foreach ($marker in @('BindException', 'UnsupportedClassVersionError', 'NoClassDefFoundError', 'OutOfMemoryError', 'ConfigException', 'SQLException', 'ExceptionInInitializerError', 'Javalin started')) {
-            if ($logText.Contains($marker)) { Write-Host "Reading startup marker: $marker" }
-        }
+        Write-ReadingStartupDiagnostics
         throw "Authenticated reading GraphQL startup probe failed ($last; loopback port bound: $portBound)"
     }
     if ([string]$result.Body.data.aboutServer.version -notmatch '^2\.4\.2373$') {

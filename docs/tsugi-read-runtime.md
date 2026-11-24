@@ -6,7 +6,7 @@ reader. Use the existing desktop shell rather than replacing the application.
 
 ## Runtime proof
 
-- Stable Suwayomi Server v2.4.2373 (MPL-2.0) and Temurin JRE 21.0.13.1+2
+- Stable Suwayomi Server v2.4.2373 (MPL-2.0) and Temurin JRE 25.0.5.1+2
   (GPL-2.0 with Classpath Exception), unmodified and pinned by SHA-256.
 - Fetch only the server JAR and JRE, not the upstream Electron or launcher.
 - Smoke on Windows with isolated disposable data, no extension repositories,
@@ -40,3 +40,15 @@ Mihon/Komikku source compatibility; verify individual extension support.
 
 The isolated smoke workflow is the first implementation milestone. It does
 not yet integrate a reading UI or ship the runtime in the main Windows build.
+
+## Startup investigation
+
+Run 45372797968 established that the JVM does not bind to loopback and emits
+ExceptionInInitializerError; the exact cause is not yet known. The upstream
+[v2.4.2373 bundler](https://github.com/Suwayomi/Suwayomi-Server/blob/v2.4.2373/scripts/bundler.sh)
+uses Java 25 (Zulu), while the direct JAR documentation allows 21 or newer.
+Pin a Windows Temurin 25 JRE to align the major version with upstream packaging.
+This is a controlled compatibility experiment, not a confirmed fix. Retain the
+same server JAR, loopback-only authentication, and disposable data. Emit only
+sanitized exception type and code symbol names to identify an initializer
+failure without exposing raw logs or authentication data. No app build changes.
