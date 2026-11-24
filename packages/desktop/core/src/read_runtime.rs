@@ -55,7 +55,96 @@ impl ReadOperation {
     }
 }
 
+// GetExtendedTcpTable (iphlpapi.h): IPv4 MIB_TCPTABLE_OWNER_PID.
+// A DWORD count followed by rows of six DWORDs, including owning PID.
+// Use a DWORD-aligned buffer; cap allocation and retry only if it grows.
+#[link(name = "iphlpapi")]
+unsafe extern "system" {
+    fn GetExtendedTcpTable(
+        table: *mut std::ffi::c_void,
+        size: *mut u32,
+        ordered: i32,
+        family: u32,
+        class: i32,
+        reserved: u32,
+    ) -> u32;
+}
+
+fn verify_listener(port: u16, pid: u32) -> Result<(), &'static str> {
+    const ERROR_INSUFFICIENT_BUFFER: u32 = 122;
+    const AF_INET: u32 = 2;
+    const TCP_TABLE_OWNER_PID_LISTENER: i32 = 3;
+    const MAX_TABLE_BYTES: u32 = 16 * 1024 * 1024;
+    let invalid = "Could not verify reading listener ownership.";
+    let mut size = 0u32;
+    // SAFETY: null buffer with a valid size pointer is the documented size query.
+    let result = unsafe {
+        GetExtendedTcpTable(
+            std::ptr::null_mut(),
+            &mut size,
+            0,
+            AF_INET,
+            TCP_TABLE_OWNER_PID_LISTENER,
+            0,
+        )
+    };
+    if result != ERROR_INSUFFICIENT_BUFFER {
+        return Err(invalid);
+    }
+    for _ in 0..3 {
+        if !(4..=MAX_TABLE_BYTES).contains(&size) {
+            return Err(invalid);
+        }
+        let mut words = vec![0u32; (size as usize).div_ceil(4)];
+        let capacity = (words.len() * 4) as u32;
+        size = capacity;
+        // SAFETY: aligned, initialized writable buffer of size bytes; size is
+        // a separate valid out pointer. No references are retained by the API.
+        let result = unsafe {
+            GetExtendedTcpTable(
+                words.as_mut_ptr().cast(),
+                &mut size,
+                0,
+                AF_INET,
+                TCP_TABLE_OWNER_PID_LISTENER,
+                0,
+            )
+        };
+        if result == ERROR_INSUFFICIENT_BUFFER {
+            continue;
+        }
+        if result != 0 || size > capacity || size < 4 {
+            return Err(invalid);
+        }
+        return verify_listener_rows(&words[..size as usize / 4], port, pid);
+    }
+    Err(invalid)
+}
+
+fn verify_listener_rows(words: &[u32], port: u16, pid: u32) -> Result<(), &'static str> {
+    let invalid = "Could not verify reading listener ownership.";
+    let (&count, rows) = words.split_first().ok_or(invalid)?;
+    let needed = (count as usize).checked_mul(6).ok_or(invalid)?;
+    let rows = rows.get(..needed).ok_or(invalid)?;
+    let mut matched = false;
+    for row in rows.chunks_exact(6) {
+        if u16::from_be(row[2] as u16) != port {
+            continue;
+        }
+        // Reject other IPv4 listeners on the allocated port, including a
+        // wildcard bind. The JVM must own the unique exact loopback listener.
+        if matched || row[0] != 2 || row[1].to_ne_bytes() != [127, 0, 0, 1]
+            || row[5] != pid
+        {
+            return Err(invalid);
+        }
+        matched = true;
+    }
+    if matched { Ok(()) } else { Err(invalid) }
+}
+
 struct ReadClient {
+    owner_pid: u32,
     agent: ureq::Agent,
     port: u16,
     authorization: String,
@@ -68,8 +157,9 @@ struct Reply {
 }
 
 impl ReadClient {
-    fn new(port: u16, password: &str) -> Self {
+    fn new(port: u16, owner_pid: u32, password: &str) -> Self {
         Self {
+            owner_pid,
             agent: ureq::Agent::config_builder()
                 .proxy(None)
                 .max_redirects(0)
@@ -96,6 +186,7 @@ impl ReadClient {
         variables: Value,
         authorization: Option<&str>,
     ) -> Result<Reply, &'static str> {
+        verify_listener(self.port, self.owner_pid)?;
         let endpoint = format!("http://127.0.0.1:{}/api/graphql", self.port);
         let mut request = self
             .agent
@@ -190,6 +281,7 @@ impl ReadClient {
     }
 
     fn page(&self, path: &PagePath) -> Result<PageImage, &'static str> {
+        verify_listener(self.port, self.owner_pid)?;
         let endpoint = format!("http://127.0.0.1:{}{}", self.port, path.0);
         let mut response = self.agent.get(&endpoint)
             .header("Authorization", self.authorization.as_str())
@@ -479,9 +571,10 @@ impl ReadRuntime {
             .stderr(Stdio::null())
             .spawn()
             .map_err(|_| "Could not start reading runtime.")?;
+        let client = ReadClient::new(port, child.id(), &storage.password);
         let mut managed = Self {
             child,
-            client: ReadClient::new(port, &storage.password),
+            client,
             _storage: storage,
         };
         let deadline = Instant::now() + READY_TIMEOUT;
@@ -686,6 +779,36 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::{Arc, atomic::{AtomicBool, AtomicUsize, Ordering}};
     use std::thread::JoinHandle;
+
+    #[test]
+    fn listener_rows_require_unique_owned_loopback() {
+        let port = 12345u16;
+        let pid = 123u32;
+        let row = [2, u32::from_ne_bytes([127, 0, 0, 1]), u32::from(port.to_be()), 0, 0, pid];
+        let mut table = vec![1];
+        table.extend(row);
+        assert!(verify_listener_rows(&table, port, pid).is_ok());
+        assert!(verify_listener_rows(&table, port, pid + 1).is_err());
+        assert!(verify_listener_rows(&table, port + 1, pid).is_err());
+        assert!(verify_listener_rows(&table[..6], port, pid).is_err());
+        table[2] = 0;
+        assert!(verify_listener_rows(&table, port, pid).is_err());
+        table[2] = row[1];
+        table[0] = 2;
+        table.extend(row);
+        assert!(verify_listener_rows(&table, port, pid).is_err());
+    }
+
+    #[test]
+    fn listener_check_rejects_wrong_owner_before_http() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        assert!(verify_listener(port, std::process::id()).is_ok());
+        let client = ReadClient::new(port, 0, "fixture-not-a-real-credential");
+        assert!(client.query(ReadOperation::Status).is_err());
+        listener.set_nonblocking(true).unwrap();
+        assert_eq!(listener.accept().unwrap_err().kind(), std::io::ErrorKind::WouldBlock);
+    }
 
     #[test]
     fn large_source_id_survives_without_js_rounding() {
