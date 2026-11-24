@@ -14,7 +14,7 @@ import { DotSeeker } from './wave-seeker';
 import { VolumeControl } from './volume-control';
 import { storage } from '@/lib/storage';
 import type { AudioProfile } from '@/lib/music/audio-profiles';
-import { applyEclipseAppearance, notifyEclipseAppearance } from '@/lib/music/eclipse-appearance';
+import { notifyEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import { PLAYER_PALETTES, readPlayerTheme, savePlayerTheme, type PlayerPalette, type PlayerThemeId } from '@/lib/music/player-theme';
 
 export type RepeatMode = 'off' | 'all' | 'one';
@@ -132,19 +132,13 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
     : stageId === 'imported' ? importedTemplate : null;
 
   React.useEffect(() => {
-    applyEclipseAppearance({ id: stageId, template: importedTemplate, imported: importedJson });
     notifyEclipseAppearance();
   }, [stageId, importedTemplate, importedJson]);
 
   React.useEffect(() => {
-    document.documentElement.dataset.tsugiTheme = theme;
-    applyEclipseAppearance({ id: stageId, template: importedTemplate, imported: importedJson });
-  }, [theme, stageId, importedTemplate, importedJson]);
-
-  React.useEffect(() => {
     const sync = (event: Event) => {
       const next = (event as CustomEvent<PlayerThemeId>).detail;
-      if (next in PLAYER_PALETTES) setTheme(next);
+      if (next && Object.prototype.hasOwnProperty.call(PLAYER_PALETTES, next)) setTheme(next);
     };
     window.addEventListener('tsugi-theme-change', sync);
     return () => window.removeEventListener('tsugi-theme-change', sync);

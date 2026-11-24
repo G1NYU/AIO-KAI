@@ -3,8 +3,7 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { FiArrowLeft, FiBookOpen, FiChevronRight, FiCompass, FiGrid, FiSearch, FiSettings, FiFilm, FiHeadphones, FiGlobe, FiClock, FiBook, FiRefreshCw } from 'react-icons/fi';
 import { TsugiBrand } from '@/components/tsugi-brand';
-import { applyEclipseAppearance } from '@/lib/music/eclipse-appearance';
-import { readPlayerTheme } from '@/lib/music/player-theme';
+import { useDesktopArea } from '@/lib/desktop-area';
 import { prepareReading, readRequest, readImage } from '@/lib/hosts/shell/reading';
 import { ChapterReader } from './chapter-reader';
 import { ReaderSettings } from './reader-settings';
@@ -28,6 +27,7 @@ type Mode = 'popular' | 'latest' | 'search';
 export function ReadPage({ openWelcome, openVideo, openMusic }: {
   openWelcome(): void; openVideo(): void; openMusic(): void;
 }) {
+  const desktopArea = useDesktopArea();
   const [tab, setTab] = React.useState<Tab>('library');
   const [browseTab, setBrowseTab] = React.useState<BrowseTab>('sources');
   const [settingsPage, setSettingsPage] = React.useState<SettingsPage>(null);
@@ -124,8 +124,6 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
   }
   React.useEffect(() => {
     active.current = true;
-    document.documentElement.dataset.tsugiTheme = readPlayerTheme();
-    applyEclipseAppearance();
     void run(loadLibrary);
     return () => { active.current = false; };
   }, []);
@@ -228,7 +226,7 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
         <span className="tsugi-reading-rail-label"><Trans id="Preferences">Preferences</Trans></span>
         <button aria-current={tab === 'settings' ? 'page' : undefined} disabled={busy} onClick={() => switchTab('settings')}><FiSettings aria-hidden /><Trans id="Settings">Settings</Trans></button>
       </nav>
-      <div className="tsugi-reading-rail-bottom"><button disabled={busy} onClick={openVideo}><FiFilm aria-hidden /><Trans id="Movies & TV">Movies & TV</Trans></button><button disabled={busy} onClick={openMusic}><FiHeadphones aria-hidden /><Trans id="Music">Music</Trans></button></div>
+      <div className="tsugi-reading-rail-bottom">{desktopArea && <button disabled={busy} onClick={desktopArea.openSettings}><FiSettings aria-hidden /><Trans id="App settings">App settings</Trans></button>}<button disabled={busy} onClick={openVideo}><FiFilm aria-hidden /><Trans id="Movies & TV">Movies & TV</Trans></button><button disabled={busy} onClick={openMusic}><FiHeadphones aria-hidden /><Trans id="Music">Music</Trans></button></div>
     </aside>
     <div className="tsugi-reading-content" ref={content}>
       <header className="tsugi-reading-header">

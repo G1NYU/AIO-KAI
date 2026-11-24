@@ -58,6 +58,7 @@ import { DesktopLandingPage } from './app/desktop-landing/page';
 import { MusicPage } from './app/music/page';
 import { ReadPage, ReadSetupPage } from './app/read/page';
 import { supportsReading, supportsReadingSection } from './lib/hosts/shell/reading';
+import { GlobalAppearance, GlobalSettingsDialog } from './components/shell/global-settings';
 
 /** The web app served at the Jellyfin API's `/web`. */
 export default function JellyfinWebApp() {
@@ -144,13 +145,15 @@ function Standalone() {
   const [area, setArea] = React.useState<DesktopArea>(() =>
     initialDesktopArea(desktop, !!currentServer(), reading)
   );
+  const [globalSettings, setGlobalSettings] = React.useState(false);
+  const openSettings = React.useCallback(() => setGlobalSettings(true), []);
   const openRead = React.useCallback(() => setArea('read'), []);
   const openMusic = React.useCallback(() => setArea('music'), []);
   const openVideo = React.useCallback(() => setArea('video'), []);
   const openWelcome = React.useCallback(() => setArea('welcome'), []);
   const areaActions = React.useMemo(
-    () => ({ openMusic, openVideo, openRead: reading ? openRead : undefined }),
-    [openMusic, openVideo, openRead, reading]
+    () => ({ openMusic, openVideo, openSettings, openRead: reading ? openRead : undefined }),
+    [openMusic, openVideo, openSettings, openRead, reading]
   );
   // Who's watching, asked across the saved servers.
   const [picking, setPicking] = React.useState(() => {
@@ -245,6 +248,7 @@ function Standalone() {
   return (
     <DesktopAreaContext.Provider value={desktop ? areaActions : null}>
       <>
+      {desktop && <><GlobalAppearance /><GlobalSettingsDialog open={globalSettings} onClose={() => setGlobalSettings(false)} /></>}
       <AnimatePresence mode="wait">
         <motion.div
           key={desktop && area !== 'video' ? area : (picking && base ? 'picker' : (base ?? 'servers'))}

@@ -25,6 +25,7 @@ import {
 import { canRefract } from '@/components/shell/glass-surface';
 import { useServerInfo } from '@/lib/jellyfin/server-info';
 import { currentHost } from '@/lib/hosts';
+import { GlobalAppearanceSettings } from '@/components/shell/global-settings';
 import { focusOn, keyboardFocus } from '@/lib/input';
 import { SettingsCard } from './_components/settings-card';
 import { Anchor } from '@/components/anchor';
@@ -109,6 +110,7 @@ export function ThemeSection() {
   return (
     <>
       <SettingsCard name="colours" title={t`Colours`} holds="profile">
+        {currentHost().name === 'desktop' ? <GlobalAppearanceSettings /> : <>
         <div className="space-y-2">
           <p className="text-sm font-semibold">
             <Trans>Presets</Trans>
@@ -168,6 +170,7 @@ export function ThemeSection() {
           value={background}
           onValueChange={(value) => pick({ accent, background: value })}
         />
+        </>}
         <Combobox
           multiple
           label={t`Background from artwork`}

@@ -6,6 +6,7 @@ export type DesktopArea = 'welcome' | 'video' | 'music' | 'read';
 export type DesktopAreaActions = {
   openMusic(): void;
   openVideo(): void;
+  openSettings(): void;
   openRead?: () => void;
 };
 

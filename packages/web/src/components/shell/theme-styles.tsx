@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { themeVariables } from '@aiostreams/ui/utils/palette';
 import { settings, useSetting, CUSTOM_CSS_OFF } from '@/lib/settings';
 import { useServerInfo } from '@/lib/jellyfin/server-info';
+import { currentHost } from '@/lib/hosts';
 import { clearArtBackground } from '@/lib/artwork/background';
 
 /** Last on the page, so the user's colours and CSS win ties. */
@@ -30,7 +31,7 @@ export function ThemeStyles() {
   );
   return createPortal(
     <>
-      {vars && <style data-ui="theme-colors">{`:root { ${vars} }`}</style>}
+      {currentHost().name !== 'desktop' && vars && <style data-ui="theme-colors">{`:root { ${vars} }`}</style>}
       {css && !CUSTOM_CSS_OFF && <style data-ui="custom-css">{css}</style>}
     </>,
     document.body

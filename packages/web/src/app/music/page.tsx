@@ -27,7 +27,6 @@ import {
   savedTrack, type SavedMusicTrack,
 } from '@/lib/music/library';
 import { TsugiBrand } from '@/components/tsugi-brand';
-import { applyEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 import type { TrendingRecording } from '@/lib/music/discovery';
@@ -87,12 +86,6 @@ export function MusicPage({
   const LOCAL_SOURCE = 'tsugi-local';
   const [settingsOpen, setSettingsOpen] = React.useState(() => readMusicSources().length === 0);
 
-  React.useEffect(() => {
-    const update = () => applyEclipseAppearance();
-    update();
-    window.addEventListener('tsugi-eclipse-appearance-change', update);
-    return () => window.removeEventListener('tsugi-eclipse-appearance-change', update);
-  }, []);
   const [recent, setRecent] = React.useState<RecentMusicPlay[]>(readRecentPlays);
   const settingsCloseRef = React.useRef<HTMLButtonElement>(null);
   const [playing, setPlaying] = React.useState<EclipseTrack | null>(null);
@@ -713,6 +706,7 @@ export function MusicPage({
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" className="tsugi-category-link" onClick={openVideo}><Trans id="Movies & TV">Movies & TV</Trans></button>
             {desktopArea?.openRead && <button type="button" className="tsugi-category-link" onClick={desktopArea.openRead}><Trans id="Read">Read</Trans></button>}
+            {desktopArea && <button type="button" className="tsugi-category-link" onClick={desktopArea.openSettings}><Trans id="App settings">App settings</Trans></button>}
             <button type="button" className="tsugi-icon-action" onClick={() => setTab('search')}
               aria-label={t`Search music`}>
               <FiSearch aria-hidden className="text-xl" />

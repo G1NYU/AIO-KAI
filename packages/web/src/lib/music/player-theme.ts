@@ -62,5 +62,5 @@ export function readPlayerTheme(): PlayerThemeId {
 
 export function savePlayerTheme(theme: PlayerThemeId): void {
   if (!isPlayerTheme(theme)) return;
-  try { storage.set(KEY, theme); } catch { /* Device storage may be blocked. */ }
+  try { storage.set(KEY, theme); storage.set('tsugi-global-import-colors-v1', false); } catch { /* Device storage may be blocked. */ }
 }

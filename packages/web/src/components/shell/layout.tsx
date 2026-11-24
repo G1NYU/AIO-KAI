@@ -236,7 +236,8 @@ export function WebLayout() {
       isCurrent: false,
       onClick: desktopArea.openMusic,
     }] : []),
-    ...(desktopArea?.openRead ? [{ id: 'read', name: t`Read`, iconType: BiBookOpen, isCurrent: false, onClick: desktopArea.openRead }] : []),
+    ...(desktopArea?.openRead ? [{ id: 'read', name: t({ id: 'Read', message: 'Read' }), iconType: BiBookOpen, isCurrent: false, onClick: desktopArea.openRead }] : []),
+    ...(desktopArea ? [{ id: 'app-settings', name: t({ id: 'App settings', message: 'App settings' }), iconType: BiCog, isCurrent: false, onClick: desktopArea.openSettings }] : []),
     {
       id: 'discover',
       name: t`Discover`,
