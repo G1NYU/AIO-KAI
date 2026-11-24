@@ -7,11 +7,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $runtimeRoot = (Resolve-Path -LiteralPath $Runtime).Path
 $java = Join-Path $runtimeRoot 'jre/bin/java.exe'
-$jar = if ($UpstreamLayout) {
-    Join-Path $runtimeRoot 'bin/Suwayomi-Server.jar'
-} else {
-    Join-Path $runtimeRoot 'suwayomi.jar'
-}
+# Preserve the known-working upstream relative layout for both staging paths.
+$jar = Join-Path $runtimeRoot 'bin/Suwayomi-Server.jar'
 if (-not (Test-Path -LiteralPath $java -PathType Leaf) -or
     -not (Test-Path -LiteralPath $jar -PathType Leaf)) {
     throw 'Reading runtime is not packaged'
@@ -147,9 +144,11 @@ server.globalUpdateInterval = 0
         Write-ReadingStartupDiagnostics
         throw "Authenticated reading GraphQL startup probe failed ($last; loopback port bound: $portBound)"
     }
-    if ([string]$result.Body.data.aboutServer.version -notmatch '^2\.4\.2373$') {
+    # Upstream getTachideskVersion() returns "v2.4.<commit count>".
+    if ([string]$result.Body.data.aboutServer.version -cne 'v2.4.2373') {
         throw 'Unexpected reading server version'
     }
+    Write-Host 'PASS: authenticated GraphQL query and exact upstream version v2.4.2373.'
     $unauthorized = Invoke-ReadingProbe $false
     if ($unauthorized.Status -eq 200) {
         if ($null -ne $unauthorized.Body.data.sources) { throw 'Protected source query accepted unauthenticated access' }

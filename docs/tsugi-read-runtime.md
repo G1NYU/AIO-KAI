@@ -6,9 +6,11 @@ reader. Use the existing desktop shell rather than replacing the application.
 
 ## Runtime proof
 
-- Stable Suwayomi Server v2.4.2373 (MPL-2.0) and Temurin JRE 25.0.5.1+2
-  (GPL-2.0 with Classpath Exception), unmodified and pinned by SHA-256.
-- Fetch only the server JAR and JRE, not the upstream Electron or launcher.
+- Stable Suwayomi Server v2.4.2373 (MPL-2.0) and Azul Zulu JRE 25.0.5.1+2
+  (GPL-2.0 with Classpath Exception) from the SHA-256-pinned official Windows
+  distribution. Stage only its server JAR and complete JRE in original relative
+  paths; do not launch or redistribute Electron or the launcher. Verify
+  corresponding-source obligations before any public runtime redistribution.
 - Smoke on Windows with isolated disposable data, no extension repositories,
   no user account, no external browser/tray window, and loopback-only binding.
 - Authenticate the source GraphQL query and verify unauthenticated access is
@@ -81,3 +83,22 @@ No downgrade to versions predating the November security fixes.
 If both paths fail, isolate the classpath/schema issue upstream rather than
 blindly cycling Java versions. Evaluate separately maintained extension engines
 only if the direct Mihon compatibility acceptance can still be met.
+
+## Official runtime breakthrough (run 45379266618)
+
+- Both JARs contained 774 GraphQL class entries and had identical SHA-256.
+  The separately staged Temurin runtime still failed at ClassScanner;
+  the official Zulu bundle successfully answered the authenticated query.
+  This distinguishes the working distribution from the failing combination,
+  but does not prove that the Java vendor alone caused the failure.
+- The official-reference job then failed our exact version assertion.
+  Upstream [Constants.kt](https://github.com/Suwayomi/Suwayomi-Server/blob/v2.4.2373/buildSrc/src/main/kotlin/Constants.kt)
+  defines getTachideskVersion as v2.4.<commit count>; InfoQuery returns that
+  value. Assert v2.4.2373 exactly, not 2.4.2373. Keep the anonymous rejection
+  and loopback binding assertions unchanged.
+- Stage the official bundle's unmodified JRE and bin/Suwayomi-Server.jar,
+  independently checking both the archive and JAR SHA-256. Smoke the minimal
+  staged layout rather than rerunning the known-failing Temurin setup.
+  The reference script remains available for diagnosis. No runtime is yet
+  shipped in the app. Next verify unauthorized rejection, binding and clean
+  shutdown; then implement the native process broker and extension store UI.
