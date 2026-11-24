@@ -2339,6 +2339,10 @@ msgstr ""
 msgid "Import Studio layout"
 msgstr ""
 
+#: src/lib/music/library.ts
+msgid "Imported playlist"
+msgstr ""
+
 #: src/app/music/player.tsx
 msgid "Imported Studio layout"
 msgstr ""
@@ -2670,12 +2674,24 @@ msgstr ""
 msgid "Loading…"
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "Local"
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Local audio"
+msgstr ""
+
 #: src/app/music/library.tsx
 msgid "Local audio — this session"
 msgstr ""
 
 #: src/app/music/page.tsx
 msgid "Local audio EQ could not be initialized on this device."
+msgstr ""
+
+#: src/app/music/page.tsx
+msgid "Local file"
 msgstr ""
 
 #: src/features/player/controls.tsx
@@ -4578,6 +4594,10 @@ msgstr ""
 msgid "Saved to your account, so your other devices and Jellyfin apps use it too."
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "Saved tracks"
+msgstr ""
+
 #: src/lib/playback/external-return.ts
 msgid "Saved your place at {at}"
 msgstr ""
@@ -5832,6 +5852,10 @@ msgstr ""
 msgid "This server styles the app for everyone. Your own CSS applies on top of it."
 msgstr ""
 
+#: src/app/music/page.tsx
+msgid "This session"
+msgstr ""
+
 #: src/app/music/browse.tsx
 msgid "This shelf is temporarily unavailable."
 msgstr ""
@@ -6046,6 +6070,10 @@ msgstr ""
 msgid "Unfinished"
 msgstr ""
 
+#: src/lib/music/library.ts
+msgid "Unknown artist"
+msgstr ""
+
 #: src/lib/playback/controller.ts
 msgid "Unknown language"
 msgstr ""
@@ -6250,8 +6278,6 @@ msgstr ""
 msgid "Voice search failed"
 msgstr ""
 
-#: src/app/music/junction-player.tsx
-#: src/app/music/player.tsx
 #: src/app/music/studio-player.tsx
 #: src/app/music/volume-control.tsx
 #: src/features/player/volume.tsx

@@ -2340,6 +2340,10 @@ msgstr "Import playlist"
 msgid "Import Studio layout"
 msgstr "Import Studio layout"
 
+#: src/lib/music/library.ts
+msgid "Imported playlist"
+msgstr "Imported playlist"
+
 #: src/app/music/player.tsx
 msgid "Imported Studio layout"
 msgstr "Imported Studio layout"
@@ -2671,6 +2675,14 @@ msgstr "Loading music…"
 msgid "Loading…"
 msgstr "Loading…"
 
+#: src/app/music/page.tsx
+msgid "Local"
+msgstr "Local"
+
+#: src/app/music/page.tsx
+msgid "Local audio"
+msgstr "Local audio"
+
 #: src/app/music/library.tsx
 msgid "Local audio — this session"
 msgstr "Local audio — this session"
@@ -2678,6 +2690,10 @@ msgstr "Local audio — this session"
 #: src/app/music/page.tsx
 msgid "Local audio EQ could not be initialized on this device."
 msgstr "Local audio EQ could not be initialized on this device."
+
+#: src/app/music/page.tsx
+msgid "Local file"
+msgstr "Local file"
 
 #: src/features/player/controls.tsx
 msgid "Lock screen"
@@ -4579,6 +4595,10 @@ msgstr "Saved to your account, so it follows you to every device."
 msgid "Saved to your account, so your other devices and Jellyfin apps use it too."
 msgstr "Saved to your account, so your other devices and Jellyfin apps use it too."
 
+#: src/app/music/page.tsx
+msgid "Saved tracks"
+msgstr "Saved tracks"
+
 #: src/lib/playback/external-return.ts
 msgid "Saved your place at {at}"
 msgstr "Saved your place at {at}"
@@ -5833,6 +5853,10 @@ msgstr "This server shares no movie or show catalogs with this account."
 msgid "This server styles the app for everyone. Your own CSS applies on top of it."
 msgstr "This server styles the app for everyone. Your own CSS applies on top of it."
 
+#: src/app/music/page.tsx
+msgid "This session"
+msgstr "This session"
+
 #: src/app/music/browse.tsx
 msgid "This shelf is temporarily unavailable."
 msgstr "This shelf is temporarily unavailable."
@@ -6047,6 +6071,10 @@ msgstr "Undrop show"
 msgid "Unfinished"
 msgstr "Unfinished"
 
+#: src/lib/music/library.ts
+msgid "Unknown artist"
+msgstr "Unknown artist"
+
 #: src/lib/playback/controller.ts
 msgid "Unknown language"
 msgstr "Unknown language"
@@ -6251,8 +6279,6 @@ msgstr "Vocal clarity"
 msgid "Voice search failed"
 msgstr "Voice search failed"
 
-#: src/app/music/junction-player.tsx
-#: src/app/music/player.tsx
 #: src/app/music/studio-player.tsx
 #: src/app/music/volume-control.tsx
 #: src/features/player/volume.tsx
