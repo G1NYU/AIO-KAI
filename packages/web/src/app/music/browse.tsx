@@ -2,6 +2,7 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { BiArrowBack, BiDisc, BiPlay } from 'react-icons/bi';
+import { FiArrowUpRight, FiPlay, FiSettings } from 'react-icons/fi';
 import {
   catalogTrack, loadAddon, loadCatalog, loadDetail,
   type EclipseCatalogDefinition, type EclipseCatalogItem, type EclipseDetail, type EclipseTrack,
@@ -9,6 +10,7 @@ import {
 import type { MusicConnection } from '@/lib/music/connections';
 import type { TrendingRecording } from '@/lib/music/discovery';
 import { MusicCharts } from './charts';
+import type { RecentMusicPlay } from '@/lib/music/history';
 
 export type PlayCollection = (source: MusicConnection, songs: EclipseTrack[], at: number) => void;
 
@@ -138,11 +140,14 @@ export function MusicCollection({
 }
 
 export function MusicDiscover({
-  source, onPlay, onFind,
+  source, onPlay, onFind, recent, onPlayRecent, onConfigure,
 }: {
   source: MusicConnection | undefined;
   onPlay: PlayCollection;
   onFind(recording: TrendingRecording): void;
+  recent: RecentMusicPlay[];
+  onPlayRecent(item: RecentMusicPlay): void;
+  onConfigure(): void;
 }) {
   const [shelves, setShelves] = React.useState<Shelf[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -164,7 +169,6 @@ export function MusicDiscover({
     async function refresh() {
       if (!source) return;
       try {
-        // Refresh manifest: old saved connections may predate catalog support.
         const manifest = await loadAddon(source.url, controller.signal);
         const catalogs = manifest.resources.includes('catalog') ? (manifest.catalogs ?? []) : [];
         if (controller.signal.aborted) return;
@@ -187,56 +191,121 @@ export function MusicDiscover({
     return () => controller.abort();
   }, [source?.id, source?.url]);
 
+  function openCatalogItem(row: Shelf, item: EclipseCatalogItem) {
+    if (!source) return;
+    if (item.type === 'track') {
+      const songs = row.items.filter((entry) => entry.type === 'track').map(catalogTrack);
+      const at = songs.findIndex((song) => song.id === item.id);
+      if (at >= 0) onPlay(source, songs, at);
+    } else {
+      setSelected(item);
+    }
+  }
+
+  const filled = shelves.filter((row) => row.items.length > 0);
+  const featuredRow = filled.find((row) => row.items.some((item) => item.artworkURL)) ?? filled[0];
+  const featured = featuredRow?.items.find((item) => item.artworkURL) ?? featuredRow?.items[0];
+  const recentFromSource = recent.filter((item) => item.sourceId === source?.id);
+
   if (!source) return (
-    <p className="rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-white/50">
-      <Trans>Connect a music source to explore its catalogs.</Trans>
-    </p>
+    <section className="tsugi-hub-empty py-24 text-center">
+      <BiDisc aria-hidden className="mx-auto mb-7 text-6xl text-[--tsugi-muted]" />
+      <h2 className="text-3xl font-semibold"><Trans>Your music starts here</Trans></h2>
+      <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-[--tsugi-muted]">
+        <Trans>Connect a music source to browse albums, playlists and tracks.</Trans>
+      </p>
+      <button type="button" className="tsugi-primary-action mt-8 inline-flex items-center gap-2"
+        onClick={onConfigure}><FiSettings aria-hidden /><Trans>Manage music sources</Trans></button>
+    </section>
   );
+
   return (
-    <section aria-label={t`Music discovery`} className="space-y-10">
-      <header className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-200/70">
-          <Trans>Explore</Trans>
-        </p>
-        <h2 className="text-3xl font-semibold tracking-tight">{source.manifest.name}</h2>
-        <p className="text-sm text-white/45">
-          <Trans>Albums, playlists and songs from your connected music source.</Trans>
-        </p>
+    <section aria-label={t`Music discovery`} className="tsugi-hub space-y-14">
+      <header className="flex flex-wrap items-end justify-between gap-5">
+        <div>
+          <p className="tsugi-eyebrow"><Trans>Listen</Trans></p>
+          <h2 className="mt-2 text-[clamp(2rem,4vw,4rem)] font-semibold tracking-[-.05em]">
+            <Trans>Discover</Trans>
+          </h2>
+        </div>
+        <span className="text-xs text-[--tsugi-muted]">{source.manifest.name}</span>
       </header>
-      {loading && <p role="status" className="text-white/55"><Trans>Loading music…</Trans></p>}
+
+      {loading && <p role="status" className="text-sm text-[--tsugi-muted]"><Trans>Loading music…</Trans></p>}
       {error && <p role="alert" className="text-sm text-amber-200">{error}</p>}
+
+      {featured && featuredRow && (
+        <section className="tsugi-hub-feature relative grid min-h-[310px] overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(230px,37%)]"
+          aria-label={t`Featured music`}>
+          <div className="relative z-10 flex min-w-0 flex-col justify-end px-3 py-8 sm:px-7 lg:py-12">
+            <span className="tsugi-eyebrow"><Trans>Featured from your source</Trans></span>
+            <h3 className="mt-5 line-clamp-2 text-[clamp(2.4rem,4vw,5rem)] font-semibold leading-tight tracking-[-.06em]">
+              {featured.title}
+            </h3>
+            <p className="mt-3 truncate text-sm text-[--tsugi-muted]">{featured.artist ?? featured.album ?? featuredRow.catalog.name}</p>
+            <button type="button" className="tsugi-primary-action mt-8 inline-flex w-fit items-center gap-2"
+              onClick={() => openCatalogItem(featuredRow, featured)}>
+              {featured.type === 'track' ? <FiPlay aria-hidden /> : <FiArrowUpRight aria-hidden />}
+              {featured.type === 'track' ? <Trans>Play</Trans> : <Trans>Explore</Trans>}
+            </button>
+          </div>
+          {featured.artworkURL && (
+            <div className="tsugi-hub-feature-art relative overflow-hidden">
+              <img src={featured.artworkURL} alt="" draggable={false} loading="eager"
+                referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+            </div>
+          )}
+        </section>
+      )}
+
+      {recentFromSource.length > 0 && (
+        <section aria-label={t`Recently played`}>
+          <div className="mb-5 flex items-center justify-between gap-4">
+            <h3 className="text-2xl font-semibold"><Trans>Recently played</Trans></h3>
+            <span className="text-xs text-[--tsugi-muted]"><Trans>Your rotation</Trans></span>
+          </div>
+          <div className="tsugi-music-shelf flex gap-5 overflow-x-auto pb-5">
+            {recentFromSource.slice(0, 12).map((item) => (
+              <button type="button" key={item.sourceId + ':' + item.track.id}
+                onClick={() => onPlayRecent(item)} className="tsugi-music-tile group w-40 shrink-0 text-left sm:w-44">
+                <Cover src={item.track.artworkURL} />
+                <span className="mt-3 block truncate text-sm font-medium">{item.track.title}</span>
+                <span className="mt-1 block truncate text-xs text-[--tsugi-muted]">{item.track.artist}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {!loading && !error && !hasCatalog && (
-        <p className="rounded-xl border border-white/10 bg-white/[0.03] p-7 text-sm text-white/50">
+        <p className="text-sm text-[--tsugi-muted]">
           <Trans>This addon does not publish shelves. Explore independent charts below or use Search.</Trans>
         </p>
       )}
+
       {shelves.map((row) => (
-        <section key={row.catalog.id} className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold">{row.catalog.name}</h3>
-            <span className="text-xs uppercase tracking-wider text-white/35">{row.catalog.type}</span>
+        <section key={row.catalog.id} className="tsugi-catalog-lane">
+          <div className="mb-5 flex items-baseline justify-between gap-4">
+            <h3 className="text-2xl font-semibold tracking-tight">{row.catalog.name}</h3>
+            <span className="text-xs uppercase tracking-widest text-[--tsugi-muted]">{row.catalog.type}</span>
           </div>
-          {row.unavailable && <p className="text-sm text-white/50"><Trans>This shelf is temporarily unavailable.</Trans></p>}
+          {row.unavailable && <p className="text-sm text-[--tsugi-muted]"><Trans>This shelf is temporarily unavailable.</Trans></p>}
           {row.items.length > 0 && (
-            <div className="flex snap-x gap-4 overflow-x-auto pb-5">
+            <div className="tsugi-music-shelf flex snap-x gap-5 overflow-x-auto pb-6">
               {row.items.map((item, index) => (
                 <button key={item.id + ':' + index} type="button"
-                  onClick={() => {
-                    if (item.type === 'track') {
-                      const songs = row.items.filter((entry) => entry.type === 'track').map(catalogTrack);
-                      onPlay(source, songs, index);
-                    } else setSelected(item);
-                  }}
-                  className="group w-40 shrink-0 snap-start text-left sm:w-44">
+                  onClick={() => openCatalogItem(row, item)}
+                  className="tsugi-music-tile group w-40 shrink-0 snap-start text-left sm:w-48">
                   <Cover src={item.artworkURL} />
-                  <span className="mt-3 block truncate text-sm font-semibold">{item.title}</span>
-                  <span className="mt-1 block truncate text-xs text-white/45">{item.artist ?? item.album ?? ''}</span>
+                  <span className="mt-3 block truncate text-sm font-medium">{item.title}</span>
+                  <span className="mt-1 block truncate text-xs text-[--tsugi-muted]">{item.artist ?? item.album ?? ''}</span>
                 </button>
               ))}
             </div>
           )}
         </section>
       ))}
+
       <MusicCharts onFind={onFind} />
       <MusicCollection source={source} selected={selected}
         onClose={() => setSelected(null)} onPlay={onPlay} />
