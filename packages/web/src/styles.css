@@ -636,9 +636,8 @@ html[data-blur-spoilers]:not([data-tv])
 }
 
 
-/* TSUGI / DESKTOP
-   Material hierarchy: opaque reading surfaces, translucent floating controls,
-   soft radii only where they clarify groups. No backdrop-filter on art grids. */
+/* TSUGI / DESKTOP — a borderless listening space.
+   Native video UI and mobile/browser shells retain their own styling. */
 :root[data-host='desktop'] {
   --tsugi-canvas: #11111b;
   --tsugi-surface: #181825;
@@ -686,20 +685,15 @@ html[data-blur-spoilers]:not([data-tv])
   --tsugi-wash: rgb(179 201 201 / 8%);
   --tsugi-glass: rgb(24 29 30 / 85%);
 }
+:root[data-host='desktop']:not(.playing) body {
+  font-family: Inter, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: var(--tsugi-canvas);
+}
 :root[data-host='desktop'] [data-page='desktop-landing'],
 :root[data-host='desktop'] [data-page='music'] {
   background: var(--tsugi-canvas);
   color: var(--tsugi-ink);
-}
-:root[data-host='desktop']:not(.playing) body {
-  font-family: Inter, 'Helvetica Neue', Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
-/* Restore restrained rounding, replacing the previous blanket 0-radius override.
-   Media playback's native controls and user-selected video themes are untouched. */
-:root[data-host='desktop'] :where([data-page='music'],[data-page='desktop-landing'])
-:is(button, input:not([type='range']), select, textarea) {
-  border-radius: 12px;
 }
 :root[data-host='desktop'] :where([data-page='music'],[data-page='desktop-landing'])
 :where(button, a, input, select):focus-visible {
@@ -708,176 +702,190 @@ html[data-blur-spoilers]:not([data-tv])
 }
 :root[data-host='desktop'] :where([data-page='music'],[data-page='desktop-landing'])
 :where(h1,h2,h3) { letter-spacing: -.035em; }
-:root[data-host='desktop'] [data-ui='sidebar-logo'] svg {
-  max-width: 40px; max-height: 40px;
-}
-/* Native window stays frameless and draggable. A translucent title rail erases
-   the unrelated black strip without eating hit targets or button events. */
-.tsugi-chrome-wash {
-  position: fixed;
-  z-index: 9998;
-  inset: 0 0 auto;
-  height: 40px;
-  pointer-events: none;
-  background: linear-gradient(180deg,var(--tsugi-glass),transparent 120%);
-  border-bottom: 1px solid var(--tsugi-line);
-  backdrop-filter: blur(16px) saturate(115%);
-  -webkit-backdrop-filter: blur(16px) saturate(115%);
-}
+
+/* Remove previous fake window stripe. The actual native hit-testing remains intact. */
+.tsugi-chrome-wash { display: none !important; }
 :root[data-host='desktop'] [data-ui='window-controls'] button {
-  border-radius: 9px;
+  background: transparent;
+  border-radius: 0;
 }
-/* Landing: atmosphere lives behind content. Cards remain readable on matte black. */
-.tsugi-landing {
-  isolation: isolate;
-  background: var(--tsugi-canvas) !important;
-}
+
+/* Gate: centered Japanese mark, quiet choices, no entry cards or separators. */
+.tsugi-landing { isolation: isolate; background: var(--tsugi-canvas) !important; }
 .tsugi-landing-atmosphere {
   z-index: -1;
   background:
-    radial-gradient(ellipse 42% 34% at 75% 22%, var(--tsugi-wash),transparent 88%),
-    radial-gradient(ellipse 32% 26% at 11% 83%, var(--tsugi-wash),transparent 95%);
-  opacity: .8;
+    radial-gradient(ellipse 42% 38% at 50% 49%,var(--tsugi-wash),transparent 93%),
+    radial-gradient(ellipse 50% 40% at 15% 92%,var(--tsugi-wash),transparent 97%);
+  opacity: .7;
 }
-.tsugi-eyebrow {
-  color: var(--tsugi-accent);
-  font-size: .68rem;
-  font-weight: 600;
-  letter-spacing: .22em;
-  text-transform: uppercase;
+.tsugi-gateway-mark svg {
+  height: clamp(100px,13vw,200px);
+  width: clamp(100px,13vw,200px);
+  filter: drop-shadow(0 12px 32px rgb(0 0 0 / 18%));
 }
-.tsugi-theme-menu select,
-.tsugi-player-select {
-  color: var(--tsugi-ink);
-  background: var(--tsugi-glass);
-  border: 1px solid var(--tsugi-line);
-  border-radius: 11px;
-  min-height: 38px;
-  padding: 8px 12px;
+.tsugi-gateway-nav { width: 100%; }
+.tsugi-gateway-link {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  min-height:118px;
+  padding: 18px 6px;
+  text-align:left;
+  color:var(--tsugi-ink);
+  background:transparent;
+  position:relative;
+  transition: color .18s ease, transform .18s ease;
 }
-.tsugi-entry-card {
-  background: var(--tsugi-glass);
-  border: 1px solid var(--tsugi-line);
-  border-radius: 22px;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%), 0 16px 42px rgb(0 0 0 / 8%);
-  color: var(--tsugi-ink);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  transition: background .22s ease, box-shadow .22s ease, transform .22s ease;
-}
-.tsugi-entry-card::after {
-  content: '';
-  position: absolute;
-  height: 1px;
-  left: 28px;
-  right: 28px;
-  bottom: 0;
-  opacity: .55;
-  background: linear-gradient(90deg,transparent,var(--tsugi-accent),transparent);
-}
-.tsugi-entry-card:hover {
-  background: color-mix(in srgb,var(--tsugi-panel) 89%,var(--tsugi-accent));
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%), 0 22px 50px rgb(0 0 0 / 20%);
-  transform: translateY(-2px);
-}
-.tsugi-entry-index {
-  color: var(--tsugi-muted);
-  font-size: .7rem;
-  letter-spacing: .15em;
-  text-transform: uppercase;
-}
-.tsugi-entry-index-one::before { content: '01 / '; }
-.tsugi-entry-index-two::before { content: '02 / '; }
-.tsugi-entry-action {
-  border: 1px solid var(--tsugi-line);
-  border-radius: 50%;
-  color: var(--tsugi-accent);
-  background: rgb(255 255 255 / 3%);
-  transition: background .2s ease, transform .2s ease;
-}
-.tsugi-entry-card:hover .tsugi-entry-action {
-  background: var(--tsugi-wash);
-  transform: translate(2px,-2px);
-}
-.tsugi-landing-join { position:relative; }
-.tsugi-join-orbit {
+.tsugi-gateway-link::before {
+  content:'';
   position:absolute;
-  width:208px; height:208px;
-  border:1px solid var(--tsugi-line);
-  border-radius:50%;
-  transform:rotate(-28deg);
+  inset:0 0 auto;
+  height:1px;
+  opacity:.45;
+  background:linear-gradient(90deg,var(--tsugi-accent),transparent 70%);
 }
-.tsugi-join-orbit-two { width:152px; height:152px; transform:translate(24px,6px) rotate(34deg); }
-.tsugi-join-center {
-  z-index:1;
-  color:var(--tsugi-accent);
-  opacity:.86;
-}
-.tsugi-join-center svg { width:5rem; height:5rem; }
-/* Music: integrated header, aligned controls, no decorative floating note. */
-.tsugi-music-root { background:var(--tsugi-canvas) !important; color:var(--tsugi-ink) !important; }
-.tsugi-music-header {
-  padding:30px 32px;
-  border:1px solid var(--tsugi-line);
-  border-radius:22px;
-  background:
-    radial-gradient(ellipse at 87% 14%,var(--tsugi-wash),transparent 55%),
-    var(--tsugi-panel);
-}
-.tsugi-music-tabs {
-  background:var(--tsugi-surface);
-  border:1px solid var(--tsugi-line);
-  border-radius:14px;
-  padding:4px;
+.tsugi-gateway-link:hover { color:var(--tsugi-accent); transform:translateY(-2px); }
+
+/* Reusable discreet controls; settings are the only intentional panel surface. */
+.tsugi-icon-action {
   display:inline-flex;
-  gap:4px;
-}
-.tsugi-music-tabs [role='tab'] {
-  border-radius:10px;
-  font-size:.84rem;
-  transition:background .18s ease, color .18s ease;
-}
-.tsugi-music-tabs [role='tab'][aria-selected='true'] {
-  color:var(--tsugi-canvas);
-  background:var(--tsugi-accent);
-}
-.tsugi-music-tabs [role='tab'][aria-selected='false'] {
+  width:42px; height:42px;
+  justify-content:center;
+  align-items:center;
   color:var(--tsugi-muted);
   background:transparent;
+  border-radius:50%;
+  cursor:pointer;
+  transition: color .16s ease, background .16s ease;
 }
-.tsugi-source-select {
+.tsugi-icon-action:hover { color:var(--tsugi-ink); background:var(--tsugi-wash); }
+.tsugi-overflow { position:relative; }
+.tsugi-overflow summary { list-style:none; }
+.tsugi-overflow summary::-webkit-details-marker { display:none; }
+.tsugi-overflow-panel {
+  position:absolute;
+  z-index:40;
+  top:calc(100% + 8px);
+  right:0;
+  width:220px;
+  padding:20px;
+  background:var(--tsugi-panel);
+  border:1px solid var(--tsugi-line);
+  box-shadow:0 18px 50px rgb(0 0 0 / 38%);
+}
+.tsugi-menu-select {
+  background:var(--tsugi-surface);
   color:var(--tsugi-ink);
   border:1px solid var(--tsugi-line);
-  background:var(--tsugi-panel);
-  border-radius:12px;
+  padding:10px 12px;
+  min-height:42px;
+  border-radius:5px;
 }
-.tsugi-music-root [data-ui='music-track-row'] {
-  border:1px solid transparent;
-  border-bottom:1px solid var(--tsugi-line);
-  border-radius:11px;
+.tsugi-primary-action {
+  color:var(--tsugi-ink);
+  font-weight:600;
+  padding:10px 0;
   background:transparent;
-  transition:background .16s ease, border-color .16s ease;
+  border-bottom:2px solid var(--tsugi-accent);
 }
-.tsugi-music-root [data-ui='music-track-row']:hover {
-  background:rgb(255 255 255 / 4%);
-  border-color:var(--tsugi-line);
+.tsugi-primary-action:hover { color:var(--tsugi-accent); }
+.tsugi-settings-backdrop {
+  background:rgb(0 0 0 / 65%);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
 }
-.tsugi-music-root img { border-radius:10px; }
-.tsugi-music-root .tsugi-discover-card {
-  border-radius:16px;
-  background:var(--tsugi-surface);
-  border:1px solid var(--tsugi-line);
+.tsugi-settings-sheet {
+  background:var(--tsugi-panel);
+  color:var(--tsugi-ink);
+  box-shadow:-24px 0 72px rgb(0 0 0 / 36%);
 }
-/* Floating player dock: a single material layer; no second black bar. */
+.tsugi-settings-sheet input:not([type='checkbox']),
+.tsugi-settings-sheet select { border-radius:5px; }
+.tsugi-settings-sheet :where(article,section) { background:transparent; }
+
+/* Music uses the full window: album art and spacing form the hierarchy. */
+.tsugi-music-root {
+  background:var(--tsugi-canvas) !important;
+  color:var(--tsugi-ink) !important;
+}
+.tsugi-music-top { min-height:52px; }
+.tsugi-brand-action { text-align:left; }
+.tsugi-music-navigation { color:var(--tsugi-muted); }
+.tsugi-music-navigation button {
+  padding:5px 0;
+  color:var(--tsugi-muted);
+  font-size:.95rem;
+  font-weight:500;
+  transition:color .16s ease;
+}
+.tsugi-music-navigation button[aria-current='page'] {
+  color:var(--tsugi-accent);
+  font-weight:650;
+}
+.tsugi-music-navigation button:hover { color:var(--tsugi-ink); }
+.tsugi-eyebrow {
+  color:var(--tsugi-accent);
+  font-size:.7rem;
+  font-weight:600;
+  letter-spacing:.19em;
+  text-transform:uppercase;
+}
+.tsugi-hub-feature {
+  background:linear-gradient(100deg,var(--tsugi-surface),var(--tsugi-canvas));
+  min-height:330px;
+}
+.tsugi-hub-feature-art {
+  -webkit-mask-image:linear-gradient(to right,transparent 0%,black 42%);
+  mask-image:linear-gradient(to right,transparent 0%,black 42%);
+}
+.tsugi-hub-feature-art img { object-position:center 38%; }
+.tsugi-hub-feature::after {
+  content:'';
+  pointer-events:none;
+  position:absolute;
+  inset:auto 0 0;
+  height:1px;
+  background:linear-gradient(90deg,var(--tsugi-line),transparent);
+}
+.tsugi-music-shelf { scrollbar-width:thin; scrollbar-color:var(--tsugi-line) transparent; }
+.tsugi-music-tile { color:var(--tsugi-ink); }
+.tsugi-music-tile img {
+  border-radius:6px;
+  border:0;
+  transition:transform .23s ease,filter .23s ease;
+}
+.tsugi-music-tile:hover img { transform:translateY(-3px); filter:brightness(1.09); }
+.tsugi-hub :where(.tsugi-catalog-lane) { min-width:0; }
+.tsugi-music-root img { border-radius:6px; }
+.tsugi-music-root [data-ui='music-track-row'] {
+  border:0;
+  border-bottom:1px solid var(--tsugi-line);
+  border-radius:0;
+  background:transparent;
+  transition:background .14s ease;
+}
+.tsugi-music-root [data-ui='music-track-row']:hover { background:rgb(255 255 255 / 3%); }
+.tsugi-music-root .tsugi-discover-card,
+.tsugi-hub :where(.tsugi-discover-card) {
+  border:0;
+  border-radius:0;
+  background:transparent;
+}
+.tsugi-hub-empty { color:var(--tsugi-ink); }
+
+/* An edge-to-edge music dock; no floating box around the whole player. */
 .tsugi-mini-player {
   background:var(--tsugi-glass) !important;
   color:var(--tsugi-ink);
-  border:1px solid var(--tsugi-line);
-  border-radius:19px;
-  box-shadow:0 12px 48px rgb(0 0 0 / 35%), inset 0 1px 0 rgb(255 255 255 / 5%);
-  backdrop-filter: blur(26px) saturate(130%);
-  -webkit-backdrop-filter: blur(26px) saturate(130%);
+  border:0;
+  border-top:1px solid var(--tsugi-line) !important;
+  border-radius:0;
+  box-shadow:0 -16px 42px rgb(0 0 0 / 16%);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
 }
+.tsugi-mini-player img { border-radius:5px; }
 .tsugi-control {
   color:var(--tsugi-muted);
   border-radius:50%;
@@ -890,87 +898,69 @@ html[data-blur-spoilers]:not([data-tv])
   border-radius:50%;
   background:var(--tsugi-accent);
   color:var(--tsugi-canvas);
-  box-shadow:0 4px 24px var(--tsugi-wash);
   transition:filter .15s ease, transform .15s ease;
 }
-.tsugi-play-toggle:hover { filter:brightness(1.09); }
+.tsugi-play-toggle:hover { filter:brightness(1.08); }
 .tsugi-play-toggle:active { transform:scale(.96); }
-.tsugi-range {
-  -webkit-appearance:none; appearance:none;
-  height:4px; padding:0;
-  border:0; border-radius:999px;
-  background:rgb(255 255 255 / 16%);
-  cursor:pointer;
+.tsugi-wave-seeker:focus-within {
+  outline:2px solid var(--tsugi-accent);
+  outline-offset:2px;
+  border-radius:4px;
 }
-.tsugi-range::-webkit-slider-thumb {
-  -webkit-appearance:none; appearance:none;
-  width:12px; height:12px; border:0; border-radius:50%;
-  background:var(--tsugi-ink);
-  box-shadow:0 0 0 3px rgb(255 255 255 / 6%);
+.tsugi-wave-input { opacity:0.001; }
+.tsugi-wave-art { display:block; }
+.tsugi-wave-live {
+  animation:tsugi-wave-flow 1.65s linear infinite;
+  transform-box:fill-box;
+  will-change:transform;
 }
-.tsugi-range::-moz-range-thumb {
-  width:12px; height:12px; border:0; border-radius:50%;
-  background:var(--tsugi-ink);
+@keyframes tsugi-wave-flow {
+  from { transform:translateX(0); }
+  to { transform:translateX(-32px); }
 }
+
+/* Expanded listening: only two overlay actions until the user opens settings. */
 .tsugi-player-dialog {
   color:var(--tsugi-ink) !important;
   background:var(--tsugi-canvas) !important;
   isolation:isolate;
 }
 .tsugi-player-ambient {
-  position:fixed; inset:0; z-index:-1; pointer-events:none;
-  background:
-    radial-gradient(ellipse 48% 46% at 17% 48%,var(--tsugi-wash),transparent 95%),
-    linear-gradient(to bottom,var(--tsugi-surface),var(--tsugi-canvas) 36%);
-  opacity:.68;
+  position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(ellipse 51% 47% at 25% 48%,var(--tsugi-wash),transparent 100%);
+  opacity:.58;
 }
-.tsugi-player-toolbar {
-  border:1px solid var(--tsugi-line);
-  border-radius:18px;
-  background:var(--tsugi-glass);
-  padding:12px 18px;
-  backdrop-filter:blur(20px);
-  -webkit-backdrop-filter:blur(20px);
-}
-.tsugi-junction-art {
-  border-radius:21px;
-  box-shadow:0 20px 76px rgb(0 0 0 / 36%);
-}
-.tsugi-junction-art-glow {
-  border-radius:35%;
-  filter:blur(54px);
-  opacity:.2;
-  transform:scale(.9);
-}
+.tsugi-player-hud { color:var(--tsugi-ink); background:transparent; }
+.tsugi-junction-art { border-radius:8px; box-shadow:0 24px 70px rgb(0 0 0 / 25%); }
+.tsugi-junction-art-glow { border-radius:35%; filter:blur(54px); opacity:.16; transform:scale(.9); }
 .tsugi-junction-secondary {
-  border:1px solid var(--tsugi-line);
-  border-radius:15px;
-  background:var(--tsugi-glass);
+  border:0;
+  border-top:1px solid var(--tsugi-line);
+  border-radius:0;
+  background:transparent;
 }
-.tsugi-studio-artwork { border-radius:14px; }
+.tsugi-studio-artwork { border-radius:7px; }
 .tsugi-player-dialog [data-ui='tsugi-studio-stage'] {
   border:0; background:transparent; box-shadow:none;
 }
-.tsugi-player-dialog [data-ui='tsugi-studio-stage'] button {
-  border-radius:12px;
-  transition:background .15s ease;
-}
+.tsugi-player-dialog [data-ui='tsugi-studio-stage'] button { transition:background .15s ease; }
 .tsugi-player-dialog [data-ui='tsugi-studio-stage'] input[type='range'] {accent-color:var(--tsugi-accent);}
 .tsugi-player-dialog [data-ui='tsugi-studio-stage'] [aria-pressed='true'] {color:var(--tsugi-accent);}
 @media (max-width:760px) {
-  .tsugi-music-header {padding:24px;}
-  .tsugi-player-toolbar {border-radius:15px;padding:12px;}
-  .tsugi-mini-player {left:8px;right:8px;bottom:8px;border-radius:16px;}
-  .tsugi-landing-join {display:none;}
+  .tsugi-hub-feature { min-height:270px; }
+  .tsugi-hub-feature-art { opacity:.42;position:absolute;inset:0; }
+  .tsugi-mini-player { padding-bottom:env(safe-area-inset-bottom); }
+  .tsugi-gateway-link { min-height:100px; }
 }
 @media (prefers-reduced-motion:reduce) {
-  .tsugi-entry-card,.tsugi-control,.tsugi-play-toggle {
+  .tsugi-wave-live { animation:none; will-change:auto; }
+  .tsugi-gateway-link,.tsugi-control,.tsugi-play-toggle,.tsugi-music-tile img {
     transition-duration:.01ms;
   }
 }
 @media (prefers-reduced-transparency:reduce) {
-  .tsugi-mini-player,.tsugi-player-toolbar,.tsugi-entry-card,.tsugi-chrome-wash {
-    backdrop-filter:none; -webkit-backdrop-filter:none;
-    background:var(--tsugi-panel) !important;
+  .tsugi-mini-player,.tsugi-settings-backdrop {
+    backdrop-filter:none;-webkit-backdrop-filter:none;
   }
+  .tsugi-mini-player {background:var(--tsugi-panel) !important;}
 }
