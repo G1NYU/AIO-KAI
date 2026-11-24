@@ -4,7 +4,7 @@ import { Trans } from '@lingui/react/macro';
 import {
   BiChevronDown, BiDisc, BiListUl, BiPause, BiPlay, BiVolumeFull,
 } from 'react-icons/bi';
-import { FiExpand, FiRepeat, FiShuffle, FiSkipBack, FiSkipForward, FiVolume2 } from 'react-icons/fi';
+import { FiMaximize2, FiRepeat, FiShuffle, FiSkipBack, FiSkipForward, FiVolume2 } from 'react-icons/fi';
 import type { EclipseTrack } from '@/lib/music/eclipse';
 import { parsePlayerTemplate } from '@/lib/music/player-template';
 import { readPlayerStage, savePlayerStage, type PlayerStageId } from '@/lib/music/player-layout';
@@ -204,7 +204,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                 style={{background:`linear-gradient(to right, ${palette.accent} ${p.volume*100}%, rgba(255,255,255,.16) ${p.volume*100}%)`}} className="tsugi-range w-16 lg:w-24" />
             </div>
             <button type="button" onClick={() => p.onExpanded(true)} aria-label={t`Expand player`}
-              className={buttonClass}><FiExpand aria-hidden className="text-xl" /></button>
+              className={buttonClass}><FiMaximize2 aria-hidden className="text-xl" /></button>
           </div>
         </div>
         {(p.loading || p.error) && (
