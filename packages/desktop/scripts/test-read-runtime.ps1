@@ -13,6 +13,7 @@ $data = Join-Path ([IO.Path]::GetTempPath()) ('tsugi-read-smoke-' + [Guid]::NewG
 New-Item -ItemType Directory -Path $data | Out-Null
 $process = $null
 $listener = $null
+$client = $null
 try {
     $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
     $listener.Start()
@@ -49,34 +50,80 @@ server.globalUpdateInterval = 0
         -RedirectStandardOutput (Join-Path $data 'stdout.txt') `
         -RedirectStandardError (Join-Path $data 'stderr.txt')
     $url = "http://127.0.0.1:$port/api/graphql"
-    $auth = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("${user}:$password"))
-    $headers = @{ Authorization = $auth }
+    # Use a direct, no-proxy HttpClient for this fixed loopback endpoint.
+    # Avoid PowerShell web cmdlet auth policy and never follow redirects.
+    $handler = [Net.Http.HttpClientHandler]::new()
+    $handler.UseProxy = $false
+    $handler.AllowAutoRedirect = $false
+    $handler.UseCookies = $false
+    $client = [Net.Http.HttpClient]::new($handler)
+    $client.Timeout = [TimeSpan]::FromSeconds(5)
+    $auth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("${user}:$password"))
     $query = @{ query = 'query TsugiSmoke { aboutServer { version } sources(first: 1) { nodes { id name lang } } }' } | ConvertTo-Json -Compress
+    function Invoke-ReadingProbe([bool]$Authenticated) {
+        $request = [Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Post, $url)
+        try {
+            $request.Content = [Net.Http.StringContent]::new($query, [Text.Encoding]::UTF8, 'application/json')
+            if ($Authenticated) {
+                $request.Headers.Authorization = [Net.Http.Headers.AuthenticationHeaderValue]::new('Basic', $auth)
+            }
+            $response = $client.SendAsync($request).GetAwaiter().GetResult()
+            try {
+                $status = [int]$response.StatusCode
+                $body = $null
+                if ($status -eq 200) {
+                    $body = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
+                }
+                return @{ Status = $status; Body = $body }
+            } finally { $response.Dispose() }
+        } finally { $request.Dispose() }
+    }
     $deadline = [DateTime]::UtcNow.AddMinutes(3)
     $ready = $false
+    $last = 'No HTTP response'
+    $lastPrinted = ''
     while ([DateTime]::UtcNow -lt $deadline) {
         $process.Refresh()
-        if ($process.HasExited) { throw 'Reading server exited during startup' }
+        if ($process.HasExited) { throw "Reading server exited during startup (exit $($process.ExitCode))" }
         try {
-            $result = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -ContentType 'application/json' -Body $query -TimeoutSec 3 -MaximumRedirection 0
-            if ($result.data.aboutServer.version -and $null -ne $result.data.sources -and -not $result.errors) {
-                $ready = $true
-                break
+            $result = Invoke-ReadingProbe $true
+            $last = "HTTP $($result.Status)"
+            if ($result.Status -eq 200) {
+                $body = $result.Body
+                if ($body.errors) {
+                    $last += ': GraphQL errors (' + @($body.errors).Count + ')'
+                } elseif ($body.data.aboutServer.version -and $null -ne $body.data.sources) {
+                    $ready = $true
+                    break
+                } else {
+                    $last += ': expected fields missing'
+                }
             }
         } catch {
-            # Startup probe only; never output raw responses, logs or credentials.
+            $last = 'Probe exception: ' + $_.Exception.GetBaseException().GetType().Name
+        }
+        if ($last -ne $lastPrinted) {
+            Write-Host "Reading startup: $last"
+            $lastPrinted = $last
         }
         Start-Sleep -Seconds 2
     }
-    if (-not $ready) { throw 'Authenticated reading GraphQL startup probe failed' }
-    if ([string]$result.data.aboutServer.version -notmatch '^2\.4\.2373$') {
+    if (-not $ready) {
+        $portBound = @(Get-NetTCPConnection -OwningProcess $process.Id -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalAddress -eq '127.0.0.1' -and $_.LocalPort -eq $port }).Count -gt 0
+        # Classify only fixed startup markers; no raw server output, paths, or auth data.
+        $logText = ((Get-Content -LiteralPath (Join-Path $data 'stdout.txt') -ErrorAction SilentlyContinue) + (Get-Content -LiteralPath (Join-Path $data 'stderr.txt') -ErrorAction SilentlyContinue)) -join "`n"
+        foreach ($marker in @('BindException', 'UnsupportedClassVersionError', 'NoClassDefFoundError', 'OutOfMemoryError', 'ConfigException', 'SQLException', 'ExceptionInInitializerError', 'Javalin started')) {
+            if ($logText.Contains($marker)) { Write-Host "Reading startup marker: $marker" }
+        }
+        throw "Authenticated reading GraphQL startup probe failed ($last; loopback port bound: $portBound)"
+    }
+    if ([string]$result.Body.data.aboutServer.version -notmatch '^2\.4\.2373$') {
         throw 'Unexpected reading server version'
     }
-    $unauthorized = Invoke-WebRequest -Uri $url -Method Post -ContentType 'application/json' -Body $query -TimeoutSec 5 -MaximumRedirection 0 -SkipHttpErrorCheck
-    if ($unauthorized.StatusCode -eq 200) {
-        $body = $unauthorized.Content | ConvertFrom-Json
-        if ($null -ne $body.data.sources) { throw 'Protected source query accepted unauthenticated access' }
-    } elseif ($unauthorized.StatusCode -notin @(401, 403)) {
+    $unauthorized = Invoke-ReadingProbe $false
+    if ($unauthorized.Status -eq 200) {
+        if ($null -ne $unauthorized.Body.data.sources) { throw 'Protected source query accepted unauthenticated access' }
+    } elseif ($unauthorized.Status -notin @(401, 403)) {
         throw 'Unexpected unauthenticated reading response'
     }
     $bound = @(Get-NetTCPConnection -OwningProcess $process.Id -State Listen -ErrorAction SilentlyContinue)
@@ -86,6 +133,7 @@ server.globalUpdateInterval = 0
     }
     Write-Host 'PASS: bundled Java, pinned Suwayomi version, authenticated GraphQL sources, anonymous rejection, loopback-only binding.'
 } finally {
+    if ($client) { $client.Dispose() }
     if ($listener) { $listener.Stop() }
     if ($process) {
         $process.Refresh()
