@@ -37,7 +37,14 @@ try {
         let error = null;
         switch (a.kind) {
           case 'library': data = nodes([manga]); break;
-          case 'trackers': data = nodes([{ id: 1, name: 'MyAnimeList', isLoggedIn: false, supportsReadingDates: true, supportsPrivateTracking: false }]); break;
+          case 'trackers': data = nodes([{ id: 1, name: 'MyAnimeList', isLoggedIn: !!state.trackerConnected, supportsReadingDates: true, supportsPrivateTracking: false }]); break;
+          case 'tracker-login': state.trackerConnected = true; data = { isLoggedIn: true }; break;
+          case 'tracker-logout': state.trackerConnected = false; data = { isLoggedIn: false }; break;
+          case 'track-records': data = nodes(state.trackRecord ? [state.trackRecord] : []); break;
+          case 'tracker-search': data = { trackSearches: [{ remoteId: '44', title: 'Original tracker match', totalChapters: 2, publishingType: 'Manga', publishingStatus: 'Finished', startDate: '2025' }] }; break;
+          case 'tracker-bind': state.trackRecord = { id: 91, trackerId: 1, title: 'Original tracker match', lastChapterRead: 0, totalChapters: 2 }; data = { trackRecord: state.trackRecord }; break;
+          case 'tracker-sync': state.trackRecord.lastChapterRead = 1; data = { trackRecords: [state.trackRecord] }; break;
+          case 'tracker-unbind': state.trackRecord = null; data = { clientMutationId: null }; break;
           case 'chapter-flags': data = { chapters: chapters.filter((chapter) => a.ids.includes(chapter.id)).map((chapter) => { if (typeof a.read === 'boolean') { chapter.isRead = a.read; if (!a.read) chapter.lastPageRead = 0; } if (typeof a.bookmarked === 'boolean') chapter.isBookmarked = a.bookmarked; return { id: chapter.id, isRead: chapter.isRead, isBookmarked: !!chapter.isBookmarked, lastPageRead: chapter.lastPageRead }; }) }; break;
           case 'stores': data = nodes(state.stores); break;
           case 'add-store': state.stores.push({ name: 'Original fixture store', indexUrl: a.index }); data = { ok: true }; break;
@@ -87,6 +94,8 @@ try {
   await rail.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: /Trackers See tracking services/ }).click();
   await page.getByText('MyAnimeList', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Connect', exact: true }).click();
+  await page.getByRole('button', { name: 'Disconnect', exact: true }).waitFor();
   await rail.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: /Browse Manage manga sources/ }).click();
   await page.getByRole('button', { name: /Sources Manage extension sources/ }).click();
@@ -112,6 +121,15 @@ try {
   await page.getByRole('checkbox', { name: 'Select chapter Chapter 1', exact: true }).check();
   await page.getByRole('button', { name: 'Mark unread', exact: true }).click();
   await page.waitForFunction(() => window.__readerFixture.requests.some((a) => a.kind === 'chapter-flags' && a.read === false && a.ids.includes(11)));
+  await page.getByRole('button', { name: 'Tracking', exact: true }).click();
+  await page.getByRole('button', { name: 'Load tracking', exact: true }).click();
+  await page.getByRole('button', { name: 'Search tracker', exact: true }).click();
+  await page.getByRole('button', { name: /Original tracker match/ }).click();
+  await page.getByRole('button', { name: 'Link selected series', exact: true }).click();
+  await page.getByRole('button', { name: 'Sync completed chapters', exact: true }).click();
+  await page.getByText(/Sync requested/).waitFor();
+  await page.getByRole('button', { name: 'Unlink', exact: true }).click();
+  await page.getByRole('button', { name: 'Search tracker', exact: true }).waitFor();
   await page.getByRole('button', { name: /Start or resume reading/ }).click();
   const reader = page.locator('.tsugi-chapter-reader');
   await reader.waitFor();

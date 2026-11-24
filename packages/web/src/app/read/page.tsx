@@ -7,6 +7,7 @@ import { useDesktopArea } from '@/lib/desktop-area';
 import { prepareReading, readRequest, readImage } from '@/lib/hosts/shell/reading';
 import { ChapterReader } from './chapter-reader';
 import { ReaderSettings } from './reader-settings';
+import { MangaTracking, type Tracker } from './tracking';
 import { readReaderPreferences, saveReaderPreferences } from './reader-preferences';
 import { chapterGroups, neighboringChapter, cleanSynopsis, type ReadingChapter as Chapter } from './reader-utils';
 
@@ -21,7 +22,6 @@ type Reader = { chapter: Chapter; count: number; index: number };
 type Tab = 'library' | 'browse' | 'settings';
 type BrowseTab = 'sources' | 'extensions' | 'search';
 type SettingsPage = 'browse' | 'sources' | 'repositories' | 'reader' | 'trackers' | null;
-type Tracker = { id: number; name: string; isLoggedIn: boolean; supportsReadingDates: boolean; supportsPrivateTracking: boolean };
 type SearchGroup = { source: Source; result?: Catalogue; error?: string };
 type Mode = 'popular' | 'latest' | 'search';
 
@@ -71,6 +71,7 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
   const [chapterState, setChapterState] = React.useState<'all' | 'unread' | 'read' | 'bookmarked'>('all');
   const [selectedChapters, setSelectedChapters] = React.useState<number[]>([]);
   const [trackers, setTrackers] = React.useState<Nodes<Tracker> | null>(null);
+  const [trackingOpen, setTrackingOpen] = React.useState(false);
   const [extensionFailures, setExtensionFailures] = React.useState<Record<string, string>>({});
   const active = React.useRef(true);
 
@@ -156,6 +157,7 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
     setBrowse({ source: selection, query: term, mode, page, result });
   }
   async function showManga(manga: Manga) {
+    setTrackingOpen(false);
     const id = Number(manga.id);
     if (!Number.isSafeInteger(id) || id < 1) throw new Error(t({ id: "Invalid manga identifier.", message: "Invalid manga identifier." }));
     setExpandedSynopsis(false);
@@ -265,9 +267,11 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
           <div className="my-5 flex flex-wrap gap-3">
             <button className="tsugi-read-action" disabled={busy} onClick={() => void run(async () => { const inLibrary = !details.manga.inLibrary; await readRequest({ kind: 'set-library', id: Number(details.manga.id), inLibrary }); setDetails({ ...details, manga: { ...details.manga, inLibrary } }); })}>{details.manga.inLibrary ? t({ id: "Remove from library", message: "Remove from library" }) : t({ id: "Add to library", message: "Add to library" })}</button>
             {details.chapters.length > 0 && <button className="tsugi-read-action" disabled={busy} onClick={() => void run(() => openChapter(firstChapter(details.chapters)!))}><FiBookOpen aria-hidden /><Trans id="Start or resume reading">Start or resume reading</Trans></button>}
+            <button className="tsugi-read-action" aria-expanded={trackingOpen} disabled={busy} onClick={() => setTrackingOpen(!trackingOpen)}><Trans id="Tracking">Tracking</Trans></button>
           </div>
         </div>
       </div>
+      {trackingOpen && <MangaTracking key={details.manga.id} mangaId={Number(details.manga.id)} title={details.manga.title} busy={busy} run={run} openAccounts={() => { switchTab('settings'); openSettings('trackers'); }} />}
       <div className="tsugi-reading-list-header"><h3 className="text-xl font-medium"><Trans id="Chapters">Chapters</Trans> <span className="text-sm text-[--tsugi-muted]">({chapterRows.length})</span></h3><div className="tsugi-reading-filters"><input className="tsugi-read-input" value={chapterFilter} onChange={(event) => setChapterFilter(event.target.value)} placeholder={t({ id: "Find a chapter", message: "Find a chapter" })} aria-label={t({ id: "Find a chapter", message: "Find a chapter" })} /><select className="tsugi-read-input" aria-label={t({ id: "Chapter status", message: "Chapter status" })} value={chapterState} onChange={(event) => setChapterState(event.target.value as typeof chapterState)}><option value="all"><Trans id="All chapters">All chapters</Trans></option><option value="unread"><Trans id="Unread">Unread</Trans></option><option value="read"><Trans id="Read">Read</Trans></option><option value="bookmarked"><Trans id="Bookmarked">Bookmarked</Trans></option></select><button className="tsugi-read-action" onClick={() => setChapterOrder(chapterOrder === 'asc' ? 'desc' : 'asc')}>{chapterOrder === 'asc' ? t({ id: "Oldest first", message: "Oldest first" }) : t({ id: "Newest first", message: "Newest first" })}</button></div></div>
       {!details.chapters.length && <p><Trans id="No chapters found.">No chapters found.</Trans></p>}
       {!chapterRows.length && details.chapters.length > 0 && <p className="py-6 text-[--tsugi-muted]"><Trans id="No chapters match your filters.">No chapters match your filters.</Trans></p>}
@@ -295,8 +299,9 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
         {settingsPage === null ? <div className="tsugi-reading-settings-index">{settingRow(t({ id: "Browse", message: "Browse" }), t({ id: "Manage manga sources and extensions.", message: "Manage manga sources and extensions." }), 'browse')}{settingRow(t({ id: "Reader", message: "Reader" }), t({ id: "Set the default reading layout, appearance and controls.", message: "Set the default reading layout, appearance and controls." }), 'reader')}{settingRow(t({ id: "Trackers", message: "Trackers" }), t({ id: "See tracking services available in the reading engine.", message: "See tracking services available in the reading engine." }), 'trackers')}</div>
           : settingsPage === 'trackers' ? <section className="tsugi-reading-settings-index">
               <h2 className="text-xl font-semibold"><Trans id="Trackers">Trackers</Trans></h2>
-              <p className="text-sm text-[--tsugi-muted]"><Trans id="Chapter progress is saved locally. External account linking and synchronization are not enabled in this build.">Chapter progress is saved locally. External account linking and synchronization are not enabled in this build.</Trans></p>
-              {trackers?.nodes.map((tracker) => <div key={tracker.id} className="tsugi-read-row"><span>{tracker.name}</span><span className="text-sm text-[--tsugi-muted]">{tracker.isLoggedIn ? t({ id: "Connected in reading engine", message: "Connected in reading engine" }) : t({ id: "Not connected", message: "Not connected" })}</span></div>)}
+              <p className="text-sm text-[--tsugi-muted]"><Trans id="Connect MyAnimeList or AniList in your browser. Link individual manga from their detail pages. Other providers are listed but not yet enabled for login.">Connect MyAnimeList or AniList in your browser. Link individual manga from their detail pages. Other providers are listed but not yet enabled for login.</Trans></p>
+              {trackers?.nodes.map((tracker) => <div key={tracker.id} className="tsugi-read-row"><span><strong className="block">{tracker.name}</strong><small className="text-[--tsugi-muted]">{tracker.isLoggedIn ? t({ id: "Connected in reading engine", message: "Connected in reading engine" }) : t({ id: "Not connected", message: "Not connected" })}</small></span>{[1, 2].includes(tracker.id) ? <button className="tsugi-read-action" disabled={busy} onClick={() => void run(async () => { await readRequest({ kind: tracker.isLoggedIn ? 'tracker-logout' : 'tracker-login', id: tracker.id }); setTrackers(await readRequest<Nodes<Tracker>>({ kind: 'trackers' })); })}>{tracker.isLoggedIn ? t({ id: "Disconnect", message: "Disconnect" }) : t({ id: "Connect", message: "Connect" })}</button> : <small className="text-[--tsugi-muted]"><Trans id="Login not enabled yet">Login not enabled yet</Trans></small>}</div>)}
+              {busy && <p className="text-sm text-[--tsugi-muted]" role="status"><Trans id="If connecting an account, complete authorization in your browser and return to Tsugi.">If connecting an account, complete authorization in your browser and return to Tsugi.</Trans></p>}
               <button className="tsugi-read-action self-start" disabled={busy} onClick={() => openSettings('trackers')}><Trans id="Refresh trackers">Refresh trackers</Trans></button>
             </section>
           : settingsPage === 'reader' ? <ReaderSettings value={readerPreferences} onChange={(value) => { setReaderPreferences(value); saveReaderPreferences(value); }} />
