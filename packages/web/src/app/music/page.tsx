@@ -1,7 +1,8 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { BiArrowBack, BiDisc, BiFilm, BiSearch } from 'react-icons/bi';
+import { BiDisc, BiSearch } from 'react-icons/bi';
+import { FiMenu, FiSearch, FiX, FiArrowUpRight } from 'react-icons/fi';
 import {
   loadAddon, loadStore, manifestUrlFor, resolveTrack, searchAddonAll,
   type EclipseCatalogItem, type EclipseStoreEntry, type EclipseTrack,
@@ -14,6 +15,7 @@ import { MusicPlayer, type RepeatMode } from './player';
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 import type { TrendingRecording } from '@/lib/music/discovery';
+import { makeRecentPlay, mergeRecentPlays, readRecentPlays, storeRecentPlays, type RecentMusicPlay } from '@/lib/music/history';
 
 /** Music lives outside the AIOStreams/Jellyfin session. */
 export function MusicPage({
@@ -44,9 +46,10 @@ export function MusicPage({
   const [tracks, setTracks] = React.useState<EclipseTrack[]>([]);
   const [collections, setCollections] = React.useState<EclipseCatalogItem[]>([]);
   const [selectedCollection, setSelectedCollection] = React.useState<EclipseCatalogItem | null>(null);
-  const [tab, setTab] = React.useState<'discover' | 'search' | 'sources'>(
-    () => readMusicSources().length ? 'discover' : 'sources'
-  );
+  const [tab, setTab] = React.useState<'discover' | 'search'>('discover');
+  const [settingsOpen, setSettingsOpen] = React.useState(() => readMusicSources().length === 0);
+  const [recent, setRecent] = React.useState<RecentMusicPlay[]>(readRecentPlays);
+  const settingsCloseRef = React.useRef<HTMLButtonElement>(null);
   const [playing, setPlaying] = React.useState<EclipseTrack | null>(null);
   const [streamUrl, setStreamUrl] = React.useState('');
   const [playError, setPlayError] = React.useState('');
@@ -68,6 +71,20 @@ export function MusicPage({
   React.useEffect(() => {
     saveMusicSources(rememberSources, connections);
   }, [rememberSources, connections]);
+
+  React.useEffect(() => {
+    storeRecentPlays(recent, rememberSources);
+  }, [recent, rememberSources]);
+
+  React.useEffect(() => {
+    if (!settingsOpen) return;
+    settingsCloseRef.current?.focus();
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSettingsOpen(false);
+    };
+    document.addEventListener('keydown', dismiss);
+    return () => document.removeEventListener('keydown', dismiss);
+  }, [settingsOpen]);
 
   React.useEffect(() => {
     if (!visible) {
@@ -110,6 +127,7 @@ export function MusicPage({
       setQuery('');
       setCollections([]);
       setTab(addon.catalogs?.length ? 'discover' : 'search');
+      setSettingsOpen(false);
     } catch (error) {
       if (request === generation.current) setConnectError((error as Error).message);
     } finally {
@@ -186,6 +204,7 @@ export function MusicPage({
       if (request !== playbackRequest.current) return;
       setQuality(stream.quality ?? stream.format ?? '');
       setStreamUrl(stream.url);
+      setRecent((current) => mergeRecentPlays(current, makeRecentPlay(source.id, track)));
     } catch (error) {
       if (request === playbackRequest.current)
         setPlayError(error instanceof Error ? error.message : t`The browser audio engine could not play this stream.`);
@@ -269,6 +288,7 @@ export function MusicPage({
   function removeSource(id: string) {
     ++generation.current;
     setConnections((previous) => previous.filter((source) => source.id !== id));
+    setRecent((previous) => previous.filter((entry) => entry.sourceId !== id));
     if (selectedId === id) {
       setSelectedId(connections.find((source) => source.id !== id)?.id ?? '');
       setTracks([]);
@@ -292,112 +312,42 @@ export function MusicPage({
 
   return (
     <main data-page="music" style={{ display: visible ? 'block' : 'none' }}
-      className="tsugi-music-root min-h-screen px-6 pb-44 pt-16 sm:px-10">
-      <div aria-hidden className="tsugi-chrome-wash" />
-      <div className="mx-auto max-w-[1440px]">
-        <nav aria-label={t`Media sections`} className="mb-8 flex items-center justify-between gap-4">
-          <button type="button" onClick={openWelcome}
-            className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-[--tsugi-muted] transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline focus-visible:outline-2">
-            <BiArrowBack aria-hidden /> <Trans>All media</Trans>
-          </button>
-          <button type="button" onClick={openVideo}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm transition-colors hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-2">
-            <BiFilm aria-hidden /> <Trans>Movies & TV</Trans>
-          </button>
-        </nav>
-
-        <header className="tsugi-music-header mb-8 flex flex-wrap items-end justify-between gap-6">
-          <div className="space-y-5">
+      className="tsugi-music-root min-h-screen px-6 pb-36 pt-14 sm:px-[3vw]">
+      <div className="w-full">
+        <header className="tsugi-music-top mb-10 flex items-center justify-between gap-6">
+          <button type="button" onClick={openWelcome} className="tsugi-brand-action" aria-label={t`All media`}>
             <TsugiBrand />
-            <div>
-              <p className="tsugi-eyebrow"><Trans>Independent listening</Trans></p>
-              <h1 className="mt-2 text-[clamp(2.4rem,4vw,4.2rem)] font-semibold tracking-tight"><Trans>Music</Trans></h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 text-xs" style={{color:'var(--tsugi-muted)'}}>
-            <span className="size-1.5 rounded-full" style={{background:'var(--tsugi-accent)'}} />
-            <span className="max-w-60 truncate">{connectedName || activeSource?.manifest.name || ''}</span>
+          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" className="tsugi-icon-action" onClick={() => setTab('search')}
+              aria-label={t`Search music`}>
+              <FiSearch aria-hidden className="text-xl" />
+            </button>
+            <button type="button" className="tsugi-icon-action" onClick={() => setSettingsOpen(true)}
+              aria-label={t`Music settings`}>
+              <FiMenu aria-hidden className="text-xl" />
+            </button>
           </div>
         </header>
 
-        <nav className="mb-9 flex flex-wrap items-center justify-between gap-4"
+        <nav className="tsugi-music-navigation mb-8 flex items-center gap-8"
           aria-label={t`Music sections`}>
-          <div className="tsugi-music-tabs" role="tablist">
-            <button type="button" role="tab" aria-selected={tab === 'discover'}
-              onClick={() => setTab('discover')} className="px-5 py-2.5">
-              <Trans>Discover</Trans>
-            </button>
-            <button type="button" role="tab" aria-selected={tab === 'search'}
-              onClick={() => setTab('search')} className="px-5 py-2.5">
-              <Trans>Search</Trans>
-            </button>
-            <button type="button" role="tab" aria-selected={tab === 'sources'}
-              onClick={() => setTab('sources')} className="px-5 py-2.5">
-              <Trans>Sources</Trans>
-            </button>
-          </div>
-          {connections.length > 0 && (
-            <select aria-label={t`Active music source`} value={selectedId}
-              onChange={(event) => switchSource(event.target.value)}
-              className="tsugi-source-select max-w-60 px-4 py-2.5 text-sm">
-              {connections.map((source) =>
-                <option key={source.id} value={source.id}>{source.manifest.name}</option>)}
-            </select>
-          )}
+          <button type="button" aria-current={tab === 'discover' ? 'page' : undefined}
+            onClick={() => setTab('discover')}><Trans>Discover</Trans></button>
+          <button type="button" aria-current={tab === 'search' ? 'page' : undefined}
+            onClick={() => setTab('search')}><Trans>Search</Trans></button>
         </nav>
 
         {tab === 'discover' && <MusicDiscover source={activeSource} onPlay={playCollection}
-          onFind={(song) => { void findChartTrack(song); }} />}
-
-        <section aria-labelledby="music-source-heading" style={{ display: tab === 'sources' ? 'block' : 'none' }}
-          className="tsugi-discover-card mb-10 space-y-4 p-6 sm:p-8">
-          <h2 id="music-source-heading" className="text-2xl font-semibold">
-            <Trans>Connect a music source</Trans>
-          </h2>
-          <p className="max-w-3xl text-sm leading-6 text-[--muted]">
-            <Trans>Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device.</Trans>
-          </p>
-          <form onSubmit={connect} className="flex flex-col gap-3 sm:flex-row">
-            <input
-              aria-label={t`Eclipse addon manifest URL`}
-              type="url" required autoComplete="off" spellCheck={false}
-              value={manifestInput} onChange={(e) => setManifestInput(e.target.value)}
-              placeholder="https://example.com/manifest.json"
-              className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm placeholder:text-[--muted] focus-visible:outline focus-visible:outline-2"
-            />
-            <button type="submit" disabled={connecting} className="rounded-xl px-6 py-3 text-sm font-semibold disabled:opacity-50" style={{background:'var(--tsugi-accent)',color:'var(--tsugi-canvas)'}}>
-              {connecting ? <Trans>Connecting…</Trans> : <Trans>Connect</Trans>}
-            </button>
-          </form>
-          {connectError && <p role="alert" className="text-sm text-red-300">{connectError}</p>}
-          <label className="flex items-start gap-3 text-xs text-[--muted]">
-            <input type="checkbox" checked={rememberSources}
-              onChange={(event) => setRememberSources(event.target.checked)}
-              className="mt-0.5 accent-violet-300" />
-            <span><Trans>Remember my music sources on this device (stored locally without encryption).</Trans></span>
-          </label>
-          {connections.length > 0 && (
-            <div className="flex flex-wrap gap-2" aria-label={t`Connected music sources`}>
-              {connections.map((source) => (
-                <div key={source.id} className="flex items-center rounded-full border border-white/15 bg-white/[0.04] text-sm">
-                  <button type="button" onClick={() => switchSource(source.id)}
-                    aria-pressed={selectedId === source.id}
-                    className={selectedId === source.id
-                      ? 'rounded-full bg-violet-200 px-4 py-2 font-semibold text-slate-950'
-                      : 'rounded-full px-4 py-2 text-white hover:bg-white/10'}>
-                    {source.manifest.name}
-                  </button>
-                  <button type="button" onClick={() => removeSource(source.id)}
-                    aria-label={t`Remove music source`}
-                    className="rounded-full px-3 py-2 text-[--muted] hover:text-red-300">×</button>
-                </div>
-              ))}
-            </div>
-          )}
-          {activeAddon && <p role="status" className="text-sm text-green-200">
-            <Trans>Connected to {connectedName}</Trans>
-          </p>}
-        </section>
+          onFind={(song) => { void findChartTrack(song); }}
+          recent={recent}
+          onPlayRecent={(entry) => {
+            const source = connections.find((item) => item.id === entry.sourceId);
+            if (!source) return;
+            setQueue([entry.track]);
+            void play(entry.track, 0, source, true);
+          }}
+          onConfigure={() => setSettingsOpen(true)} />}
 
         {tab === 'search' && activeAddon && (
           <section aria-labelledby="music-search-heading" className="mb-10 space-y-4">
@@ -456,7 +406,96 @@ export function MusicPage({
           </section>
         )}
 
-        <section aria-labelledby="music-store-heading" style={{ display: tab === 'sources' ? 'block' : 'none' }}
+      </div>
+
+      {settingsOpen && (
+        <div className="tsugi-settings-backdrop fixed inset-0 z-40 flex justify-end"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSettingsOpen(false);
+          }}>
+          <aside role="dialog" aria-modal="true" aria-label={t`Music settings`}
+            className="tsugi-settings-sheet h-full w-full max-w-[520px] overflow-y-auto px-6 pb-14 pt-14 sm:px-9">
+            <div className="mb-10 flex items-center justify-between gap-4">
+              <h2 className="text-2xl font-semibold"><Trans>Music settings</Trans></h2>
+              <button ref={settingsCloseRef} type="button" className="tsugi-icon-action"
+                onClick={() => setSettingsOpen(false)} aria-label={t`Close`}>
+                <FiX aria-hidden className="text-xl" />
+              </button>
+            </div>
+            <nav className="mb-10 flex flex-wrap gap-5 text-sm">
+              <button type="button" onClick={() => { setSettingsOpen(false); openWelcome(); }}
+                className="inline-flex items-center gap-2 text-[--tsugi-muted] hover:text-white">
+                <Trans>All media</Trans><FiArrowUpRight aria-hidden />
+              </button>
+              <button type="button" onClick={() => { setSettingsOpen(false); openVideo(); }}
+                className="inline-flex items-center gap-2 text-[--tsugi-muted] hover:text-white">
+                <Trans>Movies & TV</Trans><FiArrowUpRight aria-hidden />
+              </button>
+            </nav>
+            {connections.length > 0 && (
+              <label className="mb-7 block text-xs text-[--tsugi-muted]">
+                <Trans>Active music source</Trans>
+                <select aria-label={t`Active music source`} value={selectedId}
+                  onChange={(event) => switchSource(event.target.value)}
+                  className="tsugi-menu-select mt-3 block w-full">
+                  {connections.map((connection) => (
+                    <option key={connection.id} value={connection.id}>{connection.manifest.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+        <section aria-labelledby="music-source-heading" 
+          className="mb-12 space-y-4">
+          <h2 id="music-source-heading" className="text-2xl font-semibold">
+            <Trans>Connect a music source</Trans>
+          </h2>
+          <p className="max-w-3xl text-sm leading-6 text-[--muted]">
+            <Trans>Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device.</Trans>
+          </p>
+          <form onSubmit={connect} className="flex flex-col gap-3 sm:flex-row">
+            <input
+              aria-label={t`Eclipse addon manifest URL`}
+              type="url" required autoComplete="off" spellCheck={false}
+              value={manifestInput} onChange={(e) => setManifestInput(e.target.value)}
+              placeholder="https://example.com/manifest.json"
+              className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm placeholder:text-[--muted] focus-visible:outline focus-visible:outline-2"
+            />
+            <button type="submit" disabled={connecting} className="rounded-xl px-6 py-3 text-sm font-semibold disabled:opacity-50" style={{background:'var(--tsugi-accent)',color:'var(--tsugi-canvas)'}}>
+              {connecting ? <Trans>Connecting…</Trans> : <Trans>Connect</Trans>}
+            </button>
+          </form>
+          {connectError && <p role="alert" className="text-sm text-red-300">{connectError}</p>}
+          <label className="flex items-start gap-3 text-xs text-[--muted]">
+            <input type="checkbox" checked={rememberSources}
+              onChange={(event) => setRememberSources(event.target.checked)}
+              className="mt-0.5 accent-violet-300" />
+            <span><Trans>Remember my music sources on this device (stored locally without encryption).</Trans></span>
+          </label>
+          {connections.length > 0 && (
+            <div className="flex flex-wrap gap-2" aria-label={t`Connected music sources`}>
+              {connections.map((source) => (
+                <div key={source.id} className="flex items-center gap-2 text-sm">
+                  <button type="button" onClick={() => switchSource(source.id)}
+                    aria-pressed={selectedId === source.id}
+                    className={selectedId === source.id
+                      ? 'border-b border-[--tsugi-accent] px-2 py-2 font-semibold text-[--tsugi-ink]'
+                      : 'px-2 py-2 text-[--tsugi-muted] hover:text-white'}>
+                    {source.manifest.name}
+                  </button>
+                  <button type="button" onClick={() => removeSource(source.id)}
+                    aria-label={t`Remove music source`}
+                    className="px-2 py-2 text-[--muted] hover:text-red-300">×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {activeAddon && <p role="status" className="text-sm text-green-200">
+            <Trans>Connected to {connectedName}</Trans>
+          </p>}
+        </section>
+
+
+        <section aria-labelledby="music-store-heading" 
           className="space-y-4">
           <div className="flex items-center justify-between gap-4">
             <h2 id="music-store-heading" className="text-2xl font-semibold">
@@ -472,7 +511,7 @@ export function MusicPage({
           </p>}
           {store.length === 0 && !storeError &&
             <p className="text-sm text-[--muted]"><Trans>Loading community addons…</Trans></p>}
-          <div className="tsugi-discover-card mb-4 p-5 text-sm">
+          <div className="border-t border-white/10 py-5 text-sm">
             <h3 className="font-semibold"><Trans>DebridVault library</Trans></h3>
             <p className="mt-2 max-w-2xl text-white/55">
               <Trans>Manage your personal Real-Debrid or TorBox music library in DebridVault. This website is not itself an Eclipse addon manifest.</Trans>
@@ -484,7 +523,7 @@ export function MusicPage({
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {store.map((addon) => (
-              <article key={addon.id} className="tsugi-discover-card flex flex-col gap-3 p-5">
+              <article key={addon.id} className="flex flex-col gap-3 border-b border-white/10 py-5">
                 <div className="flex items-center gap-3">
                   {addon.icon
                     ? <img src={addon.icon} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-12 rounded-xl object-contain" />
@@ -510,7 +549,10 @@ export function MusicPage({
             ))}
           </div>
         </section>
-      </div>
+
+          </aside>
+        </div>
+      )}
 
       {playing && streamUrl && (
         <audio ref={audioRef} key={streamUrl} autoPlay preload="metadata" src={streamUrl}
