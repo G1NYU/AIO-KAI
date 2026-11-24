@@ -1,11 +1,13 @@
 //! Audio-only playback, separate from the video player's mpv handle.
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use crate::bridge::Outbound;
 use crate::mpv::{Event, Kind, Mpv};
+use crate::music_stream::{self, Source};
 use crate::player::Emit;
 
 pub enum Command {
@@ -70,25 +72,6 @@ fn allowed_url(value: &str) -> bool {
         && url
             .host_str()
             .is_some_and(|host| host == "googlevideo.com" || host.ends_with(".googlevideo.com"))
-}
-
-// Probe only after a failed open, never to circumvent a server refusal.
-// No redirects, no saved response body, no signed URL in diagnostic output.
-fn probe_media(url: &str) -> &'static str {
-    if !allowed_url(url) {
-        return "Invalid stream URL.";
-    }
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(5)))
-        .https_only(true)
-        .max_redirects(0)
-        .http_status_as_error(false)
-        .build()
-        .into();
-    match agent.get(url).header("Range", "bytes=0-0").call() {
-        Ok(response) => probe_status(response.status().as_u16()),
-        Err(_) => "The HTTPS stream probe could not connect.",
-    }
 }
 
 fn probe_status(status: u16) -> &'static str {
@@ -161,9 +144,10 @@ fn fail(emit: &Emit, request: &str, message: &str) {
 }
 
 struct Session {
+    // Field order matters: destroy mpv before the registered callback context.
     mpv: Mpv,
+    source: Arc<Source>,
     request: String,
-    url: String,
     started: Instant,
     loaded: bool,
     position: f64,
@@ -174,6 +158,8 @@ struct Session {
 
 impl Session {
     fn new(library: &Path, request: String, url: &str, volume: f64) -> Result<Self, String> {
+        // The Arc allocation remains stable across Session moves.
+        let source = Source::new(url);
         let mpv = Mpv::new(
             library,
             &[
@@ -194,12 +180,14 @@ impl Session {
         )?;
         mpv.request_log_messages("warn")?;
         mpv.set_property("volume", &(volume.clamp(0.0, 1.0) * 100.0).to_string())?;
-        mpv.command(&["loadfile", url, "replace"])?;
+        // SAFETY: source is created before mpv and lives after it in Session.
+        unsafe { music_stream::register(&mpv, &source)? };
+        mpv.command(&["loadfile", "tsugi-audio://track", "replace"])?;
         let now = Instant::now();
         Ok(Self {
             mpv,
+            source,
             request,
-            url: url.to_string(),
             started: now,
             loaded: false,
             position: 0.0,
@@ -222,7 +210,7 @@ impl Session {
                     }
                 }
                 Event::EndFile { reason, .. } => {
-                    if reason == "eof" && self.loaded {
+                    if reason == "eof" && self.loaded && self.source.failure().is_none() {
                         report(
                             emit,
                             &self.request,
@@ -232,13 +220,11 @@ impl Session {
                             None,
                         );
                     } else {
-                        let message = self.failure.unwrap_or_else(|| {
-                            if self.loaded {
-                                "Native audio stopped unexpectedly during playback."
-                            } else {
-                                probe_media(&self.url)
-                            }
-                        });
+                        let message = self
+                            .source
+                            .failure()
+                            .or(self.failure)
+                            .unwrap_or("Native decoder could not open or complete validated audio.");
                         fail(emit, &self.request, message);
                     }
                     return false;
@@ -251,7 +237,11 @@ impl Session {
             }
         }
         if !self.loaded && self.started.elapsed() > Duration::from_secs(20) {
-            let message = self.failure.unwrap_or("Native audio timed out opening the stream.");
+            let message = self
+                .source
+                .failure()
+                .or(self.failure)
+                .unwrap_or("Native audio timed out opening the stream.");
             fail(emit, &self.request, message);
             return false;
         }

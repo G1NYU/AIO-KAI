@@ -6,6 +6,7 @@ pub mod licenses;
 pub mod logs;
 pub mod mpv;
 pub mod music_audio;
+mod music_stream;
 pub mod now_playing;
 pub mod playback;
 pub mod player;
