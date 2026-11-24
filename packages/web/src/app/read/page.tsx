@@ -5,7 +5,7 @@ import { FiArrowLeft, FiBookOpen, FiChevronRight, FiCompass, FiGrid, FiSearch, F
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { applyEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import { readPlayerTheme } from '@/lib/music/player-theme';
-import { isReaderPagePath, readRequest } from '@/lib/hosts/shell/reading';
+import { isReaderPagePath, prepareReading, readRequest } from '@/lib/hosts/shell/reading';
 
 type Nodes<T> = { nodes: T[]; totalCount: number };
 type Source = { id: string; name: string; lang: string; displayName?: string; supportsLatest: boolean };
@@ -32,6 +32,9 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
   const [globalTerm, setGlobalTerm] = React.useState('');
   const [globalResults, setGlobalResults] = React.useState<SearchGroup[]>([]);
   const [globalCompleted, setGlobalCompleted] = React.useState(0);
+  const [globalSearching, setGlobalSearching] = React.useState(false);
+  const [globalStopping, setGlobalStopping] = React.useState(false);
+  const stopSearch = React.useRef(false);
   const [storeFilter, setStoreFilter] = React.useState('');
   const [appliedFilter, setAppliedFilter] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -83,8 +86,11 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
     setGlobalTerm(term);
     setGlobalCompleted(0);
     setGlobalResults([]);
+    stopSearch.current = false;
+    setGlobalStopping(false);
+    setGlobalSearching(true);
     for (const [index, item] of sources.entries()) {
-      if (!active.current) break;
+      if (!active.current || stopSearch.current) break;
       let group: SearchGroup;
       try {
         group = { source: item, result: await readRequest<Catalogue>({ kind: 'catalogue', source: item.id, page: 1, mode: 'search', query: term }) };
@@ -95,6 +101,8 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
       setGlobalResults((old) => [...old, group]);
       setGlobalCompleted(index + 1);
     }
+    setGlobalSearching(false);
+    setGlobalStopping(false);
   }
   React.useEffect(() => {
     active.current = true;
@@ -250,6 +258,7 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
           <form className="mb-5 flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); void run(searchAll); }}>
             <input className="tsugi-read-input grow" value={globalQuery} maxLength={200} onChange={(event) => setGlobalQuery(event.target.value)} placeholder={t`Search manga across installed sources`} aria-label={t`Global manga search`} />
             <button className="tsugi-read-action" disabled={busy || !globalQuery.trim() || !sources.length}><FiSearch aria-hidden /><Trans>Search</Trans></button>
+            {globalSearching && <button type="button" className="tsugi-read-action" disabled={globalStopping} onClick={() => { stopSearch.current = true; setGlobalStopping(true); }}>{globalStopping ? t`Stopping after current source…` : t`Stop search`}</button>}
           </form>
           {!sources.length && !busy && <button className="tsugi-read-action" onClick={() => switchBrowse('extensions')}><Trans>Install a source extension</Trans></button>}
           {globalTerm && <p className="mb-4 text-sm text-[--tsugi-muted]" role="status">{globalTerm} · {globalCompleted} / {sources.length}</p>}
@@ -283,16 +292,33 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
   </main>;
 }
 
-/** Missing setup is an actionable state, never a silently missing destination. */
-export function ReadSetupPage({ openWelcome }: { openWelcome(): void }) {
+/** One-time native setup without a console window or manual script. */
+export function ReadSetupPage({ openWelcome, onReady }: { openWelcome(): void; onReady(): void }) {
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState('');
+  async function setup() {
+    setBusy(true);
+    setError('');
+    try {
+      await prepareReading();
+      onReady();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : t`Reading setup failed.`);
+      setBusy(false);
+    }
+  }
   return <main data-page="read-setup" className="tsugi-read-root min-h-dvh px-6 pb-12 pt-12 sm:px-10 lg:px-[5vw]">
-    <button className="tsugi-read-action" onClick={openWelcome} aria-label={t`All media`}><TsugiBrand markOnly /></button>
+    <button className="tsugi-read-action" disabled={busy} onClick={openWelcome} aria-label={t`All media`}><TsugiBrand markOnly /></button>
     <h1 className="my-9 text-4xl font-semibold tracking-tight"><Trans>Read</Trans></h1>
     <section className="max-w-2xl space-y-4">
-      <h2 className="text-xl font-semibold"><Trans>Reading setup required</Trans></h2>
-      <p className="text-[--tsugi-muted]"><Trans>The reading engine is not ready. Close Tsugi, then run Start Tsugi.cmd from the extracted portable folder. Internet access is required for the first setup.</Trans></p>
-      <p className="text-[--tsugi-muted]"><Trans>If setup fails, leave your data folder intact and check the error shown by the launcher.</Trans></p>
-      <button className="tsugi-read-action" onClick={openWelcome}><Trans>Back to all media</Trans></button>
+      <h2 className="text-xl font-semibold"><Trans>Set up reading</Trans></h2>
+      <p className="text-[--tsugi-muted]"><Trans>Tsugi will download and verify its reading engine once. Internet access and a writable application folder are required. No separate Java or manga server installation is needed.</Trans></p>
+      {busy && <p role="status" className="text-[--tsugi-muted]"><Trans>Preparing reading engine… This may take a few minutes.</Trans></p>}
+      {error && <p role="alert" className="tsugi-read-error">{error}</p>}
+      <div className="flex flex-wrap gap-3">
+        <button className="tsugi-read-action" disabled={busy} onClick={() => void setup()}>{busy ? t`Preparing…` : error ? t`Retry setup` : t`Set up reading`}</button>
+        <button className="tsugi-read-action" disabled={busy} onClick={openWelcome}><Trans>Back to all media</Trans></button>
+      </div>
     </section>
   </main>;
 }

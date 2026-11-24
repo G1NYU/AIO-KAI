@@ -93,8 +93,6 @@ jobs:
           & "$env:JAVA_HOME_21_X64/bin/javac.exe" --release 21 -d $launcher packages/desktop/scripts/read-runtime/TsugiReadLauncher.java
           if ($LASTEXITCODE -ne 0) { throw 'Reading launcher compilation failed' }
           Copy-Item packages/desktop/scripts/fetch-read-tools.ps1 $launcher
-          Copy-Item packages/desktop/scripts/Start-Tsugi.ps1 $stage
-          Copy-Item packages/desktop/scripts/Start-Tsugi.cmd "$stage/Start Tsugi.cmd"
           Copy-Item LICENSE $stage
       - uses: actions/upload-artifact@v7
         with:
@@ -121,19 +119,19 @@ jobs:
         with:
           name: tsugi-standalone-web
           path: stage/current/web
-      - name: Exercise the actual Windows launcher against assembled assets
+      - name: Exercise native EXE reading preparation against assembled assets
         run: |
           $root = (Resolve-Path stage).Path
           $exe = Join-Path $root 'current/Tsugi.exe'
           $probe = Start-Process -FilePath $exe -ArgumentList '--check-reading-setup' -Wait -PassThru
           if ($probe.ExitCode -ne 2) { throw "Expected visible Read setup state before preparation, exit $($probe.ExitCode)" }
-          & "$root/Start Tsugi.cmd" -PrepareOnly
-          if ($LASTEXITCODE -ne 0) { throw 'Windows PowerShell 5.1 launcher failed' }
+          $setup = Start-Process -FilePath $exe -ArgumentList '--prepare-reading' -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw "Native reading preparation failed, exit $($setup.ExitCode)" }
           $probe = Start-Process -FilePath $exe -ArgumentList '--check-reading-setup' -Wait -PassThru
           if ($probe.ExitCode -ne 0) { throw "Packaged EXE does not detect the prepared reading runtime, exit $($probe.ExitCode)" }
           ./packages/desktop/scripts/test-read-runtime.ps1 -Runtime stage/current/read-tools
-          & "$root/Start Tsugi.cmd" -PrepareOnly
-          if ($LASTEXITCODE -ne 0) { throw 'Repeat preparation failed' }
+          $setup = Start-Process -FilePath $exe -ArgumentList '--prepare-reading' -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw 'Repeat native preparation failed' }
           foreach ($file in @('stage/current/read-tools/jre/bin/java.exe', 'stage/current/read-tools/bin/Suwayomi-Server.jar', 'stage/current/read-tools/launcher/TsugiReadLauncher.class', 'stage/current/music-tools/yt-dlp.exe', 'stage/current/music-tools/deno.exe')) {
             if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Unified staging missing $file" }
           }
@@ -145,10 +143,10 @@ jobs:
           TSUGI WINDOWS X64 DEVELOPMENT CANDIDATE
 
           Extract the complete ZIP into a writable folder.
-          Run "Start Tsugi.cmd" once. It downloads the pinned reading runtime
-          directly from its official upstream release, verifies its checksums,
-          and launches Tsugi. Internet access is required for this first setup.
-          Subsequent launches may use current/Tsugi.exe directly.
+          Open current/Tsugi.exe directly.
+          Choose Read, then Set up reading on the first visit. Tsugi downloads
+          and verifies the pinned reading runtime directly from upstream.
+          Internet access is required once for this setup. No CMD is needed.
 
           Movies & TV, Music and Read run in the same Tsugi application.
           Keep the .portable marker; portable data is stored beside current/.
@@ -162,9 +160,10 @@ jobs:
           $archive = [IO.Compression.ZipFile]::OpenRead($zip)
           try {
             $names = @($archive.Entries | ForEach-Object FullName)
-            foreach ($required in @('.portable', 'Start Tsugi.cmd', 'Start-Tsugi.ps1', 'current/Tsugi.exe', 'current/music-tools/yt-dlp.exe', 'current/music-tools/deno.exe', 'current/read-launcher/TsugiReadLauncher.class', 'current/read-launcher/fetch-read-tools.ps1', 'current/web/index.html', 'LICENSE', 'README-TEST.txt')) {
+            foreach ($required in @('.portable', 'current/Tsugi.exe', 'current/music-tools/yt-dlp.exe', 'current/music-tools/deno.exe', 'current/read-launcher/TsugiReadLauncher.class', 'current/read-launcher/fetch-read-tools.ps1', 'current/web/index.html', 'LICENSE', 'README-TEST.txt')) {
               if ($required -notin $names) { throw "Unified artifact missing $required" }
             }
+            if ('Start Tsugi.cmd' -in $names -or 'Start-Tsugi.ps1' -in $names) { throw 'Legacy manual launcher in Tsugi package' }
             if ('current/aiostreams-desktop.exe' -in $names) { throw 'Legacy executable name in Tsugi package' }
             if ($names -like 'current/read-tools/*') { throw 'Upstream reading runtime must be fetched directly on first launch' }
           } finally { $archive.Dispose() }

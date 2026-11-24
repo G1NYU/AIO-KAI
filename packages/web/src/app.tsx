@@ -140,6 +140,7 @@ function Standalone() {
   const [base, setBase] = React.useState(currentServer);
   const desktop = currentHost().name === 'desktop';
   const reading = desktop && supportsReadingSection();
+  const [readerReady, setReaderReady] = React.useState(supportsReading);
   const [area, setArea] = React.useState<DesktopArea>(() =>
     initialDesktopArea(desktop, !!currentServer(), reading)
   );
@@ -259,10 +260,10 @@ function Standalone() {
             </ServerInfoProvider>
           ) : desktop && area === 'read' && reading ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
-              {supportsReading() ? (
+              {readerReady ? (
                 <ReadPage openWelcome={openWelcome} openVideo={openVideo} openMusic={openMusic} />
               ) : (
-                <ReadSetupPage openWelcome={openWelcome} />
+                <ReadSetupPage openWelcome={openWelcome} onReady={() => setReaderReady(true)} />
               )}
               <SplashEnd />
             </ServerInfoProvider>

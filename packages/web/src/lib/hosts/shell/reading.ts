@@ -2,7 +2,7 @@ import { t } from '@lingui/core/macro';
 import { appBridge, ask } from './bridge';
 
 export type ReadAction =
-  | { kind: 'status' | 'sources' | 'library' | 'stores' | 'refresh-extensions' }
+  | { kind: 'prepare' | 'status' | 'sources' | 'library' | 'stores' | 'refresh-extensions' }
   | { kind: 'add-store' | 'remove-store'; index: string }
   | { kind: 'extensions'; offset: number; query?: string; store?: string }
   | { kind: 'install-extension' | 'uninstall-extension'; package: string }
@@ -17,20 +17,28 @@ export function supportsReadingSection(): boolean {
   return bridge?.platform === 'windows' && (bridge.reading === true || bridge.readingSetup === true);
 }
 
+let preparedInSession = false;
+
 export function supportsReading(): boolean {
   const bridge = appBridge();
-  return bridge?.platform === 'windows' && bridge.reading === true;
+  return bridge?.platform === 'windows' && (bridge.reading === true || preparedInSession);
 }
 
 let sequence = 0;
 export async function readRequest<T>(action: ReadAction): Promise<T> {
-  if (!supportsReading()) throw new Error(t`Reading is not available in this app.`);
+  if (action.kind === 'prepare' ? !supportsReadingSection() : !supportsReading()) throw new Error(t`Reading is not available in this app.`);
   const request = 'read-' + Date.now() + '-' + ++sequence;
   const response = await ask({ type: 'read-request', request, action }, 'read-result', {
-    timeoutMs: 180_000, matches: (message) => message.request === request,
+    timeoutMs: action.kind === 'prepare' ? 20 * 60_000 : 180_000, matches: (message) => message.request === request,
   });
   if (response.error || response.data == null) throw new Error(response.error || t`Reading request returned no data.`);
   return response.data as T;
+}
+
+export async function prepareReading(): Promise<void> {
+  const result = await readRequest<{ ready: boolean }>({ kind: 'prepare' });
+  if (result.ready !== true) throw new Error(t`Reading setup did not complete.`);
+  preparedInSession = true;
 }
 
 export function isReaderPagePath(path: unknown): path is string {
