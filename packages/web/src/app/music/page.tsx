@@ -18,7 +18,8 @@ import {
   setLocalEqualizer, type AudioProfile, type LocalEqualizer,
 } from '@/lib/music/audio-profiles';
 import {
-  addToMusicPlaylist, createMusicPlaylist, readMusicLibrary, saveMusicLibrary,
+  addToMusicPlaylist, createMusicPlaylist, findLocalPlaylistMatch,
+  readMusicLibrary, saveMusicLibrary,
   savedTrack, type SavedMusicTrack,
 } from '@/lib/music/library';
 import { TsugiBrand } from '@/components/tsugi-brand';
@@ -370,9 +371,11 @@ export function MusicPage({
 
   async function playSavedTrack(entry: SavedMusicTrack) {
     setLibraryError('');
-    if (localURLs.current.has(entry.id)) {
-      const at = localTracks.findIndex(track => track.id === entry.id);
-      playLocalTrack(entry, Math.max(0,at), false);
+    const localTrack = localURLs.current.has(entry.id)
+      ? entry : findLocalPlaylistMatch(entry, localTracks);
+    if (localTrack) {
+      const at = localTracks.findIndex(track => track.id === localTrack.id);
+      playLocalTrack(localTrack, Math.max(0,at), false);
       return;
     }
     const exactSource = connections.find((source) => source.id === entry.sourceId);

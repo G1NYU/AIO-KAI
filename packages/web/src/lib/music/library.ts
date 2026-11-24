@@ -133,3 +133,19 @@ export function exportMusicPlaylist(list: MusicPlaylist): string {
     tracks: list.tracks.map(track => savedTrack(track, track.sourceId)),
   }, null, 2);
 }
+
+/** Resolve an imported metadata-only playlist entry against files opened this session.
+ * Never guess when several local files could correspond to the same entry. */
+export function findLocalPlaylistMatch(
+  saved: SavedMusicTrack, candidates: EclipseTrack[]
+): EclipseTrack | null {
+  const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '');
+  const exact = normalize(saved.artist + ' - ' + saved.title);
+  const title = normalize(saved.title);
+  if (!title) return null;
+  const combined = candidates.filter(candidate => normalize(candidate.title) === exact);
+  if (combined.length === 1) return combined[0];
+  const short = candidates.filter(candidate => normalize(candidate.title) === title);
+  return short.length === 1 ? short[0] : null;
+}

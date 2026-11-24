@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createMusicPlaylist, addToMusicPlaylist, importMusicPlaylist,
   exportMusicPlaylist, saveMusicLibrary, readMusicLibrary, savedTrack,
+  findLocalPlaylistMatch,
 } from '../src/lib/music/library';
 
 const data = new Map<string,string>();
@@ -48,6 +49,13 @@ describe('independent Tsugi playlists', () => {
       '#EXTM3U\nhttps://private.example/secret-token/song.mp3?code=abc\n');
     expect(list.tracks).toHaveLength(0);
     expect(JSON.stringify(list)).not.toContain('secret-token');
+  });
+  it('matches M3U metadata to an unambiguous opened local audio file', () => {
+    const saved = importMusicPlaylist('mix.m3u',
+      '#EXTM3U\n#EXTINF:250,Artist - Song\nSong.mp3\n').tracks[0];
+    const file = { id:'local:1', title:'Artist - Song', artist:'Local file' };
+    expect(findLocalPlaylistMatch(saved,[file])?.id).toBe('local:1');
+    expect(findLocalPlaylistMatch(saved,[file,file])).toBeNull();
   });
   it('rejects invalid formats and overlarge imports', () => {
     expect(() => importMusicPlaylist('list.txt','invalid')).toThrow();
