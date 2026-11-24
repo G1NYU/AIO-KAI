@@ -699,8 +699,8 @@ export function MusicPage({
       className="tsugi-music-root min-h-screen px-6 pb-36 pt-14 sm:px-[3vw]">
       <div className="w-full">
         <header className="tsugi-music-top mb-10 flex items-center justify-between gap-6">
-          <MediaNavigation area="music" />
-          <div className="flex flex-wrap items-center gap-2">
+          <MediaNavigation area="music" tools={<>
+
             <button type="button" className="tsugi-icon-action" onClick={() => setTab('search')}
               aria-label={t`Search music`}>
               <FiSearch aria-hidden className="text-xl" />
@@ -709,7 +709,7 @@ export function MusicPage({
               aria-label={t`Music settings`}>
               <FiMenu aria-hidden className="text-xl" />
             </button>
-          </div>
+          </>} />
         </header>
 
         <nav className="tsugi-music-navigation mb-8 flex items-center gap-8"
@@ -736,7 +736,13 @@ export function MusicPage({
         {tab === 'library' && (
           <>
             {libraryError && <p role="alert" className="mb-6 text-sm text-amber-200">{libraryError}</p>}
-            <MusicLibrary playlists={playlists} onChange={setPlaylists}
+            <MusicLibrary playlists={playlists} onChange={setPlaylists} recent={recent}
+              activeTrackId={playing?.id} onPlayRecent={(entry) => {
+                const source = connections.find(item => item.id === entry.sourceId);
+                if (!source) { setLibraryError(t`Connect the original music source to play this track.`); return; }
+                setQueue([entry.track]);
+                void play(entry.track, 0, source, true);
+              }}
               onPlay={(entry) => { void playSavedTrack(entry); }}
               playing={playing && playingSourceId !== LOCAL_SOURCE
                 ? savedTrack(playing, playingSourceId) : null}
@@ -785,20 +791,21 @@ export function MusicPage({
                 </div>
               </section>
             )}
-            <ul className="space-y-1">
+            <ul className="tsugi-search-track-list">
               {tracks.map((track, at) => (
-                <li key={track.id} className="flex items-center gap-2">
+                <li key={track.id} className="tsugi-search-track-line" data-active={playing?.id === track.id && playingSourceId === activeSource?.id ? 'true' : 'false'}>
                   <button type="button" onClick={() => activeSource && void play(track, at, activeSource)}
                     data-ui="music-track-row" className="flex min-w-0 flex-1 items-center gap-4 px-4 py-3 text-start focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
                     {track.artworkURL
                       ? <img src={track.artworkURL} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-12 rounded-lg object-cover" />
                       : <BiDisc aria-hidden className="text-2xl text-violet-200" />}
-                    <span className="min-w-0">
+                    <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{track.title}</span>
                       <span className="block truncate text-xs text-[--muted]">
                         {track.artist}{track.album ? ' · ' + track.album : ''}
                       </span>
                     </span>
+                    {typeof track.duration === 'number' && <span className="tsugi-track-duration">{Math.floor(track.duration / 60)}:{String(Math.floor(track.duration % 60)).padStart(2, '0')}</span>}
                   </button>
                   <button type="button" className="tsugi-icon-action shrink-0" onClick={() => saveTrackInLibrary(track)}
                     aria-label={t`Save track to library`}>

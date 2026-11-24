@@ -245,6 +245,8 @@ try {
   const musicSettings = music.getByRole('dialog', { name: 'Music settings' });
   if (await musicSettings.isVisible()) await musicSettings.getByRole('button', { name: 'Close', exact: true }).click();
   await music.getByRole('button', { name: 'Library', exact: true }).click();
+  await music.getByRole('button', { name: /Local music/ }).waitFor();
+  await music.getByRole('textbox', { name: 'Find tracks', exact: true }).waitFor();
   const sampleRate = 8000, samples = sampleRate * 45;
   const wav = Buffer.alloc(44 + samples * 2);
   wav.write('RIFF', 0); wav.writeUInt32LE(wav.length - 8, 4);
@@ -255,6 +257,9 @@ try {
   wav.write('data', 36); wav.writeUInt32LE(samples * 2, 40);
   for (let i = 0; i < samples; i++) wav.writeInt16LE(Math.round(1000 * Math.sin(2 * Math.PI * 220 * i / sampleRate)), 44 + i * 2);
   await music.locator('input[aria-label="Open local audio"]').setInputFiles({ name: 'Tsugi audio fixture.wav', mimeType: 'audio/wav', buffer: wav });
+  await music.getByRole('textbox', { name: 'Find tracks', exact: true }).fill('not a match');
+  await music.getByText('No matching tracks', { exact: true }).waitFor();
+  await music.getByRole('textbox', { name: 'Find tracks', exact: true }).fill('Tsugi audio fixture');
   await music.getByRole('button', { name: /Tsugi audio fixture/ }).click();
   await page.waitForFunction(() => { const audio = document.querySelector('[data-ui="tsugi-audio-engine"]'); return audio && !audio.paused && audio.currentTime > 0.1; });
   await capture('06-music-library');

@@ -28,8 +28,8 @@ export function TsugiBrand({
 /** Original filled glyphs. Negative space ties all three to the same grid. */
 export function TsugiMediaIcon({ area, className = '' }: { area: 'video' | 'music' | 'read'; className?: string }) {
   return <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true" className={`tsugi-media-icon ${className}`}>
-    {area === 'video' ? <path fillRule="evenodd" d="M3 5h26v22H3V5Zm3 3v3h3V8H6Zm0 13v3h3v-3H6Zm17-13v3h3V8h-3Zm0 13v3h3v-3h-3Zm-11 0 9-5-9-5v10Z" />
-      : area === 'music' ? <path d="M5 10h4v12H5zM11 5h4v22h-4zM17 8h4v16h-4zM23 13h4v6h-4z" />
+    {area === 'video' ? <path fillRule="evenodd" d="M4 12h24v15H4V12Zm9 3v9l8-4.5-8-4.5ZM3 6l23-4 1 6-23 4-1-6Zm5-1 3 5 3-.5-3-5L8 5Zm10-2 3 5 3-.5-3-5-3 .5Z" />
+      : area === 'music' ? <path d="M13 5 27 2v20a5 5 0 1 1-3-4.6V9l-8 2v15a5 5 0 1 1-3-4.6V5Z" />
       : <path d="M3 5c5.8 0 9.2 1.6 12 4.1V28c-3.1-2.8-7-4.1-12-4.1V5Zm26 0c-5.8 0-9.2 1.6-12 4.1V28c3.1-2.8 7-4.1 12-4.1V5Z" />}
   </svg>;
 }

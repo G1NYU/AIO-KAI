@@ -1773,3 +1773,112 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 @media(min-width:760px) {
   :root[data-host='desktop'] .tsugi-hub-feature.tsugi-feature-composition[data-art='true'] { grid-template-columns:minmax(200px,340px) minmax(0,1fr); }
 }
+
+/* Shared desktop masthead: identity, central destinations, contextual tools.
+   Unlike the previous small underlined tab strip, selection is a quiet surface. */
+:root[data-host='desktop'] .tsugi-media-navigation:not(.tsugi-media-navigation-rail) {
+  display:grid; grid-template-columns:minmax(120px,1fr) auto minmax(120px,1fr);
+  align-items:center; gap:20px; width:100%; min-height:60px;
+}
+.tsugi-media-destinations,.tsugi-media-tools { display:flex; align-items:center; gap:6px; }
+.tsugi-media-tools { justify-content:flex-end; }
+:root[data-host='desktop'] .tsugi-media-navigation .tsugi-category-link { display:inline-flex; align-items:center; justify-content:center; gap:9px; padding:9px 14px; min-height:42px; border:0; border-radius:4px; font-size:15px; line-height:1.2; }
+:root[data-host='desktop'] .tsugi-media-navigation .tsugi-category-link[aria-current='page'] { background:var(--tsugi-wash); color:var(--tsugi-ink); border:0; font-weight:650; }
+:root[data-host='desktop'] .tsugi-media-navigation .tsugi-category-link svg { width:21px; height:21px; }
+:root[data-host='desktop'] .tsugi-media-navigation .tsugi-entry-home { justify-self:start; padding:6px 0; background:none; }
+:root[data-host='desktop'] .tsugi-media-navigation .tsugi-entry-home svg { width:36px; height:36px; }
+:root[data-host='desktop'] .tsugi-media-navigation .tsugi-entry-home .tsugi-brand-wordmark { font-size:20px; font-weight:700; letter-spacing:-.04em; }
+:root[data-host='desktop'] .tsugi-media-navigation .tsugi-entry-settings { margin:0; }
+:root[data-host='desktop'] .tsugi-music-top { border:0; margin-bottom:20px; padding-bottom:0; }
+:root[data-host='desktop'] .tsugi-read-media-header { padding-block:0; }
+:root[data-host='desktop'] .tsugi-music-navigation { border-bottom:1px solid var(--tsugi-line); margin-bottom:28px; gap:8px; }
+:root[data-host='desktop'] .tsugi-music-navigation button { padding:12px 16px; font-size:15px; border:0; border-radius:3px; }
+:root[data-host='desktop'] .tsugi-music-navigation button[aria-current='page'] { color:var(--tsugi-ink); background:var(--tsugi-wash); border:0; font-weight:650; }
+:root[data-host='desktop'] .tsugi-music-root { padding-bottom:144px; }
+.tsugi-search-track-list { margin-top:16px; }
+.tsugi-search-track-line { display:flex; align-items:stretch; gap:0; border-bottom:1px solid var(--tsugi-line); min-height:66px; }
+:root[data-host='desktop'] .tsugi-music-root [data-ui='music-track-row'] { border:0; padding:10px 14px; }
+:root[data-host='desktop'] .tsugi-search-track-line [data-ui='music-track-row']:hover { background:transparent; }
+.tsugi-search-track-line:hover,.tsugi-search-track-line:focus-within,.tsugi-search-track-line[data-active='true'] { background:var(--tsugi-wash); }
+.tsugi-search-track-line > .tsugi-icon-action { align-self:stretch; width:52px; border-radius:0; }
+.tsugi-track-duration { color:var(--tsugi-muted); font-size:13px; font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
+.tsugi-search-track-line .tsugi-track-duration { margin-inline-start:auto; }
+
+/* Library is a collection browser, not a setup form. Actual tracks, folders,
+   recent metadata and playlists are the only content. */
+.tsugi-collection { max-width:1440px; margin-inline:auto; padding:0 0 48px; }
+.tsugi-collection-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:20px; padding:4px 0 24px; border-bottom:1px solid var(--tsugi-line); }
+.tsugi-collection-header h1 { font-size:clamp(32px,3vw,44px); font-weight:650; line-height:1.1; letter-spacing:-.045em; }
+.tsugi-collection-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.tsugi-collection-actions button,.tsugi-collection-primary { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 15px; min-height:42px; font-size:14px; font-weight:550; border-radius:3px; }
+.tsugi-collection-primary { background:var(--tsugi-ink); color:var(--tsugi-canvas); }
+.tsugi-collection-primary:hover { background:var(--tsugi-accent); color:var(--tsugi-on-accent); }
+.tsugi-collection-layout { display:grid; grid-template-columns:250px minmax(0,1fr); gap:clamp(24px,3vw,44px); min-height:440px; }
+.tsugi-collection-rail { padding:22px 16px 0 0; border-inline-end:1px solid var(--tsugi-line); min-width:0; }
+.tsugi-collection-rail nav { display:flex; flex-direction:column; gap:3px; }
+.tsugi-collection-rail .tsugi-library-list-item { display:flex; align-items:center; gap:10px; width:100%; min-height:44px; padding:10px; text-align:left; border:0; font-size:14px; border-radius:3px; }
+.tsugi-collection-rail .tsugi-library-list-item span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tsugi-collection-rail .tsugi-library-list-item small { font-size:12px; color:var(--tsugi-muted); }
+.tsugi-collection-rail .tsugi-library-list-item[aria-current='page'] { background:var(--tsugi-wash); color:var(--tsugi-ink); font-weight:650; }
+.tsugi-collection-rail h2 { font-size:14px; font-weight:650; margin:24px 0 9px; }
+.tsugi-collection-create { display:flex; align-items:center; gap:4px; margin-top:8px; }
+.tsugi-collection-create input { width:100%; min-width:0; padding:10px; font-size:14px; }
+.tsugi-collection-folder { border-top:1px solid var(--tsugi-line); margin-top:24px; }
+.tsugi-collection-folder p { font-size:13px; color:var(--tsugi-muted); overflow-wrap:anywhere; }
+.tsugi-collection-folder button { display:flex; width:100%; font-size:13px; text-align:left; }
+.tsugi-collection-content { min-width:0; padding-top:25px; }
+.tsugi-collection-titlebar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:18px; }
+.tsugi-collection-titlebar h2 { font-size:28px; line-height:1.2; font-weight:650; letter-spacing:-.035em; }
+.tsugi-collection-titlebar p { margin-top:5px; color:var(--tsugi-muted); font-size:13px; }
+.tsugi-collection-filter { display:flex; align-items:center; gap:12px; margin:24px 0 12px; }
+.tsugi-collection-filter label { display:flex; align-items:center; gap:10px; border:1px solid var(--tsugi-line); background:var(--tsugi-surface); padding:0 12px; width:min(420px,100%); min-width:0; min-height:42px; }
+.tsugi-collection-filter label input { flex:1; min-width:0; background:transparent!important; border:0!important; padding:10px 0; }
+.tsugi-collection-filter label:focus-within { outline:2px solid var(--tsugi-focus); outline-offset:1px; }
+.tsugi-collection-filter select { min-height:42px; font-size:14px; padding:9px 12px; }
+.tsugi-collection-columns,.tsugi-collection-play { display:grid; grid-template-columns:minmax(0,1fr) minmax(80px,26%) 64px 26px; gap:14px; align-items:center; }
+.tsugi-collection-columns { padding:12px 12px 12px 12px; color:var(--tsugi-muted); font-size:13px; border-bottom:1px solid var(--tsugi-line); }
+.tsugi-collection-columns > :nth-child(3) { text-align:right; }
+.tsugi-collection-row { display:flex; align-items:stretch; border-bottom:1px solid var(--tsugi-line); }
+.tsugi-collection-row:hover,.tsugi-collection-row:focus-within,.tsugi-collection-row[data-active='true'] { background:var(--tsugi-wash); }
+.tsugi-collection-play { grid-template-columns:44px minmax(0,1fr) minmax(80px,26%) 64px 26px; flex:1; min-width:0; min-height:66px; padding:10px 12px; text-align:left; }
+.tsugi-collection-play:disabled { opacity:.5; }
+.tsugi-collection-art { display:grid; place-items:center; width:44px; height:44px; background:var(--tsugi-surface); color:var(--tsugi-muted); overflow:hidden; }
+.tsugi-collection-art img { width:100%; height:100%; object-fit:cover; }
+.tsugi-collection-art svg { width:21px; height:21px; }
+.tsugi-collection-title { min-width:0; }
+.tsugi-collection-title strong,.tsugi-collection-title small,.tsugi-collection-album { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tsugi-collection-title strong { font-size:15px; font-weight:600; }
+.tsugi-collection-title small,.tsugi-collection-album { font-size:13px; color:var(--tsugi-muted); }
+.tsugi-collection-play-icon { color:var(--tsugi-muted); justify-self:center; }
+.tsugi-collection-row[data-active='true'] .tsugi-collection-play-icon { color:var(--tsugi-accent); }
+.tsugi-collection-empty { display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; padding:clamp(40px,8vh,90px) 20px 42px; }
+.tsugi-collection-empty > svg { width:52px; height:52px; color:var(--tsugi-muted); }
+.tsugi-collection-empty h3 { font-size:24px; font-weight:650; }
+.tsugi-collection-empty p { font-size:15px; color:var(--tsugi-muted); max-width:46ch; }
+.tsugi-collection-empty .tsugi-collection-actions { justify-content:center; margin-top:10px; }
+:root[data-host='desktop'] .tsugi-mini-player { background:var(--tsugi-surface)!important; box-shadow:none; backdrop-filter:none; }
+.tsugi-mini-player-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(260px,480px) minmax(0,1fr); align-items:center; gap:24px; padding:12px clamp(18px,3vw,50px); max-width:1640px; margin:auto; min-height:98px; }
+.tsugi-mini-track { max-width:100%; }
+.tsugi-mini-track img { width:58px; height:58px; }
+.tsugi-mini-transport { justify-self:center; }
+.tsugi-mini-tools { min-width:0; }
+@media(max-width:1000px) {
+  :root[data-host='desktop'] .tsugi-media-navigation:not(.tsugi-media-navigation-rail) { grid-template-columns:auto minmax(0,1fr) auto; gap:8px; }
+  .tsugi-media-destinations { justify-content:center; flex-wrap:wrap; }
+  :root[data-host='desktop'] .tsugi-media-navigation .tsugi-entry-home .tsugi-brand-wordmark { display:none; }
+  :root[data-host='desktop'] .tsugi-media-navigation .tsugi-entry-settings span { display:none; }
+  :root[data-host='desktop'] .tsugi-media-navigation .tsugi-category-link { padding:9px; font-size:13px; }
+  .tsugi-collection-layout { grid-template-columns:190px minmax(0,1fr); gap:20px; }
+}
+@media(max-width:700px) {
+  :root[data-host='desktop'] .tsugi-media-navigation:not(.tsugi-media-navigation-rail) { grid-template-columns:auto 1fr; }
+  .tsugi-media-tools { grid-column:1/-1; justify-content:flex-end; }
+  .tsugi-collection-layout { grid-template-columns:minmax(0,1fr); gap:10px; }
+  .tsugi-collection-rail { border-inline-end:0; border-bottom:1px solid var(--tsugi-line); padding:10px 0 16px; }
+  .tsugi-collection-columns { grid-template-columns:1fr 64px 26px; }
+  .tsugi-collection-columns > :nth-child(2),.tsugi-collection-album { display:none; }
+  .tsugi-collection-play { grid-template-columns:36px minmax(0,1fr) 64px 26px; gap:8px; }
+  .tsugi-mini-player-grid { grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+  .tsugi-mini-transport { grid-row:2; grid-column:1/-1; }
+  .tsugi-mini-tools { grid-row:1; grid-column:2; }
+}
