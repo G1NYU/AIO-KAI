@@ -2,7 +2,7 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import {
-  FiArrowUpRight, FiDisc, FiDownload, FiFilePlus, FiList, FiPlus, FiTrash2,
+  FiArrowUpRight, FiDisc, FiDownload, FiFilePlus, FiFolderPlus, FiList, FiPlus, FiTrash2,
 } from 'react-icons/fi';
 import type { MusicPlaylist, SavedMusicTrack } from '@/lib/music/library';
 import {
@@ -10,12 +10,15 @@ import {
 } from '@/lib/music/library';
 
 export function MusicLibrary({
-  playlists, onChange, onPlay, playing,
+  playlists, onChange, onPlay, playing, localTracks, onImportLocal, onPlayLocal,
 }: {
   playlists: MusicPlaylist[];
   onChange(next: MusicPlaylist[]): void;
   onPlay(track: SavedMusicTrack): void;
   playing: SavedMusicTrack | null;
+  localTracks: SavedMusicTrack[];
+  onImportLocal(files: File[]): void;
+  onPlayLocal(track: SavedMusicTrack): void;
 }) {
   const [selected, setSelected] = React.useState<string>('');
   const [newName, setNewName] = React.useState('');
@@ -23,6 +26,7 @@ export function MusicLibrary({
   const [notice, setNotice] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const localInputRef = React.useRef<HTMLInputElement>(null);
   const current = playlists.find((list) => list.id === selected) ?? playlists[0];
 
   function create(event: React.FormEvent) {
@@ -105,6 +109,16 @@ export function MusicLibrary({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-6 text-sm">
+          <button type="button" className="tsugi-library-action" onClick={() => localInputRef.current?.click()}>
+            <FiFolderPlus aria-hidden /> <Trans>Open local audio</Trans>
+          </button>
+          <input ref={localInputRef} type="file" multiple accept="audio/*,.mp3,.m4a,.flac,.wav,.ogg"
+            aria-label={t`Open local audio`} className="sr-only"
+            onChange={(event) => {
+              const files = Array.from(event.target.files ?? []);
+              event.target.value = '';
+              onImportLocal(files);
+            }} />
           <button type="button" className="tsugi-library-action" onClick={() => inputRef.current?.click()} disabled={busy}>
             <FiFilePlus aria-hidden /> <Trans>Import playlist</Trans>
           </button>
@@ -117,6 +131,24 @@ export function MusicLibrary({
       </header>
       {error && <p role="alert" className="text-sm text-amber-200">{error}</p>}
       {notice && <p role="status" className="text-sm text-[--tsugi-muted]">{notice}</p>}
+      {localTracks.length > 0 && (
+        <section className="space-y-4">
+          <div className="flex items-baseline justify-between gap-5">
+            <h2 className="text-xl font-semibold"><Trans>Local audio — this session</Trans></h2>
+            <p className="text-xs text-[--tsugi-muted]"><Trans>Reopen files after restarting Tsugi</Trans></p>
+          </div>
+          <div className="tsugi-music-shelf flex gap-4 overflow-x-auto pb-5">
+            {localTracks.map(track => (
+              <button type="button" key={track.id} onClick={() => onPlayLocal(track)}
+                className="tsugi-local-track group w-48 shrink-0 border-b border-[--tsugi-line] pb-3 text-left">
+                <FiDisc aria-hidden className="mb-3 size-8 text-[--tsugi-muted]" />
+                <span className="block truncate text-sm font-medium">{track.title}</span>
+                <span className="mt-1 block truncate text-xs text-[--tsugi-muted]">{track.artist}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
       <div className="grid gap-12 lg:grid-cols-[minmax(230px,22%)_minmax(0,1fr)]">
         <aside>
           <h2 className="mb-5 text-xs font-semibold uppercase tracking-widest text-[--tsugi-muted]">

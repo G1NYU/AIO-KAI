@@ -55,6 +55,9 @@ export function MusicPage({
   const [tab, setTab] = React.useState<'discover' | 'search' | 'library'>('discover');
   const [playlists, setPlaylists] = React.useState(readMusicLibrary);
   const [libraryError, setLibraryError] = React.useState('');
+  const [localTracks, setLocalTracks] = React.useState<EclipseTrack[]>([]);
+  const localURLs = React.useRef(new Map<string,string>());
+  const LOCAL_SOURCE = 'tsugi-local';
   const [settingsOpen, setSettingsOpen] = React.useState(() => readMusicSources().length === 0);
 
   React.useEffect(() => {
@@ -94,6 +97,11 @@ export function MusicPage({
   React.useEffect(() => {
     saveMusicLibrary(playlists);
   }, [playlists]);
+
+  React.useEffect(() => {
+    const urls = localURLs.current;
+    return () => { for (const url of urls.values()) URL.revokeObjectURL(url); };
+  }, []);
 
   React.useEffect(() => {
     if (!settingsOpen) return;
@@ -238,6 +246,48 @@ export function MusicPage({
     void play(songs[at], at, source, true);
   };
 
+  function importLocalFiles(files: File[]) {
+    const supported = files.filter(file =>
+      /^audio\//.test(file.type) || /\.(mp3|m4a|flac|wav|ogg)$/i.test(file.name)).slice(0, 250);
+    const tracks = supported.map(file => {
+      const id = 'local:' + crypto.randomUUID();
+      localURLs.current.set(id, URL.createObjectURL(file));
+      return {
+        id,
+        title: file.name.replace(/\.[^.]+$/, ''),
+        artist: 'Local file',
+        album: 'This session',
+      } satisfies EclipseTrack;
+    });
+    if (tracks.length) {
+      setLocalTracks(current => [...current,...tracks].slice(-250));
+      setLibraryError('');
+    } else {
+      setLibraryError(t`No supported audio files were selected.`);
+    }
+  }
+
+  function playLocalTrack(track: EclipseTrack, at: number, fromQueue = false) {
+    const url = localURLs.current.get(track.id);
+    if (!url) {
+      setLibraryError(t`This local file is no longer available. Reopen it from your device.`);
+      return;
+    }
+    ++playbackRequest.current;
+    audioRef.current?.pause();
+    if (!fromQueue) setQueue(localTracks);
+    setQueueIndex(at);
+    setPlaying(track);
+    setPlayingSourceId(LOCAL_SOURCE);
+    setStreamUrl(url);
+    setPlayError('');
+    setPosition(0);
+    setDuration(0);
+    setPaused(true);
+    setResolving(false);
+    setQuality('Local');
+  }
+
   function saveTrackInLibrary(track: EclipseTrack) {
     const sourceId = activeSource?.id ?? playingSourceId;
     const entry = savedTrack(track, sourceId);
@@ -251,6 +301,11 @@ export function MusicPage({
 
   async function playSavedTrack(entry: SavedMusicTrack) {
     setLibraryError('');
+    if (localURLs.current.has(entry.id)) {
+      const at = localTracks.findIndex(track => track.id === entry.id);
+      playLocalTrack(entry, Math.max(0,at), false);
+      return;
+    }
     const exactSource = connections.find((source) => source.id === entry.sourceId);
     const source = exactSource ?? activeSource;
     if (!source) {
@@ -299,8 +354,9 @@ export function MusicPage({
   }
 
   function next(auto = false) {
+    const local = playingSourceId === LOCAL_SOURCE;
     const source = connections.find((item) => item.id === playingSourceId);
-    if (!source || !queue.length) return;
+    if ((!source && !local) || !queue.length) return;
     if (auto && repeat === 'one') {
       seek(0);
       void audioRef.current?.play();
@@ -317,15 +373,18 @@ export function MusicPage({
       }
       at = 0;
     }
-    void play(queue[at], at, source, true);
+    if (local) playLocalTrack(queue[at], at, true);
+    else if (source) void play(queue[at], at, source, true);
   }
 
   function previous() {
     if (position > 3) return seek(0);
+    const local = playingSourceId === LOCAL_SOURCE;
     const source = connections.find((item) => item.id === playingSourceId);
-    if (!source || !queue.length) return;
+    if ((!source && !local) || !queue.length) return;
     const at = queueIndex > 0 ? queueIndex - 1 : repeat === 'all' ? queue.length - 1 : 0;
-    void play(queue[at], at, source, true);
+    if (local) playLocalTrack(queue[at], at, true);
+    else if (source) void play(queue[at], at, source, true);
   }
 
   function changeVolume(value: number) {
@@ -418,7 +477,11 @@ export function MusicPage({
             {libraryError && <p role="alert" className="mb-6 text-sm text-amber-200">{libraryError}</p>}
             <MusicLibrary playlists={playlists} onChange={setPlaylists}
               onPlay={(entry) => { void playSavedTrack(entry); }}
-              playing={playing ? savedTrack(playing, playingSourceId) : null} />
+              playing={playing ? savedTrack(playing, playingSourceId) : null}
+              localTracks={localTracks}
+              onImportLocal={importLocalFiles}
+              onPlayLocal={(track) => playLocalTrack(track,
+                Math.max(0,localTracks.findIndex(item => item.id === track.id)))} />
           </>
         )}
 
@@ -650,7 +713,8 @@ export function MusicPage({
       )}
       <MusicPlayer p={{
         track: playing,
-        sourceName: connections.find((item) => item.id === playingSourceId)?.manifest.name ?? '',
+        sourceName: playingSourceId === LOCAL_SOURCE ? 'Local audio' :
+          connections.find((item) => item.id === playingSourceId)?.manifest.name ?? '',
         queue, index: queueIndex, paused, loading: resolving, error: playError,
         position, duration, volume, quality, expanded, shuffle, repeat,
         onExpanded: setExpanded, onToggle: toggle, onNext: next,
@@ -658,7 +722,8 @@ export function MusicPage({
         onShuffle: setShuffle, onRepeat: setRepeat,
         onQueue: (at) => {
           const source = connections.find((item) => item.id === playingSourceId);
-          if (source && queue[at]) void play(queue[at], at, source, true);
+          if (playingSourceId === LOCAL_SOURCE && queue[at]) playLocalTrack(queue[at],at,true);
+          else if (source && queue[at]) void play(queue[at], at, source, true);
         },
       }} />
     </main>
