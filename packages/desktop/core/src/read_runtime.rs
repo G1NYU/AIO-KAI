@@ -15,6 +15,8 @@ use serde_json::{Value, json};
 const VERSION: &str = "v2.4.2373";
 const USER: &str = "tsugi-read";
 const MAX_RESPONSE: u64 = 2 * 1024 * 1024;
+const MAX_PAGE: u64 = 24 * 1024 * 1024;
+const MAX_PAGES: usize = 2000;
 const READY_TIMEOUT: Duration = Duration::from_secs(90);
 const NO_WINDOW: u32 = 0x08000000;
 
@@ -84,6 +86,15 @@ impl ReadClient {
         operation: ReadOperation,
         authorization: Option<&str>,
     ) -> Result<Reply, &'static str> {
+        self.send_document(operation.query(), json!({}), authorization)
+    }
+
+    fn send_document(
+        &self,
+        document: &'static str,
+        variables: Value,
+        authorization: Option<&str>,
+    ) -> Result<Reply, &'static str> {
         let endpoint = format!("http://127.0.0.1:{}/api/graphql", self.port);
         let mut request = self
             .agent
@@ -95,7 +106,7 @@ impl ReadClient {
             request = request.header("Authorization", value);
         }
         let mut response = request
-            .send(json!({ "query": operation.query() }).to_string())
+            .send(json!({ "query": document, "variables": variables }).to_string())
             .map_err(|_| "Reading server did not respond.")?;
         let status = response.status().as_u16();
         let challenge = response
@@ -135,6 +146,45 @@ impl ReadClient {
     fn query(&self, operation: ReadOperation) -> Result<Value, &'static str> {
         let reply = self.send(operation, Some(&self.authorization))?;
         decode(operation, reply)
+    }
+
+    fn mutation(
+        &self,
+        document: &'static str,
+        key: &'static str,
+        input: Value,
+    ) -> Result<Value, &'static str> {
+        let reply = self.send_document(document, json!({ "input": input }), Some(&self.authorization))?;
+        if reply.status != 200
+            || reply.body.get("errors").is_some_and(|errors| !errors.is_null())
+        {
+            return Err("Reading server rejected the operation.");
+        }
+        let value = reply.body["data"][key].clone();
+        if !value.is_object() {
+            return Err("Reading server returned an invalid result.");
+        }
+        Ok(value)
+    }
+
+    fn page(&self, path: &PagePath) -> Result<PageImage, &'static str> {
+        let endpoint = format!("http://127.0.0.1:{}{}", self.port, path.0);
+        let mut response = self.agent.get(&endpoint)
+            .header("Authorization", self.authorization.as_str())
+            .header("Connection", "close")
+            .call()
+            .map_err(|_| "Reading server did not return a page.")?;
+        if response.status().as_u16() != 200 {
+            return Err("Reading page is unavailable.");
+        }
+        let mut bytes = Vec::new();
+        response.body_mut().as_reader().take(MAX_PAGE + 1)
+            .read_to_end(&mut bytes).map_err(|_| "Could not read page image.")?;
+        if bytes.len() as u64 > MAX_PAGE {
+            return Err("Reading page exceeded its size limit.");
+        }
+        let mime = image_mime(&bytes).ok_or("Unsupported reading page image.")?;
+        Ok(PageImage { bytes, mime })
     }
 
     fn verify_authentication(&self) -> Result<(), &'static str> {
@@ -191,6 +241,69 @@ fn decode(operation: ReadOperation, reply: Reply) -> Result<Value, &'static str>
         }
     }
     Ok(value)
+}
+
+/// A page capability derived only from the fixed chapter-pages response.
+/// Reject absolute URLs, query strings, traversal, and non-page API routes.
+struct PagePath(String);
+
+impl PagePath {
+    fn parse(value: &str, manga_id: i32, index: usize) -> Result<Self, &'static str> {
+        let rest = value.strip_prefix("/api/v1/manga/")
+            .ok_or("Invalid reading page path.")?;
+        let parts: Vec<_> = rest.split('/').collect();
+        if parts.len() != 5 || parts[1] != "chapter" || parts[3] != "page"
+            || parts[0] != manga_id.to_string()
+            || parts[4] != index.to_string()
+            || parts[2].is_empty()
+            || !parts[2].bytes().all(|b| b.is_ascii_digit())
+            || parts[2].parse::<u32>().is_err()
+        {
+            return Err("Invalid reading page path.");
+        }
+        Ok(Self(value.to_owned()))
+    }
+}
+
+fn image_mime(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("image/png")
+    } else if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        Some("image/jpeg")
+    } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        Some("image/gif")
+    } else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
+        Some("image/webp")
+    } else {
+        None
+    }
+}
+
+pub struct PageImage {
+    pub bytes: Vec<u8>,
+    pub mime: &'static str,
+}
+
+pub struct ChapterPages {
+    chapter_id: i32,
+    paths: Vec<PagePath>,
+}
+
+impl ChapterPages {
+    pub fn len(&self) -> usize {
+        self.paths.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.paths.is_empty()
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum CatalogueMode<'a> {
+    Popular,
+    Latest,
+    Search(&'a str),
 }
 
 /// Owns the launched process and private client. The first implementation
@@ -280,6 +393,88 @@ impl ReadRuntime {
     pub fn query(&self, operation: ReadOperation) -> Result<Value, &'static str> {
         self.client.query(operation)
     }
+
+    /// The backend's source ID is LongString, never a JS number.
+    pub fn catalogue(&self, source: &str, page: u32, mode: CatalogueMode<'_>) -> Result<Value, &'static str> {
+        if source.parse::<i64>().is_err() || page == 0 || page > 1000 {
+            return Err("Invalid reading catalogue request.");
+        }
+        let (kind, query) = match mode {
+            CatalogueMode::Popular => ("POPULAR", None),
+            CatalogueMode::Latest => ("LATEST", None),
+            CatalogueMode::Search(query) if !query.trim().is_empty() && query.chars().count() <= 200 => ("SEARCH", Some(query)),
+            CatalogueMode::Search(_) => return Err("Invalid reading search."),
+        };
+        self.client.mutation(
+            "mutation TsugiCatalogue($input: FetchSourceMangaInput!) { fetchSourceManga(input: $input) { hasNextPage mangas { id sourceId title author thumbnailUrl inLibrary } } }",
+            "fetchSourceManga",
+            json!({ "source": source, "page": page, "type": kind, "query": query }),
+        )
+    }
+
+    pub fn manga(&self, id: i32) -> Result<Value, &'static str> {
+        if id <= 0 {
+            return Err("Invalid manga identifier.");
+        }
+        self.client.mutation(
+            "mutation TsugiManga($input: FetchMangaAndChaptersInput!) { fetchMangaAndChapters(input: $input) { manga { id sourceId title author artist description genre thumbnailUrl inLibrary } chapters { id name mangaId chapterNumber sourceOrder pageCount isRead lastPageRead } } }",
+            "fetchMangaAndChapters",
+            json!({ "id": id, "fetchManga": true, "fetchChapters": true }),
+        )
+    }
+
+    pub fn set_library(&self, id: i32, in_library: bool) -> Result<Value, &'static str> {
+        if id <= 0 {
+            return Err("Invalid manga identifier.");
+        }
+        self.client.mutation(
+            "mutation TsugiLibraryUpdate($input: UpdateMangaInput!) { updateManga(input: $input) { manga { id title inLibrary } } }",
+            "updateManga",
+            json!({ "id": id, "patch": { "inLibrary": in_library } }),
+        )
+    }
+
+    pub fn chapter(&self, id: i32) -> Result<ChapterPages, &'static str> {
+        if id <= 0 {
+            return Err("Invalid chapter identifier.");
+        }
+        let value = self.client.mutation(
+            "mutation TsugiChapter($input: FetchChapterPagesInput!) { fetchChapterPages(input: $input) { pages chapter { id mangaId pageCount lastPageRead isRead } } }",
+            "fetchChapterPages",
+            json!({ "chapterId": id }),
+        )?;
+        let chapter = &value["chapter"];
+        let manga_id = chapter["mangaId"].as_i64().and_then(|value| i32::try_from(value).ok())
+            .filter(|value| *value > 0).ok_or("Invalid reading chapter response.")?;
+        let pages = value["pages"].as_array().ok_or("Invalid reading chapter response.")?;
+        if chapter["id"].as_i64() != Some(i64::from(id)) || pages.is_empty() || pages.len() > MAX_PAGES
+            || chapter["pageCount"].as_u64() != Some(pages.len() as u64) {
+            return Err("Invalid reading chapter response.");
+        }
+        let paths = pages.iter().enumerate().map(|(index, value)| {
+            PagePath::parse(value.as_str().ok_or("Invalid reading page path.")?, manga_id, index)
+        }).collect::<Result<Vec<_>, _>>()?;
+        Ok(ChapterPages { chapter_id: id, paths })
+    }
+
+    pub fn page(&self, chapter: &ChapterPages, index: usize) -> Result<PageImage, &'static str> {
+        self.client.page(chapter.paths.get(index).ok_or("Reading page is out of range.")?)
+    }
+
+    pub fn save_progress(&self, chapter: &ChapterPages, index: usize, finished: bool) -> Result<Value, &'static str> {
+        if index >= chapter.len() || (finished && index + 1 != chapter.len()) {
+            return Err("Invalid reading progress.");
+        }
+        let mut patch = json!({ "lastPageRead": index });
+        if finished {
+            patch["isRead"] = Value::Bool(true);
+        }
+        self.client.mutation(
+            "mutation TsugiProgress($input: UpdateChapterInput!) { updateChapter(input: $input) { chapter { id isRead lastPageRead } } }",
+            "updateChapter",
+            json!({ "id": chapter.chapter_id, "patch": patch }),
+        )
+    }
 }
 
 impl Drop for ReadRuntime {
@@ -325,6 +520,22 @@ mod tests {
     }
 
     #[test]
+    fn page_paths_are_bound_to_the_manga_and_page_index() {
+        assert!(PagePath::parse("/api/v1/manga/7/chapter/1/page/0", 7, 0).is_ok());
+        for path in [
+            "https://example.test/api/v1/manga/7/chapter/1/page/0",
+            "/api/v1/manga/8/chapter/1/page/0",
+            "/api/v1/manga/7/chapter/../page/0",
+            "/api/v1/manga/7/chapter/1/page/0?redirect=x",
+            "/api/v1/manga/7/chapter/1/page/1",
+            "/api/v1/settings",
+        ] {
+            assert!(PagePath::parse(path, 7, 0).is_err());
+        }
+        assert_eq!(image_mime(b"<svg/>"), None);
+    }
+
+    #[test]
     #[ignore = "requires the pinned Windows reading runtime"]
     fn packaged_runtime() {
         let runtime = PathBuf::from(std::env::var_os("TSUGI_READ_RUNTIME").unwrap());
@@ -342,6 +553,36 @@ mod tests {
             let value = managed.query(operation).expect("fixed reading query");
             assert!(value["nodes"].is_array());
         }
+        // Original, generated two-page comic, never a remote source or APK.
+        let fixture = data.join("local/Tsugi Fixture/Chapter 01");
+        fs::create_dir_all(&fixture).expect("fixture chapter");
+        let png = STANDARD.decode("iVBORw0KGgoAAAANSUhEUgAAABAAAAAYCAIAAAB8wupbAAAAHUlEQVR4nGOsqF3FQApgIkn1qIZRDaMaRjWQrAEA4jkBz8UryC4AAAAASUVORK5CYII=").unwrap();
+        for filename in ["001.png", "002.png"] {
+            fs::write(fixture.join(filename), &png).expect("fixture page");
+        }
+        let catalog = managed.catalogue("0", 1, CatalogueMode::Search("Tsugi Fixture")).expect("local catalogue search");
+        let manga = catalog["mangas"].as_array().unwrap().iter().find(|item| item["title"] == "Tsugi Fixture").expect("fixture manga");
+        let manga_id = manga["id"].as_i64().unwrap() as i32;
+        let details = managed.manga(manga_id).expect("fixture chapters");
+        let id = details["chapters"][0]["id"].as_i64().unwrap() as i32;
+        let pages = managed.chapter(id).expect("chapter page list");
+        assert_eq!(pages.len(), 2);
+        for index in 0..pages.len() {
+            let image = managed.page(&pages, index).expect("authenticated page image");
+            assert_eq!(image.mime, "image/png");
+            assert!(!image.bytes.is_empty());
+        }
+        assert!(managed.page(&pages, 2).is_err());
+        let progress = managed.save_progress(&pages, 1, true).expect("save reading progress");
+        assert_eq!(progress["chapter"]["lastPageRead"], 1);
+        assert_eq!(progress["chapter"]["isRead"], true);
+        let library = managed.set_library(manga_id, true).expect("add fixture to library");
+        assert_eq!(library["manga"]["inLibrary"], true);
+        let list = managed.query(ReadOperation::Library).expect("library query");
+        assert!(list["nodes"].as_array().unwrap().iter().any(|item| item["id"] == manga_id.to_string()));
+        let details = managed.manga(manga_id).expect("retrieve saved progress");
+        assert_eq!(details["chapters"][0]["isRead"], true);
+        assert_eq!(details["chapters"][0]["lastPageRead"], 1);
         let port = managed.client.port;
         drop(managed);
         assert!(TcpStream::connect_timeout(

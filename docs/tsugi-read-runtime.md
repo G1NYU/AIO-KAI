@@ -152,3 +152,19 @@ shipping code without completing those requirements. The next step is to
 connect the production lifecycle and a real Read entry, then add extension
 store management and authorized source/chapter/page operations. No music code
 or user data is touched.
+
+## Native chapter API and end-to-end local fixture
+
+Run 45391918859 passed Rust unit tests and the real native runtime broker test.
+Add fixed, parameterized operations for source popular/latest/search, manga and
+chapter metadata, library membership, chapter page lists and reading progress.
+Use upstream LongString source IDs, not JavaScript numbers. Page handles are
+private native capabilities obtained from chapter responses; accept only the
+expected same-manga relative page route, bound image reads, reject SVG/HTML and
+never send credentials or arbitrary URLs across the bridge. The integration test
+creates an original two-page local comic, searches it, loads both authenticated
+images, marks progress, adds it to the library, re-reads both library and
+progress, then stops the process. This tests live upstream behavior without
+external extension installs. It does not prove external extension compatibility
+or persistence across restart. Production lifecycle and permissions remain
+outstanding; no launcher entry or shipping package change yet.
