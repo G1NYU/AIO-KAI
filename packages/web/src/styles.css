@@ -1422,3 +1422,6 @@ body:has(.tsugi-chapter-reader[data-focus='hidden']) .tsugi-reading-music { disp
 .tsugi-chapter-list-item .tsugi-reader-icon { flex:none; }
 .tsugi-chapter-list-item .tsugi-reader-icon[aria-pressed='true'] { color:var(--tsugi-accent); }
 .tsugi-chapter-list-item .tsugi-reader-icon[aria-pressed='true'] svg { fill:currentColor; }
+
+.tsugi-entry-media-nav { position:fixed; top:42px; inset-inline-start:18px; z-index:49; display:flex; flex-wrap:wrap; gap:4px; background:var(--tsugi-canvas); }
+body:has(.tsugi-chapter-reader) .tsugi-reading-music-open { display:none; }

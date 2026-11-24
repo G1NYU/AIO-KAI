@@ -694,7 +694,7 @@ export function MusicPage({
       <span className="truncate" title={playing.title}>{playing.title}</span>
       <button type="button" disabled={resolving} onClick={toggle} aria-label={paused ? t({ id: "Play", message: "Play" }) : t({ id: "Pause", message: "Pause" })}>{paused ? t({ id: "Play", message: "Play" }) : t({ id: "Pause", message: "Pause" })}</button>
       <button type="button" onClick={() => next()} aria-label={t({ id: "Next track", message: "Next track" })}><Trans id="Next">Next</Trans></button>
-      <button type="button" onClick={() => desktopArea?.openMusic()}><Trans id="Music">Music</Trans></button>
+      <button type="button" className="tsugi-reading-music-open" onClick={() => desktopArea?.openMusic()}><Trans id="Music">Music</Trans></button>
     </div>}
     <main data-page="music" style={{ display: visible ? 'block' : 'none' }}
       className="tsugi-music-root min-h-screen px-6 pb-36 pt-14 sm:px-[3vw]">

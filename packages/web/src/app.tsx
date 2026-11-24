@@ -3,6 +3,7 @@ import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { RouterProvider } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import { useLingui } from '@lingui/react';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from '@aiostreams/ui/toaster';
@@ -52,7 +53,6 @@ import { WindowControls } from './components/shell/window-controls';
 import { InputSetup } from './components/shell/input-setup';
 import { CrashReportDialog } from './components/shell/crash-report';
 import { SplashEnd } from './lib/splash';
-import { BiMusic } from 'react-icons/bi';
 import { DesktopAreaContext, initialDesktopArea, allowsMusicPlayback, type DesktopArea } from './lib/desktop-area';
 import { DesktopLandingPage } from './app/desktop-landing/page';
 import { MusicPage } from './app/music/page';
@@ -249,6 +249,7 @@ function Standalone() {
     <DesktopAreaContext.Provider value={desktop ? areaActions : null}>
       <>
       {desktop && <><GlobalAppearance /><GlobalSettingsDialog open={globalSettings} onClose={() => setGlobalSettings(false)} /></>}
+      {desktop && area === 'video' && (!base || picking) && <VideoEntryNavigation actions={areaActions} />}
       <AnimatePresence mode="wait">
         <motion.div
           key={desktop && area !== 'video' ? area : (picking && base ? 'picker' : (base ?? 'servers'))}
@@ -312,6 +313,10 @@ function Standalone() {
   );
 }
 
+function VideoEntryNavigation({ actions }: { actions: NonNullable<React.ContextType<typeof DesktopAreaContext>> }) {
+  return <nav className="tsugi-entry-media-nav" aria-label={t({ id: "Media sections", message: "Media sections" })}><button className="tsugi-category-link" onClick={actions.openMusic}><Trans id="Music">Music</Trans></button>{actions.openRead && <button className="tsugi-category-link" onClick={actions.openRead}><Trans id="Read">Read</Trans></button>}<button className="tsugi-category-link" onClick={actions.openSettings}><Trans id="App settings">App settings</Trans></button></nav>;
+}
+
 function SharedPicker({
   base,
   onOpen,
@@ -358,6 +363,7 @@ function Session({
   askAll?: () => void;
   openMusic?: () => void;
 }) {
+  const desktopArea = React.useContext(DesktopAreaContext);
   const { phase, signIn, signInWithQuickConnect, switchUser, signOut, retry } =
     useSessionPhase(base, askAll);
   const changeServer = leave ?? currentHost().selectServer;
@@ -464,13 +470,7 @@ function Session({
           transition={{ duration: 0.18 }}
         >
           {screen}
-          {!ready && openMusic && (
-            <button type="button" onClick={openMusic}
-              className="fixed bottom-5 left-5 z-50 inline-flex items-center gap-2 rounded-full border border-white/10 bg-gray-950/90 px-4 py-2 text-sm text-white shadow-xl transition-colors hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
-              <BiMusic aria-hidden />
-              {t`Music`}
-            </button>
-          )}
+          {!ready && desktopArea && <VideoEntryNavigation actions={desktopArea} />}
           {!waiting && <SplashEnd />}
         </motion.div>
       </AnimatePresence>

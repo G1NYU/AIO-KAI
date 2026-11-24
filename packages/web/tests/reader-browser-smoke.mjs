@@ -37,6 +37,8 @@ try {
         let error = null;
         switch (a.kind) {
           case 'library': data = nodes([manga]); break;
+          case 'trackers': data = nodes([{ id: 1, name: 'MyAnimeList', isLoggedIn: false, supportsReadingDates: true, supportsPrivateTracking: false }]); break;
+          case 'chapter-flags': data = { chapters: chapters.filter((chapter) => a.ids.includes(chapter.id)).map((chapter) => { if (typeof a.read === 'boolean') { chapter.isRead = a.read; if (!a.read) chapter.lastPageRead = 0; } if (typeof a.bookmarked === 'boolean') chapter.isBookmarked = a.bookmarked; return { id: chapter.id, isRead: chapter.isRead, isBookmarked: !!chapter.isBookmarked, lastPageRead: chapter.lastPageRead }; }) }; break;
           case 'stores': data = nodes(state.stores); break;
           case 'add-store': state.stores.push({ name: 'Original fixture store', indexUrl: a.index }); data = { ok: true }; break;
           case 'refresh-extensions': data = { ok: true }; break;
@@ -71,8 +73,20 @@ try {
   // Deny unrelated external requests; the test uses only original fixtures.
   await page.route('**/*', (route) => route.request().url().startsWith(origin + '/') ? route.fallback() : route.abort());
   await page.goto(origin, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'App settings', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'carbon' && document.documentElement.style.getPropertyValue('--background') === document.documentElement.style.getPropertyValue('--tsugi-canvas'));
+  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
   await page.locator('[data-page="desktop-landing"]').getByRole('button', { name: 'Read', exact: true }).click();
   const rail = page.locator('.tsugi-reading-rail');
+  await rail.getByRole('button', { name: 'App settings', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).waitFor();
+  assert.equal(await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).getAttribute('aria-pressed'), 'true');
+  await page.getByRole('dialog').getByRole('button', { name: 'Mocha', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+  await rail.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: /Trackers See tracking services/ }).click();
+  await page.getByText('MyAnimeList', { exact: true }).waitFor();
   await rail.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: /Browse Manage manga sources/ }).click();
   await page.getByRole('button', { name: /Sources Manage extension sources/ }).click();
@@ -90,6 +104,14 @@ try {
   await page.getByRole('button', { name: /Original source/ }).click();
   await page.locator('.tsugi-manga-card').first().click();
   await page.getByRole('heading', { name: 'Tsugi Original Fixture' }).waitFor();
+  await page.getByRole('button', { name: 'Bookmark chapter', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Remove bookmark', exact: true }).first().waitFor();
+  await page.getByRole('checkbox', { name: 'Select chapter Chapter 1', exact: true }).check();
+  await page.getByRole('button', { name: 'Mark read', exact: true }).click();
+  await page.waitForFunction(() => window.__readerFixture.requests.some((a) => a.kind === 'chapter-flags' && a.read === true && a.ids.includes(11)));
+  await page.getByRole('checkbox', { name: 'Select chapter Chapter 1', exact: true }).check();
+  await page.getByRole('button', { name: 'Mark unread', exact: true }).click();
+  await page.waitForFunction(() => window.__readerFixture.requests.some((a) => a.kind === 'chapter-flags' && a.read === false && a.ids.includes(11)));
   await page.getByRole('button', { name: /Start or resume reading/ }).click();
   const reader = page.locator('.tsugi-chapter-reader');
   await reader.waitFor();

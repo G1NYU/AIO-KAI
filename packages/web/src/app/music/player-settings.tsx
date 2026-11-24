@@ -75,7 +75,7 @@ export function PlayerSettings({
         </label>
 
         <label className="mb-8 block text-sm">
-          <span className="mb-2 block text-[--tsugi-muted]"><Trans>Player theme</Trans></span>
+          <span className="mb-2 block text-[--tsugi-muted]"><Trans id="App theme">App theme</Trans></span>
           <select value={theme} onChange={(event) => onTheme(event.target.value as PlayerThemeId)}
             className="tsugi-menu-select w-full">
             {(Object.keys(PLAYER_PALETTES) as PlayerThemeId[]).map((id) => (
