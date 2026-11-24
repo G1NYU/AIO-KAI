@@ -6,8 +6,8 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <title>AIOStreams</title>
-    <meta name="apple-mobile-web-app-title" content="AIOStreams" />
+    <title><%= splash ? '' : 'AIOStreams' %></title>
+    <meta name="apple-mobile-web-app-title" content="<%= splash ? '' : 'AIOStreams' %>" />
     <meta
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
@@ -25,6 +25,35 @@
     <% } %>
     <link rel="apple-touch-icon" href="<%= root %>apple-icon.png" />
     <script>
+      // Set the desktop identity before the first body paint. The injected
+      // desktop bridge is available at document start; Android/TV keep their splash.
+      <% if (splash) { %>
+      (function () {
+        var app = window.aiostreamsApp;
+        var desktop = !!app && app.protocol === 2 && app.platform !== 'android';
+        var name = desktop ? 'Tsugi' : 'AIOStreams';
+        document.title = name;
+        document.querySelector('meta[name="apple-mobile-web-app-title"]').content = name;
+        document.documentElement.dataset.splashBrand = desktop ? 'tsugi' : 'legacy';
+        if (!desktop) return;
+        try {
+          var palettes = {
+            mocha: ['#11111b', '#cdd6f4'],
+            matte: ['#08090b', '#e8e8eb'],
+            'aio-dark': ['#090d10', '#e8edf0'],
+            nightfall: ['#0c0b10', '#ebe8f0'],
+            carbon: ['#0b0e0f', '#e0e6e8']
+          };
+          var theme = JSON.parse(localStorage.getItem('aiokai-desktop-player-theme-v1'));
+          var palette = Object.prototype.hasOwnProperty.call(palettes, theme) ? palettes[theme] : palettes.mocha;
+          var mode = JSON.parse(localStorage.getItem('tsugi-launch-theme-mode-v1'));
+          var watch = JSON.parse(localStorage.getItem('tsugi-launch-watch-colors-v1'));
+          var background = mode !== 'player' && watch && /^#[0-9a-f]{6}$/i.test(watch.background) ? watch.background : palette[0];
+          document.documentElement.style.setProperty('--tsugi-splash-canvas', background);
+          document.documentElement.style.setProperty('--tsugi-splash-ink', palette[1]);
+        } catch (_) { /* A blocked store must never prevent startup. */ }
+      })();
+      <% } %>
       // Players drawn beneath the page show through it, which the apps' web
       // views only render for a page transparent from the start.
       if (window.jmpInfo || window.aiostreamsApp || window.tizen) {
@@ -47,6 +76,36 @@
       #splash[data-ending] {
         pointer-events: none;
         animation: splash-out 0.5s ease-out forwards;
+      }
+      .tsugi-splash-identity {
+        display: none;
+      }
+      :root[data-splash-brand='tsugi'] #splash {
+        background: var(--tsugi-splash-canvas, #11111b);
+        color: var(--tsugi-splash-ink, #cdd6f4);
+      }
+      :root[data-splash-brand='tsugi'] .splash-logo {
+        display: none;
+      }
+      :root[data-splash-brand='tsugi'] .tsugi-splash-identity {
+        display: flex;
+        align-items: center;
+        gap: clamp(12px, 2vw, 32px);
+        font: 800 clamp(48px, 12vw, 176px)/1 'Segoe UI Variable Display', 'Segoe UI', Arial, sans-serif;
+        letter-spacing: -.075em;
+      }
+      .tsugi-splash-identity svg {
+        width: .8em;
+        height: .8em;
+        flex: none;
+      }
+      :root[data-splash-brand='tsugi'] #splash[data-ending] {
+        animation-duration: .24s;
+      }
+      :root[data-splash-brand='tsugi'] #root[data-arriving] {
+        animation: none;
+        position: static;
+        overflow: visible;
       }
       .splash-logo {
         width: var(--splash-size, 288px);
@@ -94,6 +153,9 @@
         }
       }
       @media (prefers-reduced-motion: reduce) {
+        :root[data-splash-brand='tsugi'] #splash[data-ending] {
+          animation-duration: .01ms;
+        }
         .splash-breath,
         #splash[data-ending] .splash-logo,
         #root[data-arriving] {
@@ -105,8 +167,14 @@
   </head>
   <body>
     <% if (splash) { %>
-    <!-- Matches the Android app's res/drawable/splash_logo.xml. -->
+    <!-- Desktop identity is independent of the legacy Android/TV splash. -->
     <div id="splash" aria-hidden="true">
+      <div class="tsugi-splash-identity">
+        <svg viewBox="0 0 128 128" aria-hidden="true">
+          <path fill="currentColor" d="M22 44 C43 34 71 27 91 35 C113 43 118 63 108 83 C98 102 75 113 51 116 C72 102 92 85 95 67 C98 52 87 46 72 46 C59 46 45 50 32 59 C26 63 18 58 18 52 C18 49 19 47 22 44 Z" />
+        </svg>
+        <span>TSUGI</span>
+      </div>
       <div class="splash-logo">
         <div class="splash-breath">
           <svg viewBox="0 0 1080 1080">

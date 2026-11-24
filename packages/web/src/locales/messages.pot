@@ -2067,6 +2067,10 @@ msgstr ""
 msgid "Folder scan limited to 1,000 tracks or 20,000 entries."
 msgstr ""
 
+#: src/app/desktop-landing/page.tsx
+msgid "Follow Watch colours"
+msgstr ""
+
 #: src/app/settings/browsing.tsx
 msgid "Following pins it above the rows and shows the card the pointer, keyboard or remote is on, starting with a featured title, behind the whole page or in its top corner. Touch screens and narrow windows keep it rotating."
 msgstr ""
@@ -2643,6 +2647,7 @@ msgstr ""
 msgid "List only my languages"
 msgstr ""
 
+#: src/app/desktop-landing/page.tsx
 #: src/app/music/browse.tsx
 msgid "Listen"
 msgstr ""
@@ -6389,6 +6394,7 @@ msgstr ""
 msgid "Warm"
 msgstr ""
 
+#: src/app/desktop-landing/page.tsx
 #: src/app/live-tv/_components/channel-details.tsx
 #: src/features/live-tv/live-reminders.tsx
 msgid "Watch"

@@ -2068,6 +2068,10 @@ msgstr "Folder access needs permission. Rescan to reconnect."
 msgid "Folder scan limited to 1,000 tracks or 20,000 entries."
 msgstr "Folder scan limited to 1,000 tracks or 20,000 entries."
 
+#: src/app/desktop-landing/page.tsx
+msgid "Follow Watch colours"
+msgstr "Follow Watch colours"
+
 #: src/app/settings/browsing.tsx
 msgid "Following pins it above the rows and shows the card the pointer, keyboard or remote is on, starting with a featured title, behind the whole page or in its top corner. Touch screens and narrow windows keep it rotating."
 msgstr "Following pins it above the rows and shows the card the pointer, keyboard or remote is on, starting with a featured title, behind the whole page or in its top corner. Touch screens and narrow windows keep it rotating."
@@ -2644,6 +2648,7 @@ msgstr "List"
 msgid "List only my languages"
 msgstr "List only my languages"
 
+#: src/app/desktop-landing/page.tsx
 #: src/app/music/browse.tsx
 msgid "Listen"
 msgstr "Listen"
@@ -6390,6 +6395,7 @@ msgstr "Waiting for approval…"
 msgid "Warm"
 msgstr "Warm"
 
+#: src/app/desktop-landing/page.tsx
 #: src/app/live-tv/_components/channel-details.tsx
 #: src/features/live-tv/live-reminders.tsx
 msgid "Watch"

@@ -10,7 +10,8 @@ import {
   signedOut,
 } from './credentials';
 import { storage } from '@/lib/storage';
-import { settings, syncPreferences } from '@/lib/settings';
+import { onSettingsChange, settings, syncPreferences } from '@/lib/settings';
+import { rememberWatchColors } from '@/lib/launcher-theme';
 import { useLatest } from '@/hooks/use-latest';
 import { forgetSavedUser, forgetUser, savedUser, saveUser } from '@/lib/cache';
 import { watchServer } from './connection';
@@ -475,10 +476,15 @@ export function SessionProvider({
   const others = React.useRef(new Map<string, Promise<JellyfinClient>>());
   React.useEffect(() => others.current.clear(), [client]);
   const everyoneId = (user as AiostreamsUser).aiostreams?.everyone;
-  React.useEffect(
-    () => syncPreferences(client, user.Id!, everyoneId),
-    [client, user.Id, everyoneId]
-  );
+  React.useEffect(() => {
+    const stop = syncPreferences(client, user.Id!, everyoneId);
+    if (currentHost().name !== 'desktop') return stop;
+    const update = () => rememberWatchColors(settings.theme.colors.read());
+    update();
+    const unsubscribe = onSettingsChange(update);
+    // Stop listening before syncPreferences clears the active profile.
+    return () => { unsubscribe(); stop(); };
+  }, [client, user.Id, everyoneId]);
 
   const clientFor = React.useCallback(
     (userId: string) => {
