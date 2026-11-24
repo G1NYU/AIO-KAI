@@ -74,10 +74,22 @@ jobs:
       - name: Controlled HTTPS ranges and decoder
         if: ${{ !cancelled() && steps.core_tests.outcome == 'success' }}
         run: python packages/desktop/scripts/music-smoke-https.py
-      - name: Live resolver, opening and tail bytes, decoder
+      # The old anonymous resolver already hit LOGIN_REQUIRED on this runner.
+      # Test the reference resolver on a public licensed sample instead; do
+      # not attempt to solve or bypass any provider verification.
+      - name: Fetch pinned reference resolver
+        id: reference_resolver
         if: ${{ !cancelled() && steps.core_tests.outcome == 'success' }}
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'yt-dlp.exe'
+          Invoke-WebRequest 'https://github.com/yt-dlp/yt-dlp/releases/download/2026.11.23/yt-dlp.exe' -OutFile $exe
+          $sha = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne '622ed48023cac1daa52a3bf3a6ac38f03514de214b5f0fa069389fd0f6d17e5c') { throw 'Reference resolver checksum mismatch' }
+          "TSUGI_TEST_YTDLP=$exe" >> $env:GITHUB_ENV
+      - name: Reference resolver, opening and tail bytes, decoder
+        if: ${{ !cancelled() && steps.reference_resolver.outcome == 'success' }}
         working-directory: packages/desktop
-        run: cargo test --locked -p aiostreams-desktop-core --lib music_stream::tests::headless_live_playback -- --ignored --nocapture
+        run: cargo test --locked -p aiostreams-desktop-core --lib music_stream::tests::headless_reference_playback -- --ignored --nocapture
       - name: Check native formatting
         if: always()
         working-directory: packages/desktop

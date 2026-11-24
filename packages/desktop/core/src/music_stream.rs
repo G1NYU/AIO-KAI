@@ -19,6 +19,8 @@ pub(crate) struct Source {
     failure: Mutex<Option<&'static str>>,
     #[cfg(test)]
     fixture: Option<Arc<Vec<u8>>>,
+    #[cfg(test)]
+    media_headers: Vec<(String, String)>,
 }
 
 impl Source {
@@ -35,6 +37,8 @@ impl Source {
             failure: Mutex::new(None),
             #[cfg(test)]
             fixture: None,
+            #[cfg(test)]
+            media_headers: Vec::new(),
         })
     }
 
@@ -69,13 +73,18 @@ impl Source {
             return Err("The media reader has stopped.");
         }
         let end = (start + CHUNK - 1).min(total.unwrap_or(MAX_SIZE) - 1);
-        let mut response = self
+        let request = self
             .agent
             .get(&self.url)
             .header("Range", format!("bytes={start}-{end}"))
             .header("Accept-Encoding", "identity")
             // Each bounded request must work even when a server closes TLS.
-            .header("Connection", "close")
+            .header("Connection", "close");
+        #[cfg(test)]
+        let request = self.media_headers.iter().fold(request, |req, (name, value)| {
+            req.header(name.as_str(), value.as_str())
+        });
+        let mut response = request
             .call()
             .map_err(|_| "Music HTTPS transport could not connect.")?;
         let status = response.status().as_u16();
@@ -451,6 +460,131 @@ mod tests {
         println!("Provider issued a direct audio URL (not logged).");
         let url = result["url"].as_str().expect("direct audio URL");
         let source = Source::new(url);
+        let opening = source.fetch(0, None).expect("opening media bytes");
+        println!("Opening range and media header verified.");
+        if opening.size > CHUNK {
+            let tail_start = (opening.size - 1) / CHUNK * CHUNK;
+            source
+                .fetch(tail_start, Some(opening.size))
+                .expect("tail media bytes");
+            println!("Tail range verified.");
+        }
+        headless_decode(&source);
+    }
+
+    // Reference resolver experiment, isolated from production. Only public,
+    // authorized media; no cookie import, user configuration or custom identity.
+    fn reference_source(data: &serde_json::Value) -> Result<Arc<Source>, &'static str> {
+        if data["vcodec"] != "none"
+            || data["acodec"].as_str().is_none_or(|codec| codec == "none")
+            || data["protocol"] != "https"
+            || !data["fragments"].is_null()
+        {
+            return Err("Reference resolver did not return direct HTTPS audio.");
+        }
+        let raw = data["url"].as_str().ok_or("Missing direct audio URL.")?;
+        let url = url::Url::parse(raw).map_err(|_| "Invalid direct audio URL.")?;
+        if raw.len() > 16384
+            || url.scheme() != "https"
+            || !url.username().is_empty()
+            || url.password().is_some()
+            || url.port_or_known_default() != Some(443)
+            || !url.host_str().is_some_and(|host| {
+                host == "googlevideo.com" || host.ends_with(".googlevideo.com")
+            })
+        {
+            return Err("Unapproved media host.");
+        }
+        let mut source = Source::new(raw);
+        let source_mut = Arc::get_mut(&mut source).ok_or("Source is not unique.")?;
+        if let Some(headers) = data["http_headers"].as_object() {
+            for (name, value) in headers {
+                let name = name.to_ascii_lowercase();
+                if !matches!(
+                    name.as_str(),
+                    "user-agent" | "accept" | "accept-language" | "referer" | "origin"
+                ) {
+                    continue;
+                }
+                let value = value.as_str().ok_or("Invalid media header.")?;
+                if value.len() > 2048 || !value.bytes().all(|b| (32..=126).contains(&b)) {
+                    return Err("Invalid media header.");
+                }
+                source_mut.media_headers.push((name, value.to_owned()));
+            }
+        }
+        Ok(source)
+    }
+
+    #[test]
+    fn reference_resolver_output_is_validated() {
+        let data = serde_json::json!({
+            "vcodec": "none",
+            "acodec": "opus",
+            "protocol": "https",
+            "url": "https://a.googlevideo.com/audio",
+            "http_headers": {
+                "User-Agent": "fixture",
+                "Cookie": "not forwarded",
+                "Authorization": "not forwarded"
+            }
+        });
+        let source = reference_source(&data).expect("direct audio");
+        assert_eq!(
+            source.media_headers,
+            vec![("user-agent".to_string(), "fixture".to_string())]
+        );
+        let mut bad = data.clone();
+        bad["url"] = serde_json::json!("https://googlevideo.com.example.test/audio");
+        assert!(reference_source(&bad).is_err());
+        bad = data;
+        bad["http_headers"]["User-Agent"] = serde_json::json!("bad\r\nheader");
+        assert!(reference_source(&bad).is_err());
+    }
+
+    #[test]
+    #[ignore = "requires pinned reference resolver and native decoder"]
+    fn headless_reference_playback() {
+        let executable =
+            std::env::var_os("TSUGI_TEST_YTDLP").expect("path to the reference resolver");
+        // Blender Foundation, Big Buck Bunny (CC BY 3.0).
+        // https://peach.blender.org/about/
+        let result = std::process::Command::new(executable)
+            .args([
+                "--ignore-config",
+                "--no-plugin-dirs",
+                "--no-cache-dir",
+                "--no-playlist",
+                "--skip-download",
+                "--dump-single-json",
+                "--socket-timeout",
+                "8",
+                "--retries",
+                "0",
+                "--extractor-retries",
+                "0",
+                "--format",
+                "bestaudio",
+                "--",
+                "https://www.youtube.com/watch?v=YE7VzlLtp-4",
+            ])
+            .output()
+            .expect("start reference resolver");
+        if !result.status.success() {
+            let error = String::from_utf8_lossy(&result.stderr).to_ascii_lowercase();
+            // The upstream error may contain a private URL. Never print it.
+            if error.contains("sign in") || error.contains("not a bot") {
+                panic!("Reference resolver: provider requires sign-in or verification.");
+            }
+            if error.contains("403") {
+                panic!("Reference resolver: provider refused access (HTTP 403).");
+            }
+            panic!("Reference resolver did not supply audio; no raw output logged.");
+        }
+        let data: serde_json::Value = serde_json::from_slice(&result.stdout)
+            .unwrap_or_else(|_| panic!("Reference resolver returned invalid JSON."));
+        let source = reference_source(&data).expect("validate reference resolver output");
+        println!("Reference resolver issued a direct audio URL (not logged).");
         let opening = source.fetch(0, None).expect("opening media bytes");
         println!("Opening range and media header verified.");
         if opening.size > CHUNK {
