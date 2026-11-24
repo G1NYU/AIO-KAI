@@ -659,7 +659,7 @@ pub fn open_external(url: &str) {
 
 pub fn fatal(message: &str) -> ! {
     log::error!("{message}");
-    eprintln!("AIOStreams: {message}");
+    eprintln!("Tsugi: {message}");
     std::process::exit(1)
 }
 

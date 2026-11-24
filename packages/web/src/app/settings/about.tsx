@@ -154,6 +154,11 @@ function credits(
   shell: ShellInfo | null
 ): { name: string; help: string; url: string }[] {
   return [
+    ...(currentHost().name === 'desktop' ? [{
+      name: 'AIOStreams',
+      help: t`The interface is built on its components.`,
+      url: REPO_URL,
+    }] : []),
     {
       name: 'Seanime',
       help: t`The interface is built on its components.`,

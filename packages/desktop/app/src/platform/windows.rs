@@ -235,7 +235,7 @@ pub fn register_links() {
             );
         }
     };
-    set(&root, None, "URL:AIOStreams");
+    set(&root, None, "URL:Tsugi");
     set(&root, Some("URL Protocol"), "");
     set(
         &format!(r"{root}\DefaultIcon"),

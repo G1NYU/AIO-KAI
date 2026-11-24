@@ -892,16 +892,16 @@ pub fn set_window_buttons(window: &Window, visible: bool) {
 pub fn install_menu(on_quit: impl Fn() + Send + Sync + 'static) -> Option<Menu> {
     let quit = MenuItem::with_id(
         QUIT,
-        "Quit AIOStreams",
+        "Quit Tsugi",
         true,
         "CmdOrCtrl+Q".parse::<Accelerator>().ok(),
     );
     let separator = PredefinedMenuItem::separator;
     let app = Submenu::with_items(
-        "AIOStreams",
+        "Tsugi",
         true,
         &[
-            &PredefinedMenuItem::about(Some("About AIOStreams"), None),
+            &PredefinedMenuItem::about(Some("About Tsugi"), None),
             &separator(),
             &PredefinedMenuItem::services(None),
             &separator(),
@@ -1067,9 +1067,9 @@ pub fn choose_folder(_window: &Window, title: &str) -> Option<PathBuf> {
 
 pub fn fatal(message: &str) -> ! {
     log::error!("{message}");
-    eprintln!("AIOStreams: {message}");
+    eprintln!("Tsugi: {message}");
     let script = format!(
-        "display alert \"AIOStreams could not start\" message {} as critical",
+        "display alert \"Tsugi could not start\" message {} as critical",
         applescript_string(message)
     );
     let _ = std::process::Command::new("osascript")

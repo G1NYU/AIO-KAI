@@ -685,10 +685,25 @@ html[data-blur-spoilers]:not([data-tv])
   --tsugi-wash: rgb(179 201 201 / 8%);
   --tsugi-glass: rgb(24 29 30 / 85%);
 }
-:root[data-host='desktop']:not(.playing) body {
+/* Desktop Watch consumes the same base palette as Listen. The existing
+   ThemeStyles portal and custom CSS can override these defaults; keep the
+   selector's specificity at :root so explicit profile colours win. */
+:root:where([data-host='desktop']) {
+  --background: var(--tsugi-canvas);
+  --foreground: var(--tsugi-ink);
+  --paper: var(--tsugi-panel);
+  --muted: var(--tsugi-muted);
+  --muted-highlight: var(--tsugi-ink);
+  --brand: var(--tsugi-accent);
+  --ring: var(--tsugi-accent);
+  --border: var(--tsugi-line);
+  --subtle: var(--tsugi-wash);
+  --subtle-highlight: var(--tsugi-wash);
+}
+:root:where([data-host='desktop']):not(.playing) body {
   font-family: Inter, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
-  background: var(--tsugi-canvas);
+  background: var(--background);
 }
 :root[data-host='desktop'] [data-page='desktop-landing'],
 :root[data-host='desktop'] [data-page='music'] {
@@ -703,6 +718,45 @@ html[data-blur-spoilers]:not([data-tv])
 :root[data-host='desktop'] :where([data-page='music'],[data-page='desktop-landing'])
 :where(h1,h2,h3) { letter-spacing: -.035em; }
 
+/* Match Listen's flat navigation language without changing Watch routing,
+   user-selected navigation modes, posters, or playback. Low-specificity
+   defaults let the existing custom CSS continue to win. */
+:where(:root[data-host='desktop'] [data-ui='shell']) :is(
+  .UI-VerticalMenu__item, [data-ui='nav-item']
+) {
+  border-radius: 0;
+  background-color: transparent;
+  color: var(--muted);
+}
+:where(:root[data-host='desktop'] [data-ui='shell']) :is(
+  .UI-VerticalMenu__item, [data-ui='nav-item']
+):is([data-current='true'], [aria-current='page'], :hover, :focus-visible) {
+  color: var(--brand);
+  background-color: transparent;
+}
+:where(:root[data-host='desktop'] [data-ui='shell']) :is(
+  .UI-VerticalMenu__item, [data-ui='nav-item']
+):is([data-current='true'], [aria-current='page']) {
+  position: relative;
+}
+:where(:root[data-host='desktop'] [data-ui='shell']) :is(
+  .UI-VerticalMenu__item, [data-ui='nav-item']
+):is([data-current='true'], [aria-current='page'])::after {
+  content: '';
+  position: absolute;
+  inset-inline-end: 4px;
+  inset-block-start: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--brand);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+:where(:root[data-host='desktop'] [data-ui='shell']) .UI-VerticalMenu__itemIcon {
+  color: inherit;
+  transform: none;
+}
 /* Remove previous fake window stripe. The actual native hit-testing remains intact. */
 .tsugi-chrome-wash { display: none !important; }
 :root[data-host='desktop'] [data-ui='window-controls'] button {

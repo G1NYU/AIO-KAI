@@ -375,7 +375,7 @@ pub fn start_player(
     let mut defaults: Vec<(&str, String)> = vec![
         ("config-dir", mpv_dir.to_string_lossy().into_owned()),
         ("config", "yes".into()),
-        ("audio-client-name", "AIOStreams".into()),
+        ("audio-client-name", "Tsugi".into()),
         // `%23%` quotes the next 23 characters, whose commas would split the option.
         (
             "stream-lavf-o",
@@ -804,7 +804,7 @@ pub fn handle(
         Inbound::Diagnostics { web, server } => {
             let (mpv, ffmpeg) = player.as_ref().map(Player::versions).unwrap_or_default();
             let text = format!(
-                "AIOStreams Desktop {}\nweb=\"{}\" server=\"{}\"\nmpv=\"{}\" ffmpeg={}\nlog={}\n\n{}",
+                "Tsugi Desktop {}\nweb=\"{}\" server=\"{}\"\nmpv=\"{}\" ffmpeg={}\nlog={}\n\n{}",
                 about(),
                 web.unwrap_or_default(),
                 server.unwrap_or_default(),
