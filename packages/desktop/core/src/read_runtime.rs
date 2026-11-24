@@ -19,6 +19,7 @@ const MAX_PAGE: u64 = 24 * 1024 * 1024;
 const MAX_PAGES: usize = 2000;
 const READY_TIMEOUT: Duration = Duration::from_secs(90);
 const NO_WINDOW: u32 = 0x08000000;
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Clone, Copy)]
 pub enum ReadOperation {
@@ -437,9 +438,14 @@ impl ReadRuntime {
             .map_err(|_| "Reading runtime is missing.")?;
         let java = runtime.join("jre/bin/java.exe");
         let jar = runtime.join("bin/Suwayomi-Server.jar");
-        if !java.is_file() || !jar.is_file() {
+        let launcher = runtime.join("launcher");
+        if !java.is_file() || !jar.is_file()
+            || !launcher.join("TsugiReadLauncher.class").is_file()
+        {
             return Err("Reading runtime is incomplete.");
         }
+        let classpath = std::env::join_paths([&launcher, &jar])
+            .map_err(|_| "Invalid reading runtime path.")?;
         let data = std::path::absolute(data)
             .map_err(|_| "Could not locate reading data directory.")?;
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
@@ -462,12 +468,13 @@ impl ReadRuntime {
                 "-Dsuwayomi.tachidesk.config.server.initialOpenInBrowserEnabled=false",
                 "-Dsuwayomi.tachidesk.config.server.systemTrayEnabled=false",
                 "-Dsuwayomi.tachidesk.config.server.kcefEnabled=false",
-                "-jar",
+                "-cp",
             ])
-            .arg(jar)
+            .arg(classpath)
+            .arg("TsugiReadLauncher")
             .current_dir(runtime)
             .creation_flags(NO_WINDOW)
-            .stdin(Stdio::null())
+            .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
@@ -642,12 +649,33 @@ impl ReadRuntime {
     }
 }
 
+impl ReadRuntime {
+    /// Closing the private stdin pipe requests normal JVM shutdown. Suwayomi
+    /// registers a hook that closes HikariCP. A timeout is a failure, even if
+    /// the fallback successfully terminates the child.
+    pub fn shutdown(&mut self) -> Result<(), &'static str> {
+        drop(self.child.stdin.take());
+        let deadline = Instant::now() + SHUTDOWN_TIMEOUT;
+        loop {
+            match self.child.try_wait() {
+                Ok(Some(status)) if status.success() => return Ok(()),
+                Ok(Some(_)) => return Err("Reading runtime exited unsuccessfully."),
+                Ok(None) if Instant::now() < deadline => {
+                    std::thread::sleep(Duration::from_millis(100));
+                }
+                _ => {
+                    let _ = self.child.kill();
+                    let _ = self.child.wait();
+                    return Err("Reading runtime did not shut down cleanly.");
+                }
+            }
+        }
+    }
+}
+
 impl Drop for ReadRuntime {
     fn drop(&mut self) {
-        if !matches!(self.child.try_wait(), Ok(Some(_))) {
-            let _ = self.child.kill();
-            let _ = self.child.wait();
-        }
+        let _ = self.shutdown();
     }
 }
 
@@ -840,7 +868,7 @@ mod tests {
     fn packaged_runtime() {
         let runtime = PathBuf::from(std::env::var_os("TSUGI_READ_RUNTIME").unwrap());
         let data = PathBuf::from(std::env::var_os("TSUGI_READ_FIXTURE").unwrap());
-        let managed = ReadRuntime::start(&runtime, &data).expect("native runtime startup");
+        let mut managed = ReadRuntime::start(&runtime, &data).expect("native runtime startup");
         assert_eq!(
             managed.query(ReadOperation::Status).unwrap()["version"],
             VERSION
@@ -912,6 +940,8 @@ mod tests {
             std::thread::sleep(Duration::from_millis(100));
         }
         let first_port = managed.client.port;
+        managed.shutdown().expect("normal JVM shutdown before reopen");
+        eprintln!("PASS: normal JVM shutdown before reopening library.");
         drop(managed);
         assert!(TcpStream::connect_timeout(
             &std::net::SocketAddr::from((Ipv4Addr::LOCALHOST, first_port)),
@@ -919,7 +949,7 @@ mod tests {
         ).is_err());
         // Reopen using the durable native credential and existing config/DB,
         // not an in-memory copy of the previous broker's state.
-        let managed = ReadRuntime::start(&runtime, &data).expect("reopen reading library");
+        let mut managed = ReadRuntime::start(&runtime, &data).expect("reopen reading library");
         let list = managed.query(ReadOperation::Library).expect("persisted library");
         assert!(list["nodes"].as_array().unwrap().iter().any(|item| item["id"] == manga_id.to_string()));
         let details = managed.manga(manga_id).expect("persisted reading progress");
@@ -938,6 +968,7 @@ mod tests {
         managed.refresh_extensions().expect("refresh removed store");
         assert!(managed.extensions(0).unwrap()["nodes"].as_array().unwrap().is_empty());
         let port = managed.client.port;
+        managed.shutdown().expect("normal JVM shutdown after restart");
         drop(managed);
         assert!(TcpStream::connect_timeout(
             &std::net::SocketAddr::from((Ipv4Addr::LOCALHOST, port)),

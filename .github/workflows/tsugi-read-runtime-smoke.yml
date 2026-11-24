@@ -7,6 +7,7 @@ on:
       - '.github/workflows/tsugi-read-runtime-smoke.yml'
       - 'packages/desktop/scripts/fetch-read-tools.ps1'
       - 'packages/desktop/scripts/test-read-runtime.ps1'
+      - 'packages/desktop/scripts/read-runtime/TsugiReadLauncher.java'
       - 'packages/desktop/core/src/read_runtime.rs'
       - 'packages/desktop/core/src/lib.rs'
       - 'packages/desktop/core/Cargo.toml'
@@ -34,6 +35,14 @@ jobs:
         run: ./packages/desktop/scripts/fetch-read-tools.ps1 -Destination "$env:RUNNER_TEMP/tsugi-read-runtime"
       - name: Validate isolated local reading server
         run: ./packages/desktop/scripts/test-read-runtime.ps1 -Runtime "$env:RUNNER_TEMP/tsugi-read-runtime"
+      - name: Compile Tsugi-owned parent-lifetime launcher
+        run: |
+          $javac = Join-Path $env:JAVA_HOME_21_X64 'bin/javac.exe'
+          if (-not (Test-Path -LiteralPath $javac -PathType Leaf)) { throw 'Windows runner JDK 21 is missing' }
+          $destination = "$env:RUNNER_TEMP/tsugi-read-runtime/launcher"
+          New-Item -ItemType Directory -Force $destination | Out-Null
+          & $javac --release 21 -d $destination packages/desktop/scripts/read-runtime/TsugiReadLauncher.java
+          if ($LASTEXITCODE -ne 0) { throw 'Tsugi reading launcher compilation failed' }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:

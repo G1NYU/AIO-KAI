@@ -224,3 +224,26 @@ to reach server.conf: upstream SettingDelegate persists StateFlow changes
 asynchronously. Do not truncate or reset existing config. Production ACL,
 process identity, job ownership and graceful shutdown remain pending; do not
 ship this intermediate branch.
+
+## Normal JVM shutdown and persistence retry
+
+Run 45396414328 restored repository registration (one fixture index request)
+and passed all pre-restart assertions. The reopened library was missing the
+previously saved manga at line 924. Upstream DBManager.kt opens an H2 database
+with HikariCP and registers a JVM shutdown hook to close that pool. Our prior
+Windows Child::kill is a hard termination and bypasses shutdown hooks. This
+is a plausible cause, not yet established by a passing restart test.
+
+Add a small original Java launcher compiled on CI with the runner's JDK 21
+(target release 21); execute it with the unchanged official Zulu JRE and
+Suwayomi JAR on the classpath. It invokes the pinned upstream Main-Class
+suwayomi.tachidesk.MainKt and watches the private stdin pipe for EOF. No command
+parsing or network shutdown endpoint. Closing stdin requests System.exit(0),
+which runs normal JVM shutdown hooks; Rust waits up to 15 seconds then uses
+hard termination only as fallback. A fallback or nonzero exit fails the
+explicit shutdown assertion. Keep the independent direct-JAR smoke unchanged.
+The real native test requires successful normal exit, then rechecks the same
+library ID, progress, pages and store after reopening. This is not a guarantee
+of crash durability or Windows job-object containment; listener identity,
+owner-only permissions and crash-process cleanup tests remain necessary.
+No runtime shipped in the desktop app yet. Existing Watch and Listen untouched.
