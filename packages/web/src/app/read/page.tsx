@@ -38,6 +38,7 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
   const [globalSearching, setGlobalSearching] = React.useState(false);
   const [globalStopping, setGlobalStopping] = React.useState(false);
   const stopSearch = React.useRef(false);
+  const pendingManga = React.useRef<Manga | null>(null);
   const [storeFilter, setStoreFilter] = React.useState('');
   const [appliedFilter, setAppliedFilter] = React.useState('');
   const [extensionLanguage, setExtensionLanguage] = React.useState('');
@@ -100,6 +101,7 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
     setGlobalCompleted(0);
     setGlobalResults([]);
     stopSearch.current = false;
+    pendingManga.current = null;
     setGlobalStopping(false);
     setGlobalSearching(true);
     for (const [index, item] of available.entries()) {
@@ -116,6 +118,9 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
     }
     setGlobalSearching(false);
     setGlobalStopping(false);
+    const selected = pendingManga.current;
+    pendingManga.current = null;
+    if (selected && active.current) await showManga(selected);
   }
   React.useEffect(() => {
     active.current = true;
@@ -198,7 +203,15 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
   const rows = tab === 'library' ? libraryRows : browse?.result.mangas || [];
   const chapterRows = details ? chapterGroups(details.chapters).map((group) => group.filter((chapter) => (chapter.name + ' ' + (chapter.scanlator || '')).toLowerCase().includes(chapterFilter.toLowerCase()) && (chapterState === 'all' || (chapterState === 'read') === chapter.isRead))).filter((group) => group.length) : [];
   if (chapterOrder === 'desc') chapterRows.reverse();
-  const mangaRow = (manga: Manga) => <button className="tsugi-manga-card" key={manga.id} disabled={busy} onClick={() => void run(async () => { await showManga(manga); })}><MangaCover manga={manga} /><span className="tsugi-manga-title">{manga.title}</span>{!!manga.unreadCount && <span className="tsugi-manga-unread" title={t({ id: "Unread chapters", message: "Unread chapters" })}>{manga.unreadCount}</span>}{manga.author && <span className="truncate text-xs text-[--tsugi-muted]">{manga.author}</span>}</button>;
+  const mangaRow = (manga: Manga) => <button className="tsugi-manga-card" key={manga.id} disabled={busy && (!globalSearching || globalStopping)} onClick={() => {
+    if (globalSearching) {
+      pendingManga.current = manga;
+      stopSearch.current = true;
+      setGlobalStopping(true);
+      return;
+    }
+    void run(async () => { await showManga(manga); });
+  }}><MangaCover manga={manga} /><span className="tsugi-manga-title">{manga.title}</span>{!!manga.unreadCount && <span className="tsugi-manga-unread" title={t({ id: "Unread chapters", message: "Unread chapters" })}>{manga.unreadCount}</span>}{manga.author && <span className="truncate text-xs text-[--tsugi-muted]">{manga.author}</span>}</button>;
   const mangaGrid = (items: Manga[]) => <div className="tsugi-manga-grid">{items.map(mangaRow)}</div>;
   const settingRow = (label: string, description: string, next: SettingsPage) => <button className="tsugi-read-row" disabled={busy} onClick={() => openSettings(next)}><span><span className="block font-medium">{label}</span><span className="text-sm text-[--tsugi-muted]">{description}</span></span><FiChevronRight aria-hidden /></button>;
 

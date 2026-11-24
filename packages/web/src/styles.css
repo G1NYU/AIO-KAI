@@ -1383,3 +1383,9 @@ button.tsugi-read-row:hover:not(:disabled) { background:var(--tsugi-surface); }
 .tsugi-reader-chapter-label { max-width:110px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
 @media(max-width:900px) { .tsugi-reading-rail { width:165px; padding-inline:9px; } .tsugi-reading-content { padding-inline:20px; } .tsugi-manga-grid { grid-template-columns:repeat(auto-fill,minmax(125px,1fr)); } .tsugi-manga-detail { grid-template-columns:140px minmax(0,1fr); gap:19px; } }
 @media(max-width:650px) { .tsugi-reading-rail { width:65px; padding-inline:6px; } .tsugi-reading-rail nav button,.tsugi-reading-rail-bottom button { font-size:0; justify-content:center; gap:0; padding:12px 3px; } .tsugi-reading-rail-label,.tsugi-reading-brand strong { display:none; } .tsugi-reading-brand { padding:10px 0 20px; justify-content:center; } .tsugi-reading-content { padding:22px 14px; } .tsugi-reading-header { gap:10px; flex-wrap:wrap; } .tsugi-reading-global { width:100%; } .tsugi-manga-detail { grid-template-columns:110px minmax(0,1fr); gap:13px; } .tsugi-reader-chapter-label { display:none; } .tsugi-chapter-settings { width:48vw; padding:12px; } .tsugi-chapter-toolbar { padding:8px; gap:5px; } .tsugi-reader-layout-options { gap:3px; } }
+
+/* Focus mode takes the full available reading viewport, with overlay controls. */
+.tsugi-chapter-reader[data-focus-enabled='true'] > .tsugi-chapter-toolbar { position:absolute; inset-inline:0; z-index:2; }
+.tsugi-chapter-reader[data-focus-enabled='true'] > header { inset-block-start:0; }
+.tsugi-chapter-reader[data-focus-enabled='true'] > footer { inset-block-end:0; }
+.tsugi-chapter-reader[data-focus-enabled='true'] .tsugi-chapter-toolbar:focus-within { opacity:1; pointer-events:auto; }

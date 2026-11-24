@@ -38,6 +38,7 @@ export function ChapterReader({ title, chapter, count, start, chapters, previous
   const pageElements = React.useRef(new Map<number, HTMLDivElement>());
   const memory = React.useRef<Record<number, Page>>({});
   const current = React.useRef(index);
+  const anchor = React.useRef({ index: start, fraction: 0 });
   const mode = React.useRef(preferences.mode);
   const closeAction = React.useRef<null | (() => void)>(null);
   const focusedAt = React.useRef(Date.now());
@@ -57,6 +58,7 @@ export function ChapterReader({ title, chapter, count, start, chapters, previous
   function selectPage(page: number) {
     const target = Math.max(0, Math.min(count - 1, page));
     current.current = target;
+    anchor.current = { index: target, fraction: 0 };
     focusedAt.current = Date.now();
     failedSave.current = false;
     setSaveError('');
@@ -73,10 +75,19 @@ export function ChapterReader({ title, chapter, count, start, chapters, previous
   }
 
   React.useLayoutEffect(() => {
+    const changedMode = mode.current !== preferences.mode;
     mode.current = preferences.mode;
-    if (preferences.mode === 'scroll') jumpTo(current.current);
-    else if (viewport.current) viewport.current.scrollTop = 0;
-  }, [preferences.mode]);
+    const root = viewport.current;
+    if (!root) return;
+    if (preferences.mode === 'scroll') {
+      const node = pageElements.current.get(anchor.current.index);
+      if (node) {
+        const rect = node.getBoundingClientRect();
+        const bounds = root.getBoundingClientRect();
+        root.scrollTop += rect.top - bounds.top + rect.height * anchor.current.fraction;
+      } else jumpTo(current.current);
+    } else if (changedMode) root.scrollTop = 0;
+  }, [preferences.mode, preferences.width, preferences.gap, preferences.focus, settings, chapterMenu]);
 
   function trackScroll() {
     const element = viewport.current;
@@ -97,6 +108,16 @@ export function ChapterReader({ title, chapter, count, start, chapters, previous
       return rect ? [{ index, top: rect.top, bottom: rect.bottom }] : [];
     });
     const page = visibleReadingPage(nearby, line) ?? current.current;
+    // The top edge is the zoom anchor, independent of the progress reading line.
+    let topLo = 0, topHi = count - 1;
+    while (topLo < topHi) {
+      const mid = Math.floor((topLo + topHi) / 2);
+      const rect = pageElements.current.get(mid)?.getBoundingClientRect();
+      if (!rect || rect.bottom > bounds.top) topHi = mid;
+      else topLo = mid + 1;
+    }
+    const topRect = pageElements.current.get(topLo)?.getBoundingClientRect();
+    if (topRect?.height) anchor.current = { index: topLo, fraction: Math.min(1, Math.max(0, (bounds.top - topRect.top) / topRect.height)) };
     if (Number.isInteger(page) && page >= 0 && page < count && page !== current.current) {
       current.current = page;
       focusedAt.current = Date.now();
@@ -282,6 +303,7 @@ export function ChapterReader({ title, chapter, count, start, chapters, previous
   if (chapterDescending) menuGroups.reverse();
   return <section className="tsugi-chapter-reader" data-mode={preferences.mode} data-fit={preferences.mode === 'scroll' ? 'width' : preferences.fit} data-background={preferences.background}
     data-focus={preferences.focus && !settings && !chapterMenu && !chromeVisible && !closing && !saveError ? 'hidden' : 'visible'}
+    data-focus-enabled={preferences.focus && !settings && !chapterMenu ? 'true' : 'false'}
     onPointerMove={(event) => {
       if (!preferences.focus) return;
       const height = window.innerHeight;
