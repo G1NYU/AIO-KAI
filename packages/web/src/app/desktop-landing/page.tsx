@@ -1,11 +1,13 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiArrowUpRight, FiFilm, FiHeadphones } from 'react-icons/fi';
+import { FiArrowUpRight, FiFilm, FiHeadphones, FiMenu } from 'react-icons/fi';
 import { TsugiBrand } from '@/components/tsugi-brand';
-import { PLAYER_PALETTES, readPlayerTheme, savePlayerTheme, type PlayerThemeId } from '@/lib/music/player-theme';
+import {
+  PLAYER_PALETTES, readPlayerTheme, savePlayerTheme, type PlayerThemeId,
+} from '@/lib/music/player-theme';
 
-/** A desktop gateway, not an unrelated third media-player shell. */
+/** A quiet gateway into two independent media environments. */
 export function DesktopLandingPage({
   openVideo,
   openMusic,
@@ -14,10 +16,10 @@ export function DesktopLandingPage({
   openMusic(): void;
 }) {
   const [theme, setTheme] = React.useState<PlayerThemeId>(readPlayerTheme);
+
   React.useEffect(() => {
     document.documentElement.dataset.tsugiTheme = theme;
   }, [theme]);
-  const palette = PLAYER_PALETTES[theme];
 
   function changeTheme(value: PlayerThemeId) {
     setTheme(value);
@@ -27,81 +29,54 @@ export function DesktopLandingPage({
 
   return (
     <main data-page="desktop-landing"
-      className="tsugi-landing relative flex min-h-dvh flex-col overflow-hidden px-6 pb-12 pt-16 text-[--tsugi-ink] sm:px-12 lg:px-[clamp(48px,6vw,112px)]">
-      <div aria-hidden className="tsugi-chrome-wash" />
+      className="tsugi-landing relative flex min-h-dvh flex-col overflow-hidden px-6 pb-10 pt-16 sm:px-12 lg:px-[4vw]">
       <div aria-hidden className="tsugi-landing-atmosphere pointer-events-none absolute inset-0" />
-      <div className="relative mx-auto flex w-full max-w-[1480px] flex-1 flex-col">
-        <nav className="flex items-center justify-between gap-5">
-          <TsugiBrand />
-          <label className="tsugi-theme-menu flex items-center gap-3 text-xs" style={{ color: palette.muted }}>
-            <span className="hidden sm:inline"><Trans>Player theme</Trans></span>
-            <select aria-label={t`Player theme`} value={theme}
-              onChange={(event) => changeTheme(event.target.value as PlayerThemeId)}>
-              <option value="mocha">{t`Mocha`}</option>
-              <option value="matte">{t`Matte black`}</option>
-              <option value="aio-dark">{t`Ink`}</option>
-              <option value="nightfall">{t`Nightfall`}</option>
-              <option value="carbon">{t`Carbon`}</option>
+      <header className="relative z-10 flex items-center justify-between gap-5">
+        <TsugiBrand />
+        <details className="tsugi-overflow">
+          <summary aria-label={t`Settings`} className="tsugi-icon-action">
+            <FiMenu aria-hidden className="text-xl" />
+          </summary>
+          <div className="tsugi-overflow-panel">
+            <label htmlFor="tsugi-gateway-theme" className="block text-xs font-medium text-[--tsugi-muted]">
+              <Trans>Player theme</Trans>
+            </label>
+            <select id="tsugi-gateway-theme" className="tsugi-menu-select mt-3 w-full"
+              value={theme} onChange={(event) => changeTheme(event.target.value as PlayerThemeId)}>
+              {(Object.keys(PLAYER_PALETTES) as PlayerThemeId[]).map((id) => (
+                <option key={id} value={id}>
+                  {id === 'mocha' ? t`Mocha` : id === 'matte' ? t`Matte black`
+                    : id === 'aio-dark' ? t`Ink` : id === 'nightfall' ? t`Nightfall` : t`Carbon`}
+                </option>
+              ))}
             </select>
-          </label>
-        </nav>
-
-        <div className="my-auto grid gap-12 py-16 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,.7fr)] xl:items-end">
-          <header className="max-w-[850px]">
-            <p className="tsugi-eyebrow"><Trans>Separate worlds. One place.</Trans></p>
-            <h1 className="mt-6 max-w-3xl text-[clamp(3.2rem,6.1vw,6.8rem)] font-semibold leading-[1.05] tracking-[-0.06em]">
-              <Trans>Everything connects.</Trans>
-            </h1>
-            <p className="mt-7 max-w-[580px] text-sm leading-7 text-[--tsugi-muted] sm:text-base">
-              <Trans>Music and moving pictures, joined without binding their accounts together.</Trans>
-            </p>
-          </header>
-          <div className="tsugi-landing-join hidden min-h-56 items-center justify-center xl:flex" aria-hidden>
-            <span className="tsugi-join-orbit tsugi-join-orbit-one" />
-            <span className="tsugi-join-orbit tsugi-join-orbit-two" />
-            <span className="tsugi-join-center"><TsugiBrand markOnly /></span>
           </div>
-        </div>
+        </details>
+      </header>
 
-        <div className="grid gap-4 lg:grid-cols-2" aria-label={t`Media sections`}>
-          <button type="button" onClick={openVideo}
-            className="tsugi-entry-card group relative flex min-h-56 flex-col items-start justify-between overflow-hidden p-7 text-left sm:p-9">
-            <span className="flex w-full items-center justify-between">
-              <span className="tsugi-entry-index tsugi-entry-index-one"><Trans>Movies & TV</Trans></span>
-              <FiFilm aria-hidden className="text-xl" />
-            </span>
-            <span className="flex w-full items-end justify-between gap-5">
-              <span className="min-w-0">
-                <span className="block text-3xl font-semibold tracking-tight"><Trans>Movies & TV</Trans></span>
-                <span className="mt-3 block text-sm text-[--tsugi-muted]">
-                  <Trans>Enter your video library and connected sources.</Trans>
-                </span>
-              </span>
-              <span className="tsugi-entry-action flex size-11 shrink-0 items-center justify-center">
-                <FiArrowUpRight aria-hidden className="size-5" />
-              </span>
-            </span>
-          </button>
-          <button type="button" onClick={openMusic}
-            className="tsugi-entry-card group relative flex min-h-56 flex-col items-start justify-between overflow-hidden p-7 text-left sm:p-9">
-            <span className="flex w-full items-center justify-between">
-              <span className="tsugi-entry-index tsugi-entry-index-two"><Trans>Music</Trans></span>
-              <FiHeadphones aria-hidden className="text-xl" />
-            </span>
-            <span className="flex w-full items-end justify-between gap-5">
-              <span className="min-w-0">
-                <span className="block text-3xl font-semibold tracking-tight"><Trans>Music</Trans></span>
-                <span className="mt-3 block text-sm text-[--tsugi-muted]">
-                  <Trans>Listen through your independent music addons.</Trans>
-                </span>
-              </span>
-              <span className="tsugi-entry-action flex size-11 shrink-0 items-center justify-center">
-                <FiArrowUpRight aria-hidden className="size-5" />
-              </span>
-            </span>
-          </button>
-        </div>
+      <div className="tsugi-gateway-hero relative flex flex-1 flex-col items-center justify-center py-16">
+        <span aria-hidden className="tsugi-gateway-mark"><TsugiBrand markOnly /></span>
+        <h1 className="mt-7 text-center text-[clamp(3.2rem,7vw,7.5rem)] font-semibold tracking-[-.08em]">
+          <Trans>Tsugi</Trans>
+        </h1>
       </div>
+
+      <nav className="tsugi-gateway-nav relative grid gap-x-10 md:grid-cols-2" aria-label={t`Media sections`}>
+        <button type="button" onClick={openVideo} className="tsugi-gateway-link group">
+          <span className="flex items-center gap-4">
+            <FiFilm aria-hidden className="text-xl text-[--tsugi-muted]" />
+            <span className="text-[clamp(1.7rem,2.7vw,3rem)] font-medium tracking-tight"><Trans>Movies & TV</Trans></span>
+          </span>
+          <FiArrowUpRight aria-hidden className="text-2xl transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
+        </button>
+        <button type="button" onClick={openMusic} className="tsugi-gateway-link group">
+          <span className="flex items-center gap-4">
+            <FiHeadphones aria-hidden className="text-xl text-[--tsugi-muted]" />
+            <span className="text-[clamp(1.7rem,2.7vw,3rem)] font-medium tracking-tight"><Trans>Music</Trans></span>
+          </span>
+          <FiArrowUpRight aria-hidden className="text-2xl transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
+        </button>
+      </nav>
     </main>
   );
 }
