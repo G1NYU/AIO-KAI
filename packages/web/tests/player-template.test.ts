@@ -35,7 +35,7 @@ describe('Eclipse Studio v4 player layout import', () => {
       },
     }] });
     expect(tinted.layers[0].hasTint).toBe(true);
-    expect(tinted.layers[0].color).toMatch(/^rgba\\(/);
+    expect(tinted.layers[0].color.startsWith('rgba(')).toBe(true);
     expect(tinted.background.startsWith('rgba(')).toBe(true);
   });
 
