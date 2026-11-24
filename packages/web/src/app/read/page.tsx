@@ -6,6 +6,7 @@ import { MediaNavigation } from '@/components/shell/media-navigation';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { prepareReading, readRequest, readImage } from '@/lib/hosts/shell/reading';
 import { ChapterReader } from './chapter-reader';
+import { lookupMissingCover, mayLookUpCover, readCoverFallback, saveCoverFallback } from './cover-fallback';
 import { ReaderSettings } from './reader-settings';
 import { MangaTracking, type Tracker } from './tracking';
 import { readReaderPreferences, saveReaderPreferences } from './reader-preferences';
@@ -49,6 +50,7 @@ export function ReadPage({ visible }: {
   const [librarySort, setLibrarySort] = React.useState<'title' | 'recent'>('title');
   const [libraryView, setLibraryView] = React.useState<'all' | 'reading'>('all');
   const [readerPreferences, setReaderPreferences] = React.useState(readReaderPreferences);
+  const [coverFallback, setCoverFallback] = React.useState(readCoverFallback);
   const content = React.useRef<HTMLDivElement>(null);
   const [busy, setBusy] = React.useState(false);
   const lock = React.useRef(false);
@@ -224,7 +226,7 @@ export function ReadPage({ visible }: {
       return;
     }
     void run(async () => { await showManga(manga); });
-  }}><MangaCover manga={manga} /><span className="tsugi-manga-title">{manga.title}</span>{!!manga.unreadCount && <span className="tsugi-manga-unread" title={t({ id: "Unread chapters", message: "Unread chapters" })}>{manga.unreadCount}</span>}{manga.author && <span className="truncate text-xs text-[--tsugi-muted]">{manga.author}</span>}</button>;
+  }}><MangaCover manga={manga} fallbackEnabled={visible && tab === 'library' && coverFallback} /><span className="tsugi-manga-title">{manga.title}</span>{!!manga.unreadCount && <span className="tsugi-manga-unread" title={t({ id: "Unread chapters", message: "Unread chapters" })}>{manga.unreadCount}</span>}{manga.author && <span className="truncate text-xs text-[--tsugi-muted]">{manga.author}</span>}</button>;
   const mangaGrid = (items: Manga[]) => <div className="tsugi-manga-grid">{items.map(mangaRow)}</div>;
   const settingRow = (label: string, description: string, next: SettingsPage) => <button className="tsugi-read-row" disabled={busy} onClick={() => openSettings(next)}><span><span className="block font-medium">{label}</span><span className="text-sm text-[--tsugi-muted]">{description}</span></span><FiChevronRight aria-hidden /></button>;
 
@@ -255,7 +257,7 @@ export function ReadPage({ visible }: {
       <button className="tsugi-read-action mb-6" disabled={busy} onClick={() => { setDetails(null); setError(''); if (tab === 'library') void run(loadLibrary); content.current?.scrollTo(0, 0); }}><FiArrowLeft aria-hidden /><Trans id="Back">Back</Trans></button>
       <div className="tsugi-series-layout">
       <aside className="tsugi-manga-detail">
-        <MangaCover manga={details.manga} />
+        <MangaCover manga={details.manga} fallbackEnabled={visible && coverFallback} />
         <div className="min-w-0">
           <h2 className="text-3xl font-semibold tracking-tight">{details.manga.title}</h2>
           {details.manga.author && <p className="mt-2 text-[--tsugi-muted]">{details.manga.author}</p>}
@@ -307,7 +309,7 @@ export function ReadPage({ visible }: {
               {busy && <p className="text-sm text-[--tsugi-muted]" role="status"><Trans id="If connecting an account, complete authorization in your browser and return to Tsugi.">If connecting an account, complete authorization in your browser and return to Tsugi.</Trans></p>}
               <button className="tsugi-read-action self-start" disabled={busy} onClick={() => openSettings('trackers')}><Trans id="Refresh trackers">Refresh trackers</Trans></button>
             </section>
-          : settingsPage === 'reader' ? <ReaderSettings value={readerPreferences} onChange={(value) => { setReaderPreferences(value); saveReaderPreferences(value); }} />
+          : settingsPage === 'reader' ? <><ReaderSettings value={readerPreferences} onChange={(value) => { setReaderPreferences(value); saveReaderPreferences(value); }} /><div className="tsugi-reader-settings-content mt-8 border-t border-[--tsugi-line] pt-6"><h3 className="text-lg font-semibold"><Trans id="Library artwork">Library artwork</Trans></h3><label className="tsugi-reader-setting-toggle"><span><strong><Trans id="Find missing library covers">Find missing library covers</Trans></strong><small><Trans id="Search Jikan for the titles of saved manga only when their source cover is missing or fails. Existing covers always take priority.">Search Jikan for the titles of saved manga only when their source cover is missing or fails. Existing covers always take priority.</Trans></small></span><input type="checkbox" checked={coverFallback} onChange={event => { saveCoverFallback(event.target.checked); setCoverFallback(event.target.checked); }} /></label></div></>
           : settingsPage === 'browse' ? settingRow(t({ id: "Sources", message: "Sources" }), t({ id: "Manage extension sources and repositories.", message: "Manage extension sources and repositories." }), 'sources')
           : settingsPage === 'sources' ? settingRow(t({ id: "Extension repositories", message: "Extension repositories" }), t({ id: "Add or remove trusted extension stores.", message: "Add or remove trusted extension stores." }), 'repositories')
           : <>
@@ -386,7 +388,7 @@ export function ReadPage({ visible }: {
         </section>}
       </section>
     ) : <section>
-      {recent.length > 0 && libraryView === 'all' && !libraryFilter.trim() && <section className="tsugi-reading-resume"><h2><FiClock aria-hidden /><Trans id="Continue reading">Continue reading</Trans></h2><div className="tsugi-reading-resume-list">{recent.slice(0, 6).map((manga) => <button key={manga.id} className="tsugi-reading-resume-card" disabled={busy} onClick={() => void run(() => resumeManga(manga))}><MangaCover manga={manga} /><span><strong>{manga.title}</strong><small>{manga.lastReadChapter?.name}</small><small>{manga.lastReadChapter?.isRead ? t({ id: "Next chapter", message: "Next chapter" }) : t({ id: "Resume reading", message: "Resume reading" })}</small></span><FiChevronRight /></button>)}</div></section>}
+      {recent.length > 0 && libraryView === 'all' && !libraryFilter.trim() && <section className="tsugi-reading-resume"><h2><FiClock aria-hidden /><Trans id="Continue reading">Continue reading</Trans></h2><div className="tsugi-reading-resume-list">{recent.slice(0, 6).map((manga) => <button key={manga.id} className="tsugi-reading-resume-card" disabled={busy} onClick={() => void run(() => resumeManga(manga))}><MangaCover manga={manga} fallbackEnabled={visible && coverFallback} /><span><strong>{manga.title}</strong><small>{manga.lastReadChapter?.name}</small><small>{manga.lastReadChapter?.isRead ? t({ id: "Next chapter", message: "Next chapter" }) : t({ id: "Resume reading", message: "Resume reading" })}</small></span><FiChevronRight /></button>)}</div></section>}
       <div className="tsugi-reading-list-header"><nav className="tsugi-read-subnav" aria-label={t({ id: "Library view", message: "Library view" })}><button aria-current={libraryView === 'all' ? 'page' : undefined} onClick={() => setLibraryView('all')}><Trans id="All manga">All manga</Trans></button><button aria-current={libraryView === 'reading' ? 'page' : undefined} onClick={() => setLibraryView('reading')}><Trans id="In progress">In progress</Trans></button></nav><div className="tsugi-reading-filters"><input className="tsugi-read-input" placeholder={t({ id: "Find in library", message: "Find in library" })} aria-label={t({ id: "Find in library", message: "Find in library" })} value={libraryFilter} onChange={(event) => setLibraryFilter(event.target.value)} /><select className="tsugi-read-input" aria-label={t({ id: "Library sort", message: "Library sort" })} value={librarySort} onChange={(event) => setLibrarySort(event.target.value as typeof librarySort)}><option value="title"><Trans id="Title">Title</Trans></option><option value="recent"><Trans id="Recently read">Recently read</Trans></option></select><button className="tsugi-read-action" disabled={busy} onClick={() => void run(loadLibrary)} aria-label={t({ id: "Refresh library", message: "Refresh library" })}><FiRefreshCw aria-hidden /></button></div></div>
       {!allLibrary.length && !busy && <div className="tsugi-reading-empty"><FiBookOpen aria-hidden /><h2><Trans id="Your library is empty">Your library is empty</Trans></h2><p><Trans id="Browse a source to add manga and keep your reading progress in one place.">Browse a source to add manga and keep your reading progress in one place.</Trans></p><div className="tsugi-empty-actions"><button className="tsugi-read-action tsugi-empty-primary" onClick={() => switchTab('browse')}><Trans id="Browse sources">Browse sources</Trans></button><button className="tsugi-read-action" onClick={() => switchBrowse('extensions')}><Trans id="Extensions">Extensions</Trans></button></div></div>}
       {!!allLibrary.length && !rows.length && !busy && <p className="py-8 text-[--tsugi-muted]"><Trans id="No manga match your filters.">No manga match your filters.</Trans></p>}
@@ -397,10 +399,14 @@ export function ReadPage({ visible }: {
   </main>;
 }
 
-function MangaCover({ manga }: { manga: Manga }) {
+function MangaCover({ manga, fallbackEnabled = false }: { manga: Manga; fallbackEnabled?: boolean }) {
+  return <SourceMangaCover key={String(manga.id) + ':' + (manga.thumbnailUrl ?? '')} manga={manga} fallbackEnabled={fallbackEnabled} />;
+}
+function SourceMangaCover({ manga, fallbackEnabled }: { manga: Manga; fallbackEnabled: boolean }) {
   const box = React.useRef<HTMLDivElement>(null);
   const [url, setUrl] = React.useState('');
   const [failed, setFailed] = React.useState(false);
+  const [fallback, setFallback] = React.useState('');
   React.useEffect(() => {
     const node = box.current;
     const id = Number(manga.id);
@@ -419,7 +425,23 @@ function MangaCover({ manga }: { manga: Manga }) {
     observer.observe(node);
     return () => { controller.abort(); observer.disconnect(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [manga.id, manga.thumbnailUrl]);
-  return <div ref={box} className="tsugi-manga-cover">{url && !failed ? <img src={url} alt="" onError={() => setFailed(true)} /> : <FiBookOpen aria-hidden />}</div>;
+  const eligible = mayLookUpCover(fallbackEnabled, manga.inLibrary, !manga.thumbnailUrl || failed);
+  React.useEffect(() => {
+    setFallback('');
+    const node = box.current;
+    if (!node || !eligible) return;
+    const controller = new AbortController();
+    const observer = new IntersectionObserver(entries => {
+      if (!entries.some(entry => entry.isIntersecting)) return;
+      observer.disconnect();
+      void lookupMissingCover({ title: manga.title, author: manga.author, inLibrary: manga.inLibrary }, controller.signal).then(result => {
+        if (!controller.signal.aborted && result) setFallback(result);
+      });
+    });
+    observer.observe(node);
+    return () => { observer.disconnect(); controller.abort(); };
+  }, [eligible, manga.title, manga.author, manga.inLibrary]);
+  return <div ref={box} className="tsugi-manga-cover">{url && !failed ? <img src={url} alt="" data-cover-origin="source" onError={() => setFailed(true)} /> : eligible && fallback ? <img src={fallback} alt="" referrerPolicy="no-referrer" data-cover-origin="metadata" onError={() => setFallback('')} /> : <FiBookOpen aria-hidden />}</div>;
 }
 
 /** One-time native setup without a console window or manual script. */

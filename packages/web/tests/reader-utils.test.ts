@@ -45,3 +45,21 @@ describe('reader experience regression guards', () => {
     expect(bridge).not.toMatch(/\bt\x60/);
   });
 });
+
+import { mayLookUpCover, selectFallbackCover } from '../src/app/read/cover-fallback';
+
+describe('missing library cover fallback', () => {
+  const item = { mal_id: 42, title: 'Original Story', titles: [{ title: 'Alternate Story' }], authors: [{ name: 'Doe, Jane' }], images: { jpg: { large_image_url: 'https://cdn.myanimelist.net/images/manga/1/2.jpg' } } };
+  it('only permits enabled, saved, missing covers', () => {
+    for (const enabled of [false, true]) for (const saved of [false, true]) for (const missing of [false, true])
+      expect(mayLookUpCover(enabled, saved, missing)).toBe(enabled && saved && missing);
+  });
+  it('requires an exact unique title and matching known author', () => {
+    const good = { data: [item] };
+    expect(selectFallbackCover(good, 'Alternate Story', 'Jane Doe')).toBe(item.images.jpg.large_image_url);
+    expect(selectFallbackCover(good, 'Original', 'Jane Doe')).toBeUndefined();
+    expect(selectFallbackCover(good, 'Original Story', 'Someone Else')).toBeUndefined();
+    expect(selectFallbackCover({ data: [item, { ...item, mal_id: 43 }] }, 'Original Story')).toBeUndefined();
+    expect(selectFallbackCover({ data: [{ ...item, images: { jpg: { large_image_url: 'https://elsewhere.test/cover.jpg' } } }] }, 'Original Story')).toBeUndefined();
+  });
+});

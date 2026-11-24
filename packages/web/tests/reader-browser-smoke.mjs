@@ -61,7 +61,7 @@ try {
         let data;
         let error = null;
         switch (a.kind) {
-          case 'library': data = nodes([manga]); break;
+          case 'library': data = nodes([manga, { id: '2', title: 'ZZ Missing Fixture', author: 'Tsugi', inLibrary: true, unreadCount: 0 }]); break;
           case 'trackers': data = nodes([{ id: 1, name: 'MyAnimeList', isLoggedIn: !!state.trackerConnected, supportsReadingDates: true, supportsPrivateTracking: false }]); break;
           case 'tracker-login': state.trackerConnected = true; data = { isLoggedIn: true }; break;
           case 'tracker-logout': state.trackerConnected = false; data = { isLoggedIn: false }; break;
@@ -111,6 +111,12 @@ try {
     if (route.request().url().endsWith('=w1024-h1024')) await route.fulfill({ status:404 });
     else await route.fulfill({ status:200, contentType:'image/png', body:image });
   });
+  const coverQueries = [];
+  await page.route('https://api.jikan.moe/v4/manga?*', async route => {
+    coverQueries.push(new URL(route.request().url()).searchParams.get('q'));
+    await route.fulfill({ json: { data: [{ mal_id: 42, title: 'ZZ Missing Fixture', authors: [{ name: 'Tsugi' }], images: { jpg: { large_image_url: 'https://cdn.myanimelist.net/images/manga/1/2.jpg' } } }] }, headers: { 'access-control-allow-origin': '*' } });
+  });
+  await page.route('https://cdn.myanimelist.net/images/manga/1/2.jpg', route => route.fulfill({ contentType: 'image/png', body: image }));
   await page.goto(origin, { waitUntil: 'domcontentloaded' });
   const landing = page.locator('[data-page="desktop-landing"]');
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).waitFor();
@@ -168,6 +174,14 @@ try {
   await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
   assert.equal(await page.locator('[data-page="read"]').evaluate(node => getComputedStyle(node).fontFamily), dialogFont);
   await capture('03-reading-library');
+  assert.deepEqual(coverQueries, []);
+  await rail.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: /Reader Set the default reading layout/ }).click();
+  await page.getByRole('checkbox', { name: /Find missing library covers/ }).check();
+  await rail.getByRole('button', { name: 'Library', exact: true }).click();
+  await page.locator('.tsugi-manga-card').filter({ hasText: 'ZZ Missing Fixture' }).locator('img[data-cover-origin="metadata"]').waitFor();
+  await page.locator('.tsugi-manga-card').filter({ hasText: 'Tsugi Original Fixture' }).locator('img[data-cover-origin="source"]').waitFor();
+  assert.deepEqual(coverQueries, ['ZZ Missing Fixture']);
   await rail.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: /Trackers See tracking services/ }).click();
   await page.getByText('MyAnimeList', { exact: true }).waitFor();
