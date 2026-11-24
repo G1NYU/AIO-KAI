@@ -786,6 +786,8 @@ html[data-blur-spoilers]:not([data-tv])
   letter-spacing: .15em;
   text-transform: uppercase;
 }
+.tsugi-entry-index-one::before { content: '01 / '; }
+.tsugi-entry-index-two::before { content: '02 / '; }
 .tsugi-entry-action {
   border: 1px solid var(--tsugi-line);
   border-radius: 50%;

@@ -67,7 +67,7 @@ export function DesktopLandingPage({
           <button type="button" onClick={openVideo}
             className="tsugi-entry-card group relative flex min-h-56 flex-col items-start justify-between overflow-hidden p-7 text-left sm:p-9">
             <span className="flex w-full items-center justify-between">
-              <span className="tsugi-entry-index">01 / <Trans>Movies & TV</Trans></span>
+              <span className="tsugi-entry-index tsugi-entry-index-one"><Trans>Movies & TV</Trans></span>
               <FiFilm aria-hidden className="text-xl" />
             </span>
             <span className="flex w-full items-end justify-between gap-5">
@@ -85,7 +85,7 @@ export function DesktopLandingPage({
           <button type="button" onClick={openMusic}
             className="tsugi-entry-card group relative flex min-h-56 flex-col items-start justify-between overflow-hidden p-7 text-left sm:p-9">
             <span className="flex w-full items-center justify-between">
-              <span className="tsugi-entry-index">02 / <Trans>Music</Trans></span>
+              <span className="tsugi-entry-index tsugi-entry-index-two"><Trans>Music</Trans></span>
               <FiHeadphones aria-hidden className="text-xl" />
             </span>
             <span className="flex w-full items-end justify-between gap-5">
