@@ -2,7 +2,7 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { BiDisc, BiSearch } from 'react-icons/bi';
-import { FiMenu, FiSearch, FiX, FiArrowUpRight } from 'react-icons/fi';
+import { FiMenu, FiSearch, FiX, FiArrowUpRight, FiPlus } from 'react-icons/fi';
 import {
   loadAddon, loadStore, manifestUrlFor, resolveTrack, searchAddonAll,
   type EclipseCatalogItem, type EclipseStoreEntry, type EclipseTrack,
@@ -12,6 +12,11 @@ import {
   type MusicConnection,
 } from '@/lib/music/connections';
 import { MusicPlayer, type RepeatMode } from './player';
+import { MusicLibrary } from './library';
+import {
+  addToMusicPlaylist, createMusicPlaylist, readMusicLibrary, saveMusicLibrary,
+  savedTrack, type SavedMusicTrack,
+} from '@/lib/music/library';
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { applyEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
@@ -47,7 +52,9 @@ export function MusicPage({
   const [tracks, setTracks] = React.useState<EclipseTrack[]>([]);
   const [collections, setCollections] = React.useState<EclipseCatalogItem[]>([]);
   const [selectedCollection, setSelectedCollection] = React.useState<EclipseCatalogItem | null>(null);
-  const [tab, setTab] = React.useState<'discover' | 'search'>('discover');
+  const [tab, setTab] = React.useState<'discover' | 'search' | 'library'>('discover');
+  const [playlists, setPlaylists] = React.useState(readMusicLibrary);
+  const [libraryError, setLibraryError] = React.useState('');
   const [settingsOpen, setSettingsOpen] = React.useState(() => readMusicSources().length === 0);
 
   React.useEffect(() => {
@@ -83,6 +90,10 @@ export function MusicPage({
   React.useEffect(() => {
     storeRecentPlays(recent, rememberSources);
   }, [recent, rememberSources]);
+
+  React.useEffect(() => {
+    saveMusicLibrary(playlists);
+  }, [playlists]);
 
   React.useEffect(() => {
     if (!settingsOpen) return;
@@ -227,6 +238,49 @@ export function MusicPage({
     void play(songs[at], at, source, true);
   };
 
+  function saveTrackInLibrary(track: EclipseTrack) {
+    const sourceId = activeSource?.id ?? playingSourceId;
+    const entry = savedTrack(track, sourceId);
+    setPlaylists((current) => {
+      const existing = current.find((list) => list.name === 'Saved tracks');
+      if (existing) return current.map((list) =>
+        list.id === existing.id ? addToMusicPlaylist(list, entry) : list);
+      return [...current, addToMusicPlaylist(createMusicPlaylist('Saved tracks'), entry)];
+    });
+  }
+
+  async function playSavedTrack(entry: SavedMusicTrack) {
+    setLibraryError('');
+    const exactSource = connections.find((source) => source.id === entry.sourceId);
+    const source = exactSource ?? activeSource;
+    if (!source) {
+      setLibraryError(t`Connect a music source to play saved tracks.`);
+      return;
+    }
+    const normalized = (text: string) => text.toLocaleLowerCase().replace(/[^a-z0-9]/g, '');
+    const selected = exactSource ? entry : null;
+    if (selected) {
+      setQueue([selected]);
+      void play(selected, 0, source, true);
+      return;
+    }
+    try {
+      const result = await searchAddonAll(source.url, entry.artist + ' ' + entry.title);
+      const match = result.tracks.find(track =>
+        entry.isrc && track.isrc === entry.isrc) ??
+        result.tracks.find(track => normalized(track.title) === normalized(entry.title) &&
+          normalized(track.artist) === normalized(entry.artist));
+      if (!match) {
+        setLibraryError(t`No matching playable track was found in the active music source.`);
+        return;
+      }
+      setQueue([match]);
+      void play(match, 0, source, true);
+    } catch {
+      setLibraryError(t`Could not search the active music source for this saved track.`);
+    }
+  }
+
   function seek(seconds: number) {
     const audio = audioRef.current;
     if (!audio || !Number.isFinite(seconds)) return;
@@ -344,6 +398,8 @@ export function MusicPage({
             onClick={() => setTab('discover')}><Trans>Discover</Trans></button>
           <button type="button" aria-current={tab === 'search' ? 'page' : undefined}
             onClick={() => setTab('search')}><Trans>Search</Trans></button>
+          <button type="button" aria-current={tab === 'library' ? 'page' : undefined}
+            onClick={() => setTab('library')}><Trans>Library</Trans></button>
         </nav>
 
         {tab === 'discover' && <MusicDiscover source={activeSource} onPlay={playCollection}
@@ -356,6 +412,15 @@ export function MusicPage({
             void play(entry.track, 0, source, true);
           }}
           onConfigure={() => setSettingsOpen(true)} />}
+
+        {tab === 'library' && (
+          <>
+            {libraryError && <p role="alert" className="mb-6 text-sm text-amber-200">{libraryError}</p>}
+            <MusicLibrary playlists={playlists} onChange={setPlaylists}
+              onPlay={(entry) => { void playSavedTrack(entry); }}
+              playing={playing ? savedTrack(playing, playingSourceId) : null} />
+          </>
+        )}
 
         {tab === 'search' && activeAddon && (
           <section aria-labelledby="music-search-heading" className="mb-10 space-y-4">
@@ -393,9 +458,9 @@ export function MusicPage({
             )}
             <ul className="space-y-1">
               {tracks.map((track, at) => (
-                <li key={track.id}>
+                <li key={track.id} className="flex items-center gap-2">
                   <button type="button" onClick={() => activeSource && void play(track, at, activeSource)}
-                    data-ui="music-track-row" className="flex w-full items-center gap-4 px-4 py-3 text-start focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+                    data-ui="music-track-row" className="flex min-w-0 flex-1 items-center gap-4 px-4 py-3 text-start focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
                     {track.artworkURL
                       ? <img src={track.artworkURL} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-12 rounded-lg object-cover" />
                       : <BiDisc aria-hidden className="text-2xl text-violet-200" />}
@@ -405,6 +470,10 @@ export function MusicPage({
                         {track.artist}{track.album ? ' · ' + track.album : ''}
                       </span>
                     </span>
+                  </button>
+                  <button type="button" className="tsugi-icon-action shrink-0" onClick={() => saveTrackInLibrary(track)}
+                    aria-label={t`Save track to library`}>
+                    <FiPlus aria-hidden />
                   </button>
                 </li>
               ))}
