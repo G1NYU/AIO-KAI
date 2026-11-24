@@ -128,8 +128,14 @@ try {
   await capture('02-movie-setup');
   const mediaNav = page.locator('.tsugi-entry-media-nav');
   await mediaNav.getByRole('button', { name: 'App settings', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Mocha', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+  const globalDialog = page.getByRole('dialog');
+  assert.equal(await globalDialog.evaluate(node => getComputedStyle(node).borderRadius), '2px');
+  const dialogFont = await globalDialog.evaluate(node => getComputedStyle(node).fontFamily);
+  assert.equal(await entry.evaluate(node => getComputedStyle(node).fontFamily), dialogFont);
+  const paletteButton = globalDialog.getByRole('button', { name: 'Mocha', exact: true });
+  assert.equal(await paletteButton.evaluate(node => getComputedStyle(node).borderRadius), '2px');
+  await paletteButton.click();
+  await globalDialog.getByRole('button', { name: 'Close', exact: true }).click();
   await field.focus();
   assert.equal(await field.evaluate((node) => getComputedStyle(node).outlineColor), 'rgb(168, 211, 229)');
   await mediaNav.getByRole('button', { name: 'All media', exact: true }).click();
@@ -148,6 +154,7 @@ try {
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'mocha');
   await page.getByRole('dialog').getByRole('button', { name: 'Default', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+  assert.equal(await page.locator('[data-page="read"]').evaluate(node => getComputedStyle(node).fontFamily), dialogFont);
   await capture('03-reading-library');
   await rail.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: /Trackers See tracking services/ }).click();

@@ -1614,3 +1614,53 @@ body:has(.tsugi-chapter-reader[data-focus='hidden']) .tsugi-reading-music { disp
 html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-focus='hidden']) [data-ui='window-controls'] { opacity:0; pointer-events:none; }
 .tsugi-global-appearance { font-family:var(--tsugi-font); }
 .tsugi-settings-sheet .tsugi-global-palettes { grid-template-columns:repeat(2,minmax(0,1fr)); }
+
+/* Desktop settings and media details use the same surfaces as Music and Read.
+   Scope to named non-player controls; do not restyle playback, artwork loaders,
+   user CSS settings, or the web/TV clients. */
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] :is([data-ui='settings-card-body'],[data-ui='settings-tab-group']) {
+  background:var(--tsugi-canvas);
+  border:1px solid var(--tsugi-line);
+  border-radius:2px;
+  box-shadow:none;
+}
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='settings-card-body'] > :not([hidden]) ~ :not([hidden]),
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='settings-tab-group'] > [data-ui='settings-tab'] {
+  border-color:var(--tsugi-line);
+  border-width:0;
+}
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='settings-card-item'] {
+  border-bottom:1px solid var(--tsugi-line);
+}
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='settings-card-item']:last-child { border-bottom:0; }
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] :is([data-ui='settings-card-item'],[data-ui='settings-tab']):hover {
+  background:var(--tsugi-wash);
+}
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='settings-header-icon'] {
+  background:transparent;
+  border:0;
+  padding:0;
+  color:var(--tsugi-ink);
+}
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='settings-header-icon'] svg { color:inherit; }
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='settings-tab'] { border-radius:2px; color:var(--tsugi-muted); }
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='settings-tab'][data-state='active'] { background:var(--tsugi-wash); color:var(--tsugi-ink); }
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='settings-tab']:hover svg { transform:none; }
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='item-action'] { border-radius:2px; }
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='item-poster'] { border-radius:2px; box-shadow:none; }
+:root[data-host='desktop']:not(.playing) :is(.UI-Select__content,.UI-DropdownMenu__root,.UI-DropdownMenu__subContent,.UI-Popover__root) {
+  background:var(--tsugi-panel);
+  border-color:var(--tsugi-line);
+  border-radius:2px;
+  color:var(--tsugi-ink);
+}
+:root[data-host='desktop']:not(.playing) :is(.UI-Select__item,.UI-DropdownMenu__item,.UI-DropdownMenu__subTrigger) { border-radius:2px; }
+:root[data-host='desktop']:not(.playing) :is(.UI-Select__item[data-highlighted],.UI-DropdownMenu__item:focus,.UI-DropdownMenu__subTrigger:focus) { background:var(--tsugi-wash); }
+:root[data-host='desktop']:not(.playing) :is(.UI-Select__root,.UI-Textarea__root) { border-radius:2px; border-color:var(--tsugi-line); }
+:root[data-host='desktop']:not(.playing) :is(.UI-Select__root,.UI-Textarea__root,.tsugi-global-palettes button):focus-visible {
+  outline:2px solid var(--tsugi-focus); outline-offset:2px;
+}
+:root[data-host='desktop'] .tsugi-global-palettes button { border-radius:2px; color:var(--tsugi-ink); }
+:root[data-host='desktop'] .tsugi-global-palettes button[aria-pressed='true'] { border-color:var(--tsugi-focus); }
+:root[data-host='desktop'] :is(.tsugi-global-settings,.tsugi-settings-sheet) { border-color:var(--tsugi-line); }
+:root[data-host='desktop'] .tsugi-reading-rail .tsugi-reading-rail-bottom button { min-height:38px; }

@@ -198,12 +198,23 @@ jobs:
           This is a development ZIP, not a public release or installer.
           Physical Windows desktop and real-source acceptance testing are pending.
           '@ | Set-Content -Path stage/README-TEST.txt -Encoding utf8
+          # Record the exact checkout, rather than asking testers to infer it
+          # from the artifact name or the repository's moving branch.
+          $build = [ordered]@{
+            repository = $env:GITHUB_REPOSITORY
+            commit = $env:GITHUB_SHA
+            run_id = $env:GITHUB_RUN_ID
+            run_attempt = $env:GITHUB_RUN_ATTEMPT
+            ref = $env:GITHUB_REF
+          }
+          if ((git rev-parse HEAD).Trim() -ne $build.commit) { throw 'Package source revision mismatch' }
+          $build | ConvertTo-Json | Set-Content -Path stage/BUILD-INFO.json -Encoding utf8
           $zip = [IO.Path]::GetFullPath('Tsugi-windows-x64-test.zip')
           [IO.Compression.ZipFile]::CreateFromDirectory((Resolve-Path stage).Path, $zip, [IO.Compression.CompressionLevel]::Optimal, $false)
           $archive = [IO.Compression.ZipFile]::OpenRead($zip)
           try {
             $names = @($archive.Entries | ForEach-Object FullName)
-            foreach ($required in @('.portable', 'current/Tsugi.exe', 'current/music-tools/yt-dlp.exe', 'current/music-tools/deno.exe', 'current/read-launcher/TsugiReadLauncher.class', 'current/read-launcher/fetch-read-tools.ps1', 'current/web/index.html', 'LICENSE', 'README-TEST.txt')) {
+            foreach ($required in @('.portable', 'current/Tsugi.exe', 'current/music-tools/yt-dlp.exe', 'current/music-tools/deno.exe', 'current/read-launcher/TsugiReadLauncher.class', 'current/read-launcher/fetch-read-tools.ps1', 'current/web/index.html', 'LICENSE', 'README-TEST.txt', 'BUILD-INFO.json')) {
               if ($required -notin $names) { throw "Unified artifact missing $required" }
             }
             if ('Start Tsugi.cmd' -in $names -or 'Start-Tsugi.ps1' -in $names) { throw 'Legacy manual launcher in Tsugi package' }

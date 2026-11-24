@@ -160,7 +160,7 @@ export function SettingsPageHeader({
   return (
     <div data-ui="settings-header" className="flex items-center gap-3">
       {leading ?? (
-        <div className="rounded-lg border border-brand-500/15 bg-gradient-to-br from-brand-500/10 to-purple-500/10 p-2">
+        <div data-ui="settings-header-icon" className="rounded-lg border border-brand-500/15 bg-gradient-to-br from-brand-500/10 to-purple-500/10 p-2">
           <Icon className="text-2xl text-brand-400" />
         </div>
       )}
