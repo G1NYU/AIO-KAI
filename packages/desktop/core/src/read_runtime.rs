@@ -4,6 +4,7 @@
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, TcpListener};
+use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
@@ -517,10 +518,89 @@ impl ReadStorage {
     }
 }
 
-/// Owns the launched process, private client and exclusive storage lock.
+// Unnamed, non-inheritable Windows Job Object. No breakaway flags are set.
+// Layouts match winnt.h on Windows, including pointer-sized SIZE_T/ULONG_PTR.
+#[repr(C)]
+#[derive(Default)]
+struct JobBasicLimits {
+    per_process_user_time_limit: i64,
+    per_job_user_time_limit: i64,
+    limit_flags: u32,
+    minimum_working_set_size: usize,
+    maximum_working_set_size: usize,
+    active_process_limit: u32,
+    affinity: usize,
+    priority_class: u32,
+    scheduling_class: u32,
+}
+
+#[repr(C)]
+#[derive(Default)]
+struct JobExtendedLimits {
+    basic: JobBasicLimits,
+    io_counters: [u64; 6],
+    process_memory_limit: usize,
+    job_memory_limit: usize,
+    peak_process_memory_used: usize,
+    peak_job_memory_used: usize,
+}
+
+#[link(name = "kernel32")]
+unsafe extern "system" {
+    fn CreateJobObjectW(attributes: *const std::ffi::c_void, name: *const u16) -> *mut std::ffi::c_void;
+    fn SetInformationJobObject(job: *mut std::ffi::c_void, class: i32, info: *const std::ffi::c_void, len: u32) -> i32;
+    fn AssignProcessToJobObject(job: *mut std::ffi::c_void, process: *mut std::ffi::c_void) -> i32;
+}
+
+struct ReadJob(OwnedHandle);
+
+impl ReadJob {
+    fn new() -> Result<Self, &'static str> {
+        const EXTENDED_LIMIT_INFORMATION: i32 = 9;
+        const KILL_ON_JOB_CLOSE: u32 = 0x2000;
+        // SAFETY: null attributes and name create a non-inheritable unnamed job.
+        let raw = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
+        if raw.is_null() {
+            return Err("Could not create reading process job.");
+        }
+        // SAFETY: successful CreateJobObjectW returns a new owned handle.
+        let job = Self(unsafe { OwnedHandle::from_raw_handle(raw) });
+        let mut limits = JobExtendedLimits::default();
+        limits.basic.limit_flags = KILL_ON_JOB_CLOSE;
+        // SAFETY: correct C layout and size for JobObjectExtendedLimitInformation.
+        let ok = unsafe {
+            SetInformationJobObject(
+                job.0.as_raw_handle(),
+                EXTENDED_LIMIT_INFORMATION,
+                (&limits as *const JobExtendedLimits).cast(),
+                std::mem::size_of::<JobExtendedLimits>() as u32,
+            )
+        };
+        if ok == 0 {
+            return Err("Could not configure reading process job.");
+        }
+        Ok(job)
+    }
+
+    fn attach_and_release(&self, child: &mut Child) -> Result<(), &'static str> {
+        // SAFETY: both owned handles remain live throughout this call.
+        let assigned = unsafe {
+            AssignProcessToJobObject(self.0.as_raw_handle(), child.as_raw_handle())
+        };
+        if assigned == 0 {
+            return Err("Could not contain reading process.");
+        }
+        // The Java bootstrap waits for this one byte before loading upstream code.
+        child.stdin.as_mut().ok_or("Reading startup pipe is missing.")?
+            .write_all(&[1]).map_err(|_| "Could not release reading startup gate.")
+    }
+}
+
+/// Owns the launched process, private client, kill-on-close job and exclusive storage lock.
 pub struct ReadRuntime {
     child: Child,
     client: ReadClient,
+    job: Option<ReadJob>,
     _storage: ReadStorage,
 }
 
@@ -548,7 +628,8 @@ impl ReadRuntime {
             .port();
         let storage = ReadStorage::open(&data, port)?;
         drop(listener);
-        let child = Command::new(java)
+        let job = ReadJob::new()?;
+        let mut child = Command::new(java)
             .arg(format!(
                 "-Dsuwayomi.tachidesk.config.server.rootDir={}",
                 data.display()
@@ -564,6 +645,10 @@ impl ReadRuntime {
             ])
             .arg(classpath)
             .arg("TsugiReadLauncher")
+            // Do not allow inherited Java option variables to inject code before the gate.
+            .env_remove("JAVA_TOOL_OPTIONS")
+            .env_remove("JDK_JAVA_OPTIONS")
+            .env_remove("_JAVA_OPTIONS")
             .current_dir(runtime)
             .creation_flags(NO_WINDOW)
             .stdin(Stdio::piped())
@@ -571,10 +656,17 @@ impl ReadRuntime {
             .stderr(Stdio::null())
             .spawn()
             .map_err(|_| "Could not start reading runtime.")?;
+        if let Err(error) = job.attach_and_release(&mut child) {
+            drop(child.stdin.take());
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(error);
+        }
         let client = ReadClient::new(port, child.id(), &storage.password);
         let mut managed = Self {
             child,
             client,
+            job: Some(job),
             _storage: storage,
         };
         let deadline = Instant::now() + READY_TIMEOUT;
@@ -751,12 +843,19 @@ impl ReadRuntime {
         let deadline = Instant::now() + SHUTDOWN_TIMEOUT;
         loop {
             match self.child.try_wait() {
-                Ok(Some(status)) if status.success() => return Ok(()),
-                Ok(Some(_)) => return Err("Reading runtime exited unsuccessfully."),
+                Ok(Some(status)) if status.success() => {
+                    drop(self.job.take());
+                    return Ok(());
+                }
+                Ok(Some(_)) => {
+                    drop(self.job.take());
+                    return Err("Reading runtime exited unsuccessfully.");
+                }
                 Ok(None) if Instant::now() < deadline => {
                     std::thread::sleep(Duration::from_millis(100));
                 }
                 _ => {
+                    drop(self.job.take());
                     let _ = self.child.kill();
                     let _ = self.child.wait();
                     return Err("Reading runtime did not shut down cleanly.");
@@ -779,6 +878,84 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::{Arc, atomic::{AtomicBool, AtomicUsize, Ordering}};
     use std::thread::JoinHandle;
+
+    // Exercise the real kernel job without third-party executables or network.
+    // The test subprocess waits for the same byte as the JVM launcher.
+    #[test]
+    #[ignore = "subprocess fixture only"]
+    fn job_fixture_process() {
+        let Ok(role) = std::env::var("TSUGI_READ_JOB_FIXTURE_ROLE") else { return };
+        if role == "parent" {
+            let mut gate = [0];
+            std::io::stdin().read_exact(&mut gate).unwrap();
+            assert_eq!(gate, [1]);
+            let mut leaf = Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "read_runtime::tests::job_fixture_process", "--ignored"])
+                .env("TSUGI_READ_JOB_FIXTURE_ROLE", "leaf")
+                .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
+                .creation_flags(NO_WINDOW)
+                .spawn().unwrap();
+            fs::write(std::env::var_os("TSUGI_READ_JOB_FIXTURE_READY").unwrap(), leaf.id().to_string()).unwrap();
+            let _ = leaf.wait();
+        } else if role == "leaf" {
+            std::thread::sleep(Duration::from_secs(60));
+        } else {
+            panic!("unknown job fixture role");
+        }
+    }
+
+    #[test]
+    fn closing_read_job_terminates_parent_and_descendant() {
+        use std::ffi::c_void;
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut c_void;
+            fn WaitForSingleObject(handle: *mut c_void, milliseconds: u32) -> u32;
+        }
+        const SYNCHRONIZE: u32 = 0x00100000;
+        const WAIT_OBJECT_0: u32 = 0;
+        const WAIT_TIMEOUT: u32 = 258;
+        let mut entropy = [0u8; 16];
+        getrandom::fill(&mut entropy).unwrap();
+        let unique = entropy.iter().map(|b| format!("{b:02x}")).collect::<String>();
+        let dir = std::env::temp_dir().join(format!("tsugi-read-job-{unique}"));
+        fs::create_dir(&dir).unwrap();
+        let ready = dir.join("descendant.pid");
+        let job = ReadJob::new().unwrap();
+        let mut parent = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "read_runtime::tests::job_fixture_process", "--ignored"])
+            .env("TSUGI_READ_JOB_FIXTURE_ROLE", "parent")
+            .env("TSUGI_READ_JOB_FIXTURE_READY", &ready)
+            .stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null())
+            .creation_flags(NO_WINDOW)
+            .spawn().unwrap();
+        if let Err(error) = job.attach_and_release(&mut parent) {
+            drop(parent.stdin.take());
+            let _ = parent.kill();
+            let _ = parent.wait();
+            panic!("{error}");
+        }
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let pid = loop {
+            if let Some(pid) = fs::read_to_string(&ready).ok().and_then(|s| s.parse::<u32>().ok()) {
+                break pid;
+            }
+            assert!(Instant::now() < deadline, "job descendant did not start");
+            std::thread::sleep(Duration::from_millis(20));
+        };
+        // SAFETY: OpenProcess returns a new handle for the reported live descendant.
+        let raw = unsafe { OpenProcess(SYNCHRONIZE, 0, pid) };
+        assert!(!raw.is_null(), "could not open job descendant");
+        let leaf = unsafe { OwnedHandle::from_raw_handle(raw) };
+        // SAFETY: the owned process handles remain live during each wait.
+        assert_eq!(unsafe { WaitForSingleObject(leaf.as_raw_handle(), 0) }, WAIT_TIMEOUT);
+        assert!(parent.try_wait().unwrap().is_none());
+        drop(job);
+        assert_eq!(unsafe { WaitForSingleObject(parent.as_raw_handle(), 10_000) }, WAIT_OBJECT_0);
+        assert_eq!(unsafe { WaitForSingleObject(leaf.as_raw_handle(), 10_000) }, WAIT_OBJECT_0);
+        parent.wait().unwrap();
+        fs::remove_dir_all(dir).unwrap();
+    }
 
     #[test]
     fn listener_rows_require_unique_owned_loopback() {
