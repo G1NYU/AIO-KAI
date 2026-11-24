@@ -1944,6 +1944,10 @@ msgstr "Filler"
 msgid "Filmography"
 msgstr "Filmography"
 
+#: src/app/music/player-settings.tsx
+msgid "Fit Studio layout inside window"
+msgstr "Fit Studio layout inside window"
+
 #: src/app/discover/page.tsx
 msgid "Filter"
 msgstr "Filter"
