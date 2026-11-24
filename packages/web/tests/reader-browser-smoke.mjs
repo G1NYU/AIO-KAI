@@ -29,12 +29,31 @@ try {
     const listeners = new Set();
     const manga = { id: '1', title: 'Tsugi Original Fixture', author: 'Tsugi', thumbnailUrl: '/api/v1/manga/1/thumbnail', inLibrary: true, unreadCount: 2, description: '**Original fixture** for reader tests.', genre: ['Adventure'] };
     const chapters = [{ id: 11, name: 'Chapter 1', chapterNumber: 1, scanlator: 'Original', isRead: false, lastPageRead: 0, pageCount: 4 }, { id: 12, name: 'Chapter 2', chapterNumber: 2, scanlator: 'Original', isRead: false, lastPageRead: 0, pageCount: 4 }];
-    const state = window.__readerFixture = { requests: [], lastPath: '', serial: 0, installed: false, stores: [], progress: [] };
+    const state = window.__readerFixture = { requests: [], lastPath: '', serial: 0, installed: false, stores: [], progress: [], nativeMessages: [], nativeRequest: null };
     const nodes = (items) => ({ nodes: items, totalCount: items.length });
+    const emit = (message) => queueMicrotask(() => { for (const listener of listeners) listener(message); });
     window.aiostreamsApp = {
-      protocol: 2, version: 'fixture', platform: 'windows', reading: true, readingSetup: true, device: 'Fixture',
+      protocol: 2, version: 'fixture', platform: 'windows', reading: true, readingSetup: true, youtubeMusic: true, nativeMusicAudio: true, device: 'Fixture',
       subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
       send(message) {
+        if (message.type === 'youtube-music-request') {
+          const data = message.operation === 'search' ? { musicResponsiveListItemRenderer: {
+            playlistItemData: { videoId: 'abcdefghijk' },
+            flexColumns: [{ musicResponsiveListItemFlexColumnRenderer: { text: { runs: [{ text: 'Native fixture track' }] } } }],
+          } } : message.operation === 'audio' ? { url: 'https://www.youtube.com/watch?v=abcdefghijk', format: 'fixture' } : {};
+          emit({ type: 'youtube-music-result', request: message.request, data, error: null });
+          return;
+        }
+        if (message.type === 'music-audio-load' || message.type === 'music-audio-control') {
+          state.nativeMessages.push(message);
+          if (message.type === 'music-audio-load') {
+            state.nativeRequest = message.request;
+            emit({ type: 'music-audio-state', request: message.request, status: 'playing', position: 0, duration: 180, error: null });
+          } else if (message.request === state.nativeRequest && message.action === 'pause') {
+            emit({ type: 'music-audio-state', request: message.request, status: message.value ? 'paused' : 'playing', position: 1, duration: 180, error: null });
+          } else if (message.action === 'stop') state.nativeRequest = null;
+          return;
+        }
         if (message.type !== 'read-request') return;
         const a = message.action;
         state.requests.push(a);
@@ -253,7 +272,40 @@ try {
   await reader.getByRole('button', { name: 'Chapters', exact: true }).click();
   await rail.getByRole('button', { name: 'Movies & TV', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('[data-ui="tsugi-audio-engine"]')?.paused === true);
-  console.log('PASS: real local WAV playback continues through Read, dock pause/resume works, video entry pauses music.');
+  console.log('PASS: real local WAV playback continues in a chapter, focus mode and Music round trip; video entry pauses music.');
+  // Exercise the real frontend native audio protocol with synthetic metadata
+  // and a fake native transport. Never contact YouTube or resolve a real URL.
+  await mediaNav.getByRole('button', { name: 'Music', exact: true }).click();
+  await music.waitFor({ state: 'visible' });
+  await music.getByRole('button', { name: 'Music settings', exact: true }).click();
+  await musicSettings.getByRole('button', { name: 'Connect YouTube Music', exact: true }).click();
+  await music.getByRole('textbox', { name: 'Search music', exact: true }).fill('Native fixture track');
+  await music.getByRole('button', { name: 'Search', exact: true }).last().click();
+  await music.locator('[data-ui="music-track-row"]').filter({ hasText: 'Native fixture track' }).click();
+  await page.waitForFunction(() => window.__readerFixture.nativeMessages.some(m => m.type === 'music-audio-load'));
+  const nativeRequest = await page.evaluate(() => window.__readerFixture.nativeRequest);
+  assert.ok(nativeRequest);
+  await music.getByRole('button', { name: 'Read', exact: true }).click();
+  await rail.waitFor();
+  await page.locator('.tsugi-manga-card').first().click();
+  await page.getByRole('button', { name: /Start or resume reading/ }).click();
+  await reader.waitFor({ state: 'visible' });
+  await dock.getByRole('button', { name: 'Pause', exact: true }).click();
+  await dock.getByRole('button', { name: 'Play', exact: true }).click();
+  await dock.getByRole('button', { name: 'Pause', exact: true }).waitFor();
+  await reader.getByRole('button', { name: 'Music', exact: true }).click();
+  await music.waitFor({ state: 'visible' });
+  await music.getByRole('button', { name: 'Read', exact: true }).click();
+  await reader.waitFor({ state: 'visible' });
+  assert.equal(await page.evaluate(() => window.__readerFixture.nativeRequest), nativeRequest);
+  const nativeMessages = await page.evaluate(() => window.__readerFixture.nativeMessages);
+  assert.equal(nativeMessages.filter(m => m.type === 'music-audio-load').length, 1);
+  assert.equal(nativeMessages.filter(m => m.action === 'stop').length, 0);
+  assert.deepEqual(nativeMessages.filter(m => m.action === 'pause').map(m => m.value), [1, 0]);
+  await reader.getByRole('button', { name: 'Chapters', exact: true }).click();
+  await rail.getByRole('button', { name: 'Movies & TV', exact: true }).click();
+  await page.waitForFunction(() => window.__readerFixture.nativeMessages.some(m => m.action === 'stop'));
+  console.log('PASS: simulated native music transport remains loaded through Read and Music round trip; video entry sends stop.');
   assert.deepEqual(errors, []);
   console.log('PASS: readable launcher/labels, repository registration, catalogue filter, extension install, source browse, image transfer, scroll progress, reader settings and chapter switching (mock bridge).');
 } finally { await browser.close(); }
