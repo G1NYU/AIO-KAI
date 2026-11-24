@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   makeRecentPlay, mergeRecentPlays, readRecentPlays, storeRecentPlays,
 } from '../src/lib/music/history';
@@ -12,6 +12,8 @@ beforeEach(() => {
     removeItem: (key: string) => { saved.delete(key); },
   });
 });
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe('Tsugi recent listening', () => {
   it('deduplicates source-scoped tracks and keeps newest first', () => {
