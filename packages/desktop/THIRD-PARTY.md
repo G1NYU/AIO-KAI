@@ -37,3 +37,5 @@ The Flatpak builds its own libmpv, from AIOStreams' forks of mpv and libass with
 LuaJIT, uchardet and libXpresent, and takes FFmpeg, GTK 4 and WebKitGTK from its runtime. Its mpv
 carries the MPVKit patches too, so it is licensed under the GPL-3.0. Each of those libraries'
 licence text is in `lib/aiostreams-desktop/licenses`.
+
+- **Reading runtime (Windows development ZIP):** the first-run launcher fetches the pinned Suwayomi Server v2.4.2373 and Azul Zulu JRE directly from the official upstream bundle. The archive is verified before extraction; the ZIP itself does not redistribute those binaries. See `read-tools/SOURCE.txt` after preparation.

@@ -10,7 +10,7 @@ $temp = Join-Path ([IO.Path]::GetTempPath()) ('tsugi-read-tools-' + [Guid]::NewG
 New-Item -ItemType Directory -Path $temp | Out-Null
 try {
     $archive = Join-Path $temp 'upstream.zip'
-    Invoke-WebRequest 'https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.4.2373/Suwayomi-Server-v2.4.2373-windows-x64.zip' -OutFile $archive
+    Invoke-WebRequest -UseBasicParsing 'https://github.com/Suwayomi/Suwayomi-Server/releases/download/v2.4.2373/Suwayomi-Server-v2.4.2373-windows-x64.zip' -OutFile $archive
     if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'a8f1c7cf45ca3666afc2e8a06c7f4a968e07cee7d668e8be7cf194273a672a15') {
         throw 'Official Windows bundle checksum mismatch'
     }
@@ -36,9 +36,9 @@ try {
     if (-not (Test-Path -LiteralPath (Join-Path $root 'jre/legal') -PathType Container)) {
         throw 'Java legal notices missing'
     }
-    Invoke-WebRequest 'https://raw.githubusercontent.com/Suwayomi/Suwayomi-Server/v2.4.2373/LICENSE' -OutFile (Join-Path $root 'Suwayomi-LICENSE.txt')
+    Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/Suwayomi/Suwayomi-Server/v2.4.2373/LICENSE' -OutFile (Join-Path $root 'Suwayomi-LICENSE.txt')
     @'
-Separate unmodified upstream runtime components, not yet shipped in Tsugi.
+Separate unmodified upstream runtime components prepared directly from upstream.
 Suwayomi Server v2.4.2373: MPL-2.0; source and build instructions:
 https://github.com/Suwayomi/Suwayomi-Server/tree/v2.4.2373
 https://github.com/Suwayomi/Suwayomi-Server/releases/tag/v2.4.2373
@@ -47,6 +47,7 @@ Suwayomi Windows bundle; GPL-2.0 with Classpath Exception. The complete JRE
 legal directory and release file are retained. Before public redistribution,
 verify corresponding-source obligations and availability for this exact build.
 https://www.azul.com/downloads/
+https://docs.azul.com/core/tpls/november-2026/zulu25_jdk_tpl.html
 https://github.com/openjdk/jdk25u
 '@ | Set-Content -LiteralPath (Join-Path $root 'SOURCE.txt') -Encoding utf8
 } catch {
