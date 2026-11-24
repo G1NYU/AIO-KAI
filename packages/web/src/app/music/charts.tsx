@@ -47,12 +47,12 @@ export function MusicCharts({ onFind }: { onFind(recording: TrendingRecording): 
       {!loading && !error && !tracks.length && (
         <p className="text-sm text-white/50"><Trans>No chart entries are available right now.</Trans></p>
       )}
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-x-7 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {tracks.slice(0, 15).map((item, index) => (
           <button key={item.key} type="button" onClick={() => onFind(item)}
-            className="group flex min-w-0 items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-3 text-left transition-colors hover:border-white/20 hover:bg-white/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60">
+            className="group flex min-w-0 items-center gap-3 border-b border-white/[0.08] px-0 py-4 text-left transition-colors hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60">
             <span className="w-6 shrink-0 text-right text-xs tabular-nums text-white/35">{index + 1}</span>
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-none border border-white/10 bg-[#24242b]">
+            <span className="flex size-11 shrink-0 items-center justify-center text-[--tsugi-muted]">
               <BiDisc aria-hidden className="text-2xl text-white/45" />
             </span>
             <span className="min-w-0 flex-1">

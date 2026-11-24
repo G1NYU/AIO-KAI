@@ -75,8 +75,7 @@ export function MusicCollection({
   return (
     <section role="dialog" aria-modal="true" aria-label={t`Music collection`}
       className="tsugi-player-dialog fixed inset-0 z-40 overflow-y-auto">
-      <div aria-hidden className="tsugi-chrome-wash" />
-      <div className="mx-auto min-h-screen max-w-6xl px-6 pb-32 pt-14 sm:px-10">
+      <div className="min-h-screen w-full px-6 pb-32 pt-14 sm:px-[3vw]">
         <button type="button" onClick={nested ? () => setNested(null) : onClose}
           className="mb-9 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white/65 hover:bg-white/10">
           <BiArrowBack aria-hidden /> <Trans>Back to music</Trans>
@@ -106,7 +105,7 @@ export function MusicCollection({
             {detail.tracks.map((track, at) => (
               <button key={track.id + ':' + at} type="button"
                 onClick={() => { onPlay(source, detail.tracks, at); onClose(); }}
-                className="flex w-full items-center gap-4 rounded-xl border border-white/[0.05] bg-white/[0.035] px-4 py-3 text-left transition-colors hover:bg-white/[0.09]">
+                className="flex w-full items-center gap-4 border-b border-white/[0.08] px-4 py-3 text-left transition-colors hover:bg-white/[0.04]">
                 <span className="w-6 text-right text-xs text-white/35">{at + 1}</span>
                 <Cover src={track.artworkURL} size="small" />
                 <span className="min-w-0 flex-1">
@@ -123,7 +122,7 @@ export function MusicCollection({
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {detail.albums.map((album) => (
                 <button key={album.id} type="button" onClick={() => setNested(album)}
-                  className="min-w-0 rounded-xl bg-white/[0.04] p-3 text-left hover:bg-white/10">
+                  className="min-w-0 text-left hover:brightness-110">
                   <Cover src={album.artworkURL} />
                   <span className="mt-2 block truncate text-sm font-semibold">{album.title}</span>
                 </button>

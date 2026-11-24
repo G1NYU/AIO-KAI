@@ -60,8 +60,8 @@ export function JunctionPlayer({
   const lyricIndex = lyrics ? lyricAt(lyrics.synced, p.position) : -1;
   return (
     <div data-ui="tsugi-junction"
-      className="mx-auto grid w-full max-w-[1390px] flex-1 items-center gap-8 py-8 lg:grid-cols-[minmax(0,.96fr)_minmax(0,1.04fr)] lg:gap-[clamp(28px,6vw,112px)]">
-      <section className="mx-auto flex w-full max-w-[570px] flex-col justify-center">
+      className="grid w-full flex-1 items-center gap-[5vw] py-10 lg:grid-cols-[minmax(0,.96fr)_minmax(0,1.04fr)]">
+      <section className="mx-auto flex w-full max-w-[min(42vw,70vh)] flex-col justify-center max-lg:max-w-[min(78vw,65vh)]">
         <div className="relative isolate">
           <div className="tsugi-junction-art-glow pointer-events-none absolute inset-10 -z-10"
             style={{ background: palette.accent }} />
@@ -82,7 +82,7 @@ export function JunctionPlayer({
         </div>
       </section>
 
-      <section className="relative flex min-w-0 flex-col justify-center gap-7">
+      <section className="relative flex min-w-0 flex-col justify-center gap-7 lg:pr-[3vw]">
         <header className="min-w-0">
           <p className="tsugi-eyebrow"><Trans>Now playing</Trans></p>
           <h1 className="mt-5 break-words text-[clamp(2.2rem,4.5vw,4.8rem)] font-semibold leading-[1.07] tracking-[-.055em]">
@@ -145,7 +145,7 @@ export function JunctionPlayer({
         </div>
 
         {queueOpen && (
-          <section aria-label={t`Up next`} className="tsugi-junction-secondary overflow-hidden p-4">
+          <section aria-label={t`Up next`} className="tsugi-junction-secondary overflow-hidden py-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold"><Trans>Up next</Trans></h2>
               <button type="button" aria-label={t`Close queue`}
@@ -157,7 +157,7 @@ export function JunctionPlayer({
                 <li key={item.id + ':' + index}>
                   <button type="button" onClick={() => p.onQueue(index)}
                     aria-current={index === p.index ? 'true' : undefined}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-xs hover:bg-white/10"
+                    className="flex w-full items-center gap-3 py-2 text-left text-xs hover:bg-white/[0.04]"
                     style={{color:index === p.index ? palette.accent : palette.foreground}}>
                     <span className="w-5 shrink-0 text-right tabular-nums opacity-60">{index + 1}</span>
                     <span className="min-w-0 flex-1 truncate">{item.title}</span>
