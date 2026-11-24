@@ -924,6 +924,7 @@ msgstr "Can’t reach the server"
 msgid "Cancel"
 msgstr "Cancel"
 
+#: src/app/desktop-landing/page.tsx
 #: src/app/music/player.tsx
 msgid "Carbon"
 msgstr "Carbon"
@@ -2324,6 +2325,7 @@ msgstr "Independent listening"
 msgid "Independent music discovery"
 msgstr "Independent music discovery"
 
+#: src/app/desktop-landing/page.tsx
 #: src/app/music/player.tsx
 msgid "Ink"
 msgstr "Ink"
@@ -2985,6 +2987,7 @@ msgstr "Next up"
 msgid "Night mode"
 msgstr "Night mode"
 
+#: src/app/desktop-landing/page.tsx
 #: src/app/music/player.tsx
 msgid "Nightfall"
 msgstr "Nightfall"

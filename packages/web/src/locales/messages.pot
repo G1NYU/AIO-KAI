@@ -923,6 +923,7 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
+#: src/app/desktop-landing/page.tsx
 #: src/app/music/player.tsx
 msgid "Carbon"
 msgstr ""
@@ -2323,6 +2324,7 @@ msgstr ""
 msgid "Independent music discovery"
 msgstr ""
 
+#: src/app/desktop-landing/page.tsx
 #: src/app/music/player.tsx
 msgid "Ink"
 msgstr ""
@@ -2984,6 +2986,7 @@ msgstr ""
 msgid "Night mode"
 msgstr ""
 
+#: src/app/desktop-landing/page.tsx
 #: src/app/music/player.tsx
 msgid "Nightfall"
 msgstr ""
