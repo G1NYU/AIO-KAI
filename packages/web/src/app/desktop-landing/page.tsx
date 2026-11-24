@@ -61,7 +61,7 @@ export function DesktopLandingPage({
 
       <div className="tsugi-gateway-hero relative flex flex-1 flex-col items-center justify-center py-16">
         <span aria-hidden className="tsugi-gateway-mark"><TsugiBrand markOnly /></span>
-        <h1 className="mt-7 text-center text-[clamp(3.2rem,7vw,7.5rem)] font-semibold tracking-[-.08em]">
+        <h1 className="tsugi-gateway-signature mt-3 text-center text-[clamp(3.2rem,7vw,7.5rem)] font-semibold tracking-[-.08em]">
           <Trans>Tsugi</Trans>
         </h1>
       </div>

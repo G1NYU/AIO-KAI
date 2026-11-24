@@ -17,7 +17,7 @@ export function TsugiBrand({
           fill="var(--tsugi-ink, #CDD6F4)" />
       </svg>
       {!markOnly && (
-        <span className="text-lg font-semibold uppercase tracking-[0.12em] text-[--tsugi-ink]">
+        <span className="tsugi-brand-wordmark text-lg font-semibold tracking-[0.01em] text-[--tsugi-ink]">
           <Trans>Tsugi</Trans>
         </span>
       )}
