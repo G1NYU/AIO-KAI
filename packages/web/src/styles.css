@@ -1577,3 +1577,34 @@ body:has(.tsugi-chapter-reader) .tsugi-reading-music-open { display:none; }
 :root[data-host='desktop']:not(.playing) [data-ui='shell'] .UI-VerticalMenu__item:hover .UI-VerticalMenu__itemIcon { transform:none; }
 :root[data-host='desktop']:not(.playing) [data-ui='shell'] .UI-VerticalMenu__item:focus-visible { outline:2px solid var(--tsugi-focus); outline-offset:2px; }
 .tsugi-music-settings-destinations svg { width:20px; height:20px; }
+
+/* Shared destinations and control surfaces across the desktop workspace. */
+.tsugi-media-navigation { display:flex; flex-wrap:wrap; align-items:center; gap:4px; min-width:0; }
+.tsugi-media-navigation .tsugi-category-link { border-radius:0; min-height:38px; color:var(--tsugi-muted); border-bottom:2px solid transparent; }
+.tsugi-media-navigation .tsugi-category-link[aria-current='page'] { color:var(--tsugi-ink); border-bottom-color:var(--tsugi-focus); font-weight:650; }
+.tsugi-media-navigation-rail { flex-direction:column; align-items:stretch; }
+.tsugi-reading-rail .tsugi-media-navigation-rail .tsugi-category-link { justify-content:flex-start; border-bottom:0; border-inline-start:2px solid transparent; }
+.tsugi-reading-rail .tsugi-media-navigation-rail .tsugi-category-link[aria-current='page'] { border-inline-start-color:var(--tsugi-focus); background:var(--tsugi-wash); }
+.tsugi-music-top .tsugi-media-navigation { flex:1; }
+.tsugi-music-top .tsugi-entry-settings { margin-inline-start:auto; }
+.tsugi-reading-music { gap:3px; padding:6px 8px 6px 13px; max-width:min(360px,92vw); }
+.tsugi-reading-music .tsugi-reading-track { flex:1; display:flex; flex-direction:column; gap:2px; min-width:0; padding-inline-end:8px; }
+.tsugi-reading-track small { color:var(--tsugi-muted); font-size:.7rem; }
+.tsugi-reading-music button { display:grid; place-items:center; width:32px; height:32px; color:var(--tsugi-ink); }
+.tsugi-reading-music button:hover:not(:disabled) { background:var(--tsugi-wash); }
+.tsugi-reading-music button:disabled { opacity:.45; }
+.tsugi-reading-music button:focus-visible { outline:2px solid var(--tsugi-focus); outline-offset:1px; }
+.tsugi-reading-music button svg { width:17px; height:17px; }
+body:has(.tsugi-chapter-reader) .tsugi-reading-music { bottom:74px; }
+body:has(.tsugi-chapter-reader[data-focus='hidden']) .tsugi-reading-music { display:none; }
+:root[data-host='desktop'] .tsugi-music-root :is(input:not([type='range'],[type='checkbox'],[type='radio'],[type='color'],[type='file'],[type='hidden']),select,textarea) { border-radius:2px; border-color:var(--tsugi-line); background:var(--tsugi-surface); color:var(--tsugi-ink); }
+:root[data-host='desktop'] .tsugi-music-root :is(input,select,textarea):focus-visible { outline-color:var(--tsugi-focus); }
+:root[data-host='desktop'] .tsugi-music-root button[type='submit'],:root[data-host='desktop'] .tsugi-settings-sheet :is(button,a).rounded-lg { border-radius:2px; }
+:root[data-host='desktop'] .tsugi-settings-sheet .text-violet-200 { color:var(--tsugi-accent); }
+:root[data-host='desktop'] .tsugi-music-navigation button[aria-current='page'],:root[data-host='desktop'] .tsugi-read-subnav button[aria-current='page'] { border-color:var(--tsugi-focus); }
+:root[data-host='desktop'] .tsugi-chapter-reader { font-family:var(--tsugi-font); }
+@media(max-width:650px) {
+  .tsugi-reading-rail .tsugi-media-navigation-rail .tsugi-category-link { justify-content:center; padding:12px 3px; }
+  .tsugi-reading-rail .tsugi-media-navigation-rail .tsugi-category-link span { display:none; }
+  .tsugi-music-top { flex-wrap:wrap; gap:12px; }
+}

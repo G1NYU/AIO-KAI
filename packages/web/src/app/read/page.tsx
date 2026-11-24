@@ -2,7 +2,8 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { FiArrowLeft, FiBookOpen, FiChevronRight, FiCompass, FiGrid, FiSearch, FiSettings, FiGlobe, FiClock, FiBook, FiRefreshCw, FiBookmark } from 'react-icons/fi';
-import { TsugiBrand, TsugiMediaIcon } from '@/components/tsugi-brand';
+import { TsugiBrand } from '@/components/tsugi-brand';
+import { MediaNavigation } from '@/components/shell/media-navigation';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { prepareReading, readRequest, readImage } from '@/lib/hosts/shell/reading';
 import { ChapterReader } from './chapter-reader';
@@ -25,8 +26,8 @@ type SettingsPage = 'browse' | 'sources' | 'repositories' | 'reader' | 'trackers
 type SearchGroup = { source: Source; result?: Catalogue; error?: string };
 type Mode = 'popular' | 'latest' | 'search';
 
-export function ReadPage({ openWelcome, openVideo, openMusic }: {
-  openWelcome(): void; openVideo(): void; openMusic(): void;
+export function ReadPage({ openWelcome, visible }: {
+  openWelcome(): void; visible: boolean;
 }) {
   const desktopArea = useDesktopArea();
   const [tab, setTab] = React.useState<Tab>('library');
@@ -202,7 +203,7 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
       setExtensionFailures((old) => ({ ...old, [extension.pkgName]: error instanceof Error ? error.message : t({ id: "Extension operation failed.", message: "Extension operation failed." }) }));
     }
   }
-  if (reader && details) return <ChapterReader key={reader.chapter.id} title={details.manga.title}
+  if (reader && details) return <ChapterReader key={reader.chapter.id} title={details.manga.title} visible={visible} onMusic={desktopArea?.openMusic} onAppSettings={desktopArea?.openSettings}
     chapter={reader.chapter} count={reader.count} start={reader.index} chapters={details.chapters}
     previous={neighboringChapter(details.chapters, reader.chapter, -1)} next={neighboringChapter(details.chapters, reader.chapter, 1)}
     onClose={() => setReader(null)} onChapter={(chapter) => { setReader(null); void run(() => openChapter(chapter)); }}
@@ -241,7 +242,7 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
         <span className="tsugi-reading-rail-label"><Trans id="Preferences">Preferences</Trans></span>
         <button aria-current={tab === 'settings' ? 'page' : undefined} disabled={busy} onClick={() => switchTab('settings')}><FiSettings aria-hidden /><Trans id="Settings">Settings</Trans></button>
       </nav>
-      <div className="tsugi-reading-rail-bottom">{desktopArea && <button disabled={busy} onClick={desktopArea.openSettings}><FiSettings aria-hidden /><Trans id="App settings">App settings</Trans></button>}<button disabled={busy} onClick={openVideo}><TsugiMediaIcon area="video" /><Trans id="Movies & TV">Movies & TV</Trans></button><button disabled={busy} onClick={openMusic}><TsugiMediaIcon area="music" /><Trans id="Music">Music</Trans></button></div>
+      <div className="tsugi-reading-rail-bottom"><MediaNavigation area="read" rail disabled={busy} /></div>
     </aside>
     <div className="tsugi-reading-content" ref={content}>
       <header className="tsugi-reading-header">
@@ -435,7 +436,7 @@ export function ReadSetupPage({ openWelcome, onReady }: { openWelcome(): void; o
     }
   }
   return <main data-page="read-setup" className="tsugi-read-root min-h-dvh px-6 pb-12 pt-12 sm:px-10 lg:px-[5vw]">
-    <button className="tsugi-read-action" disabled={busy} onClick={openWelcome} aria-label={t({ id: "All media", message: "All media" })}><TsugiBrand markOnly /></button>
+    <MediaNavigation area="read" disabled={busy} />
     <h1 className="my-9 text-4xl font-semibold tracking-tight"><Trans id="Read">Read</Trans></h1>
     <section className="max-w-2xl space-y-4">
       <h2 className="text-xl font-semibold"><Trans id="Set up reading">Set up reading</Trans></h2>

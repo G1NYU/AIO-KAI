@@ -22,3 +22,5 @@ Implementation references: Pley grouped destinations and Seanime shared tokens. 
 ## Acceptance
 
 Browser checks validate exact launcher labels, one media icon per destination, Japanese brand lettering, centered movie setup, square controls and independent focus colors. Synthetic screenshots are uploaded by source-only CI. Actual signed-in video home/settings visual review, Windows native frame, modal focus and real YouTube continuity remain required. Do not equate browser smoke with Windows visual QA.
+
+Shared media navigation now uses one component for movie entry, Music and Read (horizontal or rail). Keep the signed-in video shell's existing navigation layouts. Reading retains its chapter session when visiting Music, and focus mode hides the playback dock. Actual chapter and round-trip tests are added to the synthetic browser flow.

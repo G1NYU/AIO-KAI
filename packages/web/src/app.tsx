@@ -59,8 +59,7 @@ import { MusicPage } from './app/music/page';
 import { ReadPage, ReadSetupPage } from './app/read/page';
 import { supportsReading, supportsReadingSection } from './lib/hosts/shell/reading';
 import { GlobalAppearance, GlobalSettingsDialog } from './components/shell/global-settings';
-import { TsugiBrand, TsugiMediaIcon } from './components/tsugi-brand';
-import { FiSettings } from 'react-icons/fi';
+import { MediaNavigation } from './components/shell/media-navigation';
 
 /** The web app served at the Jellyfin API's `/web`. */
 export default function JellyfinWebApp() {
@@ -148,10 +147,11 @@ function Standalone() {
     initialDesktopArea(desktop, !!currentServer(), reading)
   );
   const [globalSettings, setGlobalSettings] = React.useState(false);
+  const [readVisited, setReadVisited] = React.useState(area === 'read');
   const openSettings = React.useCallback(() => setGlobalSettings(true), []);
-  const openRead = React.useCallback(() => setArea('read'), []);
+  const openRead = React.useCallback(() => { setReadVisited(true); setArea('read'); }, []);
   const openMusic = React.useCallback(() => setArea('music'), []);
-  const openVideo = React.useCallback(() => setArea('video'), []);
+  const openVideo = React.useCallback(() => { setReadVisited(false); setArea('video'); }, []);
   const openWelcome = React.useCallback(() => setArea('welcome'), []);
   const areaActions = React.useMemo(
     () => ({ openWelcome, openMusic, openVideo, openSettings, openRead: reading ? openRead : undefined }),
@@ -224,7 +224,7 @@ function Standalone() {
     const link = parseAppLink(raw);
     if (!link) return void toast.error(t`The app cannot open that link`);
     // Deep links that target video must reveal the video shell first.
-    setArea('video');
+    openVideo();
     if (link.kind === 'route') return navigate(link.path);
     if (link.kind === 'party') return party.hold(link.invite);
     if (link.kind === 'remote') {
@@ -251,7 +251,7 @@ function Standalone() {
     <DesktopAreaContext.Provider value={desktop ? areaActions : null}>
       <>
       {desktop && <><GlobalAppearance /><GlobalSettingsDialog open={globalSettings} onClose={() => setGlobalSettings(false)} /></>}
-      {desktop && area === 'video' && (!base || picking) && <VideoEntryNavigation actions={areaActions} />}
+      {desktop && area === 'video' && (!base || picking) && <MediaNavigation area="video" className="tsugi-entry-media-nav" />}
       <AnimatePresence mode="wait">
         <motion.div
           key={desktop && area !== 'video' ? area : (picking && base ? 'picker' : (base ?? 'servers'))}
@@ -267,11 +267,7 @@ function Standalone() {
             </ServerInfoProvider>
           ) : desktop && area === 'read' && reading ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
-              {readerReady ? (
-                <ReadPage openWelcome={openWelcome} openVideo={openVideo} openMusic={openMusic} />
-              ) : (
-                <ReadSetupPage openWelcome={openWelcome} onReady={() => setReaderReady(true)} />
-              )}
+              {!readerReady && <ReadSetupPage openWelcome={openWelcome} onReady={() => { setReaderReady(true); setReadVisited(true); }} />}
               <SplashEnd />
             </ServerInfoProvider>
           ) : desktop && area === 'music' ? (
@@ -296,6 +292,11 @@ function Standalone() {
           )}
         </motion.div>
       </AnimatePresence>
+      {desktop && reading && readerReady && (area === 'read' || (readVisited && (area === 'music' || area === 'welcome'))) && (
+        <ServerInfoProvider value={NO_SERVER_INFO}>
+          <div hidden={area !== 'read'} inert={area !== 'read'}><ReadPage visible={area === 'read'} openWelcome={openWelcome} /></div>
+        </ServerInfoProvider>
+      )}
       {desktop && (
         <ServerInfoProvider value={NO_SERVER_INFO}>
           <MusicPage
@@ -312,16 +313,6 @@ function Standalone() {
       </>
     </DesktopAreaContext.Provider>
   );
-}
-
-function VideoEntryNavigation({ actions }: { actions: NonNullable<React.ContextType<typeof DesktopAreaContext>> }) {
-  return <nav className="tsugi-entry-media-nav" aria-label={t({ id: "Media sections", message: "Media sections" })}>
-    <button className="tsugi-category-link tsugi-entry-home" onClick={actions.openWelcome} aria-label={t({ id: "All media", message: "All media" })}><TsugiBrand markOnly /></button>
-    <span className="tsugi-entry-current" aria-current="page"><TsugiMediaIcon area="video" /><Trans id="Movies & TV">Movies & TV</Trans></span>
-    <button className="tsugi-category-link" onClick={actions.openMusic}><TsugiMediaIcon area="music" /><Trans id="Music">Music</Trans></button>
-    {actions.openRead && <button className="tsugi-category-link" onClick={actions.openRead}><TsugiMediaIcon area="read" /><Trans id="Read">Read</Trans></button>}
-    <button className="tsugi-category-link tsugi-entry-settings" onClick={actions.openSettings}><FiSettings aria-hidden /><Trans id="App settings">App settings</Trans></button>
-  </nav>;
 }
 
 function SharedPicker({
@@ -475,7 +466,7 @@ function Session({
           transition={{ duration: 0.18 }}
         >
           {screen}
-          {!ready && desktopArea && <VideoEntryNavigation actions={desktopArea} />}
+          {!ready && desktopArea && <MediaNavigation area="video" className="tsugi-entry-media-nav" />}
           {!waiting && <SplashEnd />}
         </motion.div>
       </AnimatePresence>

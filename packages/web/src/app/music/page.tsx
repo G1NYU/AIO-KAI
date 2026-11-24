@@ -2,7 +2,7 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { BiDisc, BiSearch } from 'react-icons/bi';
-import { FiMenu, FiSearch, FiX, FiPlus } from 'react-icons/fi';
+import { FiMenu, FiSearch, FiX, FiPlus, FiPlay, FiPause, FiSkipBack, FiSkipForward } from 'react-icons/fi';
 import {
   loadAddon, loadStore, manifestUrlFor,
   type EclipseCatalogItem, type EclipseStoreEntry, type EclipseTrack,
@@ -28,6 +28,7 @@ import {
 } from '@/lib/music/library';
 import { TsugiBrand, TsugiMediaIcon } from '@/components/tsugi-brand';
 import { useDesktopArea } from '@/lib/desktop-area';
+import { MediaNavigation } from '@/components/shell/media-navigation';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 import type { TrendingRecording } from '@/lib/music/discovery';
 import { makeRecentPlay, mergeRecentPlays, readRecentPlays, storeRecentPlays, type RecentMusicPlay } from '@/lib/music/history';
@@ -198,14 +199,14 @@ export function MusicPage({
   }, []);
 
   React.useEffect(() => {
-    if (!settingsOpen) return;
+    if (!settingsOpen || !visible) return;
     settingsCloseRef.current?.focus();
     const dismiss = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setSettingsOpen(false);
     };
     document.addEventListener('keydown', dismiss);
     return () => document.removeEventListener('keydown', dismiss);
-  }, [settingsOpen]);
+  }, [settingsOpen, visible]);
 
   React.useEffect(() => {
     if (!visible) setExpanded(false);
@@ -691,22 +692,17 @@ export function MusicPage({
   return (
     <>
     {reading && playing && <div className="tsugi-reading-music" data-ui="reading-music-controls">
-      <span className="truncate" title={playing.title}>{playing.title}</span>
-      <button type="button" disabled={resolving} onClick={toggle} aria-label={paused ? t({ id: "Play", message: "Play" }) : t({ id: "Pause", message: "Pause" })}>{paused ? t({ id: "Play", message: "Play" }) : t({ id: "Pause", message: "Pause" })}</button>
-      <button type="button" onClick={() => next()} aria-label={t({ id: "Next track", message: "Next track" })}><Trans id="Next">Next</Trans></button>
-      <button type="button" className="tsugi-reading-music-open" onClick={() => desktopArea?.openMusic()}><Trans id="Music">Music</Trans></button>
+      <div className="tsugi-reading-track"><strong className="truncate" title={playing.title}>{playing.title}</strong>{playing.artist && <small className="truncate">{playing.artist}</small>}</div>
+      <button type="button" disabled={resolving} onClick={previous} aria-label={t({ id: "Previous track", message: "Previous track" })}><FiSkipBack aria-hidden /></button>
+      <button type="button" disabled={resolving} onClick={toggle} aria-label={paused ? t({ id: "Play", message: "Play" }) : t({ id: "Pause", message: "Pause" })}>{paused ? <FiPlay aria-hidden /> : <FiPause aria-hidden />}</button>
+      <button type="button" disabled={resolving} onClick={() => next()} aria-label={t({ id: "Next track", message: "Next track" })}><FiSkipForward aria-hidden /></button>
     </div>}
     <main data-page="music" style={{ display: visible ? 'block' : 'none' }}
       className="tsugi-music-root min-h-screen px-6 pb-36 pt-14 sm:px-[3vw]">
       <div className="w-full">
         <header className="tsugi-music-top mb-10 flex items-center justify-between gap-6">
-          <button type="button" onClick={openWelcome} className="tsugi-brand-action" aria-label={t`All media`}>
-            <TsugiBrand />
-          </button>
+          <MediaNavigation area="music" />
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className="tsugi-category-link" onClick={openVideo}><TsugiMediaIcon area="video" /><Trans id="Movies & TV">Movies & TV</Trans></button>
-            {desktopArea?.openRead && <button type="button" className="tsugi-category-link" onClick={desktopArea.openRead}><TsugiMediaIcon area="read" /><Trans id="Read">Read</Trans></button>}
-            {desktopArea && <button type="button" className="tsugi-category-link" onClick={desktopArea.openSettings}><Trans id="App settings">App settings</Trans></button>}
             <button type="button" className="tsugi-icon-action" onClick={() => setTab('search')}
               aria-label={t`Search music`}>
               <FiSearch aria-hidden className="text-xl" />
@@ -971,22 +967,6 @@ export function MusicPage({
         </div>
       )}
 
-      {playing && streamUrl && (
-        <audio ref={audioRef} key={streamUrl} autoPlay preload="metadata" src={streamUrl}
-          onLoadedMetadata={(event) => {
-            const audio = event.currentTarget;
-            audio.volume = volume;
-            if (Number.isFinite(audio.duration)) setDuration(audio.duration);
-          }}
-          onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)}
-          onPlay={() => {
-            setPaused(false);
-            if (eqGraph.current) void eqGraph.current.context.resume();
-          }}
-          onPause={() => setPaused(true)}
-          onEnded={() => next(true)}
-          onError={() => setPlayError(t`The browser audio engine could not play this stream.`)} />
-      )}
       {activeSource && (
         <MusicCollection source={activeSource} selected={selectedCollection}
           onClose={() => setSelectedCollection(null)} onPlay={playCollection} />
@@ -1013,6 +993,22 @@ export function MusicPage({
         },
       }} />
     </main>
+      {playing && streamUrl && (
+        <audio data-ui="tsugi-audio-engine" ref={audioRef} key={streamUrl} autoPlay preload="metadata" src={streamUrl}
+          onLoadedMetadata={(event) => {
+            const audio = event.currentTarget;
+            audio.volume = volume;
+            if (Number.isFinite(audio.duration)) setDuration(audio.duration);
+          }}
+          onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)}
+          onPlay={() => {
+            setPaused(false);
+            if (eqGraph.current) void eqGraph.current.context.resume();
+          }}
+          onPause={() => setPaused(true)}
+          onEnded={() => next(true)}
+          onError={() => setPlayError(t`The browser audio engine could not play this stream.`)} />
+      )}
     </>
   );
 }
