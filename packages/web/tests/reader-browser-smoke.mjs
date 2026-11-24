@@ -134,6 +134,40 @@ try {
   await page.waitForFunction(() => window.__readerFixture.requests.some((a) => a.kind === 'chapter' && a.id === 12));
   await page.waitForFunction(() => document.querySelector('.tsugi-chapter-toolbar h2')?.textContent === 'Tsugi Original Fixture' && document.querySelector('.tsugi-chapter-toolbar p')?.textContent?.includes('Chapter 2'));
   assert.equal(await page.locator('.tsugi-chapter-reader').getAttribute('data-mode'), 'spread');
+  // A real local WAV exercises the HTML audio element, not just a policy
+  // function or synthetic native status. Keep it playing through the Read
+  // transition, then verify the video environment stops competing audio.
+  await reader.getByRole('button', { name: 'Chapters', exact: true }).click();
+  await rail.getByRole('button', { name: 'Music', exact: true }).click();
+  const music = page.locator('[data-page="music"]');
+  await music.waitFor({ state: 'visible' });
+  const musicSettings = music.getByRole('dialog', { name: 'Music settings' });
+  if (await musicSettings.isVisible()) await musicSettings.getByRole('button', { name: 'Close', exact: true }).click();
+  await music.getByRole('button', { name: 'Library', exact: true }).click();
+  const sampleRate = 8000, samples = sampleRate * 45;
+  const wav = Buffer.alloc(44 + samples * 2);
+  wav.write('RIFF', 0); wav.writeUInt32LE(wav.length - 8, 4);
+  wav.write('WAVEfmt ', 8); wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(sampleRate, 24); wav.writeUInt32LE(sampleRate * 2, 28);
+  wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
+  wav.write('data', 36); wav.writeUInt32LE(samples * 2, 40);
+  for (let i = 0; i < samples; i++) wav.writeInt16LE(Math.round(1000 * Math.sin(2 * Math.PI * 220 * i / sampleRate)), 44 + i * 2);
+  await music.locator('input[aria-label="Open local audio"]').setInputFiles({ name: 'Tsugi audio fixture.wav', mimeType: 'audio/wav', buffer: wav });
+  await music.getByRole('button', { name: /Tsugi audio fixture/ }).click();
+  await page.waitForFunction(() => { const audio = document.querySelector('[data-page="music"] audio'); return audio && !audio.paused && audio.currentTime > 0.1; });
+  const timeBefore = await page.locator('[data-page="music"] audio').evaluate((audio) => audio.currentTime);
+  await music.getByRole('button', { name: 'Read', exact: true }).click();
+  await rail.waitFor();
+  await page.waitForFunction((before) => { const audio = document.querySelector('[data-page="music"] audio'); return audio && !audio.paused && audio.currentTime > before + 0.2; }, timeBefore);
+  const dock = page.locator('[data-ui="reading-music-controls"]');
+  await dock.getByRole('button', { name: 'Pause', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[data-page="music"] audio')?.paused === true);
+  await dock.getByRole('button', { name: 'Play', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[data-page="music"] audio')?.paused === false);
+  await rail.getByRole('button', { name: 'Movies & TV', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[data-page="music"] audio')?.paused === true);
+  console.log('PASS: real local WAV playback continues through Read, dock pause/resume works, video entry pauses music.');
   assert.deepEqual(errors, []);
   console.log('PASS: readable launcher/labels, repository registration, catalogue filter, extension install, source browse, image transfer, scroll progress, reader settings and chapter switching (mock bridge).');
 } finally { await browser.close(); }
