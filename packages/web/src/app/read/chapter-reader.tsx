@@ -1,15 +1,18 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiArrowLeft, FiChevronLeft, FiChevronRight, FiSettings, FiMinus, FiPlus } from 'react-icons/fi';
+import { FiArrowLeft, FiChevronLeft, FiChevronRight, FiSettings, FiMinus, FiPlus, FiMaximize, FiMinimize, FiList } from 'react-icons/fi';
 import { readImage, readRequest } from '@/lib/hosts/shell/reading';
-import { readerWindow, type ReadingChapter, type ReaderMode } from './reader-utils';
+import { readerWindow, nextPageIndex, visibleReadingPage, chapterGroups, type ReadingChapter } from './reader-utils';
+import { ReaderSettings } from './reader-settings';
+import { readReaderPreferences, saveReaderPreferences, READER_DEFAULTS } from './reader-preferences';
 
 type Props = {
   title: string;
   chapter: ReadingChapter;
   count: number;
   start: number;
+  chapters: ReadingChapter[];
   previous?: ReadingChapter;
   next?: ReadingChapter;
   onClose(): void;
@@ -17,24 +20,14 @@ type Props = {
   onSaved(index: number, finished: boolean): void;
 };
 type Page = { url: string; ratio?: number; shown?: boolean; error?: string };
-type Preferences = { mode: ReaderMode; width: number; gap: boolean; rtl: boolean };
-const DEFAULT: Preferences = { mode: 'scroll', width: 55, gap: false, rtl: false };
-function readPreferences(): Preferences {
-  try {
-    const value = JSON.parse(localStorage.getItem('tsugi-reader-preferences') || 'null');
-    if (!value) return DEFAULT;
-    return {
-      mode: ['scroll', 'single', 'spread'].includes(value.mode) ? value.mode : DEFAULT.mode,
-      width: typeof value.width === 'number' && Number.isFinite(value.width) ? Math.min(100, Math.max(30, value.width)) : DEFAULT.width,
-      gap: value.gap === true,
-      rtl: value.rtl === true,
-    };
-  } catch { return DEFAULT; }
-}
-
-export function ChapterReader({ title, chapter, count, start, previous, next, onClose, onChapter, onSaved }: Props) {
-  const [preferences, setPreferences] = React.useState(readPreferences);
+export function ChapterReader({ title, chapter, count, start, chapters, previous, next, onClose, onChapter, onSaved }: Props) {
+  const [preferences, setPreferences] = React.useState(readReaderPreferences);
   const [settings, setSettings] = React.useState(false);
+  const [chapterMenu, setChapterMenu] = React.useState(false);
+  const [chapterQuery, setChapterQuery] = React.useState('');
+  const [chapterDescending, setChapterDescending] = React.useState(false);
+  const [chromeVisible, setChromeVisible] = React.useState(true);
+  const [readAtEnd, setReadAtEnd] = React.useState(false);
   const [index, setIndex] = React.useState(start);
   const [pages, setPages] = React.useState<Record<number, Page>>({});
   const [ratios, setRatios] = React.useState<Record<number, number>>({});
@@ -51,13 +44,14 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
   const saved = React.useRef<number | null>(null);
   const finish = React.useRef(false);
   const completed = React.useRef(chapter.isRead);
-  const callbacks = React.useRef({ onSaved });
-  callbacks.current = { onSaved };
+  const callbacks = React.useRef({ onSaved, onChapter, next, autoNext: preferences.autoNext });
+  callbacks.current = { onSaved, onChapter, next, autoNext: preferences.autoNext };
+  const progressFrame = React.useRef(0);
   const failedSave = React.useRef(false);
   const generation = React.useRef(0);
 
   React.useEffect(() => {
-    try { localStorage.setItem('tsugi-reader-preferences', JSON.stringify(preferences)); } catch { /* optional preference storage */ }
+    saveReaderPreferences(preferences);
   }, [preferences]);
 
   function selectPage(page: number) {
@@ -66,6 +60,7 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
     focusedAt.current = Date.now();
     failedSave.current = false;
     setSaveError('');
+    setReadAtEnd(false);
     setIndex(target);
     if (mode.current === 'scroll') jumpTo(target);
     else if (viewport.current) viewport.current.scrollTop = 0;
@@ -87,9 +82,17 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
     const element = viewport.current;
     if (!element || mode.current !== 'scroll' || closing) return;
     const bounds = element.getBoundingClientRect();
-    const point = document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + Math.min(bounds.height * 0.4, 240));
-    const value = point?.closest<HTMLElement>('[data-reader-page]')?.dataset.readerPage;
-    const page = value === undefined ? current.current : Number(value);
+    const line = bounds.top + Math.min(bounds.height * 0.35, 220);
+    // Inspect the actual page geometry. Pointer hit-testing fails in gaps
+    // and when a settings drawer overlays the center of the viewport.
+    const nearby = [...pageElements.current.entries()].filter(([, node]) => {
+      const rect = node.getBoundingClientRect();
+      return rect.bottom >= bounds.top && rect.top <= bounds.bottom;
+    }).map(([index, node]) => {
+      const rect = node.getBoundingClientRect();
+      return { index, top: rect.top, bottom: rect.bottom };
+    });
+    const page = visibleReadingPage(nearby, line) ?? current.current;
     if (Number.isInteger(page) && page >= 0 && page < count && page !== current.current) {
       current.current = page;
       focusedAt.current = Date.now();
@@ -98,11 +101,28 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
       setIndex(page);
     }
     // Reaching the actual end of the last loaded page, not merely fetching it.
-    if (!completed.current && page === count - 1 && memory.current[page]?.shown &&
-      element.scrollHeight - element.scrollTop - element.clientHeight < 12) {
-      finish.current = true;
-    }
+    const atEnd = page === count - 1 && memory.current[page]?.shown === true &&
+      element.scrollHeight - element.scrollTop - element.clientHeight < 12;
+    setReadAtEnd(atEnd);
+    if (!completed.current && atEnd) finish.current = true;
   }
+
+  function queueScroll() {
+    cancelAnimationFrame(progressFrame.current);
+    progressFrame.current = requestAnimationFrame(trackScroll);
+  }
+  React.useEffect(() => () => cancelAnimationFrame(progressFrame.current), []);
+  React.useEffect(() => {
+    const root = viewport.current;
+    if (!root || !preferences.wheelZoom) return;
+    function zoom(event: WheelEvent) {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      setPreferences((old) => ({ ...old, width: Math.min(100, Math.max(25, old.width + (event.deltaY < 0 ? 5 : -5))) }));
+    }
+    root.addEventListener('wheel', zoom, { passive: false });
+    return () => root.removeEventListener('wheel', zoom);
+  }, [preferences.wheelZoom]);
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -131,6 +151,11 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
             setLastSaved(progress);
             setSaveError('');
             callbacks.current.onSaved(progress, wantFinish);
+            if (wantFinish && mode.current === 'scroll' && !closeAction.current && callbacks.current.autoNext && callbacks.current.next) {
+              const nextChapter = callbacks.current.next;
+              closeAction.current = () => callbacks.current.onChapter(nextChapter);
+              setClosing(true);
+            }
           } catch (error) {
             if (!alive()) return;
             failedSave.current = true;
@@ -194,6 +219,7 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
       setRatios((old) => old[page] === ratio ? old : { ...old, [page]: ratio });
     }
     entry.shown = true;
+    setPages({ ...memory.current });
     // A one-page chapter can be fully visible without a scroll event.
     if (page === current.current && mode.current === 'scroll') trackScroll();
   }
@@ -220,12 +246,20 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
     setSaveError('');
   }
   function turn(delta: number) {
-    selectPage(index + delta * (preferences.mode === 'spread' ? 2 : 1));
+    selectPage(nextPageIndex(index, count, preferences.mode, delta));
   }
   React.useEffect(() => {
     function key(event: KeyboardEvent) {
       if (event.altKey || event.ctrlKey || event.metaKey || event.target instanceof HTMLInputElement ||
-          event.target instanceof HTMLSelectElement || event.target instanceof HTMLButtonElement || closing) return;
+          event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement || closing) return;
+      if (event.key === 'Escape') { event.preventDefault(); if (settings) setSettings(false); else if (chapterMenu) setChapterMenu(false); else leave(onClose); return; }
+      if (event.key.toLowerCase() === 'f') { setPreferences((old) => ({ ...old, focus: !old.focus })); return; }
+      if (event.key.toLowerCase() === 's') { setSettings((old) => !old); setChapterMenu(false); return; }
+      if ((event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === ' ') && preferences.mode === 'scroll') {
+        event.preventDefault();
+        viewport.current?.scrollBy({ top: event.key === 'ArrowUp' || (event.key === ' ' && event.shiftKey) ? -160 : 160, behavior: 'smooth' });
+        return;
+      }
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
         event.preventDefault();
         const forward = event.key === (preferences.rtl && preferences.mode !== 'scroll' ? 'ArrowLeft' : 'ArrowRight');
@@ -234,22 +268,32 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
     }
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [index, preferences.mode, preferences.rtl, closing]);
+  }, [index, preferences.mode, preferences.rtl, closing, settings, chapterMenu, onClose]);
 
   const displayed = preferences.mode === 'scroll' ? Array.from({ length: count }, (_, page) => page)
     : preferences.mode === 'spread' && index + 1 < count ? [index, index + 1] : [index];
-  const canFinish = (index === count - 1 || (preferences.mode === 'spread' && index + 1 === count - 1)) && !!pages[count - 1]?.url;
-  return <section className="tsugi-chapter-reader" data-mode={preferences.mode}>
+  const canFinish = (preferences.mode === 'scroll' ? readAtEnd : index === count - 1 || (preferences.mode === 'spread' && index + 1 === count - 1)) && !!pages[count - 1]?.shown;
+  const menuGroups = chapterGroups(chapters).filter((group) => group.some((item) => (item.name + ' ' + (item.scanlator || '')).toLowerCase().includes(chapterQuery.toLowerCase())));
+  if (chapterDescending) menuGroups.reverse();
+  return <section className="tsugi-chapter-reader" data-mode={preferences.mode} data-fit={preferences.mode === 'scroll' ? 'width' : preferences.fit} data-background={preferences.background}
+    data-focus={preferences.focus && !settings && !chapterMenu && !chromeVisible && !closing && !saveError ? 'hidden' : 'visible'}
+    onPointerMove={(event) => {
+      const height = window.innerHeight;
+      setChromeVisible(event.clientY < 105 || event.clientY > height - 90);
+    }}>
+
     <header className="tsugi-chapter-toolbar">
       <button className="tsugi-read-action" disabled={closing} onClick={() => leave(onClose)}><FiArrowLeft aria-hidden /><Trans>Chapters</Trans></button>
       <div className="min-w-0 flex-1"><h2 className="truncate font-semibold">{title}</h2><p className="truncate text-xs text-[--tsugi-muted]">{chapter.name}{chapter.scanlator ? ' · ' + chapter.scanlator : ''}</p></div>
+      <button className="tsugi-read-action" aria-label={t`Chapter list`} aria-expanded={chapterMenu} onClick={() => { setChapterMenu(!chapterMenu); setSettings(false); }}><FiList aria-hidden /><span className="tsugi-reader-chapter-label">{chapter.name}</span></button>
       <button className="tsugi-read-action" aria-label={t`Previous chapter`} disabled={closing || !previous} onClick={() => previous && leave(() => onChapter(previous))}><FiChevronLeft aria-hidden /></button>
       <button className="tsugi-read-action" aria-label={t`Next chapter`} disabled={closing || !next} onClick={() => next && leave(() => onChapter(next))}><FiChevronRight aria-hidden /></button>
-      <button className="tsugi-read-action" aria-label={t`Reader settings`} aria-expanded={settings} onClick={() => setSettings(!settings)}><FiSettings aria-hidden /></button>
+      <button className="tsugi-read-action" aria-label={t`Reader settings`} aria-expanded={settings} onClick={() => { setSettings(!settings); setChapterMenu(false); }}><FiSettings aria-hidden /></button>
+      <button className="tsugi-read-action" aria-label={t`Focus mode`} aria-pressed={preferences.focus} onClick={() => { setPreferences((old) => ({ ...old, focus: !old.focus })); setChromeVisible(false); }}>{preferences.focus ? <FiMinimize aria-hidden /> : <FiMaximize aria-hidden />}</button>
     </header>
     <div className="tsugi-chapter-body">
-      <div ref={viewport} className="tsugi-chapter-viewport" onScroll={trackScroll}
-        style={{ '--reader-width': preferences.width + '%', '--reader-gap': preferences.gap ? '12px' : '0px' } as React.CSSProperties}>
+      <div ref={viewport} className="tsugi-chapter-viewport" onScroll={queueScroll}
+        style={{ '--reader-width': preferences.width + '%', '--reader-gap': preferences.gap ? '12px' : '0px', '--reader-height': Math.round(preferences.width / READER_DEFAULTS.width * 85) + 'vh' } as React.CSSProperties}>
         <div className="tsugi-chapter-pages" data-direction={preferences.rtl && preferences.mode !== 'scroll' ? 'rtl' : 'ltr'}>
           {displayed.map((page) => <div data-reader-page={page} className="tsugi-chapter-page" key={page}
             ref={(node) => { if (node) pageElements.current.set(page, node); else pageElements.current.delete(page); }}>
@@ -261,15 +305,12 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
           </div>)}
         </div>
       </div>
-      {settings && <aside className="tsugi-chapter-settings">
-        <h3 className="font-semibold"><Trans>Reader settings</Trans></h3>
-        <label><Trans>Reading mode</Trans><select value={preferences.mode} onChange={(event) => setPreferences((old) => ({ ...old, mode: event.target.value as ReaderMode }))}>
-          <option value="scroll"><Trans>Continuous scroll</Trans></option><option value="single"><Trans>Single page</Trans></option><option value="spread"><Trans>Double page</Trans></option>
-        </select></label>
-        <label><Trans>Page width</Trans><input type="range" min={30} max={100} step={5} value={preferences.width} onChange={(event) => setPreferences((old) => ({ ...old, width: Number(event.target.value) }))} /></label>
-        <label className="flex items-center justify-between"><Trans>Space between pages</Trans><input type="checkbox" checked={preferences.gap} onChange={(event) => setPreferences((old) => ({ ...old, gap: event.target.checked }))} /></label>
-        <label className="flex items-center justify-between"><Trans>Right to left</Trans><input type="checkbox" disabled={preferences.mode === 'scroll'} checked={preferences.rtl} onChange={(event) => setPreferences((old) => ({ ...old, rtl: event.target.checked }))} /></label>
-        <button className="tsugi-read-action" onClick={() => setPreferences(DEFAULT)}><Trans>Reset settings</Trans></button>
+      {settings && <aside className="tsugi-chapter-settings"><ReaderSettings value={preferences} onChange={setPreferences} onClose={() => setSettings(false)} /></aside>}
+      {chapterMenu && <aside className="tsugi-chapter-settings tsugi-reader-chapter-menu">
+        <h3 className="font-semibold"><Trans>Chapters</Trans></h3>
+        <input className="tsugi-read-input" value={chapterQuery} onChange={(event) => setChapterQuery(event.target.value)} placeholder={t`Find a chapter`} aria-label={t`Find a chapter`} />
+        <button className="tsugi-reader-link" onClick={() => setChapterDescending(!chapterDescending)}>{chapterDescending ? t`Newest first` : t`Oldest first`}</button>
+        {menuGroups.map((group) => <div key={group[0].id} className="tsugi-reader-chapter-group">{group.map((item) => <button key={item.id} className="tsugi-read-row" aria-current={item.id === chapter.id ? 'page' : undefined} disabled={closing || item.id === chapter.id} onClick={() => leave(() => onChapter(item))}><span>{item.name}{item.scanlator && <small className="block text-[--tsugi-muted]">{item.scanlator}</small>}</span><small>{item.isRead ? t`Read` : item.lastPageRead > 0 ? t`Resume` : ''}</small></button>)}</div>)}
       </aside>}
     </div>
     <footer className="tsugi-chapter-toolbar tsugi-chapter-footer">
@@ -277,8 +318,8 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
       <span className="tabular-nums text-sm">{index + 1} / {count}</span>
       <button className="tsugi-read-action" aria-label={t`Next page`} disabled={closing || index + 1 >= count} onClick={() => turn(1)}><FiChevronRight aria-hidden /></button>
       <input className="tsugi-chapter-jump" type="range" min={0} max={Math.max(1, count - 1)} value={index} disabled={count === 1 || closing} aria-label={t`Jump to page`} onChange={(event) => selectPage(Number(event.target.value))} />
-      <button className="tsugi-read-action" aria-label={t`Decrease page width`} onClick={() => setPreferences((old) => ({ ...old, width: Math.max(30, old.width - 5) }))}><FiMinus aria-hidden /></button>
-      <span className="text-sm tabular-nums">{preferences.width}%</span>
+      <button className="tsugi-read-action" aria-label={t`Decrease page width`} onClick={() => setPreferences((old) => ({ ...old, width: Math.max(25, old.width - 5) }))}><FiMinus aria-hidden /></button>
+      <button className="tsugi-reader-link text-sm tabular-nums" aria-label={t`Reset page size`} onClick={() => setPreferences((old) => ({ ...old, width: READER_DEFAULTS.width }))}>{preferences.width}%</button>
       <button className="tsugi-read-action" aria-label={t`Increase page width`} onClick={() => setPreferences((old) => ({ ...old, width: Math.min(100, old.width + 5) }))}><FiPlus aria-hidden /></button>
       {canFinish && <button className="tsugi-read-action" disabled={closing} onClick={() => leave(next ? () => onChapter(next) : onClose, true)}>{next ? t`Finish and continue` : t`Finish chapter`}</button>}
       {closing ? <span className="text-xs"><Trans>Saving progress…</Trans></span> : lastSaved !== null && <span className="text-xs text-[--tsugi-muted]"><Trans>Progress saved</Trans></span>}
