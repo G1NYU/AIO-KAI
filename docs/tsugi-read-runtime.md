@@ -118,3 +118,15 @@ presence, protected data presence and error count for missing/incorrect
 credentials. Require both to be rejected with 401 plus a Basic challenge.
 Do not treat arbitrary errors, redirects or an unauthenticated successful
 query as proof of authentication. Do not ship the runtime until this gate passes.
+
+## Authentication checkpoint (run 45381568224)
+
+Official Zulu runtime: authenticated query and exact version passed; loopback-only
+binding passed. Both missing and invalid Basic credentials received HTTP 404,
+a Basic challenge, and no protected data. The strict 401-only assertion failed.
+The pinned distribution's observed rejection is now recognized only with the
+Basic challenge and absence of any GraphQL data. Parse JSON error responses too,
+reject any data on negative probes, and require a second successful authenticated
+query on the same endpoint after both negative probes. Bare 404, redirects and
+arbitrary errors still fail closed. No auth setting, server code or network
+binding is changed. Full smoke and clean shutdown must pass before integration.

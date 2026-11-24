@@ -102,8 +102,9 @@ server.globalUpdateInterval = 0
             try {
                 $status = [int]$response.StatusCode
                 $body = $null
-                if ($status -eq 200) {
-                    $body = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
+                $content = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+                if ($status -eq 200 -or $response.Content.Headers.ContentType.MediaType -match 'json' -or $content.TrimStart().StartsWith('{')) {
+                    $body = $content | ConvertFrom-Json
                 }
                 return @{
                     Status = $status
@@ -177,11 +178,20 @@ server.globalUpdateInterval = 0
         if ($null -ne $probe.Body.data.sources) {
             throw "Protected source query accepted $mode credentials"
         }
-        # Upstream JavalinSetup BASIC_AUTH explicitly throws UnauthorizedResponse.
-        # Fail closed: neither redirects nor generic errors prove authorization.
-        if ($probe.Status -ne 401 -or -not $probe.BasicChallenge) {
+        # The pinned runtime returns 404 plus WWW-Authenticate: Basic for
+        # both negative probes (run 45381568224). A bare 404, redirect, or
+        # arbitrary error does not prove rejection; require the challenge.
+        if ($probe.Status -notin @(401, 404) -or -not $probe.BasicChallenge -or $null -ne $probe.Body.data) {
             throw "Unexpected reading auth response ($mode): HTTP $($probe.Status); Basic challenge: $($probe.BasicChallenge)"
         }
+    }
+    # Prove the same endpoint is still available with the correct credential,
+    # ruling out a missing route or a server that stopped during the probes.
+    $again = Invoke-ReadingProbe 'valid'
+    if ($again.Status -ne 200 -or $again.Body.errors -or
+        $again.Body.data.aboutServer.version -cne 'v2.4.2373' -or
+        $null -eq $again.Body.data.sources) {
+        throw 'Authenticated reading endpoint failed after negative probes'
     }
     Write-Host 'PASS: bundled Java, pinned Suwayomi version, authenticated GraphQL sources, missing and invalid credentials rejected, loopback-only binding.'
 } finally {
