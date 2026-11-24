@@ -773,7 +773,7 @@ html[data-blur-spoilers]:not([data-tv])
   background-color: var(--subtle);
 }
 :where(:root[data-host='desktop'] [data-ui='shell']) .UI-VerticalMenu__itemIcon {
-  color: inherit;
+  color: var(--foreground);
   transform: none;
 }
 /* Remove previous fake window stripe. The actual native hit-testing remains intact. */
