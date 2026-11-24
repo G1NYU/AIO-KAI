@@ -56,8 +56,8 @@ import { BiMusic } from 'react-icons/bi';
 import { DesktopAreaContext, initialDesktopArea, type DesktopArea } from './lib/desktop-area';
 import { DesktopLandingPage } from './app/desktop-landing/page';
 import { MusicPage } from './app/music/page';
-import { ReadPage } from './app/read/page';
-import { supportsReading } from './lib/hosts/shell/reading';
+import { ReadPage, ReadSetupPage } from './app/read/page';
+import { supportsReading, supportsReadingSection } from './lib/hosts/shell/reading';
 
 /** The web app served at the Jellyfin API's `/web`. */
 export default function JellyfinWebApp() {
@@ -139,10 +139,10 @@ function Standalone() {
   const queryClient = useQueryClient();
   const [base, setBase] = React.useState(currentServer);
   const desktop = currentHost().name === 'desktop';
+  const reading = desktop && supportsReadingSection();
   const [area, setArea] = React.useState<DesktopArea>(() =>
-    initialDesktopArea(desktop, !!currentServer())
+    initialDesktopArea(desktop, !!currentServer(), reading)
   );
-  const reading = desktop && supportsReading();
   const openRead = React.useCallback(() => setArea('read'), []);
   const openMusic = React.useCallback(() => setArea('music'), []);
   const openVideo = React.useCallback(() => setArea('video'), []);
@@ -259,7 +259,11 @@ function Standalone() {
             </ServerInfoProvider>
           ) : desktop && area === 'read' && reading ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
-              <ReadPage openWelcome={openWelcome} openVideo={openVideo} openMusic={openMusic} />
+              {supportsReading() ? (
+                <ReadPage openWelcome={openWelcome} openVideo={openVideo} openMusic={openMusic} />
+              ) : (
+                <ReadSetupPage openWelcome={openWelcome} />
+              )}
               <SplashEnd />
             </ServerInfoProvider>
           ) : desktop && area === 'music' ? (

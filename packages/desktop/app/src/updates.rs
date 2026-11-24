@@ -55,6 +55,12 @@ pub struct Updater {
 impl Updater {
     /// Nothing to update in a build Velopack did not pack, such as `cargo run`.
     pub fn start(emit: impl Fn(Outbound) + Send + 'static) -> Option<Updater> {
+        // Development portable packages must never follow the upstream
+        // AIOStreams update feed, even if a stale manifest is nearby.
+        if crate::portable_root().is_some() {
+            log::info!("updates off: portable development copy");
+            return None;
+        }
         let installed = match auto_locate_app_manifest(LocationContext::FromCurrentExe) {
             Ok(locator) => locator.get_manifest_channel(),
             Err(e) => {

@@ -218,6 +218,7 @@ interface ShellBridge {
   youtubeMusic?: boolean;
   nativeMusicAudio?: boolean;
   reading?: boolean;
+  readingSetup?: boolean;
   /** The app sends a controller's buttons as `gamepad` messages. */
   gamepadButtons?: boolean;
   /** The system's 12- or 24-hour clock, where the app can tell. */

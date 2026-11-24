@@ -19,7 +19,8 @@ export function useDesktopArea(): DesktopAreaActions | null {
 /** Existing users keep their familiar streaming startup; new desktop users choose. */
 export function initialDesktopArea(
   isDesktop: boolean,
-  hasSavedServer: boolean
+  hasSavedServer: boolean,
+  hasReadSection = false,
 ): DesktopArea {
-  return !isDesktop || hasSavedServer ? 'video' : 'welcome';
+  return !isDesktop || (hasSavedServer && !hasReadSection) ? 'video' : 'welcome';
 }

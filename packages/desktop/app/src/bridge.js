@@ -26,6 +26,7 @@
     youtubeMusic: true,
     nativeMusicAudio: true,
     reading: __READING__,
+    readingSetup: __READING_SETUP__,
     pip: __PIP__,
     hours24: __HOURS24__,
     device: __DEVICE__,

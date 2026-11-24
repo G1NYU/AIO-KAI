@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 
 use crate::Args;
 
-pub fn bundled_runtime(args: &Args, web: Option<&Path>) -> Option<PathBuf> {
+fn bundled_directory(args: &Args, web: Option<&Path>) -> Option<PathBuf> {
     if args.web.is_some() || args.web_dir.is_some() || args.devtools || args.debug_port.is_some()
         || std::env::var_os("AIOSTREAMS_WEB_DIR").is_some()
     {
@@ -23,10 +23,25 @@ pub fn bundled_runtime(args: &Args, web: Option<&Path>) -> Option<PathBuf> {
     }
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
-    if web? != dir.join("web") {
+    let bundled_web = dir.join("web");
+    if !bundled_web.join("index.html").is_file()
+        || web?.canonicalize().ok()? != bundled_web.canonicalize().ok()?
+    {
         return None;
     }
-    let runtime = dir.join("read-tools");
+    Some(dir.to_path_buf())
+}
+
+/// A packaged Read destination remains visible even before Java is prepared.
+pub fn bundled_read_section(args: &Args, web: Option<&Path>) -> bool {
+    bundled_directory(args, web).is_some_and(|dir| {
+        dir.join("read-launcher/fetch-read-tools.ps1").is_file()
+            || bundled_runtime(args, web).is_some()
+    })
+}
+
+pub fn bundled_runtime(args: &Args, web: Option<&Path>) -> Option<PathBuf> {
+    let runtime = bundled_directory(args, web)?.join("read-tools");
     ["jre/bin/java.exe", "bin/Suwayomi-Server.jar", "launcher/TsugiReadLauncher.class"]
         .iter().all(|path| runtime.join(path).is_file()).then_some(runtime)
 }

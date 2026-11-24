@@ -64,6 +64,7 @@ pub struct Args {
     devtools: bool,
     debug_port: Option<u16>,
     link: Option<String>,
+    check_reading_setup: bool,
 }
 
 fn args() -> Args {
@@ -73,6 +74,7 @@ fn args() -> Args {
         devtools: cfg!(debug_assertions),
         debug_port: None,
         link: None,
+        check_reading_setup: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -80,6 +82,7 @@ fn args() -> Args {
             "--web" => args.web = it.next(),
             "--web-dir" => args.web_dir = it.next().map(PathBuf::from),
             "--devtools" => args.devtools = true,
+            "--check-reading-setup" => args.check_reading_setup = true,
             "--remote-debugging-port" => args.debug_port = it.next().and_then(|p| p.parse().ok()),
             _ => match links::accept(&arg) {
                 Some(link) => args.link = Some(link),
@@ -250,7 +253,7 @@ fn about() -> String {
     )
 }
 
-fn bridge_script(reading: bool) -> String {
+fn bridge_script(reading: bool, reading_setup: bool) -> String {
     include_str!("bridge.js")
         .replace("__PROTOCOL__", &PROTOCOL_VERSION.to_string())
         .replace(
@@ -263,6 +266,7 @@ fn bridge_script(reading: bool) -> String {
         )
         .replace("__PIP__", &platform::PIP.to_string())
         .replace("__READING__", &reading.to_string())
+        .replace("__READING_SETUP__", &reading_setup.to_string())
         .replace(
             "__DEVICE__",
             &serde_json::to_string(&platform::device_name()).unwrap(),
@@ -274,6 +278,22 @@ fn bridge_script(reading: bool) -> String {
 }
 
 fn main() {
+    // Diagnostic used by the portable launcher and CI. It uses the same
+    // eligibility and path checks as the real shell, without starting a JVM
+    // or acquiring a data-directory lock.
+    #[cfg(windows)]
+    if std::env::args().any(|arg| arg == "--check-reading-setup") {
+        let args = args();
+        let web = args.web.is_none().then(|| web_dir(&args));
+        let code = if reading::bundled_runtime(&args, web.as_deref()).is_some() {
+            0
+        } else if reading::bundled_read_section(&args, web.as_deref()) {
+            2
+        } else {
+            3
+        };
+        std::process::exit(code);
+    }
     // Runs Velopack's install and update hooks, which exit when they are the reason for this launch.
     let mut velopack = velopack::VelopackApp::build();
     // Only an installed copy claims the scheme, so a portable one never takes it over.
@@ -340,8 +360,11 @@ fn main() {
     // --web page, a replacement web directory, or a debug session.
     #[cfg(windows)]
     let reading = reading::bundled_runtime(&args, web.as_deref()).is_some();
+    #[cfg(windows)]
+    let reading_setup = reading::bundled_read_section(&args, web.as_deref());
     #[cfg(not(windows))]
-    let reading = false;
+    let (reading, reading_setup) = (false, false);
+    log::info!("reading section={reading_setup} runtime_ready={reading}");
     shell::run(App {
         args,
         web,
@@ -349,7 +372,7 @@ fn main() {
         app_origin,
         data_dir,
         paths,
-        bridge: bridge_script(reading),
+        bridge: bridge_script(reading, reading_setup),
     });
 }
 

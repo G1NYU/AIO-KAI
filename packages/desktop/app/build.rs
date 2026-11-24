@@ -5,7 +5,8 @@ fn main() {
             winresource::WindowsResource::new()
                 .set_icon("icons/tsugi.ico")
                 .set("ProductName", "Tsugi")
-                .set("FileDescription", "Tsugi — Movies & Music")
+                .set("FileDescription", "Tsugi — Movies, Music & Reading")
+                .set("OriginalFilename", "Tsugi.exe")
                 .compile()
                 .expect("could not embed the Windows resources");
         }

@@ -12,6 +12,11 @@ export type ReadAction =
   | { kind: 'page'; chapterId: number; index: number }
   | { kind: 'progress'; chapterId: number; index: number; finished: boolean };
 
+export function supportsReadingSection(): boolean {
+  const bridge = appBridge();
+  return bridge?.platform === 'windows' && (bridge.reading === true || bridge.readingSetup === true);
+}
+
 export function supportsReading(): boolean {
   const bridge = appBridge();
   return bridge?.platform === 'windows' && bridge.reading === true;

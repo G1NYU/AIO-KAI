@@ -170,3 +170,17 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
     </section>}
   </main>;
 }
+
+/** Missing setup is an actionable state, never a silently missing destination. */
+export function ReadSetupPage({ openWelcome }: { openWelcome(): void }) {
+  return <main data-page="read-setup" className="tsugi-read-root min-h-dvh px-6 pb-12 pt-12 sm:px-10 lg:px-[5vw]">
+    <button className="tsugi-read-action" onClick={openWelcome} aria-label={t`All media`}><TsugiBrand markOnly /></button>
+    <h1 className="my-9 text-4xl font-semibold tracking-tight"><Trans>Read</Trans></h1>
+    <section className="max-w-2xl space-y-4">
+      <h2 className="text-xl font-semibold"><Trans>Reading setup required</Trans></h2>
+      <p className="text-[--tsugi-muted]"><Trans>The reading engine is not ready. Close Tsugi, then run Start Tsugi.cmd from the extracted portable folder. Internet access is required for the first setup.</Trans></p>
+      <p className="text-[--tsugi-muted]"><Trans>If setup fails, leave your data folder intact and check the error shown by the launcher.</Trans></p>
+      <button className="tsugi-read-action" onClick={openWelcome}><Trans>Back to all media</Trans></button>
+    </section>
+  </main>;
+}
