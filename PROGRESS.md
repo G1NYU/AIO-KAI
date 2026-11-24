@@ -204,3 +204,8 @@ Focused conventional commits, re-read each diff, no private secrets, no force pu
 - Fix: imported Studio layers are now positioned in an entire fixed `100dvh × 100vw` viewport, with the validated imported background applied to the full window. Explicit Studio layer tints take precedence over Tsugi defaults; layers with no tint retain the active theme's readable fallback color. Expanded player's minimal header remains above the stage for exit/settings access.
 - The parser stays declarative (no executable external CSS or scripts). Import persistence/validation, source credentials and Windows native resize/drag behavior are unchanged.
 - Verify with a real Eclipse Studio v4 16:9 export at maximized and resized window sizes: normalized coordinates now fill the window and can stretch with aspect-ratio changes by design. Check artwork aspect distortion, text placement, controls and restored imports in a real Windows portable build.
+
+## Full-window Studio behavior and opt-in contained mode (2026-11-24)
+- Default: imported Eclipse Studio layout/background fills the full desktop client area at any monitor resolution; no centered 16:9 player box. App-wide appearance is projected onto launch gateway, music hub, settings and mini dock. Native video playback keeps its own renderer.
+- Optional: `Player settings > Fit Studio layout inside window` restores a contained 16:9 composition; stored separately under `tsugi-studio-contained-v1`, default false. The existing expand/minimize control still toggles between the full player and compact bottom dock.
+- Outstanding: validate generated Lingui catalog for the new settings label and all CI jobs; Windows ultrawide/maximized UI QA still needed.

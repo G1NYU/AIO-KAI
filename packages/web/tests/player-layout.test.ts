@@ -38,6 +38,14 @@ describe('Tsugi Studio player persistence', () => {
     expect(readPlayerStage().id).toBe('default');
     expect(readPlayerStage().template).toBeNull();
   });
+  it('keeps imported selection independent from the display size setting', () => {
+    savePlayerStage('imported', file);
+    values.set('tsugi-studio-contained-v1', 'true');
+    const saved = readPlayerStage();
+    expect(saved.id).toBe('imported');
+    expect(saved.template?.layers).toHaveLength(1);
+  });
+
   it('handles blocked local storage', () => {
     vi.stubGlobal('localStorage', {
       getItem: () => { throw Error('blocked'); },

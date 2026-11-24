@@ -7,7 +7,7 @@ import { PLAYER_PALETTES, type PlayerThemeId } from '@/lib/music/player-theme';
 
 export function PlayerSettings({
   onClose, stage, onStage, importedName, theme, onTheme,
-  showHeader, onShowHeader, onImport,
+  showHeader, onShowHeader, studioContained, onStudioContained, onImport,
 }: {
   onClose(): void;
   stage: PlayerStageId;
@@ -17,6 +17,8 @@ export function PlayerSettings({
   onTheme(value: PlayerThemeId): void;
   showHeader: boolean;
   onShowHeader(value: boolean): void;
+  studioContained: boolean;
+  onStudioContained(value: boolean): void;
   onImport(event: React.ChangeEvent<HTMLInputElement>): void;
 }) {
   const closeRef = React.useRef<HTMLButtonElement>(null);
@@ -42,6 +44,13 @@ export function PlayerSettings({
           <Trans>Show player header</Trans>
           <input type="checkbox" checked={showHeader}
             onChange={(event) => onShowHeader(event.target.checked)}
+            className="size-4" style={{accentColor:'var(--tsugi-accent)'}} />
+        </label>
+
+        <label className="mb-9 flex items-center justify-between gap-4 text-sm">
+          <Trans>Fit Studio layout inside window</Trans>
+          <input type="checkbox" checked={studioContained}
+            onChange={(event) => onStudioContained(event.target.checked)}
             className="size-4" style={{accentColor:'var(--tsugi-accent)'}} />
         </label>
 

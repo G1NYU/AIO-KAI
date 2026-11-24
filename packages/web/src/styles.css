@@ -986,3 +986,10 @@ html[data-blur-spoilers]:not([data-tv])
 :root[data-host='desktop'][data-tsugi-eclipse='on'] .tsugi-hub-feature {
   background:linear-gradient(100deg,var(--tsugi-surface),var(--tsugi-canvas));
 }
+
+/* Studio is full-window by default; optional contained mode is strictly opt-in. */
+.tsugi-player-dialog [data-ui='tsugi-studio-viewport'][data-size='contained'] {
+  max-width:min(94vw,calc((100dvh - 120px) * 1.777778));
+  width:100%;
+  height:auto;
+}

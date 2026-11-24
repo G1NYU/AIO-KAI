@@ -22,11 +22,12 @@ function stageColor(layer: PlayerLayer, palette: PlayerPalette): string {
 }
 
 export function EclipseStudioStage({
-  p, template, palette,
+  p, template, palette, contained = false,
 }: {
   p: MusicPlayerProps;
   template: EclipsePlayerTemplate;
   palette: PlayerPalette;
+  contained?: boolean;
 }) {
   const song = p.track;
   const [queueOpen, setQueueOpen] = React.useState(false);
@@ -203,7 +204,10 @@ export function EclipseStudioStage({
   }
   return (
     <div data-ui="tsugi-studio-viewport"
-      className="fixed inset-0 h-dvh w-screen overflow-hidden">
+      data-size={contained ? 'contained' : 'full'}
+      className={contained
+        ? 'relative mx-auto aspect-video w-full max-w-[min(94vw,calc((100dvh-120px)*1.777778))] overflow-hidden'
+        : 'fixed inset-0 h-dvh w-screen overflow-hidden'}>
       <div data-ui="tsugi-studio-stage" className="relative h-full w-full overflow-hidden"
         style={{ backgroundColor: template.background, containerType: 'inline-size' }}>
         {template.layers.map((layer) => (

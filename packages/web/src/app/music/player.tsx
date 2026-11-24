@@ -110,6 +110,9 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
   const [importError, setImportError] = React.useState('');
   const [theme, setTheme] = React.useState<PlayerThemeId>(readPlayerTheme);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [studioContained, setStudioContained] = React.useState(() =>
+    storage.get<boolean>('tsugi-studio-contained-v1') === true
+  );
   const [showHeader, setShowHeader] = React.useState(() =>
     storage.get<boolean>('tsugi-player-header-visible-v1') === true
   );
@@ -247,7 +250,8 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
             {importError && <p role="alert" className="mt-4 text-sm text-amber-200">{importError}</p>}
             {template ? (
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center py-4">
-                <EclipseStudioStage p={p} template={template} palette={palette} />
+                <EclipseStudioStage p={p} template={template} palette={palette}
+                  contained={studioContained} />
                 {(p.loading || p.error) && (
                   <p role={p.error ? 'alert' : 'status'} className="mt-3 text-sm text-amber-200">
                     {p.error || <Trans>Resolving audio…</Trans>}
@@ -262,6 +266,11 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
               importedName={importedTemplate?.name || (importedTemplate ? t`Imported Studio layout` : undefined)}
               theme={theme} onTheme={changeTheme}
               showHeader={showHeader}
+              studioContained={studioContained}
+              onStudioContained={(value) => {
+                setStudioContained(value);
+                storage.set('tsugi-studio-contained-v1', value);
+              }}
               onShowHeader={(value) => {
                 setShowHeader(value);
                 storage.set('tsugi-player-header-visible-v1', value);
