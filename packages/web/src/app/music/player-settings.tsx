@@ -4,10 +4,10 @@ import { Trans } from '@lingui/react/macro';
 import { FiX } from 'react-icons/fi';
 import type { PlayerStageId } from '@/lib/music/player-layout';
 import { AUDIO_PROFILES, type AudioProfile } from '@/lib/music/audio-profiles';
-import { PLAYER_PALETTES, type PlayerThemeId } from '@/lib/music/player-theme';
+import { GlobalAppearanceSettings } from '@/components/shell/global-settings';
 
 export function PlayerSettings({
-  onClose, stage, onStage, importedName, theme, onTheme,
+  onClose, stage, onStage, importedName,
   showHeader, onShowHeader, studioContained, onStudioContained, onImport,
   audioProfile, onAudioProfile, eqEnabled, eqAvailable, onEqEnabled, eqError,
 }: {
@@ -15,8 +15,6 @@ export function PlayerSettings({
   stage: PlayerStageId;
   onStage(value: PlayerStageId): void;
   importedName?: string;
-  theme: PlayerThemeId;
-  onTheme(value: PlayerThemeId): void;
   showHeader: boolean;
   onShowHeader(value: boolean): void;
   studioContained: boolean;
@@ -74,18 +72,7 @@ export function PlayerSettings({
           </select>
         </label>
 
-        <label className="mb-8 block text-sm">
-          <span className="mb-2 block text-[--tsugi-muted]"><Trans id="App theme">App theme</Trans></span>
-          <select value={theme} onChange={(event) => onTheme(event.target.value as PlayerThemeId)}
-            className="tsugi-menu-select w-full">
-            {(Object.keys(PLAYER_PALETTES) as PlayerThemeId[]).map((id) => (
-              <option key={id} value={id}>
-                {id === 'sumi' ? t({ id: "Default", message: "Default" }) : id === 'mocha' ? t`Mocha` : id === 'matte' ? t`Matte black`
-                  : id === 'aio-dark' ? t`Ink` : id === 'nightfall' ? t`Nightfall` : t`Carbon`}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="mb-8 border-t border-[--tsugi-line] pt-8"><GlobalAppearanceSettings /></div>
 
         <section className="mb-9 border-t border-[--tsugi-line] pt-8" aria-label={t`Audio profiles`}>
           <h3 className="mb-5 text-lg font-semibold"><Trans>Audio profiles</Trans></h3>

@@ -32,6 +32,7 @@ import { useMediaQuery } from '@aiostreams/ui/hooks/media-query';
 import { useSession } from '@/lib/jellyfin/session';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { TsugiMusicIcon, TsugiReadIcon } from '@/components/tsugi-brand';
+import { mediaDestinations } from './media-navigation';
 import { useLiveTvShown } from '@/features/live-tv/live-tv';
 import { useCanSwitch } from '@/lib/profiles';
 import { navigate, to } from '@/lib/paths';
@@ -229,14 +230,9 @@ export function WebLayout() {
       onClick: () => navigate(to.home),
     },
     ...(desktopArea ? [{ id: 'all-media', name: t({ id: 'All media', message: 'All media' }), iconType: BiHomeAlt2, isCurrent: false, onClick: desktopArea.openWelcome }] : []),
-    ...(desktopArea ? [{
-      id: 'music',
-      name: t`Music`,
-      iconType: TsugiMusicIcon,
-      isCurrent: false,
-      onClick: desktopArea.openMusic,
-    }] : []),
-    ...(desktopArea?.openRead ? [{ id: 'read', name: t({ id: 'Read', message: 'Read' }), iconType: TsugiReadIcon, isCurrent: false, onClick: desktopArea.openRead }] : []),
+    ...(desktopArea ? mediaDestinations(desktopArea).filter(({ id }) => id !== 'video').map(({ id, label, open }) => ({
+      id, name: label, iconType: id === 'music' ? TsugiMusicIcon : TsugiReadIcon, isCurrent: false, onClick: open,
+    })) : []),
     ...(desktopArea ? [{ id: 'app-settings', name: t({ id: 'App settings', message: 'App settings' }), iconType: BiCog, isCurrent: false, onClick: desktopArea.openSettings }] : []),
     {
       id: 'discover',

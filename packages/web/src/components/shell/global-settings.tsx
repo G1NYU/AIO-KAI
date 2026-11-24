@@ -58,6 +58,8 @@ export function GlobalAppearanceSettings() {
   }, []);
   function choose(id: PlayerThemeId) {
     if (!isPlayerTheme(id)) return;
+    // Choosing an explicit palette must take effect even with a saved imported layout.
+    storage.set(IMPORT_COLORS_KEY, false);
     savePlayerTheme(id);
     announce(id);
   }

@@ -3,7 +3,6 @@ import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { RouterProvider } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { t } from '@lingui/core/macro';
-import { Trans } from '@lingui/react/macro';
 import { useLingui } from '@lingui/react';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from '@aiostreams/ui/toaster';

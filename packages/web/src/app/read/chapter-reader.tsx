@@ -283,7 +283,7 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
   }
   React.useEffect(() => {
     function key(event: KeyboardEvent) {
-      if (!visibleRef.current) return;
+      if (!visibleRef.current || document.querySelector('dialog[open]')) return;
       if (event.key === 'Escape' && !closing) { event.preventDefault(); if (settings) setSettings(false); else if (chapterMenu) setChapterMenu(false); else leave(onClose); return; }
       if (event.altKey || event.ctrlKey || event.metaKey || event.target instanceof HTMLInputElement ||
           event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement || closing) return;
@@ -309,7 +309,7 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
   const canFinish = (preferences.mode === 'scroll' ? readAtEnd : index === count - 1 || (preferences.mode === 'spread' && index + 1 === count - 1)) && !!pages[count - 1]?.shown;
   const menuGroups = chapterGroups(chapters).filter((group) => group.some((item) => (item.name + ' ' + (item.scanlator || '')).toLowerCase().includes(chapterQuery.toLowerCase())));
   if (chapterDescending) menuGroups.reverse();
-  return <section className="tsugi-chapter-reader" data-mode={preferences.mode} data-fit={preferences.mode === 'scroll' ? 'width' : preferences.fit} data-background={preferences.background}
+  return <section className="tsugi-chapter-reader" data-active={visible ? 'true' : 'false'} data-mode={preferences.mode} data-fit={preferences.mode === 'scroll' ? 'width' : preferences.fit} data-background={preferences.background}
     data-focus={preferences.focus && !settings && !chapterMenu && !chromeVisible && !closing && !saveError ? 'hidden' : 'visible'}
     data-focus-enabled={preferences.focus && !settings && !chapterMenu ? 'true' : 'false'}
     onPointerMove={(event) => {

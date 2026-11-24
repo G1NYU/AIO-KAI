@@ -15,7 +15,7 @@ import { VolumeControl } from './volume-control';
 import { storage } from '@/lib/storage';
 import type { AudioProfile } from '@/lib/music/audio-profiles';
 import { notifyEclipseAppearance } from '@/lib/music/eclipse-appearance';
-import { PLAYER_PALETTES, readPlayerTheme, savePlayerTheme, type PlayerPalette, type PlayerThemeId } from '@/lib/music/player-theme';
+import { PLAYER_PALETTES, readPlayerTheme, type PlayerPalette, type PlayerThemeId } from '@/lib/music/player-theme';
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -151,12 +151,6 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
     setImportError('');
   }
 
-  function changeTheme(value: PlayerThemeId) {
-    setTheme(value);
-    savePlayerTheme(value);
-    window.dispatchEvent(new CustomEvent<PlayerThemeId>('tsugi-theme-change', { detail: value }));
-  }
-
   async function importLayout(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -266,7 +260,6 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
             <PlayerSettings onClose={() => setSettingsOpen(false)}
               stage={stageId} onStage={changeStage}
               importedName={importedTemplate?.name || (importedTemplate ? t`Imported Studio layout` : undefined)}
-              theme={theme} onTheme={changeTheme}
               audioProfile={p.audioProfile} onAudioProfile={p.onAudioProfile}
               eqEnabled={p.eqEnabled} eqAvailable={p.eqAvailable}
               onEqEnabled={p.onEqEnabled} eqError={p.eqError}

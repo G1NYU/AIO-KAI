@@ -1608,3 +1608,9 @@ body:has(.tsugi-chapter-reader[data-focus='hidden']) .tsugi-reading-music { disp
   .tsugi-reading-rail .tsugi-media-navigation-rail .tsugi-category-link span { display:none; }
   .tsugi-music-top { flex-wrap:wrap; gap:12px; }
 }
+
+/* Full reading focus also hides desktop window chrome, but never when the
+   reader is retained off-screen during a visit to Music. */
+html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-focus='hidden']) [data-ui='window-controls'] { opacity:0; pointer-events:none; }
+.tsugi-global-appearance { font-family:var(--tsugi-font); }
+.tsugi-settings-sheet .tsugi-global-palettes { grid-template-columns:repeat(2,minmax(0,1fr)); }

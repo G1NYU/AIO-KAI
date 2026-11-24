@@ -27,7 +27,6 @@ import {
   savedTrack, type SavedMusicTrack,
 } from '@/lib/music/library';
 import { TsugiBrand, TsugiMediaIcon } from '@/components/tsugi-brand';
-import { useDesktopArea } from '@/lib/desktop-area';
 import { MediaNavigation } from '@/components/shell/media-navigation';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 import type { TrendingRecording } from '@/lib/music/discovery';
@@ -49,7 +48,6 @@ export function MusicPage({
   playbackAllowed: boolean;
   reading: boolean;
 }) {
-  const desktopArea = useDesktopArea();
   const [store, setStore] = React.useState<EclipseStoreEntry[]>([]);
   const [storeError, setStoreError] = React.useState('');
   const [manifestInput, setManifestInput] = React.useState('');
