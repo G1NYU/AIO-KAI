@@ -209,3 +209,7 @@ Focused conventional commits, re-read each diff, no private secrets, no force pu
 - Default: imported Eclipse Studio layout/background fills the full desktop client area at any monitor resolution; no centered 16:9 player box. App-wide appearance is projected onto launch gateway, music hub, settings and mini dock. Native video playback keeps its own renderer.
 - Optional: `Player settings > Fit Studio layout inside window` restores a contained 16:9 composition; stored separately under `tsugi-studio-contained-v1`, default false. The existing expand/minimize control still toggles between the full player and compact bottom dock.
 - Outstanding: validate generated Lingui catalog for the new settings label and all CI jobs; Windows ultrawide/maximized UI QA still needed.
+
+## Full application palette bridge (2026-11-24)
+- The selected imported Eclipse Studio appearance now also writes the UI shell's shared `--background`, `--foreground`, `--paper`, `--border`, `--brand`, `--ring` and `--muted` tokens, so the video navigation shell inherits the imported palette instead of retaining a disconnected base theme.
+- These inline root overrides are removed when switching to a built-in music layout. The application does not modify native video rendering, source streams, credentials, or persistent video theme settings.

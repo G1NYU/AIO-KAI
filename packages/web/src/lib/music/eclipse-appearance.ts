@@ -82,6 +82,8 @@ export function applyEclipseAppearance(
     for (const property of [
       '--tsugi-canvas', '--tsugi-surface', '--tsugi-panel',
       '--tsugi-ink', '--tsugi-muted', '--tsugi-accent',
+      '--background', '--foreground', '--border', '--paper',
+      '--brand', '--ring', '--muted',
     ]) {
       root.style.removeProperty(property);
     }
@@ -95,6 +97,16 @@ export function applyEclipseAppearance(
   root.style.setProperty('--tsugi-ink', appearance.foreground);
   root.style.setProperty('--tsugi-muted', appearance.muted);
   root.style.setProperty('--tsugi-accent', appearance.accent);
+
+  // The media shell uses the shared @aiostreams/ui tokens, not the Tsugi-prefixed ones.
+  // Override at the root so all desktop pages inherit the imported appearance.
+  root.style.setProperty('--background', appearance.canvas);
+  root.style.setProperty('--foreground', appearance.foreground);
+  root.style.setProperty('--border', appearance.surface);
+  root.style.setProperty('--paper', appearance.panel);
+  root.style.setProperty('--brand', appearance.accent);
+  root.style.setProperty('--ring', appearance.accent);
+  root.style.setProperty('--muted', appearance.muted);
   // The entire desktop shell shares the palette; stage geometry remains independent.
 }
 

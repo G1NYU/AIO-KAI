@@ -32,8 +32,13 @@ describe('full-window Eclipse appearance', () => {
     expect(root.dataset.tsugiEclipse).toBe('on');
     expect(attributes['--tsugi-canvas']).toBeTruthy();
     expect(attributes['--tsugi-panel']).toBeTruthy();
+    expect(attributes['--background']).toBe(attributes['--tsugi-canvas']);
+    expect(attributes['--foreground']).toBe(attributes['--tsugi-ink']);
+    expect(attributes['--brand']).toBe(attributes['--tsugi-accent']);
     applyEclipseAppearance({ id:'junction', imported:null, template:layout },root);
     expect(root.dataset.tsugiEclipse).toBeUndefined();
     expect(attributes['--tsugi-canvas']).toBeUndefined();
+    expect(attributes['--background']).toBeUndefined();
+    expect(attributes['--brand']).toBeUndefined();
   });
 });
