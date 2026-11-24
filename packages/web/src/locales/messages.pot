@@ -2339,10 +2339,6 @@ msgstr ""
 msgid "Import Studio layout"
 msgstr ""
 
-#: src/lib/music/library.ts
-msgid "Imported playlist"
-msgstr ""
-
 #: src/app/music/player.tsx
 msgid "Imported Studio layout"
 msgstr ""
@@ -6070,7 +6066,7 @@ msgstr ""
 msgid "Unfinished"
 msgstr ""
 
-#: src/lib/music/library.ts
+#: src/app/music/library.tsx
 msgid "Unknown artist"
 msgstr ""
 

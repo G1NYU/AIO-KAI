@@ -1,4 +1,3 @@
-import { t } from '@lingui/core/macro';
 import { storage } from '../storage';
 import type { EclipseTrack } from './eclipse';
 
@@ -72,7 +71,7 @@ export function addToMusicPlaylist(list: MusicPlaylist, track: SavedMusicTrack):
   return exists ? list : { ...list, tracks: [...list.tracks, safe].slice(0, MAX_TRACKS) };
 }
 
-function fromM3U(text: string): SavedMusicTrack[] {
+function fromM3U(text: string, unknownArtist: string): SavedMusicTrack[] {
   const tracks: SavedMusicTrack[] = [];
   let ext = '';
   for (const rawLine of text.split(/\r?\n/).slice(0, 5000)) {
@@ -90,7 +89,7 @@ function fromM3U(text: string): SavedMusicTrack[] {
     }
     ext = '';
     const separator = label.indexOf(' - ');
-    const artist = separator > 0 ? label.slice(0, separator) : t`Unknown artist`;
+    const artist = separator > 0 ? label.slice(0, separator) : unknownArtist;
     const title = separator > 0 ? label.slice(separator + 3) : label;
     if (title) tracks.push(savedTrack({ id: 'm3u:' + tracks.length + ':' + title, title, artist }));
     if (tracks.length >= MAX_TRACKS) break;
@@ -98,11 +97,14 @@ function fromM3U(text: string): SavedMusicTrack[] {
   return tracks;
 }
 
-export function importMusicPlaylist(filename: string, text: string): MusicPlaylist {
+export function importMusicPlaylist(
+  filename: string, text: string, unknownArtist = '—'
+): MusicPlaylist {
   if (text.length > 1024 * 1024) throw new Error('Playlist files must be smaller than 1 MB.');
-  const name = clean(filename.replace(/\.(json|m3u8?|csv)$/i, ''), 80) || t`Imported playlist`;
+  const name = clean(filename.replace(/\.(json|m3u8?|csv)$/i, ''), 80);
+  if (!name) throw new Error('Invalid playlist filename.');
   const base = createMusicPlaylist(name);
-  if (/\.m3u8?$/i.test(filename)) return { ...base, tracks: fromM3U(text) };
+  if (/\.m3u8?$/i.test(filename)) return { ...base, tracks: fromM3U(text, unknownArtist) };
   if (/\.json$/i.test(filename)) {
     let source: unknown;
     try { source = JSON.parse(text); } catch { throw new Error('Invalid playlist JSON.'); }

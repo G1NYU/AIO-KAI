@@ -53,7 +53,7 @@ export function MusicLibrary({
     setBusy(true);
     setError('');
     try {
-      const list = importMusicPlaylist(file.name, await file.text());
+      const list = importMusicPlaylist(file.name, await file.text(), t`Unknown artist`);
       onChange([...playlists,list]);
       setSelected(list.id);
       setNotice(t`Playlist imported. Unmatched tracks will be searched in the active music source when played.`);
