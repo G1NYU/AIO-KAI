@@ -141,19 +141,21 @@ fn answer(emit: &Emit, request: String, result: Result<Value, &'static str>) {
     emit(Outbound::ReadResult { request, data, error });
 }
 
-// Store registration is an explicit native confirmation, not an instruction
-// from arbitrary web content. Installation of executable extensions is not
-// available through this bridge until the separate trust flow is implemented.
-fn confirm_store(index: &str) -> bool {
-    if index.len() > 2048 || index.chars().any(char::is_control) { return false; }
+// Every executable install requires a native dialog. A web message is
+// insufficient consent, even if it came from the bundled origin.
+fn confirm(title: &str, message: &str) -> bool {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         IDYES, MB_DEFBUTTON2, MB_ICONWARNING, MB_YESNO, MessageBoxW,
     };
-    let message: Vec<u16> = format!("Register this reading repository?\n\n{index}\n\nOnly add repositories you trust. Registering a store does not install its extensions.")
-        .encode_utf16().chain([0]).collect();
-    let title: Vec<u16> = "Tsugi reading repository".encode_utf16().chain([0]).collect();
+    let message: Vec<u16> = message.encode_utf16().chain([0]).collect();
+    let title: Vec<u16> = title.encode_utf16().chain([0]).collect();
     // SAFETY: NUL-terminated UTF-16 strings live for the duration of the dialog.
     unsafe { MessageBoxW(std::ptr::null_mut(), message.as_ptr(), title.as_ptr(), MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDYES }
+}
+
+fn confirm_store(index: &str) -> bool {
+    if index.len() > 2048 || index.chars().any(char::is_control) { return false; }
+    confirm("Tsugi reading repository", &format!("Register this reading repository?\n\n{index}\n\nOnly add repositories you trust. Registering a store does not install its extensions."))
 }
 
 fn execute(
@@ -173,7 +175,26 @@ fn execute(
             reader.add_store(&index)
         }
         ReadAction::RemoveStore { index } => reader.remove_store(&index),
-        ReadAction::RefreshExtensions => reader.refresh_extensions(),
+        ReadAction::RefreshExtensions => reader.refresh_extensions().map(|()| json!({"ok": true})),
+        ReadAction::InstallExtension { package } => {
+            let review = reader.review_extension(&package)?;
+            let message = format!("Install executable extension code?\n\n{}\n\nExtensions run with your Windows account permissions, not inside a security sandbox. Package signatures are not independently verified, and the repository may redirect downloads. Only continue if you trust the publisher.", review.description());
+            if !confirm("Tsugi extension installation", &message) {
+                return Err("Extension installation cancelled.");
+            }
+            reader.install_reviewed_extension(review)
+        }
+        ReadAction::UninstallExtension { package } => {
+            if package.len() > 200 || package.chars().any(char::is_control) {
+                return Err("Invalid extension package.");
+            }
+            if !confirm("Tsugi extension removal", &format!("Uninstall {package}?")) {
+                return Err("Extension removal cancelled.");
+            }
+            *chapter = None;
+            if let Ok(mut cache) = cache.lock() { *cache = None; }
+            reader.uninstall_extension(&package)
+        }
         ReadAction::Extensions { offset } => reader.extensions(offset),
         ReadAction::Catalogue { source, page, mode, query } => {
             let mode = match mode.as_str() {

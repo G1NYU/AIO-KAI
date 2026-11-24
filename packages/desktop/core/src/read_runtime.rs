@@ -173,6 +173,20 @@ impl ReadClient {
         }
     }
 
+    fn slow(&self) -> Self {
+        Self {
+            owner_pid: self.owner_pid,
+            agent: ureq::Agent::config_builder()
+                .proxy(None)
+                .max_redirects(0)
+                .http_status_as_error(false)
+                .timeout_global(Some(Duration::from_secs(90)))
+                .build().into(),
+            port: self.port,
+            authorization: self.authorization.clone(),
+        }
+    }
+
     fn send(
         &self,
         operation: ReadOperation,
@@ -383,6 +397,51 @@ fn repository_index(value: &str) -> Result<url::Url, &'static str> {
         return Err(invalid);
     }
     Ok(parsed)
+}
+
+fn extension_package(value: &str) -> Result<(), &'static str> {
+    if value.len() > 200 || !value.contains('.') || value.split('.').any(|part| {
+        part.is_empty() || !part.bytes().next().is_some_and(|b| b.is_ascii_alphabetic())
+            || !part.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+    }) {
+        return Err("Invalid extension package identifier.");
+    }
+    Ok(())
+}
+
+fn extension_download(value: &str, suffix: &str) -> Result<(), &'static str> {
+    let invalid = "Invalid extension download URL.";
+    if value.len() > 2048 || value.trim() != value || value.chars().any(char::is_control) {
+        return Err(invalid);
+    }
+    let parsed = url::Url::parse(value).map_err(|_| invalid)?;
+    let Some(url::Host::Domain(host)) = parsed.host() else { return Err(invalid) };
+    let name = parsed.path_segments().and_then(|mut segments| segments.next_back()).ok_or(invalid)?;
+    if parsed.scheme() != "https" || !parsed.username().is_empty() || parsed.password().is_some()
+        || parsed.port().is_some() || parsed.query().is_some() || parsed.fragment().is_some()
+        || !host.contains('.') || host.ends_with(".localhost") || host.ends_with(".local")
+        || name.len() > 220 || !name.ends_with(suffix)
+        || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
+    {
+        return Err(invalid);
+    }
+    Ok(())
+}
+
+/// Native-only review snapshot. Its private fields cannot be assembled by
+/// the web page. The caller must display it in a native confirmation before
+/// invoking installation; this is trust in the publisher, not signature proof.
+pub struct ExtensionReview {
+    package: String,
+    metadata: Value,
+    store: Value,
+    description: String,
+}
+
+impl ExtensionReview {
+    pub fn description(&self) -> &str {
+        &self.description
+    }
 }
 
 /// A page capability derived only from the fixed chapter-pages response.
@@ -966,7 +1025,7 @@ impl ReadRuntime {
     pub fn refresh_extensions(&self) -> Result<(), &'static str> {
         // Refresh can involve thousands of entries. Do not fetch an unbounded
         // response; read the actual list with the paginated query below.
-        self.client.mutation(
+        self.client.slow().mutation(
             "mutation TsugiRefreshExtensions($input: FetchExtensionsInput!) { fetchExtensions(input: $input) { __typename } }",
             "fetchExtensions",
             json!({}),
@@ -988,6 +1047,75 @@ impl ReadRuntime {
             return Err("Invalid extension catalogue.");
         }
         Ok(result)
+    }
+
+    fn extension_record(&self, package: &str) -> Result<Value, &'static str> {
+        extension_package(package)?;
+        let value = self.client.document(
+            "query TsugiExtension($pkg: String!) { extension(pkgName: $pkg) { pkgName name storeIndexUrl versionName versionCodeLong isInstalled isObsolete apkUrl jarUrl } }",
+            "extension",
+            json!({"pkg": package}),
+        )?;
+        if value["pkgName"] != package {
+            return Err("Extension identity did not match.");
+        }
+        Ok(value)
+    }
+
+    pub fn review_extension(&self, package: &str) -> Result<ExtensionReview, &'static str> {
+        let metadata = self.extension_record(package)?;
+        if metadata["isInstalled"] != false || metadata["isObsolete"] != false {
+            return Err("Extension is already installed or obsolete.");
+        }
+        let index = metadata["storeIndexUrl"].as_str().ok_or("Extension has no registered store.")?;
+        repository_index(index)?;
+        let stores = self.query(ReadOperation::Stores)?;
+        let store = stores["nodes"].as_array().and_then(|nodes| nodes.iter().find(|node| node["indexUrl"] == index))
+            .ok_or("Extension store is not registered.")?.clone();
+        let (download, suffix) = if let Some(jar) = metadata["jarUrl"].as_str() {
+            (jar, ".jar")
+        } else {
+            (metadata["apkUrl"].as_str().ok_or("Extension has no download.")?, ".apk")
+        };
+        extension_download(download, suffix)?;
+        let version = metadata["versionName"].as_str().filter(|v| !v.is_empty() && v.len() <= 80 && !v.chars().any(char::is_control))
+            .ok_or("Invalid extension version.")?;
+        let description = format!("Package: {package}\nVersion: {version}\nRepository: {index}\nDownload: {download}");
+        Ok(ExtensionReview { package: package.to_owned(), metadata, store, description })
+    }
+
+    /// The native caller must obtain explicit user approval of review.description().
+    /// Recheck the exact metadata and store identity before loading code.
+    /// Upstream may follow download redirects and does not guarantee byte-level
+    /// signature verification. Never invoke automatically or from an untrusted page.
+    pub fn install_reviewed_extension(&self, review: ExtensionReview) -> Result<Value, &'static str> {
+        let current = self.review_extension(&review.package)?;
+        if current.metadata != review.metadata || current.store != review.store {
+            return Err("Extension or repository changed. Review it again.");
+        }
+        let result = self.mutate_extension(&review.package, true)?;
+        if result["extension"]["pkgName"] != review.package || result["extension"]["isInstalled"] != true {
+            return Err("Extension installation could not be confirmed.");
+        }
+        Ok(result)
+    }
+
+    pub fn uninstall_extension(&self, package: &str) -> Result<Value, &'static str> {
+        let current = self.extension_record(package)?;
+        if current["isInstalled"] != true {
+            return Err("Extension is not installed.");
+        }
+        self.mutate_extension(package, false)
+    }
+
+    fn mutate_extension(&self, package: &str, install: bool) -> Result<Value, &'static str> {
+        extension_package(package)?;
+        let patch = if install { json!({"install": true}) } else { json!({"uninstall": true}) };
+        self.client.slow().mutation(
+            "mutation TsugiChangeExtension($input: UpdateExtensionInput!) { updateExtension(input: $input) { extension { pkgName isInstalled versionName } } }",
+            "updateExtension",
+            json!({"id": package, "patch": patch}),
+        )
     }
 
     /// The backend's source ID is LongString, never a JS number.
@@ -1306,6 +1434,24 @@ mod tests {
     }
 
     #[test]
+    fn extension_review_requires_safe_package_and_https_artifact() {
+        assert!(extension_package("eu.kanade.tachiyomi.extension.en.example").is_ok());
+        for value in ["", "a..b", "../example", "a b.c", "1a.b", "a/b.c"] {
+            assert!(extension_package(value).is_err());
+        }
+        assert!(extension_download("https://example.test/extension-v1.6.1.jar", ".jar").is_ok());
+        assert!(extension_download("https://example.test/extension.apk", ".apk").is_ok());
+        for value in [
+            "http://example.test/a.jar", "https://127.0.0.1/a.jar",
+            "https://a.local/a.jar", "https://user@example.test/a.jar",
+            "https://example.test/a.jar?token=x", "https://example.test/a%2Fb.jar",
+            "https://example.test/a.apk", "https://example.test/a.jar#x",
+        ] {
+            assert!(extension_download(value, ".jar").is_err());
+        }
+    }
+
+    #[test]
     fn rejects_non_repository_urls() {
         for url in [
             "https://example.test/mihon/index.pb",
@@ -1576,11 +1722,10 @@ mod tests {
         assert_eq!(entry["isInstalled"], false);
         assert_eq!(entry["jarUrl"], store.url.replace("/index.pb", "/tsugi-fixture-v1.6.1.jar"));
         // Test-only executable operation; never execute arbitrary repository code.
-        let installed = managed.client.mutation(
-            "mutation TsugiInstallFixture($input: UpdateExtensionInput!) { updateExtension(input: $input) { extension { pkgName isInstalled versionName } } }",
-            "updateExtension",
-            json!({"id": "org.tsugi.fixture", "patch": {"install": true}}),
-        ).expect("install original fixture");
+        // The production review rejects the loopback repository. Only the
+        // test itself calls the private mutation for this authored fixture.
+        assert!(managed.review_extension("org.tsugi.fixture").is_err());
+        let installed = managed.mutate_extension("org.tsugi.fixture", true).expect("install original fixture");
         assert_eq!(installed["extension"]["pkgName"], "org.tsugi.fixture");
         assert_eq!(installed["extension"]["isInstalled"], true);
         let assert_catalogue = |runtime: &ReadRuntime| {
@@ -1598,11 +1743,7 @@ mod tests {
         drop(managed);
         let mut managed = ReadRuntime::start(&runtime, &data).expect("reopen installed fixture");
         assert_catalogue(&managed);
-        managed.client.mutation(
-            "mutation TsugiUninstallFixture($input: UpdateExtensionInput!) { updateExtension(input: $input) { extension { pkgName isInstalled } } }",
-            "updateExtension",
-            json!({"id": "org.tsugi.fixture", "patch": {"uninstall": true}}),
-        ).expect("uninstall original fixture");
+        managed.uninstall_extension("org.tsugi.fixture").expect("uninstall original fixture");
         assert!(!managed.query(ReadOperation::Sources).unwrap()["nodes"].as_array().unwrap().iter().any(|source| source["id"] == "12345"));
         managed.shutdown().expect("shutdown after uninstall");
         drop(managed);

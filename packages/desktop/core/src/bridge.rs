@@ -65,6 +65,8 @@ pub enum ReadAction {
     RemoveStore { index: String },
     RefreshExtensions,
     Extensions { offset: u32 },
+    InstallExtension { package: String },
+    UninstallExtension { package: String },
     Catalogue { source: String, page: u32, mode: String, query: Option<String> },
     Manga { id: i32 },
     SetLibrary { id: i32, in_library: bool },
