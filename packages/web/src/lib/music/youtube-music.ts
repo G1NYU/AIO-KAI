@@ -134,7 +134,8 @@ export function youtubeMusicProvider(request: YouTubeMusicRequest): MusicProvide
       if (!videoId(track.id)) throw new Error('Invalid YouTube Music track.');
       const result = obj(await request('audio', track.id, signal));
       const url = safeHttpsUrl(result.url);
-      if (!url || !/(^|\.)googlevideo\.com$/.test(new URL(url).hostname) || new URL(url).port) {
+      const nativeTarget = url === 'https://www.youtube.com/watch?v=' + track.id;
+      if (!url || (!nativeTarget && (!/(^|\.)googlevideo\.com$/.test(new URL(url).hostname) || new URL(url).port))) {
         throw new Error('YouTube Music did not provide a playable audio stream.');
       }
       return { url, format: str(result.format), quality: str(result.quality) };

@@ -358,7 +358,7 @@ export function MusicPage({
           setResolving(false);
           setPaused(true);
           setPlayError(t`Native music playback timed out.`);
-        }, 30_000);
+        }, 50_000);
         nativeAudio.current = { request: id, sourceId: source.id, track, recorded: false, timer };
         bridge.send({ type: 'music-audio-load', request: id, url: stream.url, volume: volumeRef.current });
       } else {

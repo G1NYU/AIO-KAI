@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 
 use crate::bridge::Outbound;
 use crate::mpv::{Event, Kind, Mpv};
+use crate::music_resolver::Transfer;
 use crate::music_stream::{self, Source};
 use crate::player::Emit;
 
@@ -14,7 +15,6 @@ pub enum Command {
     Load {
         request: String,
         url: String,
-        headers: crate::music_resolver::MediaHeaders,
         volume: f64,
     },
     Control {
@@ -161,12 +161,10 @@ impl Session {
     fn new(
         library: &Path,
         request: String,
-        url: &str,
-        headers: crate::music_resolver::MediaHeaders,
+        source: Arc<Source>,
         volume: f64,
     ) -> Result<Self, String> {
         // The Arc allocation remains stable across Session moves.
-        let source = Source::new(url, headers);
         let mpv = Mpv::new(
             library,
             &[
@@ -304,30 +302,67 @@ impl Session {
     }
 }
 
+struct Pending {
+    request: String,
+    volume: f64,
+    transfer: Transfer,
+}
+
+fn start_session(
+    library: &Path,
+    emit: &Emit,
+    request: String,
+    source: Arc<Source>,
+    volume: f64,
+) -> Option<Session> {
+    match Session::new(library, request.clone(), source, volume) {
+        Ok(player) => Some(player),
+        Err(_) => {
+            fail(emit, &request, "Could not initialize native audio playback.");
+            None
+        }
+    }
+}
+
 fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
     let mut session: Option<Session> = None;
+    let mut pending: Option<Pending> = None;
     loop {
         match inbox.recv_timeout(Duration::from_millis(50)) {
             Ok(Command::Load {
                 request,
                 url,
-                headers,
                 volume,
             }) => {
                 // A fresh instance isolates queued EOF/property events from the previous track.
+                pending.take();
                 session.take();
-                if !allowed_url(&url) || !volume.is_finite() {
+                if !volume.is_finite() {
                     fail(emit, &request, "Invalid native music stream.");
                     continue;
                 }
                 report(emit, &request, "loading", 0.0, 0.0, None);
-                match Session::new(library, request.clone(), &url, headers, volume) {
-                    Ok(player) => session = Some(player),
-                    Err(_) => fail(
+                if cfg!(windows) {
+                    match Transfer::start(&url) {
+                        Ok(transfer) => {
+                            pending = Some(Pending {
+                                request,
+                                volume,
+                                transfer,
+                            });
+                        }
+                        Err(message) => fail(emit, &request, message),
+                    }
+                } else if allowed_url(&url) {
+                    session = start_session(
+                        library,
                         emit,
-                        &request,
-                        "Could not initialize native audio playback.",
-                    ),
+                        request,
+                        Source::new(&url, Vec::new()),
+                        volume,
+                    );
+                } else {
+                    fail(emit, &request, "Invalid native music stream.");
                 }
             }
             Ok(Command::Control {
@@ -335,7 +370,16 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                 action,
                 value,
             }) => {
-                if session
+                if pending.as_ref().is_some_and(|item| item.request == request) {
+                    if action == "stop" {
+                        pending.take();
+                    } else if action == "volume"
+                        && value.is_finite()
+                        && let Some(item) = &mut pending
+                    {
+                        item.volume = value;
+                    }
+                } else if session
                     .as_ref()
                     .is_some_and(|player| player.request == request)
                 {
@@ -351,10 +395,24 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                 }
             }
             Ok(Command::Stop) => {
+                pending.take();
                 session.take();
             }
             Err(RecvTimeoutError::Disconnected) => return,
             Err(RecvTimeoutError::Timeout) => {}
+        }
+        let ready = pending
+            .as_mut()
+            .and_then(|item| item.transfer.poll().transpose());
+        if let Some(result) = ready
+            && let Some(item) = pending.take()
+        {
+            match result.and_then(Source::from_bytes) {
+                Ok(source) => {
+                    session = start_session(library, emit, item.request, source, item.volume);
+                }
+                Err(message) => fail(emit, &item.request, message),
+            }
         }
         if session.as_mut().is_some_and(|player| !player.update(emit)) {
             session.take();

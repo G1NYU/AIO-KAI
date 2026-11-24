@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readMusicSources, remembersMusicSources, saveMusicSources, youtubeMusicConnection } from '../src/lib/music/connections';
 
+import { youtubeMusicProvider } from '../src/lib/music/youtube-music';
+
 const values = new Map<string, string>();
 vi.stubGlobal('localStorage', {
   getItem(key: string) { return values.get(key) ?? null; },
@@ -64,5 +66,25 @@ describe('built-in YouTube Music connection', () => {
     const source = youtubeMusicConnection();
     saveMusicSources(true, [{ ...source, url: 'https://untrusted.example/' }, example]);
     expect(readMusicSources()).toEqual([source, example]);
+  });
+});
+
+describe('YouTube Music native playback target', () => {
+  const track = { id: 'abcdefghijk', title: 'Fixture', artist: 'Fixture' };
+  const url = 'https://www.youtube.com/watch?v=abcdefghijk';
+
+  it('accepts the exact native target and preserves direct media on other platforms', async () => {
+    const request = vi.fn(async () => ({ url }));
+    await expect(youtubeMusicProvider(request).resolve(track)).resolves.toMatchObject({ url });
+    expect(request).toHaveBeenCalledWith('audio', track.id, undefined);
+    const direct = 'https://media.googlevideo.com/audio';
+    await expect(youtubeMusicProvider(async () => ({ url: direct })).resolve(track))
+      .resolves.toMatchObject({ url: direct });
+  });
+
+  it('rejects mismatched video IDs and unrelated destinations', async () => {
+    for (const invalid of [url + '&list=extra', 'https://www.youtube.com/watch?v=zyxwvutsrqp', 'https://example.test/audio']) {
+      await expect(youtubeMusicProvider(async () => ({ url: invalid })).resolve(track)).rejects.toThrow();
+    }
   });
 });

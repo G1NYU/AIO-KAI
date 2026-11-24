@@ -1,6 +1,6 @@
-//! Bounded, seekable HTTPS media reader for the independent music decoder.
-//! The URL is provided by the existing resolver, never rewritten. Authentication
-//! errors are terminal; no redirects, retries, disk cache or credential forwarding.
+//! Bounded, seekable media reader for the independent music decoder.
+//! Windows uses validated in-memory audio; other platforms retain HTTPS ranges.
+//! Authentication errors remain terminal.
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Read;
 use std::sync::{Arc, Mutex};
@@ -18,10 +18,26 @@ pub(crate) struct Source {
     headers: crate::music_resolver::MediaHeaders,
     agent: ureq::Agent,
     failure: Mutex<Option<&'static str>>,
+    buffered: Option<Vec<u8>>,
 }
 
 impl Source {
     pub(crate) fn new(url: &str, headers: crate::music_resolver::MediaHeaders) -> Arc<Self> {
+        Self::with_buffer(url, headers, None)
+    }
+
+    pub(crate) fn from_bytes(bytes: Vec<u8>) -> Result<Arc<Self>, &'static str> {
+        if !media_header(&bytes) || bytes.len() as u64 > MAX_SIZE {
+            return Err("Music transfer did not return valid MP4 or WebM audio.");
+        }
+        Ok(Self::with_buffer("", Vec::new(), Some(bytes)))
+    }
+
+    fn with_buffer(
+        url: &str,
+        headers: crate::music_resolver::MediaHeaders,
+        buffered: Option<Vec<u8>>,
+    ) -> Arc<Self> {
         Arc::new(Self {
             url: url.to_owned(),
             headers,
@@ -33,6 +49,7 @@ impl Source {
                 .build()
                 .into(),
             failure: Mutex::new(None),
+            buffered,
         })
     }
 
@@ -50,6 +67,18 @@ impl Source {
         if self.failure().is_some() {
             return Err("The media reader has stopped.");
         }
+        if let Some(bytes) = &self.buffered {
+            let size = bytes.len() as u64;
+            if start >= size || total.is_some_and(|known| known != size) {
+                return Err("Invalid buffered audio range.");
+            }
+            let end = (start + CHUNK).min(size);
+            return Ok(Chunk {
+                start,
+                size,
+                bytes: bytes[start as usize..end as usize].to_vec(),
+            });
+        }
         let end = (start + CHUNK - 1).min(total.unwrap_or(MAX_SIZE) - 1);
         let request = self
             .agent
@@ -58,12 +87,9 @@ impl Source {
             .header("Accept-Encoding", "identity")
             // Each bounded request must work even when a server closes TLS.
             .header("Connection", "close");
-        let request = self
-            .headers
-            .iter()
-            .fold(request, |req, (name, value)| {
-                req.header(name.as_str(), value.as_str())
-            });
+        let request = self.headers.iter().fold(request, |req, (name, value)| {
+            req.header(name.as_str(), value.as_str())
+        });
         let mut response = request
             .call()
             .map_err(|_| "Music HTTPS transport could not connect.")?;
@@ -319,6 +345,29 @@ mod tests {
         assert!(media_header(&[0x1a, 0x45, 0xdf, 0xa3]));
         assert!(!media_header(b"<html>not audio</html>"));
         assert!(!media_header(b""));
+    }
+
+    #[test]
+    fn transferred_media_supports_multiple_ranges_and_seeking() {
+        let mut bytes = vec![0; CHUNK as usize + 8];
+        bytes[..4].copy_from_slice(&[0x1a, 0x45, 0xdf, 0xa3]);
+        bytes[CHUNK as usize..].copy_from_slice(b"endbytes");
+        let source = Source::from_bytes(bytes).expect("valid media header");
+        let chunk = source.fetch(0, None).expect("first chunk");
+        assert_eq!(chunk.size, CHUNK + 8);
+        assert_eq!(chunk.bytes.len(), CHUNK as usize);
+        let mut reader = Reader {
+            source,
+            chunk,
+            position: CHUNK,
+        };
+        let mut out = [0; 8];
+        assert_eq!(reader.read(&mut out), Ok(8));
+        assert_eq!(&out, b"endbytes");
+        reader.position = 0;
+        assert_eq!(reader.read(&mut out), Ok(8));
+        assert_eq!(&out[..4], &[0x1a, 0x45, 0xdf, 0xa3]);
+        assert!(Source::from_bytes(b"not media".to_vec()).is_err());
     }
 
     #[test]
