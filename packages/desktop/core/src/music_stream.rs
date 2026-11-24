@@ -54,6 +54,8 @@ impl Source {
             .get(&self.url)
             .header("Range", format!("bytes={start}-{end}"))
             .header("Accept-Encoding", "identity")
+            // Each bounded request must work even when a server closes TLS.
+            .header("Connection", "close")
             .call()
             .map_err(|_| "Music HTTPS transport could not connect.")?;
         let status = response.status().as_u16();
