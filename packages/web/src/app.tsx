@@ -59,6 +59,8 @@ import { MusicPage } from './app/music/page';
 import { ReadPage, ReadSetupPage } from './app/read/page';
 import { supportsReading, supportsReadingSection } from './lib/hosts/shell/reading';
 import { GlobalAppearance, GlobalSettingsDialog } from './components/shell/global-settings';
+import { TsugiBrand, TsugiMediaIcon } from './components/tsugi-brand';
+import { FiSettings } from 'react-icons/fi';
 
 /** The web app served at the Jellyfin API's `/web`. */
 export default function JellyfinWebApp() {
@@ -152,8 +154,8 @@ function Standalone() {
   const openVideo = React.useCallback(() => setArea('video'), []);
   const openWelcome = React.useCallback(() => setArea('welcome'), []);
   const areaActions = React.useMemo(
-    () => ({ openMusic, openVideo, openSettings, openRead: reading ? openRead : undefined }),
-    [openMusic, openVideo, openSettings, openRead, reading]
+    () => ({ openWelcome, openMusic, openVideo, openSettings, openRead: reading ? openRead : undefined }),
+    [openWelcome, openMusic, openVideo, openSettings, openRead, reading]
   );
   // Who's watching, asked across the saved servers.
   const [picking, setPicking] = React.useState(() => {
@@ -313,7 +315,13 @@ function Standalone() {
 }
 
 function VideoEntryNavigation({ actions }: { actions: NonNullable<React.ContextType<typeof DesktopAreaContext>> }) {
-  return <nav className="tsugi-entry-media-nav" aria-label={t({ id: "Media sections", message: "Media sections" })}><button className="tsugi-category-link" onClick={actions.openMusic}><Trans id="Music">Music</Trans></button>{actions.openRead && <button className="tsugi-category-link" onClick={actions.openRead}><Trans id="Read">Read</Trans></button>}<button className="tsugi-category-link" onClick={actions.openSettings}><Trans id="App settings">App settings</Trans></button></nav>;
+  return <nav className="tsugi-entry-media-nav" aria-label={t({ id: "Media sections", message: "Media sections" })}>
+    <button className="tsugi-category-link tsugi-entry-home" onClick={actions.openWelcome} aria-label={t({ id: "All media", message: "All media" })}><TsugiBrand markOnly /></button>
+    <span className="tsugi-entry-current" aria-current="page"><TsugiMediaIcon area="video" /><Trans id="Movies & TV">Movies & TV</Trans></span>
+    <button className="tsugi-category-link" onClick={actions.openMusic}><TsugiMediaIcon area="music" /><Trans id="Music">Music</Trans></button>
+    {actions.openRead && <button className="tsugi-category-link" onClick={actions.openRead}><TsugiMediaIcon area="read" /><Trans id="Read">Read</Trans></button>}
+    <button className="tsugi-category-link tsugi-entry-settings" onClick={actions.openSettings}><FiSettings aria-hidden /><Trans id="App settings">App settings</Trans></button>
+  </nav>;
 }
 
 function SharedPicker({

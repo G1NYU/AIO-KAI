@@ -23,7 +23,7 @@ export function applyGlobalAppearance(root = document.documentElement) {
   const border = useImported ? 'color-mix(in srgb, ' + a.foreground + ' 12%, ' + a.canvas + ')' : palette.border;
   const vars = { ...themeVariables({ background: a.canvas, accent: a.accent }),
     '--background': a.canvas, '--foreground': a.foreground, '--paper': a.panel, '--brand': a.accent,
-    '--ring': a.accent, '--border': border, '--muted': a.muted,
+    '--ring': '#A8D3E5', '--tsugi-focus': '#A8D3E5', '--tsugi-on-accent': useImported ? '#101214' : palette.accentText, '--border': border, '--muted': a.muted,
     '--tsugi-canvas': a.canvas, '--tsugi-surface': a.surface, '--tsugi-panel': a.panel,
     '--tsugi-ink': a.foreground, '--tsugi-muted': a.muted, '--tsugi-accent': a.accent,
     '--tsugi-line': border, '--tsugi-wash': 'color-mix(in srgb, ' + a.foreground + ' 7%, ' + a.canvas + ')',
@@ -66,7 +66,7 @@ export function GlobalAppearanceSettings() {
     <p><Trans id="One palette for Movies & TV, Music and Read.">One palette for Movies &amp; TV, Music and Read.</Trans></p>
     <div className="tsugi-global-palettes">{(Object.keys(PLAYER_PALETTES) as PlayerThemeId[]).map((id) => {
       const p = PLAYER_PALETTES[id];
-      const label = id === 'mocha' ? t({ id: "Mocha", message: "Mocha" }) : id === 'matte' ? t({ id: "Matte black", message: "Matte black" }) : id === 'aio-dark' ? t({ id: "Ink", message: "Ink" }) : id === 'nightfall' ? t({ id: "Nightfall", message: "Nightfall" }) : t({ id: "Carbon", message: "Carbon" });
+      const label = id === 'sumi' ? t({ id: "Sumi", message: "Sumi" }) : id === 'mocha' ? t({ id: "Mocha", message: "Mocha" }) : id === 'matte' ? t({ id: "Matte black", message: "Matte black" }) : id === 'aio-dark' ? t({ id: "Ink", message: "Ink" }) : id === 'nightfall' ? t({ id: "Nightfall", message: "Nightfall" }) : t({ id: "Carbon", message: "Carbon" });
       return <button type="button" key={id} aria-pressed={theme === id && !(hasImported && useImported)} onClick={() => choose(id)}><span className="tsugi-global-swatch" style={{ background:p.canvas, borderColor:p.border }}><i style={{ background:p.accent }} /></span>{label}</button>;
     })}</div>
     {hasImported && <label className="flex items-center gap-3"><input type="checkbox" checked={useImported} onChange={(event) => { storage.set(IMPORT_COLORS_KEY, event.target.checked); announce(theme); }} /><Trans id="Use imported player layout colours throughout Tsugi">Use imported player layout colours throughout Tsugi</Trans></label>}

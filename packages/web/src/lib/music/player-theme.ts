@@ -1,6 +1,6 @@
 import { storage } from '../storage';
 
-export type PlayerThemeId = 'mocha' | 'matte' | 'aio-dark' | 'nightfall' | 'carbon';
+export type PlayerThemeId = 'mocha' | 'matte' | 'aio-dark' | 'nightfall' | 'carbon' | 'sumi';
 
 export type PlayerPalette = {
   foreground: string;
@@ -15,6 +15,11 @@ export type PlayerPalette = {
 
 /** Mocha uses official Catppuccin tokens; Matte deliberately uses neutral blacks. */
 export const PLAYER_PALETTES: Record<PlayerThemeId, PlayerPalette> = {
+  sumi: {
+    foreground: '#E8E6DF', surface: '#171A1D', canvas: '#101214',
+    panel: '#202428', border: '#363C41', accent: '#A8D3E5',
+    accentText: '#101214', muted: '#A3ABB0',
+  },
   mocha: {
     foreground: '#CDD6F4', surface: '#181825', canvas: '#11111B',
     panel: '#1E1E2E', border: '#313244', accent: '#B4BEFE',
@@ -44,7 +49,7 @@ export const PLAYER_PALETTES: Record<PlayerThemeId, PlayerPalette> = {
 
 /** Keep the existing key: migrating it would reset current users' choices. */
 const KEY = 'aiokai-desktop-player-theme-v1';
-export const DEFAULT_PLAYER_THEME: PlayerThemeId = 'mocha';
+export const DEFAULT_PLAYER_THEME: PlayerThemeId = 'sumi';
 
 export function isPlayerTheme(value: unknown): value is PlayerThemeId {
   return typeof value === 'string' &&

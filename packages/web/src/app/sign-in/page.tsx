@@ -114,17 +114,17 @@ export function Screen({
       data-name={name}
       className={cn(
         'relative flex min-h-screen items-center justify-center px-4 pb-[max(3rem,env(safe-area-inset-bottom))] pt-[max(3rem,env(safe-area-inset-top))]',
-        desktop ? 'bg-[#0B0B11]' : 'bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,0.18),transparent_60%)]'
+        desktop ? 'tsugi-video-entry' : 'bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,0.18),transparent_60%)]'
       )}
     >
-      <div className={cn('w-full max-w-3xl space-y-8', className)}>
+      <div className={cn('w-full max-w-3xl space-y-8', desktop && 'tsugi-video-entry-content', className)}>
         <motion.div
           initial={{ opacity: 0, scale: 0.92 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={SPRING}
         >
           {desktop
-            ? <TsugiBrand className="mx-auto justify-center" />
+            ? <TsugiBrand className="tsugi-auth-brand mx-auto flex w-fit justify-center" />
             : <BrandLogo className="mx-auto max-h-16 max-w-[16rem] object-contain" />}
         </motion.div>
         {children}

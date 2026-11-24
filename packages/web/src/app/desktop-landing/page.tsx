@@ -1,58 +1,40 @@
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiBookOpen, FiFilm, FiHeadphones, FiMenu } from 'react-icons/fi';
-import { TsugiBrand } from '@/components/tsugi-brand';
+import { FiArrowUpRight, FiSettings } from 'react-icons/fi';
+import { TsugiBrand, TsugiMediaIcon } from '@/components/tsugi-brand';
 import { useDesktopArea } from '@/lib/desktop-area';
 
-/** An editorial media index. Add a section only when its destination exists. */
-export function DesktopLandingPage({
-  openVideo,
-  openMusic,
-  openRead,
-}: {
-  openVideo(): void;
-  openMusic(): void;
-  openRead?: () => void;
+/** One media index with direct destinations, even before a server is configured. */
+export function DesktopLandingPage({ openVideo, openMusic, openRead }: {
+  openVideo(): void; openMusic(): void; openRead?: () => void;
 }) {
   const desktopArea = useDesktopArea();
-
   const sections = [
-    { id: 'video', label: t`Movies & TV`, Icon: FiFilm, open: openVideo },
-    { id: 'music', label: t`Music`, Icon: FiHeadphones, open: openMusic },
-    ...(openRead ? [{ id: 'read', label: t({ id: 'Read', message: 'Read' }), Icon: FiBookOpen, open: openRead }] : []),
+    { id: 'video' as const, label: t({ id: "Movies & TV", message: "Movies & TV" }), description: t({ id: "Cinema, series and your watchlist.", message: "Cinema, series and your watchlist." }), open: openVideo },
+    { id: 'music' as const, label: t({ id: "Music", message: "Music" }), description: t({ id: "Your albums, tracks and playlists.", message: "Your albums, tracks and playlists." }), open: openMusic },
+    ...(openRead ? [{ id: 'read' as const, label: t({ id: "Read", message: "Read" }), description: t({ id: "Manga, manhwa and your next chapter.", message: "Manga, manhwa and your next chapter." }), open: openRead }] : []),
   ];
-
-  return (
-    <main data-page="desktop-landing"
-      className="tsugi-landing relative flex min-h-dvh flex-col px-6 pb-8 pt-12 sm:px-12 lg:px-[4vw]">
-      <header className="relative z-10 flex items-center justify-between gap-5">
-        <TsugiBrand markOnly />
-        {desktopArea && <button type="button" className="tsugi-icon-action" aria-label={t({ id: "App settings", message: "App settings" })} onClick={desktopArea.openSettings}><FiMenu aria-hidden className="text-xl" /></button>}
-      </header>
-
-      <div className="tsugi-entry-stage">
-        <div className="tsugi-entry-composition">
-          <div className="tsugi-entry-brand">
-            <span aria-hidden className="tsugi-entry-mark"><TsugiBrand markOnly /></span>
-            <h1 className="tsugi-entry-wordmark"><Trans>Tsugi</Trans></h1>
-          </div>
-
-          <nav className="tsugi-entry-index" aria-label={t`Media sections`}>
-            <h2 className="sr-only"><Trans>Media sections</Trans></h2>
-            <div className="tsugi-entry-list">
-              {sections.map(({ id, label, Icon, open }) => (
-                <button key={id} type="button" onClick={open} className="tsugi-entry-link">
-                  <span className="tsugi-entry-label-group">
-                    <Icon aria-hidden className="tsugi-entry-icon" />
-                    <span className="tsugi-entry-label">{label}</span>
-                    <span aria-hidden className="tsugi-entry-dots"><i /><i /><i /></span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </nav>
-        </div>
+  return <main data-page="desktop-landing" className="tsugi-landing tsugi-index">
+    <header className="tsugi-index-header">
+      <TsugiBrand markOnly />
+      {desktopArea && <button type="button" className="tsugi-category-link" onClick={desktopArea.openSettings}><FiSettings aria-hidden /><Trans id="App settings">App settings</Trans></button>}
+    </header>
+    <div className="tsugi-index-body">
+      <div className="tsugi-index-identity">
+        <div className="tsugi-index-signature"><TsugiBrand markOnly /><span aria-hidden lang="ja">次</span></div>
+        <h1 className="tsugi-index-wordmark"><Trans id="Tsugi">Tsugi</Trans><span aria-hidden>.</span></h1>
+        <p><Trans id="One place for what comes next.">One place for what comes next.</Trans></p>
       </div>
-    </main>
-  );
+      <nav className="tsugi-index-destinations" aria-label={t({ id: "Media sections", message: "Media sections" })}>
+        <div className="tsugi-index-caption"><Trans id="Your media">Your media</Trans><span aria-hidden>{String(sections.length).padStart(2, '0')}</span></div>
+        {sections.map(({ id, label, description, open }, index) => <button key={id} type="button" onClick={open} className="tsugi-index-link" aria-label={label}>
+          <span className="tsugi-index-number" aria-hidden>{String(index + 1).padStart(2, '0')}</span>
+          <TsugiMediaIcon area={id} />
+          <span className="tsugi-index-copy"><strong>{label}</strong><small>{description}</small></span>
+          <FiArrowUpRight className="tsugi-index-arrow" aria-hidden />
+        </button>)}
+      </nav>
+    </div>
+    <footer className="tsugi-index-footer"><span><Trans id="Watch · Listen · Read">Watch · Listen · Read</Trans></span><span><Trans id="Personal media workspace">Personal media workspace</Trans></span></footer>
+  </main>;
 }

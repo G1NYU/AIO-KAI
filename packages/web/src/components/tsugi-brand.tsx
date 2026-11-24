@@ -24,3 +24,12 @@ export function TsugiBrand({
     </span>
   );
 }
+
+/** Original filled glyphs. Negative space ties all three to the same grid. */
+export function TsugiMediaIcon({ area, className = '' }: { area: 'video' | 'music' | 'read'; className?: string }) {
+  return <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true" className={`tsugi-media-icon ${className}`}>
+    {area === 'video' ? <path fillRule="evenodd" d="M3 5h26v22H3V5Zm3 3v3h3V8H6Zm0 13v3h3v-3H6Zm17-13v3h3V8h-3Zm0 13v3h3v-3h-3Zm-11 0 9-5-9-5v10Z" />
+      : area === 'music' ? <path d="M5 10h4v12H5zM11 5h4v22h-4zM17 8h4v16h-4zM23 13h4v6h-4z" />
+      : <path d="M3 5c5.8 0 9.2 1.6 12 4.1V28c-3.1-2.8-7-4.1-12-4.1V5Zm26 0c-5.8 0-9.2 1.6-12 4.1V28c3.1-2.8 7-4.1 12-4.1V5Z" />}
+  </svg>;
+}

@@ -80,7 +80,7 @@ export function PlayerSettings({
             className="tsugi-menu-select w-full">
             {(Object.keys(PLAYER_PALETTES) as PlayerThemeId[]).map((id) => (
               <option key={id} value={id}>
-                {id === 'mocha' ? t`Mocha` : id === 'matte' ? t`Matte black`
+                {id === 'sumi' ? t({ id: "Sumi", message: "Sumi" }) : id === 'mocha' ? t`Mocha` : id === 'matte' ? t`Matte black`
                   : id === 'aio-dark' ? t`Ink` : id === 'nightfall' ? t`Nightfall` : t`Carbon`}
               </option>
             ))}

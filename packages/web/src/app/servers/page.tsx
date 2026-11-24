@@ -123,7 +123,7 @@ function AddServer({
       </Button>
       <LinkRow links={[
         !!onBack && { label: t`Back`, onClick: onBack },
-        !!openMusic && { label: t`Music`, onClick: openMusic },
+        !!openMusic && currentHost().name !== 'desktop' && { label: t`Music`, onClick: openMusic },
       ]} />
     </form>
   );
@@ -362,7 +362,7 @@ function ServerList({
       <h1 data-ui="page-title" className="text-center text-2xl font-semibold">
         <Trans>Choose a server</Trans>
       </h1>
-      {openMusic && (
+      {openMusic && currentHost().name !== 'desktop' && (
         <div className="flex justify-center">
           <Button intent="gray-subtle" onClick={openMusic}>
             <BiMusic aria-hidden className="mr-2" />

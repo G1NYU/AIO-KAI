@@ -4,6 +4,7 @@ import React from 'react';
 export type DesktopArea = 'welcome' | 'video' | 'music' | 'read';
 
 export type DesktopAreaActions = {
+  openWelcome(): void;
   openMusic(): void;
   openVideo(): void;
   openSettings(): void;
