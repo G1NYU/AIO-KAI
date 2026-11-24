@@ -3,7 +3,7 @@ import { safeHttpsUrl, type EclipseCatalogDefinition, type EclipseCatalogItem, t
 import type { MusicProvider } from './providers';
 
 type ObjectValue = Record<string, unknown>;
-type Operation = 'search' | 'browse' | 'audio' | 'home';
+type Operation = 'search' | 'browse' | 'audio' | 'home' | 'explore';
 export type YouTubeMusicRequest = (operation: Operation, value: string, signal?: AbortSignal) => Promise<unknown>;
 
 const obj = (value: unknown): ObjectValue =>
@@ -136,17 +136,20 @@ type HomeShelf = { definition: EclipseCatalogDefinition; items: EclipseCatalogIt
 
 /** Home shelves keep provider titles and item identities, not invented chart ranks.
  * Mixed shelves retain their source title but are split by playable item type. */
-export function parseYouTubeMusicHome(root: unknown): HomeShelf[] {
+export function parseYouTubeMusicHome(root: unknown, feed: 'home' | 'explore' = 'home'): HomeShelf[] {
   const shelves: HomeShelf[] = [];
   const sections = [
     ...nodes(root, 'musicCarouselShelfRenderer', 30),
+    ...nodes(root, 'musicImmersiveCarouselShelfRenderer', 30),
     ...nodes(root, 'musicShelfRenderer', 30),
+    ...nodes(root, 'gridRenderer', 30),
   ];
   for (const [index, section] of sections.entries()) {
-    const header = obj(obj(section.header).musicCarouselShelfBasicHeaderRenderer);
+    const headers = obj(section.header);
+    const header = obj(headers.musicCarouselShelfBasicHeaderRenderer ?? headers.gridHeaderRenderer);
     const name = text(header.title) || text(section.title);
     if (!name) continue;
-    const result = parseYouTubeMusicResults(section.contents);
+    const result = parseYouTubeMusicResults(section.contents ?? section.items);
     const tracks: EclipseCatalogItem[] = result.tracks.map(track => ({
       id: track.id, type: 'track', title: track.title, artist: track.artist,
       album: track.album, artworkURL: track.artworkURL,
@@ -156,7 +159,7 @@ export function parseYouTubeMusicHome(root: unknown): HomeShelf[] {
     for (const items of groups) {
       const type = items[0]?.type;
       if (!type) continue;
-      shelves.push({ definition: { id: 'home:' + index + ':' + type, name, type }, items: items.slice(0, 30) });
+      shelves.push({ definition: { id: feed + ':' + index + ':' + type, name, type }, items: items.slice(0, 30) });
       if (shelves.length >= 16) return shelves;
     }
   }
@@ -164,8 +167,8 @@ export function parseYouTubeMusicHome(root: unknown): HomeShelf[] {
 }
 
 export function youtubeMusicProvider(request: YouTubeMusicRequest): MusicProvider {
-  // The discovery page calls catalogs() and then catalog() on this same
-  // provider. Fetch once, rather than issuing parallel remote browse requests.
+  // Both public feeds are bounded and fetched at most once per refresh.
+  // Loading an individual shelf never triggers another remote request.
   let home: HomeShelf[] = [];
   return {
     kind: 'youtube-music',
@@ -173,7 +176,22 @@ export function youtubeMusicProvider(request: YouTubeMusicRequest): MusicProvide
       return parseYouTubeMusicResults(await request('search', query.trim().slice(0, 200), signal));
     },
     async catalogs(signal) {
-      home = parseYouTubeMusicHome(await request('home', '', signal));
+      const feeds = ['home', 'explore'] as const;
+      const results = await Promise.allSettled(feeds.map(feed => request(feed, '', signal)));
+      if (signal?.aborted) throw new DOMException('', 'AbortError');
+      if (results.every(result => result.status === 'rejected')) {
+        const first = results[0];
+        throw first?.status === 'rejected' ? first.reason : new Error('YouTube Music did not answer.');
+      }
+      const seen = new Set<string>();
+      home = results.flatMap((result, index) =>
+        result.status === 'fulfilled' ? parseYouTubeMusicHome(result.value, feeds[index]) : []
+      ).filter(shelf => {
+        const key = JSON.stringify([shelf.definition.name, shelf.definition.type, shelf.items.map(item => item.id)]);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }).slice(0, 24);
       return home.map(shelf => shelf.definition);
     },
     async catalog(definition, skip = 0) {

@@ -2891,6 +2891,10 @@ msgstr ""
 msgid "More dialogue boost"
 msgstr ""
 
+#: src/app/music/browse.tsx
+msgid "More from your artists"
+msgstr ""
+
 #: src/components/media/hero.tsx
 msgid "More info"
 msgstr ""

@@ -132,17 +132,29 @@ describe('YouTube Music home catalogues', () => {
     expect(parseYouTubeMusicHome(null)).toEqual([]);
   });
 
-  it('loads one home response per discovery refresh and exposes only its own catalogues', async () => {
+  it('loads both feeds once per discovery refresh and exposes only its own catalogues', async () => {
     const request = vi.fn(async () => home);
     const provider = youtubeMusicProvider(request);
     const signal = new AbortController().signal;
     const definitions = await provider.catalogs(signal);
     expect(request).toHaveBeenCalledWith('home', '', signal);
+    expect(request).toHaveBeenCalledWith('explore', '', signal);
+    expect(definitions).toHaveLength(2); // identical feed shelves are deduplicated
     const first = definitions[0]!;
     expect(await provider.catalog(first, 0, signal)).toHaveLength(1);
     expect(await provider.catalog(first, 30, signal)).toEqual([]);
     expect(await provider.catalog({ ...first, id: 'unknown' })).toEqual([]);
-    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps Explore shelves when the anonymous home feed is unavailable', async () => {
+    const provider = youtubeMusicProvider(async operation => {
+      if (operation === 'home') throw new Error('Fixture unavailable');
+      return home;
+    });
+    const definitions = await provider.catalogs();
+    expect(definitions.map(item => item.id)).toEqual(['explore:0:track', 'explore:0:album']);
+    expect(await provider.catalog(definitions[1]!)).toMatchObject([{ id: 'MPREfixture' }]);
   });
 });
 

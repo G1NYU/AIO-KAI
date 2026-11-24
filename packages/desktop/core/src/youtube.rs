@@ -275,6 +275,9 @@ pub fn music_request(operation: &str, value: &str) -> Result<Value, &'static str
         "home" if value.is_empty() => {
             music_metadata(&agent, "browse", json!({ "browseId": "FEmusic_home" }))
         }
+        "explore" if value.is_empty() => {
+            music_metadata(&agent, "browse", json!({ "browseId": "FEmusic_explore" }))
+        }
         "search" if !value.trim().is_empty() && value.chars().count() <= 200 => {
             music_metadata(&agent, "search", json!({ "query": value.trim() }))
         }

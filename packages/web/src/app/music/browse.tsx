@@ -11,7 +11,7 @@ import type { MusicConnection } from '@/lib/music/connections';
 import { providerFor } from '@/lib/music/providers';
 import type { TrendingRecording } from '@/lib/music/discovery';
 import { MusicCharts } from './charts';
-import type { RecentMusicPlay } from '@/lib/music/history';
+import { suggestMusicFromHistory, type RecentMusicPlay } from '@/lib/music/history';
 
 export type PlayCollection = (source: MusicConnection, songs: EclipseTrack[], at: number) => void;
 
@@ -150,6 +150,7 @@ export function MusicDiscover({
   onConfigure(): void;
 }) {
   const [shelves, setShelves] = React.useState<Shelf[]>([]);
+  const [shelfSourceId, setShelfSourceId] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   const [selected, setSelected] = React.useState<EclipseCatalogItem | null>(null);
@@ -180,7 +181,10 @@ export function MusicDiscover({
             return { catalog, items: [], unavailable: true };
           }
         }));
-        if (!controller.signal.aborted) setShelves(rows);
+        if (!controller.signal.aborted) {
+          setShelfSourceId(source.id);
+          setShelves(rows);
+        }
       } catch {
         if (!controller.signal.aborted) setError(t`Could not load this addon's music catalogs.`);
       } finally {
@@ -202,10 +206,17 @@ export function MusicDiscover({
     }
   }
 
-  const filled = shelves.filter((row) => row.items.length > 0);
+  const visibleShelves = shelfSourceId === source?.id ? shelves : [];
+  const filled = visibleShelves.filter((row) => row.items.length > 0);
   const featuredRow = filled.find((row) => row.items.some((item) => item.artworkURL)) ?? filled[0];
   const featured = featuredRow?.items.find((item) => item.artworkURL) ?? featuredRow?.items[0];
   const recentFromSource = recent.filter((item) => item.sourceId === source?.id);
+  const suggested = source?.kind === 'youtube-music'
+    ? suggestMusicFromHistory(filled.flatMap(row => row.items), recentFromSource, source.id) : [];
+  const displayShelves: Shelf[] = suggested.length ? [{
+    catalog: { id: 'local:artists', type: 'track', name: t`More from your artists` },
+    items: suggested, unavailable: false,
+  }, ...visibleShelves] : visibleShelves;
 
   if (!source) return (
     <section className="tsugi-hub-empty py-24 text-center">
@@ -285,7 +296,7 @@ export function MusicDiscover({
         </p>
       )}
 
-      {shelves.map((row) => (
+      {displayShelves.map((row) => (
         <section key={row.catalog.id} className="tsugi-catalog-lane">
           <div className="mb-5 flex items-baseline justify-between gap-4">
             <h3 className="text-2xl font-semibold tracking-tight">{row.catalog.name}</h3>

@@ -2892,6 +2892,10 @@ msgstr "More can be sent once the party is back."
 msgid "More dialogue boost"
 msgstr "More dialogue boost"
 
+#: src/app/music/browse.tsx
+msgid "More from your artists"
+msgstr "More from your artists"
+
 #: src/components/media/hero.tsx
 msgid "More info"
 msgstr "More info"

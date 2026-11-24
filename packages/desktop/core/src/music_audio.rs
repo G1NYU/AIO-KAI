@@ -564,7 +564,10 @@ mod tests {
         assert!(item.matches(url, now + Duration::from_secs(7)));
         assert!(!item.matches(url, now + Duration::from_secs(8)));
         item.poll();
-        assert!(matches!(item.state, PreparedState::Complete(Err("fixture refusal"))));
+        assert!(matches!(
+            item.state,
+            PreparedState::Complete(Err("fixture refusal"))
+        ));
     }
 
     #[test]

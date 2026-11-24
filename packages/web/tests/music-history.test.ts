@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  makeRecentPlay, mergeRecentPlays, readRecentPlays, storeRecentPlays,
+  makeRecentPlay, mergeRecentPlays, readRecentPlays, storeRecentPlays, suggestMusicFromHistory,
 } from '../src/lib/music/history';
 
 const saved = new Map<string, string>();
@@ -40,5 +40,25 @@ describe('Tsugi recent listening', () => {
     saved.set('aiostreams-desktop-music-remember-v1', 'true');
     saved.set('tsugi-recent-music-v1', JSON.stringify([{ sourceId:'x', track: {title:123} }]));
     expect(readRecentPlays()).toEqual([]);
+  });
+});
+
+describe('local catalogue suggestions', () => {
+  it('ranks unheard tracks from the same source by known artist affinity', () => {
+    const recent = [
+      makeRecentPlay('yt', { id: 'heard', title: 'Heard', artist: 'Artist A' }),
+      makeRecentPlay('yt', { id: 'heard2', title: 'Heard 2', artist: 'Artist B' }),
+      makeRecentPlay('other', { id: 'foreign', title: 'Other', artist: 'Artist C' }),
+    ];
+    const items = [
+      { id: 'b', title: 'B', artist: 'Artist B', type: 'track' as const },
+      { id: 'heard', title: 'Heard', artist: 'Artist A', type: 'track' as const },
+      { id: 'a', title: 'A', artist: ' artist a ', type: 'track' as const },
+      { id: 'a', title: 'Duplicate', artist: 'Artist A', type: 'track' as const },
+      { id: 'c', title: 'C', artist: 'Artist C', type: 'track' as const },
+      { id: 'album', title: 'Album', artist: 'Artist A', type: 'album' as const },
+    ];
+    expect(suggestMusicFromHistory(items, recent, 'yt').map(item => item.id)).toEqual(['a', 'b']);
+    expect(suggestMusicFromHistory(items, [], 'yt')).toEqual([]);
   });
 });
