@@ -385,16 +385,54 @@ fn music_audio(agent: &ureq::Agent, video_id: &str) -> Result<Value, &'static st
         .ok_or("YouTube audio is unavailable.")?;
     let answer = player(agent, client, video_id, None)
         .map_err(|_| "YouTube audio could not be resolved.")?;
-    if answer["playabilityStatus"]["status"] != "OK" {
-        return Err("This YouTube track is not available for anonymous playback.");
-    }
+    music_playability(&answer["playabilityStatus"])?;
     direct_music_audio(&answer["streamingData"])
         .ok_or("YouTube did not supply a directly playable audio stream.")
+}
+
+// Fixed messages only: the upstream reason may include account-specific data.
+fn music_playability(status: &Value) -> Result<(), &'static str> {
+    match status["status"].as_str() {
+        Some("OK") => Ok(()),
+        Some("LOGIN_REQUIRED") => {
+            let reason = status["reason"].as_str().unwrap_or("").to_ascii_lowercase();
+            if reason.contains("bot") {
+                Err("YouTube requires bot verification on this network (LOGIN_REQUIRED).")
+            } else {
+                Err("YouTube requires sign-in for this track (LOGIN_REQUIRED).")
+            }
+        }
+        Some("AGE_CHECK_REQUIRED" | "CONTENT_CHECK_REQUIRED") => {
+            Err("YouTube requires content or age verification.")
+        }
+        Some("UNPLAYABLE") => Err("YouTube reports this track is unavailable (UNPLAYABLE)."),
+        Some("ERROR") => Err("YouTube reports a playback error (ERROR)."),
+        Some("LIVE_STREAM_OFFLINE") => Err("YouTube reports that this live stream is offline."),
+        _ => Err("YouTube returned an unsupported playback status."),
+    }
 }
 
 #[cfg(test)]
 mod music_tests {
     use super::*;
+
+    #[test]
+    fn classifies_playability_without_leaking_provider_reasons() {
+        assert_eq!(music_playability(&json!({"status": "OK"})), Ok(()));
+        assert_eq!(
+            music_playability(&json!({
+                "status": "LOGIN_REQUIRED",
+                "reason": "Sign in to confirm you're not a bot"
+            })),
+            Err("YouTube requires bot verification on this network (LOGIN_REQUIRED).")
+        );
+        assert_eq!(
+            music_playability(&json!({"status": "LOGIN_REQUIRED", "reason": "private account data"})),
+            Err("YouTube requires sign-in for this track (LOGIN_REQUIRED).")
+        );
+        assert!(music_playability(&json!({"status": "UNPLAYABLE"})).is_err());
+        assert!(music_playability(&Value::Null).is_err());
+    }
 
     #[test]
     fn restricts_music_targets() {

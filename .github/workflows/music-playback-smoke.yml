@@ -45,12 +45,37 @@ jobs:
           "TSUGI_TEST_MPV=$($library.FullName)" >> $env:GITHUB_ENV
           "TSUGI_TEST_MEDIA_DIR=$($dir.FullName)" >> $env:GITHUB_ENV
       - name: Native core unit tests
+        id: core_tests
         working-directory: packages/desktop
         run: cargo test --locked -p aiostreams-desktop-core --lib
       - name: Headless native decoder (AAC and Opus)
         working-directory: packages/desktop
         run: cargo test --locked -p aiostreams-desktop-core --lib music_stream::tests::headless_fixture_playback -- --ignored --nocapture
+      - name: Assemble standalone diagnostic (no app build)
+        id: diagnostic
+        if: ${{ !cancelled() && steps.core_tests.outcome == 'success' }}
+        working-directory: packages/desktop
+        run: |
+          $lines = cargo test --locked -p aiostreams-desktop-core --lib --no-run --message-format=json
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostic compilation failed' }
+          $exe = $lines | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object { $_.reason -eq 'compiler-artifact' -and $_.profile.test -and $_.executable -and $_.target.name -eq 'aiostreams_desktop_core' } | Select-Object -Last 1 -ExpandProperty executable
+          if (-not $exe) { throw 'Core test executable not found' }
+          $dir = New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'tsugi-diagnostic')
+          Copy-Item -LiteralPath $exe (Join-Path $dir.FullName 'tsugi-music-smoke.exe')
+          Copy-Item scripts/music-smoke-local.ps1 $dir.FullName
+          "TSUGI_DIAGNOSTIC_DIR=$($dir.FullName)" >> $env:GITHUB_ENV
+      - name: Upload standalone diagnostic
+        if: ${{ !cancelled() && steps.diagnostic.outcome == 'success' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: Tsugi-music-diagnostic
+          path: ${{ env.TSUGI_DIAGNOSTIC_DIR }}
+          retention-days: 7
+      - name: Controlled HTTPS ranges and decoder
+        if: ${{ !cancelled() && steps.core_tests.outcome == 'success' }}
+        run: python packages/desktop/scripts/music-smoke-https.py
       - name: Live resolver, opening and tail bytes, decoder
+        if: ${{ !cancelled() && steps.core_tests.outcome == 'success' }}
         working-directory: packages/desktop
         run: cargo test --locked -p aiostreams-desktop-core --lib music_stream::tests::headless_live_playback -- --ignored --nocapture
       - name: Check native formatting

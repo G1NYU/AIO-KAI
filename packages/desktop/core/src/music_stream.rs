@@ -379,6 +379,65 @@ mod tests {
         }
     }
 
+    // Exercise the real HTTPS fetch and range parser using a local CA trusted
+    // only by this test agent. Production TLS settings remain unchanged.
+    #[test]
+    #[ignore = "requires generated HTTPS fixtures and pinned libmpv"]
+    fn headless_https_playback() {
+        use ureq::tls::{Certificate, RootCerts, TlsConfig};
+
+        let path = std::env::var_os("TSUGI_TEST_CA_DER").expect("test CA path");
+        let root = std::fs::read(path).expect("read test CA");
+        let cert = Certificate::from_der(&root).to_owned();
+        let roots = RootCerts::new_with_certs(&[cert]);
+        let base = std::env::var("TSUGI_TEST_HTTPS_BASE").expect("fixture server");
+        assert!(base.starts_with("https://127.0.0.1:"));
+        let source_for = |name: &str| {
+            let mut source = Source::new(&format!("{base}/{name}"));
+            Arc::get_mut(&mut source).expect("unique source").agent =
+                ureq::Agent::config_builder()
+                    .timeout_global(Some(Duration::from_secs(8)))
+                    .https_only(true)
+                    .max_redirects(0)
+                    .http_status_as_error(false)
+                    .tls_config(
+                        TlsConfig::builder()
+                            .root_certs(roots.clone())
+                            .build(),
+                    )
+                    .build()
+                    .into();
+            source
+        };
+        let large = source_for("range.bin");
+        let opening = large.fetch(0, None).expect("first HTTPS range");
+        assert!(opening.size > CHUNK);
+        let tail = large
+            .fetch(CHUNK, Some(opening.size))
+            .expect("second HTTPS range");
+        assert_eq!(tail.start, CHUNK);
+        assert!(tail.bytes.iter().all(|byte| *byte == 42));
+        for (name, expected) in [
+            ("refused", "The stream server refused access (HTTP 403)."),
+            (
+                "whole",
+                "Stream server did not honor the audio byte range (HTTP 200).",
+            ),
+            ("bad-header", "Stream response has an invalid Content-Range."),
+            (
+                "html",
+                "HTTPS response does not contain a recognized MP4 or WebM audio header.",
+            ),
+        ] {
+            let result = source_for(name).fetch(0, None);
+            assert_eq!(result.err(), Some(expected), "{name}");
+        }
+        for name in ["tone.m4a", "tone.webm"] {
+            println!("Testing {name} via authenticated local HTTPS.");
+            headless_decode(&source_for(name));
+        }
+    }
+
     #[test]
     #[ignore = "live provider test; service availability and runner IP vary"]
     fn headless_live_playback() {
@@ -386,8 +445,10 @@ mod tests {
         // https://peach.blender.org/about/
         // https://www.youtube.com/watch?v=YE7VzlLtp-4
         // Do not change client identity, access requirements or signed media URLs.
-        let result = crate::youtube::music_request("audio", "YE7VzlLtp-4")
+        let id = std::env::var("TSUGI_TEST_VIDEO_ID").unwrap_or_else(|_| "YE7VzlLtp-4".into());
+        let result = crate::youtube::music_request("audio", &id)
             .expect("public sample audio resolution");
+        println!("Provider issued a direct audio URL (not logged).");
         let url = result["url"].as_str().expect("direct audio URL");
         let source = Source::new(url);
         let opening = source.fetch(0, None).expect("opening media bytes");
