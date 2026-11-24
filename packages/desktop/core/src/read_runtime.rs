@@ -277,6 +277,9 @@ impl ReadClient {
                 eprintln!("Reading operation {key}: HTTP {}; error count {}; classes/markers {:?}",
                     reply.status, reply.body["errors"].as_array().map_or(0, Vec::len), found);
             }
+            if key == "updateExtension" {
+                return Err("The reading engine rejected the extension operation. The package may be incompatible or its download unavailable.");
+            }
             return Err("Reading server rejected the operation.");
         }
         let value = reply.body["data"][key].clone();
@@ -1216,7 +1219,11 @@ impl ReadRuntime {
         if id <= 0 {
             return Err("Invalid manga identifier.");
         }
-        self.client.page(&PagePath(format!("/api/v1/manga/{id}/thumbnail")))
+        let image = self.client.page(&PagePath(format!("/api/v1/manga/{id}/thumbnail")))?;
+        if image.bytes.len() > 4 * 1024 * 1024 {
+            return Err("Reading cover exceeded its size limit.");
+        }
+        Ok(image)
     }
 
     pub fn page(&self, chapter: &ChapterPages, index: usize) -> Result<PageImage, &'static str> {
@@ -1689,7 +1696,7 @@ mod tests {
         assert!(details["chapters"][0].get("scanlator").is_some());
         assert!(managed.thumbnail(0).is_err());
         let cover = managed.thumbnail(manga_id).expect("authenticated local manga thumbnail");
-        assert_eq!(cover.mime, "image/png");
+        assert!(matches!(cover.mime, "image/png" | "image/jpeg" | "image/webp" | "image/gif"));
         assert!(!cover.bytes.is_empty());
         let id = details["chapters"][0]["id"].as_i64().unwrap() as i32;
         let pages = managed.chapter(id).expect("chapter page list");

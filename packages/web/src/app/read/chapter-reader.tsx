@@ -67,12 +67,20 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
     failedSave.current = false;
     setSaveError('');
     setIndex(target);
-    if (mode.current === 'scroll') pageElements.current.get(target)?.scrollIntoView({ block: 'start' });
+    if (mode.current === 'scroll') jumpTo(target);
+    else if (viewport.current) viewport.current.scrollTop = 0;
+  }
+
+  function jumpTo(page: number) {
+    const node = pageElements.current.get(page);
+    const root = viewport.current;
+    if (node && root) root.scrollTop += node.getBoundingClientRect().top - root.getBoundingClientRect().top;
   }
 
   React.useLayoutEffect(() => {
     mode.current = preferences.mode;
-    if (preferences.mode === 'scroll') pageElements.current.get(current.current)?.scrollIntoView({ block: 'start' });
+    if (preferences.mode === 'scroll') jumpTo(current.current);
+    else if (viewport.current) viewport.current.scrollTop = 0;
   }, [preferences.mode]);
 
   function trackScroll() {
@@ -161,7 +169,7 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
           if (!readerWindow(current.current, count, mode.current).includes(missing)) { URL.revokeObjectURL(url); return; }
           memory.current[missing] = { url };
         } catch (error) {
-          if (!alive()) return;
+          if (!alive() || !readerWindow(current.current, count, mode.current).includes(missing)) return;
           memory.current[missing] = { url: '', error: error instanceof Error ? error.message : t`Could not load this page.` };
         }
         publish();
@@ -186,6 +194,8 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
       setRatios((old) => old[page] === ratio ? old : { ...old, [page]: ratio });
     }
     entry.shown = true;
+    // A one-page chapter can be fully visible without a scroll event.
+    if (page === current.current && mode.current === 'scroll') trackScroll();
   }
   function imageFailed(page: number) {
     const entry = memory.current[page];

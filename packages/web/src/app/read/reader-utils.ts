@@ -18,7 +18,7 @@ export function chapterGroups(chapters: ReadingChapter[]) {
   for (const chapter of chapters) {
     const number = chapter.chapterNumber;
     const key = typeof number === 'number' && Number.isFinite(number) && number >= 0
-      ? 'number:' + number : 'name:' + chapter.name.trim().toLowerCase();
+      ? 'number:' + number + (number === 0 ? ':' + chapter.name.trim().toLowerCase() : '') : 'name:' + chapter.name.trim().toLowerCase();
     const group = groups.get(key);
     if (group) group.push(chapter);
     else groups.set(key, [chapter]);
