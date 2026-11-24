@@ -83,6 +83,7 @@ fn args() -> Args {
             "--web-dir" => args.web_dir = it.next().map(PathBuf::from),
             "--devtools" => args.devtools = true,
             "--check-reading-setup" => args.check_reading_setup = true,
+            "--prepare-reading" => {},
             "--remote-debugging-port" => args.debug_port = it.next().and_then(|p| p.parse().ok()),
             _ => match links::accept(&arg) {
                 Some(link) => args.link = Some(link),
@@ -293,6 +294,17 @@ fn main() {
             3
         };
         std::process::exit(code);
+    }
+    // CI exercises the same hidden native preparation operation used by the
+    // Read setup button. This never runs arbitrary arguments as commands.
+    #[cfg(windows)]
+    if std::env::args().any(|arg| arg == "--prepare-reading") {
+        let args = args();
+        let web = args.web.is_none().then(|| web_dir(&args));
+        let result = reading::bundled_runtime_path(&args, web.as_deref())
+            .ok_or("Reading is unavailable in this package.")
+            .and_then(|runtime| reading::prepare_runtime(&runtime, &std::sync::atomic::AtomicBool::new(false)));
+        std::process::exit(if result.is_ok() { 0 } else { 1 });
     }
     // Runs Velopack's install and update hooks, which exit when they are the reason for this launch.
     let mut velopack = velopack::VelopackApp::build();

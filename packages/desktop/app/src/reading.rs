@@ -1,16 +1,19 @@
 //! Windows-only, lazy reader worker. All runtime access is serialized off the UI
 //! thread. Credentials, page routes and the Java process remain native-owned.
 use std::path::{Path, PathBuf};
+use std::fs;
+use std::process::{Command, Stdio};
+use std::os::windows::process::CommandExt;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, Ordering},
     mpsc::{self, RecvTimeoutError, SyncSender, TrySendError},
 };
 use std::thread::{self, JoinHandle};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use aiostreams_desktop_core::bridge::{Outbound, ReadAction};
-use aiostreams_desktop_core::read_runtime::{CatalogueMode, ChapterPages, ReadOperation, ReadRuntime};
+use aiostreams_desktop_core::read_runtime::{CatalogueMode, ChapterPages, ReadJob, ReadOperation, ReadRuntime};
 use serde_json::{Value, json};
 
 use crate::Args;
@@ -32,18 +35,102 @@ fn bundled_directory(args: &Args, web: Option<&Path>) -> Option<PathBuf> {
     Some(dir.to_path_buf())
 }
 
+fn runtime_ready(runtime: &Path) -> bool {
+    ["jre/bin/java.exe", "bin/Suwayomi-Server.jar", "launcher/TsugiReadLauncher.class"]
+        .iter().all(|path| runtime.join(path).is_file())
+}
+
+fn setup_assets(dir: &Path) -> bool {
+    ["read-launcher/fetch-read-tools.ps1", "read-launcher/TsugiReadLauncher.class"]
+        .iter().all(|path| dir.join(path).is_file())
+}
+
 /// A packaged Read destination remains visible even before Java is prepared.
 pub fn bundled_read_section(args: &Args, web: Option<&Path>) -> bool {
-    bundled_directory(args, web).is_some_and(|dir| {
-        dir.join("read-launcher/fetch-read-tools.ps1").is_file()
-            || bundled_runtime(args, web).is_some()
-    })
+    bundled_runtime_path(args, web).is_some()
+}
+
+pub fn bundled_runtime_path(args: &Args, web: Option<&Path>) -> Option<PathBuf> {
+    let dir = bundled_directory(args, web)?;
+    let runtime = dir.join("read-tools");
+    (runtime_ready(&runtime) || setup_assets(&dir)).then_some(runtime)
 }
 
 pub fn bundled_runtime(args: &Args, web: Option<&Path>) -> Option<PathBuf> {
-    let runtime = bundled_directory(args, web)?.join("read-tools");
-    ["jre/bin/java.exe", "bin/Suwayomi-Server.jar", "launcher/TsugiReadLauncher.class"]
-        .iter().all(|path| runtime.join(path).is_file()).then_some(runtime)
+    bundled_runtime_path(args, web).filter(|path| runtime_ready(path))
+}
+
+/// Prepare only the pinned runtime bundled with the trusted local desktop
+/// package. The fixed setup script is an internal implementation detail:
+/// never execute user-supplied scripts, download URLs, or shell arguments.
+pub fn prepare_runtime(runtime: &Path, stopped: &AtomicBool) -> Result<(), &'static str> {
+    if runtime_ready(runtime) { return Ok(()); }
+    if stopped.load(Ordering::Acquire) { return Err("Reading setup cancelled."); }
+    if runtime.exists() {
+        return Err("Reading runtime folder is incomplete. Keep your data and reinstall the application in a fresh folder.");
+    }
+    let dir = runtime.parent().ok_or("Reading runtime location is missing.")?;
+    if !setup_assets(dir) { return Err("Reading setup files are missing."); }
+    let system = PathBuf::from(std::env::var_os("SystemRoot").ok_or("Windows system directory is unavailable.")?);
+    let powershell_dir = system.join("System32/WindowsPowerShell/v1.0");
+    let powershell = powershell_dir.join("powershell.exe");
+    if !powershell.is_file() { return Err("Windows reading setup component is unavailable."); }
+    let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| "Could not create reading setup directory.")?.as_nanos();
+    let stage = dir.join(format!("read-tools-setup-{}-{stamp}", std::process::id()));
+    fs::create_dir(&stage).map_err(|_| "Could not create reading setup directory. Use a writable installation folder.")?;
+    let result = (|| {
+        let job = ReadJob::new()?;
+        let mut child = Command::new(powershell)
+            .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"])
+            .arg(dir.join("read-launcher/fetch-read-tools.ps1"))
+            .arg("-Destination").arg(&stage)
+            .env("PSModulePath", powershell_dir.join("Modules"))
+            .current_dir(dir)
+            .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .spawn().map_err(|_| "Could not start reading setup.")?;
+        if let Err(error) = job.attach(&child) {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(error);
+        }
+        let deadline = Instant::now() + Duration::from_secs(18 * 60);
+        let status = loop {
+            if stopped.load(Ordering::Acquire) || Instant::now() >= deadline {
+                drop(job);
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err("Reading setup was cancelled or timed out.");
+            }
+            match child.try_wait() {
+                Ok(Some(status)) => break status,
+                Ok(None) => thread::sleep(Duration::from_millis(100)),
+                Err(_) => {
+                    drop(job);
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err("Could not monitor reading setup.");
+                }
+            }
+        };
+        drop(job);
+        if !status.success() {
+            log::warn!("Reading setup exited with status {status}");
+            return Err("Reading setup failed. Check your internet connection and available disk space, then retry.");
+        }
+        let launcher = stage.join("launcher");
+        fs::create_dir(&launcher).map_err(|_| "Could not stage reading launcher.")?;
+        fs::copy(dir.join("read-launcher/TsugiReadLauncher.class"), launcher.join("TsugiReadLauncher.class"))
+            .map_err(|_| "Could not stage reading launcher.")?;
+        if !runtime_ready(&stage) { return Err("Reading setup did not complete."); }
+        // Never replace an existing runtime or touch the reading data.
+        fs::rename(&stage, runtime).map_err(|_| "Could not activate prepared reading runtime.")?;
+        Ok(())
+    })();
+    if stage.exists() {
+        let _ = fs::remove_dir_all(&stage);
+    }
+    result
 }
 
 const PAGE_PREFIX: &str = "/__tsugi_read/page/";
@@ -83,8 +170,15 @@ impl Worker {
                 };
                 if stopped.load(Ordering::Acquire) { break; }
                 let result = (|| {
+                    let preparing = matches!(&action, ReadAction::Prepare);
+                    if preparing {
+                        prepare_runtime(&runtime, &stopped)?;
+                    }
                     if reader.is_none() {
                         reader = Some(ReadRuntime::start(&runtime, &data)?);
+                    }
+                    if preparing {
+                        return Ok(json!({"ready": true}));
                     }
                     execute(reader.as_ref().unwrap(), &mut chapter, &images, &mut serial, action)
                 })();
@@ -181,6 +275,7 @@ fn execute(
     action: ReadAction,
 ) -> Result<Value, &'static str> {
     match action {
+        ReadAction::Prepare => Err("Invalid reading setup state."),
         ReadAction::Status => reader.query(ReadOperation::Status),
         ReadAction::Sources => reader.query(ReadOperation::Sources),
         ReadAction::Library => reader.query(ReadOperation::Library),

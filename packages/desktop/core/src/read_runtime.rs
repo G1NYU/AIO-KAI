@@ -850,10 +850,10 @@ unsafe extern "system" {
     fn AssignProcessToJobObject(job: *mut std::ffi::c_void, process: *mut std::ffi::c_void) -> i32;
 }
 
-struct ReadJob(OwnedHandle);
+pub struct ReadJob(OwnedHandle);
 
 impl ReadJob {
-    fn new() -> Result<Self, &'static str> {
+    pub fn new() -> Result<Self, &'static str> {
         const EXTENDED_LIMIT_INFORMATION: i32 = 9;
         const KILL_ON_JOB_CLOSE: u32 = 0x2000;
         // SAFETY: null attributes and name create a non-inheritable unnamed job.
@@ -880,7 +880,7 @@ impl ReadJob {
         Ok(job)
     }
 
-    fn attach_and_release(&self, child: &mut Child) -> Result<(), &'static str> {
+    pub fn attach(&self, child: &Child) -> Result<(), &'static str> {
         // SAFETY: both owned handles remain live throughout this call.
         let assigned = unsafe {
             AssignProcessToJobObject(self.0.as_raw_handle(), child.as_raw_handle())
@@ -888,6 +888,11 @@ impl ReadJob {
         if assigned == 0 {
             return Err("Could not contain reading process.");
         }
+        Ok(())
+    }
+
+    fn attach_and_release(&self, child: &mut Child) -> Result<(), &'static str> {
+        self.attach(child)?;
         // The Java bootstrap waits for this one byte before loading upstream code.
         child.stdin.as_mut().ok_or("Reading startup pipe is missing.")?
             .write_all(&[1]).map_err(|_| "Could not release reading startup gate.")
