@@ -13,6 +13,7 @@ import {
 } from '@/lib/music/connections';
 import { MusicPlayer, type RepeatMode } from './player';
 import { MusicLibrary } from './library';
+import { useRememberedMusicFolder } from './use-remembered-folder';
 import {
   createLocalEqualizer, readAudioProfile, saveAudioProfile,
   setLocalEqualizer, type AudioProfile, type LocalEqualizer,
@@ -62,8 +63,18 @@ export function MusicPage({
   const [tab, setTab] = React.useState<'discover' | 'search' | 'library'>('discover');
   const [playlists, setPlaylists] = React.useState(readMusicLibrary);
   const [libraryError, setLibraryError] = React.useState('');
-  const [localTracks, setLocalTracks] = React.useState<EclipseTrack[]>([]);
+  const [sessionTracks, setSessionTracks] = React.useState<EclipseTrack[]>([]);
+  const folder = useRememberedMusicFolder();
+  const folderTracks = React.useMemo<EclipseTrack[]>(() => folder.entries.map(entry => ({
+    id: entry.id, title: entry.file.name.replace(/\.[^.]+$/, ''),
+    artist: t`Local file`, album: folder.handle?.name,
+  })), [folder.entries, folder.handle]);
+  const folderFiles = React.useMemo(() =>
+    new Map(folder.entries.map(entry => [entry.id, entry.file])), [folder.entries]);
+  const localTracks = React.useMemo(() => [...sessionTracks, ...folderTracks], [sessionTracks, folderTracks]);
   const localURLs = React.useRef(new Map<string,string>());
+  const folderURL = React.useRef<string | null>(null);
+  const visibleRef = React.useRef(visible);
   const LOCAL_SOURCE = 'tsugi-local';
   const [settingsOpen, setSettingsOpen] = React.useState(() => readMusicSources().length === 0);
 
@@ -149,7 +160,12 @@ export function MusicPage({
 
   React.useEffect(() => {
     const urls = localURLs.current;
-    return () => { for (const url of urls.values()) URL.revokeObjectURL(url); };
+    return () => {
+      for (const url of urls.values()) URL.revokeObjectURL(url);
+      if (folderURL.current) URL.revokeObjectURL(folderURL.current);
+      folderURL.current = null;
+      playbackRequest.current++;
+    };
   }, []);
 
   React.useEffect(() => {
@@ -163,6 +179,7 @@ export function MusicPage({
   }, [settingsOpen]);
 
   React.useEffect(() => {
+    visibleRef.current = visible;
     if (!visible) {
       // Do not play music over a movie; keep the track and provider in memory.
       audioRef.current?.pause();
@@ -263,6 +280,7 @@ export function MusicPage({
   async function play(track: EclipseTrack, at: number, source: MusicConnection, fromQueue = false) {
     const request = ++playbackRequest.current;
     audioRef.current?.pause();
+    releaseFolderURL();
     if (!fromQueue) setQueue(tracks);
     setQueueIndex(at);
     setPlaying(track);
@@ -310,32 +328,79 @@ export function MusicPage({
       } satisfies EclipseTrack;
     });
     if (tracks.length) {
-      setLocalTracks(current => [...current,...tracks].slice(-250));
+      setSessionTracks(current => [...current,...tracks].slice(-250));
       setLibraryError('');
     } else {
       setLibraryError(t`No supported audio files were selected.`);
     }
   }
 
-  function playLocalTrack(track: EclipseTrack, at: number, fromQueue = false) {
-    const url = localURLs.current.get(track.id);
-    if (!url) {
+  function releaseFolderURL() {
+    if (folderURL.current) URL.revokeObjectURL(folderURL.current);
+    folderURL.current = null;
+  }
+
+  function stopFolderPlayback() {
+    if (playingSourceId !== LOCAL_SOURCE || !playing?.id.startsWith('folder:')) return;
+    ++playbackRequest.current;
+    audioRef.current?.pause();
+    releaseFolderURL();
+    setPlaying(null);
+    setPlayingSourceId('');
+    setStreamUrl('');
+    setQueue([]);
+    setQueueIndex(-1);
+    setResolving(false);
+    setPlayError('');
+    setExpanded(false);
+  }
+
+  async function playLocalTrack(track: EclipseTrack, at: number, fromQueue = false) {
+    const sessionUrl = localURLs.current.get(track.id);
+    const file = folderFiles.get(track.id);
+    if (file && folder.busy) return;
+    if (!sessionUrl && !file) {
       setLibraryError(t`This local file is no longer available. Reopen it from your device.`);
       return;
     }
-    ++playbackRequest.current;
+    const request = ++playbackRequest.current;
     audioRef.current?.pause();
-    if (!fromQueue) setQueue(localTracks);
-    setQueueIndex(at);
+    releaseFolderURL();
+    if (!fromQueue) {
+      const list = file ? folderTracks : sessionTracks;
+      setQueue(list);
+      setQueueIndex(Math.max(0, list.findIndex(item => item.id === track.id)));
+    } else setQueueIndex(at);
     setPlaying(track);
     setPlayingSourceId(LOCAL_SOURCE);
-    setStreamUrl(url);
+    setStreamUrl('');
+    setLibraryError('');
     setPlayError('');
     setPosition(0);
     setDuration(0);
     setPaused(true);
-    setResolving(false);
+    setResolving(!!file);
     setQuality(t`Local`);
+    try {
+      if (file) {
+        const selected = await file.getFile();
+        if (request !== playbackRequest.current) return;
+        if (!visibleRef.current) {
+          setPlaying(null);
+          setPlayingSourceId('');
+          setQueue([]);
+          setQueueIndex(-1);
+          return;
+        }
+        folderURL.current = URL.createObjectURL(selected);
+        setStreamUrl(folderURL.current);
+      } else if (sessionUrl) setStreamUrl(sessionUrl);
+    } catch {
+      if (request === playbackRequest.current)
+        setPlayError(t`This local file is no longer available. Reopen it from your device.`);
+    } finally {
+      if (request === playbackRequest.current) setResolving(false);
+    }
   }
 
   function saveTrackInLibrary(track: EclipseTrack) {
@@ -375,7 +440,7 @@ export function MusicPage({
       ? entry : findLocalPlaylistMatch(entry, localTracks);
     if (localTrack) {
       const at = localTracks.findIndex(track => track.id === localTrack.id);
-      playLocalTrack(localTrack, Math.max(0,at), false);
+      void playLocalTrack(localTrack, Math.max(0,at), false);
       return;
     }
     const exactSource = connections.find((source) => source.id === entry.sourceId);
@@ -445,7 +510,7 @@ export function MusicPage({
       }
       at = 0;
     }
-    if (local) playLocalTrack(queue[at], at, true);
+    if (local) void playLocalTrack(queue[at], at, true);
     else if (source) void play(queue[at], at, source, true);
   }
 
@@ -455,7 +520,7 @@ export function MusicPage({
     const source = connections.find((item) => item.id === playingSourceId);
     if ((!source && !local) || !queue.length) return;
     const at = queueIndex > 0 ? queueIndex - 1 : repeat === 'all' ? queue.length - 1 : 0;
-    if (local) playLocalTrack(queue[at], at, true);
+    if (local) void playLocalTrack(queue[at], at, true);
     else if (source) void play(queue[at], at, source, true);
   }
 
@@ -551,10 +616,14 @@ export function MusicPage({
               onPlay={(entry) => { void playSavedTrack(entry); }}
               playing={playing && playingSourceId !== LOCAL_SOURCE
                 ? savedTrack(playing, playingSourceId) : null}
-              localTracks={localTracks}
+              localTracks={sessionTracks}
+              folderTracks={folderTracks}
+              folder={folder}
+              onChooseFolder={() => { stopFolderPlayback(); void folder.choose(); }}
+              onRescanFolder={() => { stopFolderPlayback(); void folder.rescan(); }}
+              onForgetFolder={() => { stopFolderPlayback(); void folder.forget(); }}
               onImportLocal={importLocalFiles}
-              onPlayLocal={(track) => playLocalTrack(track,
-                Math.max(0,localTracks.findIndex(item => item.id === track.id)))} />
+              onPlayLocal={(track) => { void playLocalTrack(track, 0); }} />
           </>
         )}
 
@@ -804,7 +873,7 @@ export function MusicPage({
         onShuffle: setShuffle, onRepeat: setRepeat,
         onQueue: (at) => {
           const source = connections.find((item) => item.id === playingSourceId);
-          if (playingSourceId === LOCAL_SOURCE && queue[at]) playLocalTrack(queue[at],at,true);
+          if (playingSourceId === LOCAL_SOURCE && queue[at]) void playLocalTrack(queue[at],at,true);
           else if (source && queue[at]) void play(queue[at], at, source, true);
         },
       }} />

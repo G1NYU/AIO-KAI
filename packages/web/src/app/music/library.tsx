@@ -2,21 +2,28 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import {
-  FiArrowUpRight, FiDisc, FiDownload, FiFilePlus, FiFolderPlus, FiList, FiPlus, FiTrash2,
+  FiArrowUpRight, FiDisc, FiDownload, FiFilePlus, FiFolderPlus, FiList, FiPlus, FiRefreshCw, FiTrash2,
 } from 'react-icons/fi';
 import type { MusicPlaylist, SavedMusicTrack } from '@/lib/music/library';
+import type { useRememberedMusicFolder } from './use-remembered-folder';
 import {
   createMusicPlaylist, exportMusicPlaylist, importMusicPlaylist,
 } from '@/lib/music/library';
 
 export function MusicLibrary({
   playlists, onChange, onPlay, playing, localTracks, onImportLocal, onPlayLocal,
+  folder, folderTracks, onChooseFolder, onRescanFolder, onForgetFolder,
 }: {
   playlists: MusicPlaylist[];
   onChange(next: MusicPlaylist[]): void;
   onPlay(track: SavedMusicTrack): void;
   playing: SavedMusicTrack | null;
   localTracks: SavedMusicTrack[];
+  folderTracks: SavedMusicTrack[];
+  folder: ReturnType<typeof useRememberedMusicFolder>;
+  onChooseFolder(): void;
+  onRescanFolder(): void;
+  onForgetFolder(): void;
   onImportLocal(files: File[]): void;
   onPlayLocal(track: SavedMusicTrack): void;
 }) {
@@ -131,6 +138,54 @@ export function MusicLibrary({
       </header>
       {error && <p role="alert" className="text-sm text-amber-200">{error}</p>}
       {notice && <p role="status" className="text-sm text-[--tsugi-muted]">{notice}</p>}
+      <section className="space-y-4 border-b border-[--tsugi-line] pb-6">
+        <div className="flex flex-wrap items-center justify-between gap-5">
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold"><Trans>Remembered folder</Trans></h2>
+            {folder.handle && <p className="mt-1 truncate text-sm text-[--tsugi-muted]">{folder.handle.name}</p>}
+          </div>
+          <div className="flex flex-wrap items-center gap-5 text-sm">
+            {folder.supported && (
+              <button type="button" className="tsugi-library-action" disabled={folder.busy} onClick={onChooseFolder}>
+                <FiFolderPlus aria-hidden /> <Trans>Remember music folder</Trans>
+              </button>
+            )}
+            {folder.handle && <>
+              <button type="button" className="tsugi-library-action" disabled={folder.busy} onClick={onRescanFolder}>
+                <FiRefreshCw aria-hidden /> <Trans>Rescan folder</Trans>
+              </button>
+              <button type="button" className="tsugi-library-action" disabled={folder.busy} onClick={onForgetFolder}>
+                <FiTrash2 aria-hidden /> <Trans>Forget folder</Trans>
+              </button>
+            </>}
+          </div>
+        </div>
+        {folder.busy && <p role="status" className="text-sm text-[--tsugi-muted]"><Trans>Scanning music folder…</Trans></p>}
+        {!folder.supported && <p className="text-sm text-[--tsugi-muted]"><Trans>Remembered folders are unavailable in this desktop runtime.</Trans></p>}
+        {!folder.busy && folder.status === 'permission' && <p role="status" className="text-sm text-[--tsugi-muted]">
+          <Trans>Folder access needs permission. Rescan to reconnect.</Trans>
+        </p>}
+        {!folder.busy && folder.status === 'error' && <p role="alert" className="text-sm text-amber-200">
+          <Trans>Could not access the remembered music folder.</Trans>
+        </p>}
+        {!folder.busy && folder.status === 'ready' && !folderTracks.length && <p className="text-sm text-[--tsugi-muted]">
+          <Trans>No supported audio files were found in this folder.</Trans>
+        </p>}
+        {folder.truncated && <p className="text-sm text-[--tsugi-muted]">
+          <Trans>Folder scan limited to 1,000 tracks or 20,000 entries.</Trans>
+        </p>}
+        {folderTracks.length > 0 && (
+          <div className="max-h-[420px] overflow-y-auto">
+            {folderTracks.map(track => (
+              <button type="button" key={track.id} onClick={() => onPlayLocal(track)}
+                disabled={folder.busy} className="flex w-full min-w-0 items-center gap-3 border-b border-[--tsugi-line] py-3 text-left hover:text-[--tsugi-accent]">
+                <FiDisc aria-hidden className="size-6 shrink-0 text-[--tsugi-muted]" />
+                <span className="truncate text-sm font-medium">{track.title}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
       {localTracks.length > 0 && (
         <section className="space-y-4">
           <div className="flex items-baseline justify-between gap-5">

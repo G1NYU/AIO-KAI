@@ -5,6 +5,10 @@ import {
   findLocalPlaylistMatch,
 } from '../src/lib/music/library';
 
+import {
+  scanMusicFolder, type MusicFolderHandle, type MusicFileHandle,
+} from '../src/lib/music/remembered-folder';
+
 const data = new Map<string,string>();
 beforeEach(() => {
   data.clear();
@@ -61,5 +65,32 @@ describe('independent Tsugi playlists', () => {
     expect(() => importMusicPlaylist('list.txt','invalid')).toThrow();
     expect(() => importMusicPlaylist('list.json','{}')).toThrow();
     expect(() => importMusicPlaylist('list.m3u','X'.repeat(1024*1024+1))).toThrow();
+  });
+});
+
+describe('remembered music folders', () => {
+  function file(name: string): MusicFileHandle {
+    return { kind: 'file', name, getFile: vi.fn(async () => { throw new Error('scan must not read audio'); }) };
+  }
+  function directory(name: string, children: (MusicFileHandle | MusicFolderHandle)[]): MusicFolderHandle {
+    return {
+      kind: 'directory', name,
+      async *values() { yield* children; },
+      queryPermission: async () => 'granted',
+      requestPermission: async () => 'granted',
+    };
+  }
+  it('scans nested audio and ignores non-audio without opening file contents', async () => {
+    const track = file('A.FLAC');
+    const result = await scanMusicFolder(directory('Music', [file('ignore.txt'), directory('Album', [track]), file('B.mp3')]));
+    expect(result.entries.map(entry => entry.path)).toEqual(['Album/A.FLAC', 'B.mp3']);
+    expect(result.entries[0].id).toBe('folder:Album/A.FLAC');
+    expect(track.getFile).not.toHaveBeenCalled();
+    expect(result.truncated).toBe(false);
+  });
+  it('caps the number of indexed files', async () => {
+    const result = await scanMusicFolder(directory('Music', [file('1.mp3'), file('2.mp3'), file('3.mp3')]), 2);
+    expect(result.entries).toHaveLength(2);
+    expect(result.truncated).toBe(true);
   });
 });

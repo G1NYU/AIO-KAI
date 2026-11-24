@@ -1265,6 +1265,10 @@ msgstr "Copy stream link"
 msgid "Corner button"
 msgstr "Corner button"
 
+#: src/app/music/library.tsx
+msgid "Could not access the remembered music folder."
+msgstr "Could not access the remembered music folder."
+
 #: src/app/player/page.tsx
 #: src/features/playlists/playlists.tsx
 msgid "Could not add to {name}"
@@ -2052,6 +2056,14 @@ msgstr "Floating pills"
 msgid "Folder"
 msgstr "Folder"
 
+#: src/app/music/library.tsx
+msgid "Folder access needs permission. Rescan to reconnect."
+msgstr "Folder access needs permission. Rescan to reconnect."
+
+#: src/app/music/library.tsx
+msgid "Folder scan limited to 1,000 tracks or 20,000 entries."
+msgstr "Folder scan limited to 1,000 tracks or 20,000 entries."
+
 #: src/app/settings/browsing.tsx
 msgid "Following pins it above the rows and shows the card the pointer, keyboard or remote is on, starting with a featured title, behind the whole page or in its top corner. Touch screens and narrow windows keep it rotating."
 msgstr "Following pins it above the rows and shows the card the pointer, keyboard or remote is on, starting with a featured title, behind the whole page or in its top corner. Touch screens and narrow windows keep it rotating."
@@ -2083,6 +2095,10 @@ msgstr "Forced"
 #: src/app/settings/subtitles.tsx
 msgid "Forced, for foreign parts only"
 msgstr "Forced, for foreign parts only"
+
+#: src/app/music/library.tsx
+msgid "Forget folder"
+msgstr "Forget folder"
 
 #: src/app/settings/audio.tsx
 msgid "Formats"
@@ -3174,6 +3190,10 @@ msgstr "No setting matches."
 #: src/lib/subtitles/files.ts
 msgid "No subtitles were found in that file"
 msgstr "No subtitles were found in that file"
+
+#: src/app/music/library.tsx
+msgid "No supported audio files were found in this folder."
+msgstr "No supported audio files were found in this folder."
 
 #: src/app/music/page.tsx
 msgid "No supported audio files were selected."
@@ -4283,6 +4303,10 @@ msgstr "Release date"
 msgid "Released"
 msgstr "Released"
 
+#: src/app/music/library.tsx
+msgid "Remember music folder"
+msgstr "Remember music folder"
+
 #: src/app/music/page.tsx
 msgid "Remember my music sources on this device (stored locally without encryption)."
 msgstr "Remember my music sources on this device (stored locally without encryption)."
@@ -4291,6 +4315,14 @@ msgstr "Remember my music sources on this device (stored locally without encrypt
 #: src/app/settings/subtitles.tsx
 msgid "Remember picks per show"
 msgstr "Remember picks per show"
+
+#: src/app/music/library.tsx
+msgid "Remembered folder"
+msgstr "Remembered folder"
+
+#: src/app/music/library.tsx
+msgid "Remembered folders are unavailable in this desktop runtime."
+msgstr "Remembered folders are unavailable in this desktop runtime."
 
 #: src/app/live-tv/_components/channel-details.tsx
 msgid "Remind me"
@@ -4395,6 +4427,10 @@ msgstr "Report copied"
 #: src/lib/jellyfin/client.ts
 msgid "Request failed ({status})"
 msgstr "Request failed ({status})"
+
+#: src/app/music/library.tsx
+msgid "Rescan folder"
+msgstr "Rescan folder"
 
 #: src/app/history/page.tsx
 #: src/app/settings/_components/reaction-setting.tsx
@@ -4606,6 +4642,10 @@ msgstr "Saw"
 #: src/lib/input/actions.ts
 msgid "Saw its subtitle"
 msgstr "Saw its subtitle"
+
+#: src/app/music/library.tsx
+msgid "Scanning music folder…"
+msgstr "Scanning music folder…"
 
 #: src/app/item/_components/trailer.tsx
 msgid "Scroll up for playback controls"

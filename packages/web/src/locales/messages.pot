@@ -1264,6 +1264,10 @@ msgstr ""
 msgid "Corner button"
 msgstr ""
 
+#: src/app/music/library.tsx
+msgid "Could not access the remembered music folder."
+msgstr ""
+
 #: src/app/player/page.tsx
 #: src/features/playlists/playlists.tsx
 msgid "Could not add to {name}"
@@ -2051,6 +2055,14 @@ msgstr ""
 msgid "Folder"
 msgstr ""
 
+#: src/app/music/library.tsx
+msgid "Folder access needs permission. Rescan to reconnect."
+msgstr ""
+
+#: src/app/music/library.tsx
+msgid "Folder scan limited to 1,000 tracks or 20,000 entries."
+msgstr ""
+
 #: src/app/settings/browsing.tsx
 msgid "Following pins it above the rows and shows the card the pointer, keyboard or remote is on, starting with a featured title, behind the whole page or in its top corner. Touch screens and narrow windows keep it rotating."
 msgstr ""
@@ -2081,6 +2093,10 @@ msgstr ""
 
 #: src/app/settings/subtitles.tsx
 msgid "Forced, for foreign parts only"
+msgstr ""
+
+#: src/app/music/library.tsx
+msgid "Forget folder"
 msgstr ""
 
 #: src/app/settings/audio.tsx
@@ -3172,6 +3188,10 @@ msgstr ""
 
 #: src/lib/subtitles/files.ts
 msgid "No subtitles were found in that file"
+msgstr ""
+
+#: src/app/music/library.tsx
+msgid "No supported audio files were found in this folder."
 msgstr ""
 
 #: src/app/music/page.tsx
@@ -4282,6 +4302,10 @@ msgstr ""
 msgid "Released"
 msgstr ""
 
+#: src/app/music/library.tsx
+msgid "Remember music folder"
+msgstr ""
+
 #: src/app/music/page.tsx
 msgid "Remember my music sources on this device (stored locally without encryption)."
 msgstr ""
@@ -4289,6 +4313,14 @@ msgstr ""
 #: src/app/settings/audio.tsx
 #: src/app/settings/subtitles.tsx
 msgid "Remember picks per show"
+msgstr ""
+
+#: src/app/music/library.tsx
+msgid "Remembered folder"
+msgstr ""
+
+#: src/app/music/library.tsx
+msgid "Remembered folders are unavailable in this desktop runtime."
 msgstr ""
 
 #: src/app/live-tv/_components/channel-details.tsx
@@ -4393,6 +4425,10 @@ msgstr ""
 
 #: src/lib/jellyfin/client.ts
 msgid "Request failed ({status})"
+msgstr ""
+
+#: src/app/music/library.tsx
+msgid "Rescan folder"
 msgstr ""
 
 #: src/app/history/page.tsx
@@ -4604,6 +4640,10 @@ msgstr ""
 
 #: src/lib/input/actions.ts
 msgid "Saw its subtitle"
+msgstr ""
+
+#: src/app/music/library.tsx
+msgid "Scanning music folder…"
 msgstr ""
 
 #: src/app/item/_components/trailer.tsx
