@@ -220,11 +220,9 @@ impl Session {
                             None,
                         );
                     } else {
-                        let message = self
-                            .source
-                            .failure()
-                            .or(self.failure)
-                            .unwrap_or("Native decoder could not open or complete validated audio.");
+                        let message = self.source.failure().or(self.failure).unwrap_or(
+                            "Native decoder could not open or complete validated audio.",
+                        );
                         fail(emit, &self.request, message);
                     }
                     return false;

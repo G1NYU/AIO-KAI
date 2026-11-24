@@ -27,9 +27,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: packages/desktop
-      - name: Check native formatting
-        working-directory: packages/desktop
-        run: cargo fmt --check
       - name: Fetch the same pinned libmpv as Tsugi
         run: ./packages/desktop/scripts/fetch-libs.ps1 -Arch x86_64
       - name: Generate licensed-free test tones
@@ -56,3 +53,7 @@ jobs:
       - name: Live resolver, opening and tail bytes, decoder
         working-directory: packages/desktop
         run: cargo test --locked -p aiostreams-desktop-core --lib music_stream::tests::headless_live_playback -- --ignored --nocapture
+      - name: Check native formatting
+        if: always()
+        working-directory: packages/desktop
+        run: cargo fmt --check
