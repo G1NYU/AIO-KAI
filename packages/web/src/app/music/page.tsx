@@ -508,13 +508,17 @@ export function MusicPage({
   async function playSavedTrack(entry: SavedMusicTrack) {
     setLibraryError('');
     const localTrack = localURLs.current.has(entry.id)
-      ? entry : findLocalPlaylistMatch(entry, localTracks);
+      ? entry : entry.artist || !entry.sourceId ? findLocalPlaylistMatch(entry, localTracks) : null;
     if (localTrack) {
       const at = localTracks.findIndex(track => track.id === localTrack.id);
       void playLocalTrack(localTrack, Math.max(0,at), false);
       return;
     }
     const exactSource = connections.find((source) => source.id === entry.sourceId);
+    if (!exactSource && entry.sourceId && !entry.artist) {
+      setLibraryError(t`Connect the original music source to play this track.`);
+      return;
+    }
     const source = exactSource ?? activeSource;
     if (!source) {
       setLibraryError(t`Connect a music source to play saved tracks.`);

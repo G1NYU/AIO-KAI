@@ -33,8 +33,11 @@ export function savedTrack(track: EclipseTrack, sourceId?: string): SavedMusicTr
 function validTrack(value: unknown): SavedMusicTrack | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const raw = value as Partial<SavedMusicTrack>;
-  if (!clean(raw.title, 220) || !clean(raw.artist, 220)) return null;
-  return savedTrack(raw as EclipseTrack, raw.sourceId);
+  if (!clean(raw.title, 220)) return null;
+  const safe = savedTrack(raw as EclipseTrack, raw.sourceId);
+  // Provider identity is enough to replay a track whose artist metadata is absent.
+  if (!safe.artist && (!safe.sourceId || !clean(raw.id, 350))) return null;
+  return safe;
 }
 
 export function readMusicLibrary(): MusicPlaylist[] {
@@ -65,7 +68,7 @@ export function createMusicPlaylist(name: string): MusicPlaylist {
 
 export function addToMusicPlaylist(list: MusicPlaylist, track: SavedMusicTrack): MusicPlaylist {
   const safe = savedTrack(track, track.sourceId);
-  if (!safe.title || !safe.artist) return list;
+  if (!safe.title || (!safe.artist && (!safe.sourceId || !clean(track.id, 350)))) return list;
   const exists = list.tracks.some(item =>
     item.id === safe.id && item.artist === safe.artist && item.sourceId === safe.sourceId);
   return exists ? list : { ...list, tracks: [...list.tracks, safe].slice(0, MAX_TRACKS) };

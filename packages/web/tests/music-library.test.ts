@@ -34,6 +34,17 @@ describe('independent Tsugi playlists', () => {
     expect([...data.values()].join('')).not.toContain('private.example');
     expect(addToMusicPlaylist(updated,song).tracks).toHaveLength(1);
   });
+  it('retains artistless tracks with a provider identity, but rejects ambiguous imports', () => {
+    const sourceId = 'eeaa2cb3-5735-43ad-bff6-f1f9f23acdb9';
+    const song = savedTrack({ id: 'abcdefghijk', title: 'Track without artist', artist: '' }, sourceId);
+    const list = addToMusicPlaylist(createMusicPlaylist('Saved'), song);
+    expect(list.tracks).toHaveLength(1);
+    expect(addToMusicPlaylist(list, song).tracks).toHaveLength(1);
+    saveMusicLibrary([list]);
+    expect(readMusicLibrary()[0].tracks[0]).toMatchObject({ id: song.id, artist: '', sourceId });
+    expect(importMusicPlaylist('test.json', exportMusicPlaylist(list)).tracks).toHaveLength(1);
+    expect(addToMusicPlaylist(list, { id: 'ambiguous', title: 'Ambiguous', artist: '' }).tracks).toHaveLength(1);
+  });
   it('exports and imports Tsugi playlists without stream URLs', () => {
     const list = addToMusicPlaylist(createMusicPlaylist('Test'),
       savedTrack({id:'s',title:'Song',artist:'Singer'}));

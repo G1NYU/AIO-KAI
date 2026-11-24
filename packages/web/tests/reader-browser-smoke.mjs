@@ -336,9 +336,16 @@ try {
   const miniSave = music.getByRole('button', { name: 'Save playing track', exact: true });
   await miniSave.waitFor();
   const wasSaved = await miniSave.getAttribute('aria-pressed');
+  const changedSaved = wasSaved === 'true' ? 'false' : 'true';
   await miniSave.click();
-  assert.notEqual(await miniSave.getAttribute('aria-pressed'), wasSaved);
+  await music.locator('[aria-label="Save playing track"][aria-pressed="' + changedSaved + '"]').waitFor();
+  await page.waitForFunction(({ saved }) => {
+    const lists = JSON.parse(localStorage.getItem('tsugi-independent-playlists-v1') || '[]');
+    const track = lists.find(list => list.id === 'tsugi-saved-tracks')?.tracks.find(item => item.id === 'abcdefghijk');
+    return saved ? !!track && track.artist === '' && !!track.sourceId : !track;
+  }, { saved: changedSaved === 'true' });
   await miniSave.click();
+  await music.locator('[aria-label="Save playing track"][aria-pressed="' + wasSaved + '"]').waitFor();
   await capture('08-mini-player');
   await music.getByRole('button', { name: 'Expand player', exact: true }).click();
   const expanded = music.getByRole('dialog', { name: 'Now playing', exact: true });
