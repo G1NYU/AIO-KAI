@@ -1571,3 +1571,9 @@ body:has(.tsugi-chapter-reader) .tsugi-reading-music-open { display:none; }
   :root[data-host='desktop'] .tsugi-entry-settings { margin-inline-start:0; }
 }
 @media(prefers-reduced-motion:reduce) { .tsugi-index-link { transition:none; } }
+
+/* Match signed-in movie navigation to the other two media areas. */
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] .UI-VerticalMenu__item { border-radius:2px; }
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] .UI-VerticalMenu__item:hover .UI-VerticalMenu__itemIcon { transform:none; }
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] .UI-VerticalMenu__item:focus-visible { outline:2px solid var(--tsugi-focus); outline-offset:2px; }
+.tsugi-music-settings-destinations svg { width:20px; height:20px; }

@@ -33,3 +33,7 @@ export function TsugiMediaIcon({ area, className = '' }: { area: 'video' | 'musi
       : <path d="M3 5c5.8 0 9.2 1.6 12 4.1V28c-3.1-2.8-7-4.1-12-4.1V5Zm26 0c-5.8 0-9.2 1.6-12 4.1V28c3.1-2.8 7-4.1 12-4.1V5Z" />}
   </svg>;
 }
+
+/** Adapters for the existing navigation components, which accept icon types. */
+export function TsugiMusicIcon({ className }: { className?: string }) { return <TsugiMediaIcon area="music" className={className} />; }
+export function TsugiReadIcon({ className }: { className?: string }) { return <TsugiMediaIcon area="read" className={className} />; }

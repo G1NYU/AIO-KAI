@@ -2,7 +2,7 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { BiDisc, BiSearch } from 'react-icons/bi';
-import { FiMenu, FiSearch, FiX, FiArrowUpRight, FiPlus } from 'react-icons/fi';
+import { FiMenu, FiSearch, FiX, FiPlus } from 'react-icons/fi';
 import {
   loadAddon, loadStore, manifestUrlFor,
   type EclipseCatalogItem, type EclipseStoreEntry, type EclipseTrack,
@@ -834,14 +834,14 @@ export function MusicPage({
                 <FiX aria-hidden className="text-xl" />
               </button>
             </div>
-            <nav className="mb-10 flex flex-wrap gap-5 text-sm">
+            <nav className="tsugi-music-settings-destinations mb-10 flex flex-wrap gap-5 text-sm">
               <button type="button" onClick={() => { setSettingsOpen(false); openWelcome(); }}
                 className="inline-flex items-center gap-2 text-[--tsugi-muted] hover:text-white">
-                <Trans>All media</Trans><FiArrowUpRight aria-hidden />
+                <TsugiBrand markOnly /><Trans>All media</Trans>
               </button>
               <button type="button" onClick={() => { setSettingsOpen(false); openVideo(); }}
                 className="inline-flex items-center gap-2 text-[--tsugi-muted] hover:text-white">
-                <Trans>Movies & TV</Trans><FiArrowUpRight aria-hidden />
+                <TsugiMediaIcon area="video" /><Trans>Movies & TV</Trans>
               </button>
             </nav>
             {connections.length > 0 && (

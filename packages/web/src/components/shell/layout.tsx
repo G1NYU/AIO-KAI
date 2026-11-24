@@ -15,8 +15,6 @@ import {
   BiHeart,
   BiHistory,
   BiHomeAlt2,
-  BiMusic,
-  BiBookOpen,
   BiListUl,
   BiCog,
   BiSearch,
@@ -33,6 +31,7 @@ import { cn } from '@aiostreams/ui/core/styling';
 import { useMediaQuery } from '@aiostreams/ui/hooks/media-query';
 import { useSession } from '@/lib/jellyfin/session';
 import { useDesktopArea } from '@/lib/desktop-area';
+import { TsugiMusicIcon, TsugiReadIcon } from '@/components/tsugi-brand';
 import { useLiveTvShown } from '@/features/live-tv/live-tv';
 import { useCanSwitch } from '@/lib/profiles';
 import { navigate, to } from '@/lib/paths';
@@ -233,11 +232,11 @@ export function WebLayout() {
     ...(desktopArea ? [{
       id: 'music',
       name: t`Music`,
-      iconType: BiMusic,
+      iconType: TsugiMusicIcon,
       isCurrent: false,
       onClick: desktopArea.openMusic,
     }] : []),
-    ...(desktopArea?.openRead ? [{ id: 'read', name: t({ id: 'Read', message: 'Read' }), iconType: BiBookOpen, isCurrent: false, onClick: desktopArea.openRead }] : []),
+    ...(desktopArea?.openRead ? [{ id: 'read', name: t({ id: 'Read', message: 'Read' }), iconType: TsugiReadIcon, isCurrent: false, onClick: desktopArea.openRead }] : []),
     ...(desktopArea ? [{ id: 'app-settings', name: t({ id: 'App settings', message: 'App settings' }), iconType: BiCog, isCurrent: false, onClick: desktopArea.openSettings }] : []),
     {
       id: 'discover',
