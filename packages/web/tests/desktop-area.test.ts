@@ -1,0 +1,14 @@
+import { describe, expect, it } from 'vitest';
+import { initialDesktopArea } from '../src/lib/desktop-area';
+
+describe('unified Tsugi launcher', () => {
+  it('starts on the media index whether a video server is saved or not', () => {
+    expect(initialDesktopArea(true, false, true)).toBe('welcome');
+    expect(initialDesktopArea(true, true, true)).toBe('welcome');
+  });
+  it('preserves older desktop and browser behavior outside the unified package', () => {
+    expect(initialDesktopArea(true, true)).toBe('video');
+    expect(initialDesktopArea(true, false)).toBe('welcome');
+    expect(initialDesktopArea(false, true, true)).toBe('video');
+  });
+});

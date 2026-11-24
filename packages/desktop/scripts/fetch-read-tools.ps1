@@ -29,8 +29,13 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $root 'bin') | Out-Null
     Move-Item -LiteralPath $jar -Destination (Join-Path $root 'bin/Suwayomi-Server.jar')
     Move-Item -LiteralPath (Join-Path $runtime 'jre') -Destination (Join-Path $root 'jre')
-    $version = & (Join-Path $root 'jre/bin/java.exe') -version 2>&1
-    if ($LASTEXITCODE -ne 0 -or ($version -join "`n") -notmatch '25\.0\.5\.1' -or ($version -join "`n") -notmatch 'Zulu25\.38\+201-CA') {
+    # java -version writes to stderr even on success. Windows PowerShell
+    # 5.1 can turn redirected native stderr into a terminating ErrorRecord.
+    $stdout = Join-Path $temp 'java-version-stdout.txt'
+    $stderr = Join-Path $temp 'java-version-stderr.txt'
+    $probe = Start-Process -FilePath (Join-Path $root 'jre/bin/java.exe') -ArgumentList '-version' -NoNewWindow -Wait -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    $version = (Get-Content -LiteralPath $stdout -Raw) + (Get-Content -LiteralPath $stderr -Raw)
+    if ($probe.ExitCode -ne 0 -or $version -notmatch '25\.0\.5\.1' -or $version -notmatch 'Zulu25\.38\+201-CA') {
         throw 'Unexpected bundled Java version'
     }
     if (-not (Test-Path -LiteralPath (Join-Path $root 'jre/legal') -PathType Container)) {

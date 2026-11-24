@@ -5,7 +5,7 @@ param([switch]$PrepareOnly)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $current = Join-Path $root 'current'
-$exe = Join-Path $current 'aiostreams-desktop.exe'
+$exe = Join-Path $current 'Tsugi.exe'
 $runtime = Join-Path $current 'read-tools'
 $launcher = Join-Path $current 'read-launcher/TsugiReadLauncher.class'
 $fetch = Join-Path $current 'read-launcher/fetch-read-tools.ps1'
@@ -37,6 +37,16 @@ if (-not (Test-Runtime $runtime)) {
         if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Recurse -Force }
     }
 }
+# Verify the actual packaged executable accepts the exact bundled setup.
+$probe = Start-Process -FilePath $exe -ArgumentList '--check-reading-setup' -WorkingDirectory $current -Wait -PassThru
+if ($probe.ExitCode -ne 0) {
+    throw "Tsugi cannot detect its prepared reading runtime (code $($probe.ExitCode)). Close all Tsugi windows, extract the complete ZIP into a new folder, and check that no custom web-directory override is set."
+}
+Write-Host 'Tsugi reading runtime ready.'
 if (-not $PrepareOnly) {
+    # If this exact executable is already running, its immutable bridge may
+    # still advertise its old capability. Require a restart, never kill it.
+    $running = @(Get-Process -Name 'Tsugi' -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe })
+    if ($running.Count -gt 0) { throw 'Close the running Tsugi window, then run Start Tsugi again.' }
     Start-Process -FilePath $exe -WorkingDirectory $current
 }

@@ -39,8 +39,8 @@ jobs:
       - run: pnpm -F @aiostreams/core build
       - run: pnpm -F @aiostreams/web typecheck
       - run: pnpm -F @aiostreams/web lint
-      - name: Music regression tests
-        run: pnpm exec vitest run packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts packages/web/tests/player-template.test.ts packages/web/tests/player-layout.test.ts packages/web/tests/music-feature-pack.test.ts packages/web/tests/music-lyrics.test.ts packages/web/tests/music-history.test.ts packages/web/tests/eclipse-appearance.test.ts packages/web/tests/music-library.test.ts packages/web/tests/audio-profiles.test.ts
+      - name: Desktop navigation and music regression tests
+        run: pnpm exec vitest run packages/web/tests/desktop-area.test.ts packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts packages/web/tests/player-template.test.ts packages/web/tests/player-layout.test.ts packages/web/tests/music-feature-pack.test.ts packages/web/tests/music-lyrics.test.ts packages/web/tests/music-history.test.ts packages/web/tests/eclipse-appearance.test.ts packages/web/tests/music-library.test.ts packages/web/tests/audio-profiles.test.ts
       - name: Build standalone web
         run: pnpm -F @aiostreams/web build:standalone
       - name: Extract translation sources
@@ -85,7 +85,7 @@ jobs:
           $stage = New-Item -ItemType Directory -Force stage
           $current = New-Item -ItemType Directory -Force stage/current
           New-Item -ItemType File -Path "$stage/.portable" -Force | Out-Null
-          Copy-Item packages/desktop/target/release/aiostreams-desktop.exe $current
+          Copy-Item packages/desktop/target/release/aiostreams-desktop.exe "$current/Tsugi.exe"
           Copy-Item packages/desktop/vendor/x86_64/*.dll $current
           Copy-Item packages/desktop/vendor/x86_64/licenses "$current/licenses" -Recurse
           Copy-Item packages/desktop/vendor/x86_64/vulkan "$current/vulkan" -Recurse
@@ -98,17 +98,6 @@ jobs:
           Copy-Item packages/desktop/scripts/Start-Tsugi.ps1 $stage
           Copy-Item packages/desktop/scripts/Start-Tsugi.cmd "$stage/Start Tsugi.cmd"
           Copy-Item LICENSE $stage
-      - name: Exercise actual packaged first-run reading setup
-        run: |
-          & ./stage/Start-Tsugi.ps1 -PrepareOnly
-          ./packages/desktop/scripts/test-read-runtime.ps1 -Runtime stage/current/read-tools
-          & ./stage/Start-Tsugi.ps1 -PrepareOnly
-          foreach ($file in @('stage/current/read-tools/jre/bin/java.exe', 'stage/current/read-tools/bin/Suwayomi-Server.jar', 'stage/current/read-tools/launcher/TsugiReadLauncher.class', 'stage/current/music-tools/yt-dlp.exe', 'stage/current/music-tools/deno.exe')) {
-            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Unified staging missing $file" }
-          }
-          # Do not redistribute Java or the upstream server from this artifact.
-          # The exact staged setup above is reproduced on the user's first launch.
-          Remove-Item -LiteralPath stage/current/read-tools -Recurse -Force
       - uses: actions/upload-artifact@v7
         with:
           name: tsugi-native-stage
@@ -120,11 +109,12 @@ jobs:
     needs: [web, windows-x64]
     if: github.ref == 'refs/heads/feature/tsugi-read-runtime'
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     defaults:
       run:
         shell: pwsh
     steps:
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v5
         with:
           name: tsugi-native-stage
@@ -133,6 +123,24 @@ jobs:
         with:
           name: tsugi-standalone-web
           path: stage/current/web
+      - name: Exercise the actual Windows launcher against assembled assets
+        run: |
+          $root = (Resolve-Path stage).Path
+          $exe = Join-Path $root 'current/Tsugi.exe'
+          $probe = Start-Process -FilePath $exe -ArgumentList '--check-reading-setup' -Wait -PassThru
+          if ($probe.ExitCode -ne 2) { throw "Expected visible Read setup state before preparation, exit $($probe.ExitCode)" }
+          & "$root/Start Tsugi.cmd" -PrepareOnly
+          if ($LASTEXITCODE -ne 0) { throw 'Windows PowerShell 5.1 launcher failed' }
+          $probe = Start-Process -FilePath $exe -ArgumentList '--check-reading-setup' -Wait -PassThru
+          if ($probe.ExitCode -ne 0) { throw "Packaged EXE does not detect the prepared reading runtime, exit $($probe.ExitCode)" }
+          ./packages/desktop/scripts/test-read-runtime.ps1 -Runtime stage/current/read-tools
+          & "$root/Start Tsugi.cmd" -PrepareOnly
+          if ($LASTEXITCODE -ne 0) { throw 'Repeat preparation failed' }
+          foreach ($file in @('stage/current/read-tools/jre/bin/java.exe', 'stage/current/read-tools/bin/Suwayomi-Server.jar', 'stage/current/read-tools/launcher/TsugiReadLauncher.class', 'stage/current/music-tools/yt-dlp.exe', 'stage/current/music-tools/deno.exe')) {
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Unified staging missing $file" }
+          }
+          # The user reproduces this verified setup directly from upstream.
+          Remove-Item -LiteralPath stage/current/read-tools -Recurse -Force
       - name: Assemble and verify unified portable ZIP
         run: |
           @'
@@ -142,7 +150,7 @@ jobs:
           Run "Start Tsugi.cmd" once. It downloads the pinned reading runtime
           directly from its official upstream release, verifies its checksums,
           and launches Tsugi. Internet access is required for this first setup.
-          Subsequent launches may use current/aiostreams-desktop.exe directly.
+          Subsequent launches may use current/Tsugi.exe directly.
 
           Movies & TV, Music and Read run in the same Tsugi application.
           Keep the .portable marker; portable data is stored beside current/.
@@ -156,9 +164,10 @@ jobs:
           $archive = [IO.Compression.ZipFile]::OpenRead($zip)
           try {
             $names = @($archive.Entries | ForEach-Object FullName)
-            foreach ($required in @('.portable', 'Start Tsugi.cmd', 'Start-Tsugi.ps1', 'current/aiostreams-desktop.exe', 'current/music-tools/yt-dlp.exe', 'current/music-tools/deno.exe', 'current/read-launcher/TsugiReadLauncher.class', 'current/read-launcher/fetch-read-tools.ps1', 'current/web/index.html', 'LICENSE', 'README-TEST.txt')) {
+            foreach ($required in @('.portable', 'Start Tsugi.cmd', 'Start-Tsugi.ps1', 'current/Tsugi.exe', 'current/music-tools/yt-dlp.exe', 'current/music-tools/deno.exe', 'current/read-launcher/TsugiReadLauncher.class', 'current/read-launcher/fetch-read-tools.ps1', 'current/web/index.html', 'LICENSE', 'README-TEST.txt')) {
               if ($required -notin $names) { throw "Unified artifact missing $required" }
             }
+            if ('current/aiostreams-desktop.exe' -in $names) { throw 'Legacy executable name in Tsugi package' }
             if ($names -like 'current/read-tools/*') { throw 'Upstream reading runtime must be fetched directly on first launch' }
           } finally { $archive.Dispose() }
       - uses: actions/upload-artifact@v7
