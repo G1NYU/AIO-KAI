@@ -3,6 +3,7 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { FiArrowUpRight, FiFilm, FiHeadphones, FiMenu } from 'react-icons/fi';
 import { TsugiBrand } from '@/components/tsugi-brand';
+import { applyEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import {
   PLAYER_PALETTES, readPlayerTheme, savePlayerTheme, type PlayerThemeId,
 } from '@/lib/music/player-theme';
@@ -19,6 +20,9 @@ export function DesktopLandingPage({
 
   React.useEffect(() => {
     document.documentElement.dataset.tsugiTheme = theme;
+    applyEclipseAppearance();
+    window.addEventListener('tsugi-eclipse-appearance-change', applyEclipseAppearance);
+    return () => window.removeEventListener('tsugi-eclipse-appearance-change', applyEclipseAppearance);
   }, [theme]);
 
   function changeTheme(value: PlayerThemeId) {

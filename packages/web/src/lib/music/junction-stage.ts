@@ -39,6 +39,6 @@ export const JUNCTION_STAGE: EclipsePlayerTemplate = {
     id: 'junction-' + index,
     kind, x, y, width, height,
     opacity: 1, color, fontSize: size ?? 22,
-    align: 'left', weight: 'medium', content: content ?? '',
+    align: 'left', weight: 'medium', content: content ?? '', hasTint: false,
   })),
 };

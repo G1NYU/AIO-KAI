@@ -26,6 +26,6 @@ export const NOCTURNE_STAGE: EclipsePlayerTemplate = {
   layers: layers.map(([kind, x, y, width, height, fontSize, align], index): PlayerLayer => ({
     id: 'nocturne-' + index,
     kind, x, y, width, height, fontSize, align, opacity: 1, color: '#f3f1fa',
-    content: '', weight: 'medium',
+    content: '', weight: 'medium', hasTint: false,
   })),
 };

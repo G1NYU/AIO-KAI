@@ -12,6 +12,7 @@ import { NOCTURNE_STAGE } from '@/lib/music/nocturne-stage';
 import { PlayerSettings } from './player-settings';
 import { WaveSeeker } from './wave-seeker';
 import { storage } from '@/lib/storage';
+import { applyEclipseAppearance, notifyEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import { PLAYER_PALETTES, readPlayerTheme, savePlayerTheme, type PlayerPalette, type PlayerThemeId } from '@/lib/music/player-theme';
 
 export type RepeatMode = 'off' | 'all' | 'one';
@@ -115,6 +116,11 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
   const palette = PLAYER_PALETTES[theme];
   const template = stageId === 'nocturne' ? NOCTURNE_STAGE
     : stageId === 'imported' ? importedTemplate : null;
+
+  React.useEffect(() => {
+    applyEclipseAppearance({ id: stageId, template: importedTemplate, imported: importedJson });
+    notifyEclipseAppearance();
+  }, [stageId, importedTemplate, importedJson]);
 
   React.useEffect(() => {
     document.documentElement.dataset.tsugiTheme = theme;
