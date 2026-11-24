@@ -13,6 +13,7 @@ import {
 } from '@/lib/music/connections';
 import { MusicPlayer, type RepeatMode } from './player';
 import { TsugiBrand } from '@/components/tsugi-brand';
+import { applyEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 import type { TrendingRecording } from '@/lib/music/discovery';
 import { makeRecentPlay, mergeRecentPlays, readRecentPlays, storeRecentPlays, type RecentMusicPlay } from '@/lib/music/history';
@@ -48,6 +49,13 @@ export function MusicPage({
   const [selectedCollection, setSelectedCollection] = React.useState<EclipseCatalogItem | null>(null);
   const [tab, setTab] = React.useState<'discover' | 'search'>('discover');
   const [settingsOpen, setSettingsOpen] = React.useState(() => readMusicSources().length === 0);
+
+  React.useEffect(() => {
+    const update = () => applyEclipseAppearance();
+    update();
+    window.addEventListener('tsugi-eclipse-appearance-change', update);
+    return () => window.removeEventListener('tsugi-eclipse-appearance-change', update);
+  }, []);
   const [recent, setRecent] = React.useState<RecentMusicPlay[]>(readRecentPlays);
   const settingsCloseRef = React.useRef<HTMLButtonElement>(null);
   const [playing, setPlaying] = React.useState<EclipseTrack | null>(null);

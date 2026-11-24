@@ -2,7 +2,10 @@ import { readPlayerStage, type PlayerStageState } from './player-layout';
 import type { EclipsePlayerTemplate, PlayerLayer } from './player-template';
 
 /** A player export remains declarative; only validated color tokens enter global CSS. */
-export type EclipseAppearance = { canvas: string; foreground: string; accent: string; muted: string };
+export type EclipseAppearance = {
+  canvas: string; surface: string; panel: string;
+  foreground: string; accent: string; muted: string;
+};
 
 type RGBA = { r: number; g: number; b: number; a: number };
 
@@ -61,8 +64,12 @@ export function deriveEclipseAppearance(template: EclipsePlayerTemplate): Eclips
   const finalAccent = candidateSolid && contrast(candidateSolid, canvas) >= 3
     ? candidateSolid : foreground;
   return {
-    canvas: rgbCss(canvas), foreground: rgbCss(foreground),
-    accent: rgbCss(finalAccent), muted: rgbCss(muted),
+    canvas: rgbCss(canvas),
+    surface: rgbCss(blend({ ...foreground, a: 0.045 }, canvas)),
+    panel: rgbCss(blend({ ...foreground, a: 0.09 }, canvas)),
+    foreground: rgbCss(foreground),
+    accent: rgbCss(finalAccent),
+    muted: rgbCss(muted),
   };
 }
 
@@ -72,7 +79,10 @@ export function applyEclipseAppearance(
 ): void {
   if (state.id !== 'imported' || !state.template) {
     delete root.dataset.tsugiEclipse;
-    for (const property of ['--tsugi-canvas', '--tsugi-ink', '--tsugi-muted', '--tsugi-accent']) {
+    for (const property of [
+      '--tsugi-canvas', '--tsugi-surface', '--tsugi-panel',
+      '--tsugi-ink', '--tsugi-muted', '--tsugi-accent',
+    ]) {
       root.style.removeProperty(property);
     }
     return;
@@ -80,6 +90,8 @@ export function applyEclipseAppearance(
   const appearance = deriveEclipseAppearance(state.template);
   root.dataset.tsugiEclipse = 'on';
   root.style.setProperty('--tsugi-canvas', appearance.canvas);
+  root.style.setProperty('--tsugi-surface', appearance.surface);
+  root.style.setProperty('--tsugi-panel', appearance.panel);
   root.style.setProperty('--tsugi-ink', appearance.foreground);
   root.style.setProperty('--tsugi-muted', appearance.muted);
   root.style.setProperty('--tsugi-accent', appearance.accent);

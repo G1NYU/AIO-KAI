@@ -124,8 +124,8 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
 
   React.useEffect(() => {
     document.documentElement.dataset.tsugiTheme = theme;
-    return () => { delete document.documentElement.dataset.tsugiTheme; };
-  }, [theme]);
+    applyEclipseAppearance({ id: stageId, template: importedTemplate, imported: importedJson });
+  }, [theme, stageId, importedTemplate, importedJson]);
 
   React.useEffect(() => {
     const sync = (event: Event) => {

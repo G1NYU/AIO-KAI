@@ -21,8 +21,9 @@ export function DesktopLandingPage({
   React.useEffect(() => {
     document.documentElement.dataset.tsugiTheme = theme;
     applyEclipseAppearance();
-    window.addEventListener('tsugi-eclipse-appearance-change', applyEclipseAppearance);
-    return () => window.removeEventListener('tsugi-eclipse-appearance-change', applyEclipseAppearance);
+    const update = () => applyEclipseAppearance();
+    window.addEventListener('tsugi-eclipse-appearance-change', update);
+    return () => window.removeEventListener('tsugi-eclipse-appearance-change', update);
   }, [theme]);
 
   function changeTheme(value: PlayerThemeId) {

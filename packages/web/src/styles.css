@@ -964,3 +964,25 @@ html[data-blur-spoilers]:not([data-tv])
   }
   .tsugi-mini-player {background:var(--tsugi-panel) !important;}
 }
+
+/* Selected Eclipse Studio appearance is a full desktop-shell theme.
+   Overrides native mocha/matte tokens only while imported layout is selected. */
+:root[data-host='desktop'][data-tsugi-eclipse='on'] {
+  background:var(--tsugi-canvas);
+  color:var(--tsugi-ink);
+}
+:root[data-host='desktop'][data-tsugi-eclipse='on'] body,
+:root[data-host='desktop'][data-tsugi-eclipse='on'] [data-page='music'],
+:root[data-host='desktop'][data-tsugi-eclipse='on'] [data-page='desktop-landing'] {
+  background-color:var(--tsugi-canvas) !important;
+  color:var(--tsugi-ink);
+}
+:root[data-host='desktop'][data-tsugi-eclipse='on'] .tsugi-mini-player,
+:root[data-host='desktop'][data-tsugi-eclipse='on'] .tsugi-settings-sheet,
+:root[data-host='desktop'][data-tsugi-eclipse='on'] .tsugi-overflow-panel {
+  background:var(--tsugi-panel) !important;
+  color:var(--tsugi-ink);
+}
+:root[data-host='desktop'][data-tsugi-eclipse='on'] .tsugi-hub-feature {
+  background:linear-gradient(100deg,var(--tsugi-surface),var(--tsugi-canvas));
+}
