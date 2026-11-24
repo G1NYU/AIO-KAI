@@ -1054,15 +1054,23 @@ impl ReadRuntime {
             }
         }
         let term = term.trim();
-        let filter = if term.is_empty() { Value::Null } else {
-            json!({"or": [{"name": {"includesInsensitive": term}}, {"pkgName": {"includesInsensitive": term}}, {"lang": {"equalTo": term}}]})
+        // Keep the arguments in fixed documents and pass only scalar values.
+        // Kotlin GraphQL input type names are generated, not the Kotlin
+        // class names; avoid coupling this request to those generated names.
+        let (document, variables) = if term.is_empty() && store.is_none() {
+            ("query TsugiExtensions($offset: Int!) { extensions(first: 100, offset: $offset) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
+             json!({"offset": offset}))
+        } else if term.is_empty() {
+            ("query TsugiExtensions($offset: Int!, $store: String!) { extensions(first: 100, offset: $offset, condition: {storeIndexUrl: $store}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
+             json!({"offset": offset, "store": store}))
+        } else if store.is_none() {
+            ("query TsugiExtensions($offset: Int!, $term: String!) { extensions(first: 100, offset: $offset, filter: {or: [{name: {includesInsensitive: $term}}, {pkgName: {includesInsensitive: $term}}, {lang: {equalTo: $term}}]}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
+             json!({"offset": offset, "term": term}))
+        } else {
+            ("query TsugiExtensions($offset: Int!, $term: String!, $store: String!) { extensions(first: 100, offset: $offset, condition: {storeIndexUrl: $store}, filter: {or: [{name: {includesInsensitive: $term}}, {pkgName: {includesInsensitive: $term}}, {lang: {equalTo: $term}}]}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
+             json!({"offset": offset, "term": term, "store": store}))
         };
-        let condition = store.map(|index| json!({"storeIndexUrl": index}));
-        let result = self.client.document(
-            "query TsugiExtensions($offset: Int!, $filter: ExtensionFilter, $condition: ExtensionCondition) { extensions(first: 100, offset: $offset, filter: $filter, condition: $condition) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
-            "extensions",
-            json!({ "offset": offset, "filter": filter, "condition": condition }),
-        )?;
+        let result = self.client.document(document, "extensions", variables)?;
         let nodes = result["nodes"].as_array().ok_or("Invalid extension catalogue.")?;
         if nodes.len() > 100 || !result["totalCount"].is_u64() {
             return Err("Invalid extension catalogue.");
@@ -1810,6 +1818,8 @@ mod tests {
         let matching = managed.search_extensions(0, "FIXTURE", Some(&store.url)).expect("search whole store");
         assert_eq!(matching["totalCount"], 1);
         assert_eq!(matching["nodes"][0]["pkgName"], "org.tsugi.fixture");
+        assert_eq!(managed.search_extensions(0, "", Some(&store.url)).unwrap()["totalCount"], 1);
+        assert_eq!(managed.search_extensions(0, "fixture", None).unwrap()["totalCount"], 1);
         assert_eq!(managed.search_extensions(0, "no matching extension", None).unwrap()["totalCount"], 0);
         assert!(managed.search_extensions(0, "", Some("https://example.invalid/repo.json")).is_err());
         assert!(managed.extensions(100).unwrap()["nodes"].as_array().unwrap().is_empty());
