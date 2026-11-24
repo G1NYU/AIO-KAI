@@ -41,7 +41,7 @@ impl ReadOperation {
                 "query TsugiStores { extensionStores(first: 100) { nodes { name badgeLabel indexUrl signingKey isLegacy } totalCount } }"
             }
             Self::Library => {
-                "query TsugiLibrary { mangas(condition: { inLibrary: true }, first: 100) { nodes { id title author thumbnailUrl inLibrary } totalCount } }"
+                "query TsugiLibrary { mangas(condition: { inLibrary: true }, first: 100) { nodes { id title author thumbnailUrl inLibrary unreadCount lastReadChapter { id name lastPageRead pageCount isRead lastReadAt } } totalCount } }"
             }
         }
     }
@@ -1046,6 +1046,10 @@ impl ReadRuntime {
     }
 
     pub fn search_extensions(&self, offset: u32, term: &str, store: Option<&str>) -> Result<Value, &'static str> {
+        self.filter_extensions(offset, term, store, None, None)
+    }
+
+    pub fn filter_extensions(&self, offset: u32, term: &str, store: Option<&str>, language: Option<&str>, installed: Option<bool>) -> Result<Value, &'static str> {
         if offset > 100_000 || term.chars().count() > 200 || term.chars().any(char::is_control) {
             return Err("Invalid extension catalogue request.");
         }
@@ -1056,11 +1060,22 @@ impl ReadRuntime {
                 return Err("Extension repository is not registered.");
             }
         }
+        if language.is_some_and(|lang| lang.is_empty() || lang.len() > 24 || !lang.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')) {
+            return Err("Invalid extension language.");
+        }
         let term = term.trim();
         // Keep the arguments in fixed documents and pass only scalar values.
         // Kotlin GraphQL input type names are generated, not the Kotlin
         // class names; avoid coupling this request to those generated names.
-        let (document, variables) = if term.is_empty() && store.is_none() {
+        let (document, variables) = if language.is_some() || installed.is_some() {
+            if term.is_empty() {
+                ("query TsugiExtensions($offset: Int!, $store: String, $lang: String, $installed: Boolean) { extensions(first: 100, offset: $offset, condition: {storeIndexUrl: $store, lang: $lang, isInstalled: $installed}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
+                 json!({"offset": offset, "store": store, "lang": language, "installed": installed}))
+            } else {
+                ("query TsugiExtensions($offset: Int!, $term: String!, $store: String, $lang: String, $installed: Boolean) { extensions(first: 100, offset: $offset, condition: {storeIndexUrl: $store, lang: $lang, isInstalled: $installed}, filter: {or: [{name: {includesInsensitive: $term}}, {pkgName: {includesInsensitive: $term}}, {lang: {equalTo: $term}}]}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
+                 json!({"offset": offset, "term": term, "store": store, "lang": language, "installed": installed}))
+            }
+        } else if term.is_empty() && store.is_none() {
             ("query TsugiExtensions($offset: Int!) { extensions(first: 100, offset: $offset) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
              json!({"offset": offset}))
         } else if term.is_empty() {
@@ -1842,6 +1857,10 @@ mod tests {
         assert_eq!(matching["nodes"][0]["pkgName"], "org.tsugi.fixture");
         assert_eq!(managed.search_extensions(0, "", Some(&store.url)).unwrap()["totalCount"], 1);
         assert_eq!(managed.search_extensions(0, "fixture", None).unwrap()["totalCount"], 1);
+        assert_eq!(managed.filter_extensions(0, "fixture", Some(&store.url), Some("en"), Some(false)).unwrap()["totalCount"], 1);
+        assert_eq!(managed.filter_extensions(0, "", None, Some("fr"), None).unwrap()["totalCount"], 0);
+        assert_eq!(managed.filter_extensions(0, "", None, None, Some(true)).unwrap()["totalCount"], 0);
+        assert!(managed.filter_extensions(0, "", None, Some("en\n"), None).is_err());
         assert_eq!(managed.search_extensions(0, "no matching extension", None).unwrap()["totalCount"], 0);
         assert!(managed.search_extensions(0, "", Some("https://example.invalid/repo.json")).is_err());
         assert!(managed.extensions(100).unwrap()["nodes"].as_array().unwrap().is_empty());

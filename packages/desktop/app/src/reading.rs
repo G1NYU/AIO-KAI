@@ -314,7 +314,7 @@ fn execute(
             if let Ok(mut cache) = cache.lock() { *cache = None; }
             reader.uninstall_extension(&package)
         }
-        ReadAction::Extensions { offset, query, store } => reader.search_extensions(offset, query.as_deref().unwrap_or(""), store.as_deref()),
+        ReadAction::Extensions { offset, query, store, language, installed } => reader.filter_extensions(offset, query.as_deref().unwrap_or(""), store.as_deref(), language.as_deref(), installed),
         ReadAction::Catalogue { source, page, mode, query } => {
             let mode = match mode.as_str() {
                 "popular" => CatalogueMode::Popular,
