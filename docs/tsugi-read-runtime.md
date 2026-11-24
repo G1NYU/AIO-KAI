@@ -247,3 +247,20 @@ library ID, progress, pages and store after reopening. This is not a guarantee
 of crash durability or Windows job-object containment; listener identity,
 owner-only permissions and crash-process cleanup tests remain necessary.
 No runtime shipped in the desktop app yet. Existing Watch and Listen untouched.
+
+## Separate restart and repository validation
+
+Run 45397243523 compiled the new Java launcher and passed startup, local
+chapter operations and pre-restart assertions, but addExtensionStore returned
+HTTP 200 with a GraphQL error and zero fixture requests. Normal shutdown was
+not reached. Do not infer the graceful shutdown change fixed library persistence.
+Split the ignored native integration suite into independent library and store
+fixtures, with separate data directories and serial execution. Both still gate
+CI; no test is skipped on failure of the other. The library test exercises
+normal JVM shutdown and restart without any store network request. The store
+test confirms local HTTP fixture readiness with a no-proxy Rust request, then
+measures Java's requests separately and checks store persistence and removal.
+On failure, the workflow reports only fixed diagnostic markers found in the
+runtime's own log files; no raw messages or credentials. This is diagnostic
+isolation, not a bypass of repository validation. Production integration remains
+blocked pending persistence and lifecycle validation.

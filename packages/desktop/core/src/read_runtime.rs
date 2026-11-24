@@ -867,7 +867,7 @@ mod tests {
     #[ignore = "requires the pinned Windows reading runtime"]
     fn packaged_runtime() {
         let runtime = PathBuf::from(std::env::var_os("TSUGI_READ_RUNTIME").unwrap());
-        let data = PathBuf::from(std::env::var_os("TSUGI_READ_FIXTURE").unwrap());
+        let data = PathBuf::from(std::env::var_os("TSUGI_READ_FIXTURE").unwrap()).join("library");
         let mut managed = ReadRuntime::start(&runtime, &data).expect("native runtime startup");
         assert_eq!(
             managed.query(ReadOperation::Status).unwrap()["version"],
@@ -911,34 +911,8 @@ mod tests {
         let details = managed.manga(manga_id).expect("retrieve saved progress");
         assert_eq!(details["chapters"][0]["isRead"], true);
         assert_eq!(details["chapters"][0]["lastPageRead"], 1);
-        // Private test-only path: production add_store accepts HTTPS only.
-        let store = FixtureStore::start();
-        let added = managed.add_store_inner(&store.url);
-        eprintln!("Fixture index requests: {}", store.requests.load(Ordering::Relaxed));
-        let added = added.expect("protobuf store metadata");
-        assert_eq!(added["extensionStore"]["name"], "Tsugi Fixture Store");
-        assert_eq!(added["extensionStore"]["isLegacy"], false);
-        let stores = managed.query(ReadOperation::Stores).unwrap();
-        assert!(stores["nodes"].as_array().unwrap().iter().any(|node| node["indexUrl"] == store.url));
-        managed.refresh_extensions().expect("refresh protobuf extension catalogue");
-        let extensions = managed.extensions(0).expect("extension catalogue");
-        let entry = extensions["nodes"].as_array().unwrap().iter().find(|node| node["pkgName"] == "org.tsugi.fixture").expect("fixture extension metadata");
-        assert_eq!(entry["extensionLib"], "1.6");
-        assert_eq!(entry["versionName"], "1.6.1");
-        assert_eq!(entry["isInstalled"], false);
-        assert!(managed.extensions(100).unwrap()["nodes"].as_array().unwrap().is_empty());
         // A second broker cannot start on the same live data directory.
         assert!(ReadRuntime::start(&runtime, &data).is_err());
-        // Upstream settings persistence is asynchronous (SettingDelegate
-        // launches a StateFlow collector). Verify the config write before
-        // terminating the child. Never print the config or its contents.
-        let deadline = Instant::now() + Duration::from_secs(10);
-        loop {
-            let config = fs::read_to_string(data.join("server.conf")).unwrap_or_default();
-            if config.contains(&store.url) { break; }
-            assert!(Instant::now() < deadline, "Store preference was not persisted");
-            std::thread::sleep(Duration::from_millis(100));
-        }
         let first_port = managed.client.port;
         managed.shutdown().expect("normal JVM shutdown before reopen");
         eprintln!("PASS: normal JVM shutdown before reopening library.");
@@ -959,6 +933,68 @@ mod tests {
         let reopened = managed.chapter(id).expect("reopened chapter");
         assert_eq!(reopened.len(), 2);
         assert_eq!(managed.page(&reopened, 1).unwrap().mime, "image/png");
+        eprintln!("PASS: manga library, chapter progress and images survived normal JVM restart.");
+        let port = managed.client.port;
+        managed.shutdown().expect("normal JVM shutdown after restart");
+        drop(managed);
+        assert!(TcpStream::connect_timeout(
+            &std::net::SocketAddr::from((Ipv4Addr::LOCALHOST, port)),
+            Duration::from_secs(2)
+        )
+        .is_err());
+        fs::remove_dir_all(data).expect("clean disposable reading data");
+    }
+
+    #[test]
+    #[ignore = "requires the pinned Windows reading runtime"]
+    fn packaged_runtime_store() {
+        let runtime = PathBuf::from(std::env::var_os("TSUGI_READ_RUNTIME").unwrap());
+        let data = PathBuf::from(std::env::var_os("TSUGI_READ_FIXTURE").unwrap()).join("stores");
+        let mut managed = ReadRuntime::start(&runtime, &data).expect("native store runtime startup");
+        // Private test-only path: production add_store accepts HTTPS only.
+        let store = FixtureStore::start();
+        // Confirm the fixture is reachable from the Rust process before
+        // asking the Java runtime to fetch it. This does not retry the mutation.
+        let probe: ureq::Agent = ureq::Agent::config_builder()
+            .proxy(None)
+            .timeout_global(Some(Duration::from_secs(3)))
+            .build().into();
+        let response = probe.get(&store.url).call().expect("fixture HTTP readiness");
+        assert_eq!(response.status().as_u16(), 200);
+        drop(response);
+        let before = store.requests.load(Ordering::Relaxed);
+        let added = managed.add_store_inner(&store.url);
+        eprintln!("Fixture index requests from Java: {}", store.requests.load(Ordering::Relaxed).saturating_sub(before));
+        let added = added.expect("protobuf store metadata");
+        assert_eq!(added["extensionStore"]["name"], "Tsugi Fixture Store");
+        assert_eq!(added["extensionStore"]["isLegacy"], false);
+        let stores = managed.query(ReadOperation::Stores).unwrap();
+        assert!(stores["nodes"].as_array().unwrap().iter().any(|node| node["indexUrl"] == store.url));
+        managed.refresh_extensions().expect("refresh protobuf extension catalogue");
+        let extensions = managed.extensions(0).expect("extension catalogue");
+        let entry = extensions["nodes"].as_array().unwrap().iter().find(|node| node["pkgName"] == "org.tsugi.fixture").expect("fixture extension metadata");
+        assert_eq!(entry["extensionLib"], "1.6");
+        assert_eq!(entry["versionName"], "1.6.1");
+        assert_eq!(entry["isInstalled"], false);
+        assert!(managed.extensions(100).unwrap()["nodes"].as_array().unwrap().is_empty());
+        // Upstream settings persistence is asynchronous (SettingDelegate
+        // launches a StateFlow collector). Verify the config write before
+        // terminating the child. Never print the config or its contents.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let config = fs::read_to_string(data.join("server.conf")).unwrap_or_default();
+            if config.contains(&store.url) { break; }
+            assert!(Instant::now() < deadline, "Store preference was not persisted");
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let first_port = managed.client.port;
+        managed.shutdown().expect("normal JVM shutdown before reopening stores");
+        drop(managed);
+        assert!(TcpStream::connect_timeout(
+            &std::net::SocketAddr::from((Ipv4Addr::LOCALHOST, first_port)),
+            Duration::from_secs(2)
+        ).is_err());
+        let mut managed = ReadRuntime::start(&runtime, &data).expect("reopen extension stores");
         let stores = managed.query(ReadOperation::Stores).expect("persisted extension stores");
         assert!(stores["nodes"].as_array().unwrap().iter().any(|node| node["indexUrl"] == store.url));
         managed.refresh_extensions().expect("refresh persisted store");
@@ -967,6 +1003,7 @@ mod tests {
         assert!(managed.query(ReadOperation::Stores).unwrap()["nodes"].as_array().unwrap().is_empty());
         managed.refresh_extensions().expect("refresh removed store");
         assert!(managed.extensions(0).unwrap()["nodes"].as_array().unwrap().is_empty());
+        eprintln!("PASS: extension store persisted across restart and removal refreshed the catalogue.");
         let port = managed.client.port;
         managed.shutdown().expect("normal JVM shutdown after restart");
         drop(managed);

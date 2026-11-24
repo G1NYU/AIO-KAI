@@ -55,9 +55,31 @@ jobs:
         run: |
           $env:TSUGI_READ_RUNTIME = "$env:RUNNER_TEMP/tsugi-read-runtime"
           $env:TSUGI_READ_FIXTURE = "$env:RUNNER_TEMP/tsugi-read-native-fixture"
+          New-Item -ItemType Directory -Path $env:TSUGI_READ_FIXTURE | Out-Null
           try {
-            cargo test --locked -p aiostreams-desktop-core --lib read_runtime::tests::packaged_runtime -- --ignored
-            if ($LASTEXITCODE -ne 0) { throw 'Native reading runtime test failed' }
+            cargo test --locked -p aiostreams-desktop-core --lib read_runtime::tests::packaged_runtime -- --ignored --test-threads=1 --nocapture
+            if ($LASTEXITCODE -ne 0) {
+              # Only fixed markers from runtime logs, never raw messages, URLs,
+              # config, headers or credentials. Both tests run independently.
+              $markers = @('ConnectException', 'SocketTimeoutException', 'UnknownHostException',
+                'IOException', 'SerializationException', 'MissingFieldException',
+                'IllegalArgumentException', 'IllegalStateException', 'ConfigException',
+                'SSLHandshakeException', 'BindException', 'SocketException',
+                'Failed to fetch extension store', 'Shutting down HikariCP',
+                'Failed to sync preference store', 'AccessDeniedException',
+                'FileSystemException', 'SQLException', 'JdbcSQL', 'NoClassDefFoundError')
+              foreach ($kind in @('library', 'stores')) {
+                $logs = Join-Path $env:TSUGI_READ_FIXTURE "$kind/logs"
+                if (Test-Path -LiteralPath $logs) {
+                  foreach ($marker in $markers) {
+                    if (Get-ChildItem -LiteralPath $logs -Filter '*.log' -File | Select-String -SimpleMatch -Pattern $marker -Quiet) {
+                      Write-Host "Reading $kind log marker: $marker"
+                    }
+                  }
+                }
+              }
+              throw 'Native reading runtime test failed'
+            }
           } finally {
             if (Test-Path -LiteralPath $env:TSUGI_READ_FIXTURE) {
               Remove-Item -LiteralPath $env:TSUGI_READ_FIXTURE -Recurse -Force
