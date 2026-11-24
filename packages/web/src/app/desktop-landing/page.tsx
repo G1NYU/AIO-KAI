@@ -1,7 +1,7 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiArrowUpRight, FiFilm, FiHeadphones, FiMenu } from 'react-icons/fi';
+import { FiFilm, FiHeadphones, FiMenu } from 'react-icons/fi';
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { applyEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import {
@@ -71,15 +71,15 @@ export function DesktopLandingPage({
           <span className="flex items-center gap-4">
             <FiFilm aria-hidden className="text-xl text-[--tsugi-muted]" />
             <span className="text-[clamp(1.7rem,2.7vw,3rem)] font-medium tracking-tight"><Trans>Movies & TV</Trans></span>
+            <span aria-hidden className="tsugi-gateway-dots"><i /><i /><i /></span>
           </span>
-          <FiArrowUpRight aria-hidden className="text-2xl transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
         </button>
         <button type="button" onClick={openMusic} className="tsugi-gateway-link group">
           <span className="flex items-center gap-4">
             <FiHeadphones aria-hidden className="text-xl text-[--tsugi-muted]" />
             <span className="text-[clamp(1.7rem,2.7vw,3rem)] font-medium tracking-tight"><Trans>Music</Trans></span>
+            <span aria-hidden className="tsugi-gateway-dots"><i /><i /><i /></span>
           </span>
-          <FiArrowUpRight aria-hidden className="text-2xl transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
         </button>
       </nav>
     </main>

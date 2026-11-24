@@ -10,7 +10,7 @@ import { EclipseStudioStage } from './studio-player';
 import { JunctionPlayer } from './junction-player';
 import { NOCTURNE_STAGE } from '@/lib/music/nocturne-stage';
 import { PlayerSettings } from './player-settings';
-import { WaveSeeker } from './wave-seeker';
+import { DotSeeker } from './wave-seeker';
 import { VolumeControl } from './volume-control';
 import { storage } from '@/lib/storage';
 import type { AudioProfile } from '@/lib/music/audio-profiles';
@@ -106,7 +106,7 @@ export function Timeline({ p, palette }: { p: MusicPlayerProps; palette: PlayerP
     <div className="flex w-full items-center gap-3 text-xs tabular-nums"
       style={{color:palette.muted}}>
       <span className="w-10 shrink-0 text-right">{musicTime(p.position)}</span>
-      <WaveSeeker position={p.position} duration={p.duration} paused={p.paused}
+      <DotSeeker position={p.position} duration={p.duration} paused={p.paused}
         palette={palette} onSeek={p.onSeek} />
       <span className="w-10 shrink-0">-{musicTime(Math.max(0,p.duration-p.position))}</span>
     </div>
@@ -203,7 +203,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
       {!p.expanded && <section aria-label={t`Music player`}
         className="tsugi-mini-player fixed inset-x-0 bottom-0 z-30"
         style={{backgroundColor: palette.surface, borderColor: palette.border}}>
-        <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-2 sm:px-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,500px)_minmax(0,1fr)]">
+        <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 pb-3 pt-4 sm:px-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,500px)_minmax(0,1fr)]">
           <button type="button" onClick={() => p.onExpanded(true)}
             className="flex min-w-0 max-w-[420px] items-center gap-3 rounded-xl px-1 text-left hover:bg-white/[0.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60">
             <Artwork track={track} />
@@ -213,7 +213,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
               {p.quality && <span className="block truncate text-[10px]" style={{color:palette.muted}}>{p.quality}</span>}
             </span>
           </button>
-          <div className="order-3 col-span-2 mx-auto flex w-full max-w-[560px] flex-col items-center gap-0.5 lg:order-none lg:col-span-1 lg:justify-self-center">
+          <div className="order-3 col-span-2 mx-auto flex w-full max-w-[560px] flex-col items-center gap-1 lg:order-none lg:col-span-1 lg:justify-self-center">
             <Transport p={p} palette={palette} />
             <Timeline p={p} palette={palette} />
           </div>
