@@ -3239,6 +3239,10 @@ msgstr "No versions match."
 msgid "No versions were found."
 msgstr "No versions were found."
 
+#: src/app/music/browse.tsx
+msgid "No YouTube Music shelves are available right now. Explore independent charts below or use Search."
+msgstr "No YouTube Music shelves are available right now. Explore independent charts below or use Search."
+
 #: src/app/music/player-settings.tsx
 msgid "Nocturne"
 msgstr "Nocturne"
