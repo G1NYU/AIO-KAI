@@ -56,6 +56,8 @@ import { BiMusic } from 'react-icons/bi';
 import { DesktopAreaContext, initialDesktopArea, type DesktopArea } from './lib/desktop-area';
 import { DesktopLandingPage } from './app/desktop-landing/page';
 import { MusicPage } from './app/music/page';
+import { ReadPage } from './app/read/page';
+import { supportsReading } from './lib/hosts/shell/reading';
 
 /** The web app served at the Jellyfin API's `/web`. */
 export default function JellyfinWebApp() {
@@ -140,12 +142,14 @@ function Standalone() {
   const [area, setArea] = React.useState<DesktopArea>(() =>
     initialDesktopArea(desktop, !!currentServer())
   );
+  const reading = desktop && supportsReading();
+  const openRead = React.useCallback(() => setArea('read'), []);
   const openMusic = React.useCallback(() => setArea('music'), []);
   const openVideo = React.useCallback(() => setArea('video'), []);
   const openWelcome = React.useCallback(() => setArea('welcome'), []);
   const areaActions = React.useMemo(
-    () => ({ openMusic, openVideo }),
-    [openMusic, openVideo]
+    () => ({ openMusic, openVideo, openRead: reading ? openRead : undefined }),
+    [openMusic, openVideo, openRead, reading]
   );
   // Who's watching, asked across the saved servers.
   const [picking, setPicking] = React.useState(() => {
@@ -250,7 +254,12 @@ function Standalone() {
         >
           {desktop && area === 'welcome' ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
-              <DesktopLandingPage openVideo={openVideo} openMusic={openMusic} />
+              <DesktopLandingPage openVideo={openVideo} openMusic={openMusic} openRead={reading ? openRead : undefined} />
+              <SplashEnd />
+            </ServerInfoProvider>
+          ) : desktop && area === 'read' && reading ? (
+            <ServerInfoProvider value={NO_SERVER_INFO}>
+              <ReadPage openWelcome={openWelcome} openVideo={openVideo} openMusic={openMusic} />
               <SplashEnd />
             </ServerInfoProvider>
           ) : desktop && area === 'music' ? (

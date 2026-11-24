@@ -25,6 +25,7 @@ export type VideoOutput = 'mpv' | 'system' | 'compatibility';
 
 /** `external` marks what the player in its own window sends. */
 export type ShellMessage =
+  | { type: 'read-result'; request: string; data: unknown; error: string | null }
   | {
       type: 'youtube-resolved';
       request: string;
@@ -216,6 +217,7 @@ interface ShellBridge {
   miniPlayer?: boolean;
   youtubeMusic?: boolean;
   nativeMusicAudio?: boolean;
+  reading?: boolean;
   /** The app sends a controller's buttons as `gamepad` messages. */
   gamepadButtons?: boolean;
   /** The system's 12- or 24-hour clock, where the app can tell. */

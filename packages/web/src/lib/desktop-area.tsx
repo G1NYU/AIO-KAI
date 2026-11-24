@@ -1,11 +1,12 @@
 import React from 'react';
 
 /** A desktop-only mode above the AIOStreams (Jellyfin) session boundary. */
-export type DesktopArea = 'welcome' | 'video' | 'music';
+export type DesktopArea = 'welcome' | 'video' | 'music' | 'read';
 
 export type DesktopAreaActions = {
   openMusic(): void;
   openVideo(): void;
+  openRead?: () => void;
 };
 
 export const DesktopAreaContext =

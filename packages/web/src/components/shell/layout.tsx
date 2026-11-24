@@ -16,6 +16,7 @@ import {
   BiHistory,
   BiHomeAlt2,
   BiMusic,
+  BiBookOpen,
   BiListUl,
   BiCog,
   BiSearch,
@@ -235,6 +236,7 @@ export function WebLayout() {
       isCurrent: false,
       onClick: desktopArea.openMusic,
     }] : []),
+    ...(desktopArea?.openRead ? [{ id: 'read', name: t`Read`, iconType: BiBookOpen, isCurrent: false, onClick: desktopArea.openRead }] : []),
     {
       id: 'discover',
       name: t`Discover`,

@@ -1,7 +1,7 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiFilm, FiHeadphones, FiMenu } from 'react-icons/fi';
+import { FiBookOpen, FiFilm, FiHeadphones, FiMenu } from 'react-icons/fi';
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { applyEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import {
@@ -12,9 +12,11 @@ import {
 export function DesktopLandingPage({
   openVideo,
   openMusic,
+  openRead,
 }: {
   openVideo(): void;
   openMusic(): void;
+  openRead?: () => void;
 }) {
   const [theme, setTheme] = React.useState<PlayerThemeId>(readPlayerTheme);
 
@@ -35,6 +37,7 @@ export function DesktopLandingPage({
   const sections = [
     { id: 'video', label: t`Movies & TV`, Icon: FiFilm, open: openVideo },
     { id: 'music', label: t`Music`, Icon: FiHeadphones, open: openMusic },
+    ...(openRead ? [{ id: 'read', label: t`Read`, Icon: FiBookOpen, open: openRead }] : []),
   ];
 
   return (
