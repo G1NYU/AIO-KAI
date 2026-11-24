@@ -710,42 +710,130 @@ html[data-blur-spoilers]:not([data-tv])
   border-radius: 0;
 }
 
-/* Gate: centered Japanese mark, quiet choices, no entry cards or separators. */
-.tsugi-landing { isolation: isolate; background: var(--tsugi-canvas) !important; }
-.tsugi-landing-atmosphere {
-  z-index: -1;
-  background:
-    radial-gradient(ellipse 42% 38% at 50% 49%,var(--tsugi-wash),transparent 93%),
-    radial-gradient(ellipse 50% 40% at 15% 92%,var(--tsugi-wash),transparent 97%);
-  opacity: .7;
+/* Tsugi entry — one editorial composition, not a splash and separate footer. */
+.tsugi-landing {
+  isolation:isolate;
+  background:var(--tsugi-canvas) !important;
+  font-family:'Segoe UI Variable Text','Segoe UI',Inter,'Helvetica Neue',Arial,sans-serif;
 }
-.tsugi-gateway-mark svg {
-  height: clamp(100px,13vw,200px);
-  width: clamp(100px,13vw,200px);
-  filter: drop-shadow(0 12px 32px rgb(0 0 0 / 18%));
+.tsugi-entry-stage {
+  display:flex;
+  flex:1;
+  align-items:center;
+  justify-content:center;
+  padding-block:clamp(2rem,7vh,6rem);
 }
-.tsugi-gateway-nav { width: 100%; }
-.tsugi-gateway-link {
+.tsugi-entry-composition {
+  display:grid;
+  grid-template-columns:minmax(0, .9fr) minmax(0, 1fr);
+  align-items:center;
+  gap:clamp(3rem,8vw,9rem);
+  width:min(100%,1080px);
+}
+.tsugi-entry-brand {
   display:flex;
   align-items:center;
-  justify-content:flex-start;
-  min-height:118px;
-  padding: 18px 6px;
-  text-align:left;
+  justify-content:center;
+  flex-direction:column;
+  gap:12px;
+  min-width:0;
+}
+.tsugi-entry-mark {
+  display:flex;
+  align-items:center;
+  justify-content:center;
   color:var(--tsugi-ink);
+}
+.tsugi-entry-mark svg {
+  display:block;
+  width:clamp(104px,11vw,168px);
+  height:clamp(104px,11vw,168px);
+}
+.tsugi-landing .tsugi-entry-wordmark {
+  font-family:'Avenir Next','Segoe UI Variable Display',Inter,sans-serif;
+  font-size:clamp(3.75rem,6.6vw,6.5rem);
+  font-style:italic;
+  font-weight:610;
+  letter-spacing:-.07em;
+  line-height:1;
+  margin:0;
+}
+.tsugi-entry-index { min-width:0; }
+.tsugi-entry-heading {
+  margin:0 0 20px;
+  font-size:.75rem;
+  font-weight:600;
+  color:var(--tsugi-muted);
+  text-transform:uppercase;
+  letter-spacing:.18em !important;
+}
+.tsugi-entry-list { border-top:1px solid var(--tsugi-line); }
+.tsugi-entry-link {
+  display:flex;
+  align-items:center;
+  gap:clamp(14px,2vw,24px);
+  width:100%;
+  min-height:clamp(76px,10vh,108px);
+  padding:18px 12px;
+  border-bottom:1px solid var(--tsugi-line);
   background:transparent;
-  position:relative;
-  transition: color .18s ease, transform .18s ease;
+  color:var(--tsugi-ink);
+  text-align:start;
+  cursor:pointer;
+  transition:background .16s ease,color .16s ease;
 }
-.tsugi-gateway-link::before {
-  content:'';
-  position:absolute;
-  inset:0 0 auto;
-  height:1px;
+.tsugi-entry-icon {
+  flex:none;
+  width:27px;
+  height:27px;
+  color:var(--tsugi-muted);
+  stroke-width:1.55;
+}
+.tsugi-entry-label {
+  min-width:0;
+  font-size:clamp(1.35rem,2.1vw,2.1rem);
+  line-height:1.2;
+  font-weight:550;
+  letter-spacing:-.035em;
+  overflow-wrap:anywhere;
+}
+.tsugi-entry-dots {
+  display:inline-flex;
+  flex:none;
+  align-items:center;
+  gap:5px;
+  margin-inline-start:2px;
+  color:var(--tsugi-muted);
   opacity:.45;
-  background:linear-gradient(90deg,var(--tsugi-accent),transparent 70%);
 }
-.tsugi-gateway-link:hover { color:var(--tsugi-accent); transform:translateY(-2px); }
+.tsugi-entry-dots i {
+  display:block;
+  width:4px;
+  height:4px;
+  border-radius:50%;
+  background:currentColor;
+}
+.tsugi-entry-link:hover,
+.tsugi-entry-link:focus-visible {
+  color:var(--tsugi-accent);
+  background:var(--tsugi-wash);
+}
+.tsugi-entry-link:hover :is(.tsugi-entry-icon,.tsugi-entry-dots),
+.tsugi-entry-link:focus-visible :is(.tsugi-entry-icon,.tsugi-entry-dots) {
+  color:var(--tsugi-accent);
+  opacity:1;
+}
+@media (max-width:760px) {
+  .tsugi-entry-composition {
+    grid-template-columns:minmax(0,1fr);
+    gap:clamp(2.5rem,7vh,4rem);
+    max-width:480px;
+  }
+  .tsugi-entry-brand {gap:4px;}
+  .tsugi-entry-mark svg {width:96px;height:96px;}
+  .tsugi-landing .tsugi-entry-wordmark {font-size:3.5rem;}
+  .tsugi-entry-link {min-height:74px;}
+}
 
 /* Reusable discreet controls; settings are the only intentional panel surface. */
 .tsugi-icon-action {
@@ -967,11 +1055,10 @@ html[data-blur-spoilers]:not([data-tv])
   .tsugi-hub-feature { min-height:270px; }
   .tsugi-hub-feature-art { opacity:.42;position:absolute;inset:0; }
   .tsugi-mini-player { padding-bottom:env(safe-area-inset-bottom); }
-  .tsugi-gateway-link { min-height:100px; }
 }
 @media (prefers-reduced-motion:reduce) {
   .tsugi-dot-played[data-playing='true'] { animation:none; }
-  .tsugi-gateway-link,.tsugi-control,.tsugi-play-toggle,.tsugi-music-tile img {
+  .tsugi-entry-link,.tsugi-control,.tsugi-play-toggle,.tsugi-music-tile img {
     transition-duration:.01ms;
   }
 }
@@ -1045,37 +1132,6 @@ html[data-blur-spoilers]:not([data-tv])
   font-style: italic;
   letter-spacing: -.035em;
 }
-.tsugi-gateway-signature {
-  font-family: 'Avenir Next','Segoe UI Variable Display',Inter,sans-serif;
-  font-style: italic;
-  font-weight: 610;
-  letter-spacing:-.07em;
-}
-.tsugi-gateway-hero { justify-content:center; transform:translateY(-2.2vh); }
-.tsugi-gateway-mark { display:flex;align-items:center;justify-content:center; }
-.tsugi-gateway-mark .inline-flex {gap:0;}
-.tsugi-gateway-mark svg { display:block; }
-.tsugi-gateway-dots {
-  display:inline-flex;
-  align-items:center;
-  gap:4px;
-  margin-inline-start:-6px;
-  color:var(--tsugi-muted);
-  opacity:.65;
-  transition:opacity .15s ease,color .15s ease;
-}
-.tsugi-gateway-dots i {
-  display:block;
-  width:4px;
-  height:4px;
-  border-radius:50%;
-  background:currentColor;
-}
-.tsugi-gateway-link:hover .tsugi-gateway-dots,
-.tsugi-gateway-link:focus-visible .tsugi-gateway-dots {
-  opacity:1;
-  color:var(--tsugi-accent);
-}
 .tsugi-volume { color:var(--tsugi-muted); }
 .tsugi-volume-range {
   appearance:none;
@@ -1108,11 +1164,10 @@ html[data-blur-spoilers]:not([data-tv])
 }
 .tsugi-volume-compact .tsugi-volume-range { width:clamp(56px,6.5vw,115px); }
 @media (max-width:760px) {
-  .tsugi-gateway-hero {transform:none;}
   .tsugi-junction-content::before {opacity:.055;}
 }
 @media (prefers-reduced-motion:reduce) {
-  .tsugi-gateway-link,.tsugi-volume-range { transition:none; }
+  .tsugi-entry-link,.tsugi-volume-range { transition:none; }
 }
 
 /* Independent library — editorial typography and lines, never boxed playlist cards. */
@@ -1163,7 +1218,6 @@ html[data-blur-spoilers]:not([data-tv])
 .tsugi-hub-feature h3 {max-width:14ch;line-height:1.04;}
 .tsugi-mini-player [data-ui='tsugi-volume'] {align-self:center;}
 @media (min-width:1700px) {
-  .tsugi-gateway-nav {padding-inline:1.5vw;}
   .tsugi-library {padding-inline:clamp(0px,1vw,22px);}
 }
 @media (max-width:760px) {

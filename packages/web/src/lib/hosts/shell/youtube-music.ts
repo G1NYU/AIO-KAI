@@ -10,7 +10,7 @@ let sequence = 0;
 export const requestYouTubeMusic: YouTubeMusicRequest = (operation, value, signal) => {
   const bridge = typeof window !== 'undefined' ? appBridge() : undefined;
   if (!bridge?.youtubeMusic) return Promise.reject(new Error('This desktop build does not support YouTube Music.'));
-  if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
+  if (signal?.aborted) return Promise.reject(new DOMException('', 'AbortError'));
   const request = 'music-' + ++sequence;
   return new Promise((resolve, reject) => {
     const finish = () => {
@@ -20,7 +20,7 @@ export const requestYouTubeMusic: YouTubeMusicRequest = (operation, value, signa
     };
     const abort = () => {
       finish();
-      reject(new DOMException('Aborted', 'AbortError'));
+      reject(new DOMException('', 'AbortError'));
     };
     const timer = setTimeout(() => {
       finish();

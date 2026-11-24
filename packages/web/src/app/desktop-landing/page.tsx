@@ -8,7 +8,7 @@ import {
   PLAYER_PALETTES, readPlayerTheme, savePlayerTheme, type PlayerThemeId,
 } from '@/lib/music/player-theme';
 
-/** A quiet gateway into two independent media environments. */
+/** An editorial media index. Add a section only when its destination exists. */
 export function DesktopLandingPage({
   openVideo,
   openMusic,
@@ -32,21 +32,25 @@ export function DesktopLandingPage({
     window.dispatchEvent(new CustomEvent<PlayerThemeId>('tsugi-theme-change', { detail: value }));
   }
 
+  const sections = [
+    { id: 'video', label: t`Movies & TV`, Icon: FiFilm, open: openVideo },
+    { id: 'music', label: t`Music`, Icon: FiHeadphones, open: openMusic },
+  ];
+
   return (
     <main data-page="desktop-landing"
-      className="tsugi-landing relative flex min-h-dvh flex-col overflow-hidden px-6 pb-10 pt-16 sm:px-12 lg:px-[4vw]">
-      <div aria-hidden className="tsugi-landing-atmosphere pointer-events-none absolute inset-0" />
+      className="tsugi-landing relative flex min-h-dvh flex-col px-6 pb-8 pt-12 sm:px-12 lg:px-[4vw]">
       <header className="relative z-10 flex items-center justify-between gap-5">
-        <TsugiBrand />
+        <TsugiBrand markOnly />
         <details className="tsugi-overflow">
           <summary aria-label={t`Settings`} className="tsugi-icon-action">
             <FiMenu aria-hidden className="text-xl" />
           </summary>
           <div className="tsugi-overflow-panel">
-            <label htmlFor="tsugi-gateway-theme" className="block text-xs font-medium text-[--tsugi-muted]">
+            <label htmlFor="tsugi-entry-theme" className="block text-xs font-medium text-[--tsugi-muted]">
               <Trans>Player theme</Trans>
             </label>
-            <select id="tsugi-gateway-theme" className="tsugi-menu-select mt-3 w-full"
+            <select id="tsugi-entry-theme" className="tsugi-menu-select mt-3 w-full"
               value={theme} onChange={(event) => changeTheme(event.target.value as PlayerThemeId)}>
               {(Object.keys(PLAYER_PALETTES) as PlayerThemeId[]).map((id) => (
                 <option key={id} value={id}>
@@ -59,29 +63,27 @@ export function DesktopLandingPage({
         </details>
       </header>
 
-      <div className="tsugi-gateway-hero relative flex flex-1 flex-col items-center justify-center py-16">
-        <span aria-hidden className="tsugi-gateway-mark"><TsugiBrand markOnly /></span>
-        <h1 className="tsugi-gateway-signature mt-3 text-center text-[clamp(3.2rem,7vw,7.5rem)] font-semibold tracking-[-.08em]">
-          <Trans>Tsugi</Trans>
-        </h1>
-      </div>
+      <div className="tsugi-entry-stage">
+        <div className="tsugi-entry-composition">
+          <div className="tsugi-entry-brand">
+            <span aria-hidden className="tsugi-entry-mark"><TsugiBrand markOnly /></span>
+            <h1 className="tsugi-entry-wordmark"><Trans>Tsugi</Trans></h1>
+          </div>
 
-      <nav className="tsugi-gateway-nav relative grid gap-x-10 md:grid-cols-2" aria-label={t`Media sections`}>
-        <button type="button" onClick={openVideo} className="tsugi-gateway-link group">
-          <span className="flex items-center gap-4">
-            <FiFilm aria-hidden className="text-xl text-[--tsugi-muted]" />
-            <span className="text-[clamp(1.7rem,2.7vw,3rem)] font-medium tracking-tight"><Trans>Movies & TV</Trans></span>
-            <span aria-hidden className="tsugi-gateway-dots"><i /><i /><i /></span>
-          </span>
-        </button>
-        <button type="button" onClick={openMusic} className="tsugi-gateway-link group">
-          <span className="flex items-center gap-4">
-            <FiHeadphones aria-hidden className="text-xl text-[--tsugi-muted]" />
-            <span className="text-[clamp(1.7rem,2.7vw,3rem)] font-medium tracking-tight"><Trans>Music</Trans></span>
-            <span aria-hidden className="tsugi-gateway-dots"><i /><i /><i /></span>
-          </span>
-        </button>
-      </nav>
+          <nav className="tsugi-entry-index" aria-label={t`Media sections`}>
+            <h2 className="tsugi-entry-heading"><Trans>Media sections</Trans></h2>
+            <div className="tsugi-entry-list">
+              {sections.map(({ id, label, Icon, open }) => (
+                <button key={id} type="button" onClick={open} className="tsugi-entry-link">
+                  <Icon aria-hidden className="tsugi-entry-icon" />
+                  <span className="tsugi-entry-label">{label}</span>
+                  <span aria-hidden className="tsugi-entry-dots"><i /><i /><i /></span>
+                </button>
+              ))}
+            </div>
+          </nav>
+        </div>
+      </div>
     </main>
   );
 }
