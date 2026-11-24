@@ -7,7 +7,7 @@ on:
       - '.github/workflows/tsugi-read-runtime-smoke.yml'
       - 'packages/desktop/scripts/fetch-read-tools.ps1'
       - 'packages/desktop/scripts/test-read-runtime.ps1'
-      - 'packages/desktop/scripts/read-runtime/TsugiReadLauncher.java'
+      - 'packages/desktop/scripts/read-runtime/**'
       - 'packages/desktop/core/src/read_runtime.rs'
       - 'packages/desktop/core/src/lib.rs'
       - 'packages/desktop/core/Cargo.toml'
@@ -43,6 +43,18 @@ jobs:
           New-Item -ItemType Directory -Force $destination | Out-Null
           & $javac --release 21 -d $destination packages/desktop/scripts/read-runtime/TsugiReadLauncher.java
           if ($LASTEXITCODE -ne 0) { throw 'Tsugi reading launcher compilation failed' }
+      - name: Compile original test-only extension against pinned runtime
+        run: |
+          $java = Join-Path $env:JAVA_HOME_21_X64 'bin'
+          $runtime = "$env:RUNNER_TEMP/tsugi-read-runtime"
+          $classes = "$env:RUNNER_TEMP/tsugi-read-fixture-classes"
+          $fixtures = Join-Path $runtime 'test-fixtures'
+          New-Item -ItemType Directory -Force $classes, $fixtures | Out-Null
+          & "$java/javac.exe" --release 21 -cp "$runtime/bin/Suwayomi-Server.jar" -d $classes packages/desktop/scripts/read-runtime/fixture/FixtureSource.java
+          if ($LASTEXITCODE -ne 0) { throw 'Original extension fixture compilation failed' }
+          Copy-Item packages/desktop/scripts/read-runtime/fixture/AndroidManifest.xml $classes
+          & "$java/jar.exe" --create --file "$fixtures/tsugi-fixture-v1.6.1.jar" -C $classes .
+          if ($LASTEXITCODE -ne 0) { throw 'Original extension fixture packaging failed' }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -68,7 +80,7 @@ jobs:
                 'Failed to fetch extension store', 'Shutting down HikariCP',
                 'Failed to sync preference store', 'AccessDeniedException',
                 'FileSystemException', 'SQLException', 'JdbcSQL', 'NoClassDefFoundError')
-              foreach ($kind in @('library', 'stores')) {
+              foreach ($kind in @('library', 'stores', 'extension')) {
                 $logs = Join-Path $env:TSUGI_READ_FIXTURE "$kind/logs"
                 if (Test-Path -LiteralPath $logs) {
                   foreach ($marker in $markers) {

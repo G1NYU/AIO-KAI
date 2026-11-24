@@ -1347,9 +1347,16 @@ mod tests {
     }
 
     fn fixture_index() -> Vec<u8> {
+        fixture_index_with_jar(None)
+    }
+
+    fn fixture_index_with_jar(jar_url: Option<&str>) -> Vec<u8> {
         let mut resources = Vec::new();
         field(&mut resources, 1, b"https://example.invalid/fixture.apk");
         field(&mut resources, 2, b"https://example.invalid/fixture.png");
+        if let Some(url) = jar_url {
+            field(&mut resources, 501, url.as_bytes());
+        }
         let mut source = Vec::new();
         varint(8, &mut source);
         varint(12345, &mut source);
@@ -1388,6 +1395,10 @@ mod tests {
 
     impl FixtureStore {
         fn start() -> Self {
+            Self::with_jar(None)
+        }
+
+        fn with_jar(jar: Option<Vec<u8>>) -> Self {
             let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
             let port = listener.local_addr().unwrap().port();
             listener.set_nonblocking(true).unwrap();
@@ -1396,7 +1407,8 @@ mod tests {
             let requests = Arc::new(AtomicUsize::new(0));
             let served = Arc::clone(&requests);
             let worker = std::thread::spawn(move || {
-                let body = fixture_index();
+                let jar_url = format!("http://127.0.0.1:{port}/tsugi-fixture-v1.6.1.jar");
+                let body = fixture_index_with_jar(jar.as_ref().map(|_| jar_url.as_str()));
                 while !stopped.load(Ordering::Acquire) {
                     let Ok((mut stream, _)) = listener.accept() else {
                         std::thread::sleep(Duration::from_millis(20));
@@ -1412,7 +1424,12 @@ mod tests {
                         request.push(byte);
                         if request.ends_with(b"\r\n\r\n") { break; }
                     }
-                    if request.starts_with(b"GET /index.pb HTTP/1.") {
+                    if request.starts_with(b"GET /tsugi-fixture-v1.6.1.jar HTTP/1.") && jar.is_some() {
+                        let jar = jar.as_ref().unwrap();
+                        let header = format!("HTTP/1.1 200 OK\r\nContent-Type: application/java-archive\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", jar.len());
+                        let _ = stream.write_all(header.as_bytes());
+                        let _ = stream.write_all(jar);
+                    } else if request.starts_with(b"GET /index.pb HTTP/1.") {
                         served.fetch_add(1, Ordering::Relaxed);
                         let header = format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
                         let _ = stream.write_all(header.as_bytes());
@@ -1535,6 +1552,66 @@ mod tests {
         )
         .is_err());
         fs::remove_dir_all(data).expect("clean disposable reading data");
+    }
+
+    #[test]
+    #[ignore = "requires the pinned Windows reading runtime and original CI fixture"]
+    fn packaged_runtime_extension() {
+        let runtime = PathBuf::from(std::env::var_os("TSUGI_READ_RUNTIME").unwrap());
+        let data = PathBuf::from(std::env::var_os("TSUGI_READ_FIXTURE").unwrap()).join("extension");
+        let jar = fs::read(runtime.join("test-fixtures/tsugi-fixture-v1.6.1.jar"))
+            .expect("compiled original extension fixture");
+        assert!(jar.starts_with(b"PK") && jar.len() < 1024 * 1024);
+        let store = FixtureStore::with_jar(Some(jar));
+        let mut managed = ReadRuntime::start(&runtime, &data).expect("native extension runtime startup");
+        managed.add_store_inner(&store.url).expect("add fixture store");
+        managed.refresh_extensions().expect("refresh fixture catalogue");
+        let entry = managed.client.document(
+            "query TsugiExtension($pkg: String!) { extension(pkgName: $pkg) { pkgName storeIndexUrl versionName isInstalled jarUrl } }",
+            "extension",
+            json!({"pkg": "org.tsugi.fixture"}),
+        ).expect("read exact extension metadata");
+        assert_eq!(entry["storeIndexUrl"], store.url);
+        assert_eq!(entry["versionName"], "1.6.1");
+        assert_eq!(entry["isInstalled"], false);
+        assert_eq!(entry["jarUrl"], store.url.replace("/index.pb", "/tsugi-fixture-v1.6.1.jar"));
+        // Test-only executable operation; never execute arbitrary repository code.
+        let installed = managed.client.mutation(
+            "mutation TsugiInstallFixture($input: UpdateExtensionInput!) { updateExtension(input: $input) { extension { pkgName isInstalled versionName } } }",
+            "updateExtension",
+            json!({"id": "org.tsugi.fixture", "patch": {"install": true}}),
+        ).expect("install original fixture");
+        assert_eq!(installed["extension"]["pkgName"], "org.tsugi.fixture");
+        assert_eq!(installed["extension"]["isInstalled"], true);
+        let assert_catalogue = |runtime: &ReadRuntime| {
+            let sources = runtime.query(ReadOperation::Sources).unwrap();
+            assert!(sources["nodes"].as_array().unwrap().iter().any(|source| source["id"] == "12345"));
+            let popular = runtime.catalogue("12345", 1, CatalogueMode::Popular).expect("execute fixture source");
+            assert_eq!(popular["mangas"][0]["title"], "Tsugi Original Comic");
+            let search = runtime.catalogue("12345", 1, CatalogueMode::Search("original")).unwrap();
+            assert_eq!(search["mangas"][0]["title"], "Tsugi Original Comic");
+            let empty = runtime.catalogue("12345", 1, CatalogueMode::Search("not present")).unwrap();
+            assert!(empty["mangas"].as_array().unwrap().is_empty());
+        };
+        assert_catalogue(&managed);
+        managed.shutdown().expect("shutdown installed fixture");
+        drop(managed);
+        let mut managed = ReadRuntime::start(&runtime, &data).expect("reopen installed fixture");
+        assert_catalogue(&managed);
+        managed.client.mutation(
+            "mutation TsugiUninstallFixture($input: UpdateExtensionInput!) { updateExtension(input: $input) { extension { pkgName isInstalled } } }",
+            "updateExtension",
+            json!({"id": "org.tsugi.fixture", "patch": {"uninstall": true}}),
+        ).expect("uninstall original fixture");
+        assert!(!managed.query(ReadOperation::Sources).unwrap()["nodes"].as_array().unwrap().iter().any(|source| source["id"] == "12345"));
+        managed.shutdown().expect("shutdown after uninstall");
+        drop(managed);
+        let mut managed = ReadRuntime::start(&runtime, &data).expect("reopen after uninstall");
+        assert!(!managed.query(ReadOperation::Sources).unwrap()["nodes"].as_array().unwrap().iter().any(|source| source["id"] == "12345"));
+        managed.shutdown().expect("shutdown fixture runtime");
+        drop(managed);
+        fs::remove_dir_all(data).expect("clean disposable extension fixture");
+        eprintln!("PASS: original extension installed, executed catalogue and search, survived restart, uninstalled and remained absent.");
     }
 
     #[test]
