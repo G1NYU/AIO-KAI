@@ -1,14 +1,29 @@
 # Exercise the packaged server on loopback with isolated, disposable data.
 # No user credentials, extension repositories, or third-party source requests.
-param([Parameter(Mandatory = $true)][string]$Runtime)
+param(
+    [Parameter(Mandatory = $true)][string]$Runtime,
+    [switch]$UpstreamLayout
+)
 $ErrorActionPreference = 'Stop'
 $runtimeRoot = (Resolve-Path -LiteralPath $Runtime).Path
 $java = Join-Path $runtimeRoot 'jre/bin/java.exe'
-$jar = Join-Path $runtimeRoot 'suwayomi.jar'
+$jar = if ($UpstreamLayout) {
+    Join-Path $runtimeRoot 'bin/Suwayomi-Server.jar'
+} else {
+    Join-Path $runtimeRoot 'suwayomi.jar'
+}
 if (-not (Test-Path -LiteralPath $java -PathType Leaf) -or
     -not (Test-Path -LiteralPath $jar -PathType Leaf)) {
     throw 'Reading runtime is not packaged'
 }
+$archive = [IO.Compression.ZipFile]::OpenRead($jar)
+try {
+    $graphqlClasses = @($archive.Entries | Where-Object {
+        $_.FullName -like 'suwayomi/tachidesk/graphql/*.class'
+    }).Count
+    Write-Host "Packaged GraphQL classes: $graphqlClasses"
+    if ($graphqlClasses -eq 0) { throw 'No GraphQL classes in server JAR' }
+} finally { $archive.Dispose() }
 $data = Join-Path ([IO.Path]::GetTempPath()) ('tsugi-read-smoke-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $data | Out-Null
 $process = $null
@@ -62,7 +77,7 @@ server.globalUpdateInterval = 0
         '-Dsuwayomi.tachidesk.config.server.kcefEnabled=false',
         '-jar', ('"' + $jar + '"')
     )
-    $process = Start-Process -FilePath $java -ArgumentList $args -PassThru -NoNewWindow `
+    $process = Start-Process -FilePath $java -ArgumentList $args -WorkingDirectory $runtimeRoot -PassThru -NoNewWindow `
         -RedirectStandardOutput (Join-Path $data 'stdout.txt') `
         -RedirectStandardError (Join-Path $data 'stderr.txt')
     $url = "http://127.0.0.1:$port/api/graphql"

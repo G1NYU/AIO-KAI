@@ -7,6 +7,7 @@ on:
       - '.github/workflows/tsugi-read-runtime-smoke.yml'
       - 'packages/desktop/scripts/fetch-read-tools.ps1'
       - 'packages/desktop/scripts/test-read-runtime.ps1'
+      - 'packages/desktop/scripts/fetch-read-reference.ps1'
   workflow_dispatch:
 
 permissions:
@@ -30,3 +31,15 @@ jobs:
         run: ./packages/desktop/scripts/fetch-read-tools.ps1 -Destination "$env:RUNNER_TEMP/tsugi-read-runtime"
       - name: Validate isolated local reading server
         run: ./packages/desktop/scripts/test-read-runtime.ps1 -Runtime "$env:RUNNER_TEMP/tsugi-read-runtime"
+
+  upstream-reference:
+    if: github.ref == 'refs/heads/feature/tsugi-read-runtime'
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate the official upstream Windows bundle
+        run: ./packages/desktop/scripts/fetch-read-reference.ps1 -Destination "$env:RUNNER_TEMP/tsugi-read-reference"

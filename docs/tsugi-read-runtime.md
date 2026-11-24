@@ -52,3 +52,32 @@ This is a controlled compatibility experiment, not a confirmed fix. Retain the
 same server JAR, loopback-only authentication, and disposable data. Emit only
 sanitized exception type and code symbol names to identify an initializer
 failure without exposing raw logs or authentication data. No app build changes.
+
+## Extension ecosystem and reference run
+
+Wotaku's [Mihon stores](https://wotaku.wiki/ext/mihon) include Keiyoushi,
+Cursed Yuzono, FelipeGFA, LittleSurvival, Kavita and Suwayomi.
+Acceptance is support for current Mihon 1.6 extension stores and protobuf
+index.pb (not a manually maintained scraper list), validated trusted install
+and update, source listing, authorized catalogue search, chapter/page reading
+and library progress. The current upstream
+[NetworkExtensionStore](https://github.com/Suwayomi/Suwayomi-Server/blob/v2.4.2373/server/src/main/kotlin/suwayomi/tachidesk/manga/impl/extension/github/NetworkExtensionStore.kt)
+includes protobuf fields and APK/JAR metadata;
+[ExtensionStoreMutation](https://github.com/Suwayomi/Suwayomi-Server/blob/v2.4.2373/server/src/main/kotlin/suwayomi/tachidesk/graphql/mutations/ExtensionStoreMutation.kt)
+provides authenticated store add/remove. This is source-level evidence only.
+
+Run 45376948888 on Temurin 25 still failed before the socket bound.
+The sanitized logs now identify InvalidPackagesException in GraphQL Kotlin
+ClassScanner and SchemaGeneratorConfig, followed by ExceptionInInitializerError.
+Do not treat this as an auth/network or extension compatibility error.
+
+Next run compares the exact SHA-256-pinned official Windows distribution,
+with the original bin/Suwayomi-Server.jar and upstream Java distribution,
+against the standalone JAR/JRE. Log the count of packaged GraphQL classes,
+JAR digest equality, and startup outcome. This reference workflow never
+launches Electron or the upstream launcher, never installs extensions and
+does not publish the runtime. Keep the authenticated loopback-only probe.
+No downgrade to versions predating the November security fixes.
+If both paths fail, isolate the classpath/schema issue upstream rather than
+blindly cycling Java versions. Evaluate separately maintained extension engines
+only if the direct Mihon compatibility acceptance can still be met.
