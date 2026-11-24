@@ -508,6 +508,7 @@ mod private_storage {
         fn GetSecurityDescriptorControl(descriptor: *mut c_void, control: *mut u16, revision: *mut u32) -> i32;
         fn GetAce(acl: *mut Acl, index: u32, ace: *mut *mut c_void) -> i32;
         fn EqualSid(first: *mut c_void, second: *mut c_void) -> i32;
+        fn IsWellKnownSid(sid: *mut c_void, kind: i32) -> i32;
     }
 
     struct LocalAllocation(*mut c_void);
@@ -612,8 +613,16 @@ mod private_storage {
             let mut control = 0;
             let mut revision = 0;
             // SAFETY: owner, ACL and descriptor are owned by the live allocation.
-            if unsafe { EqualSid(owner, self.sid()) } == 0 {
-                return Err("Reading storage owner does not match the current user.");
+            // The root is explicitly user-owned. Files created without an
+            // explicit owner (including JVM config replacements) may instead
+            // be owned by Builtin Administrators under an elevated token.
+            // Administrators already have privileged access; never add an
+            // Administrators ACE or accept arbitrary group ownership.
+            // WinBuiltinAdministratorsSid = 26.
+            let user_owned = unsafe { EqualSid(owner, self.sid()) } != 0;
+            let admin_owned_file = !directory && unsafe { IsWellKnownSid(owner, 26) } != 0;
+            if !user_owned && !admin_owned_file {
+                return Err("Reading storage owner is not permitted.");
             }
             if unsafe { GetSecurityDescriptorControl(raw, &mut control, &mut revision) } == 0 {
                 return Err("Could not inspect reading storage DACL control flags.");
