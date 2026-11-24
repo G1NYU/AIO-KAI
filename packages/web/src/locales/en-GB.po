@@ -480,6 +480,10 @@ msgstr "Add favourite"
 msgid "Add from Continue watching"
 msgstr "Add from Continue watching"
 
+#: src/app/music/library.tsx
+msgid "Add playing track"
+msgstr "Add playing track"
+
 #: src/app/item/_components/actions.tsx
 #: src/components/media/item-menu.tsx
 #: src/features/playlists/playlists.tsx
@@ -711,6 +715,10 @@ msgstr "Audio description, narrating what is on screen"
 msgid "Audio languages"
 msgstr "Audio languages"
 
+#: src/app/music/player-settings.tsx
+msgid "Audio profiles"
+msgstr "Audio profiles"
+
 #: src/app/settings/audio.tsx
 msgid "Audio types"
 msgstr "Audio types"
@@ -782,6 +790,10 @@ msgstr "Badges"
 msgid "Bar"
 msgstr "Bar"
 
+#: src/app/music/player-settings.tsx
+msgid "Bass boost"
+msgstr "Bass boost"
+
 #: src/app/settings/playback.tsx
 msgid "Before the end"
 msgstr "Before the end"
@@ -851,6 +863,10 @@ msgstr "Born in {place}"
 msgid "Bottom bar"
 msgstr "Bottom bar"
 
+#: src/app/music/player-settings.tsx
+msgid "Bright"
+msgstr "Bright"
+
 #: src/features/player/gestures.ts
 msgid "Brightness {percent}%"
 msgstr "Brightness {percent}%"
@@ -867,6 +883,10 @@ msgstr "Browser Search"
 #: src/lib/discord.ts
 msgid "Browsing"
 msgstr "Browsing"
+
+#: src/app/music/library.tsx
+msgid "Build your own rotation"
+msgstr "Build your own rotation"
 
 #: src/lib/playback/player-choice.ts
 msgid "Built-in mpv"
@@ -1173,6 +1193,10 @@ msgid "Connect a music source to browse albums, playlists and tracks."
 msgstr "Connect a music source to browse albums, playlists and tracks."
 
 #: src/app/music/page.tsx
+msgid "Connect a music source to play saved tracks."
+msgstr "Connect a music source to play saved tracks."
+
+#: src/app/music/page.tsx
 msgid "Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device."
 msgstr "Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device."
 
@@ -1276,6 +1300,10 @@ msgstr "Could not copy the link"
 msgid "Could not copy them"
 msgstr "Could not copy them"
 
+#: src/app/music/library.tsx
+msgid "Could not create playlist."
+msgstr "Could not create playlist."
+
 #: src/features/player/next-episode.tsx
 msgid "Could not find versions of that episode"
 msgstr "Could not find versions of that episode"
@@ -1287,6 +1315,10 @@ msgstr "Could not find versions of that title"
 #: src/lib/downloads/index.ts
 msgid "Could not find versions: {message}"
 msgstr "Could not find versions: {message}"
+
+#: src/app/music/library.tsx
+msgid "Could not import playlist."
+msgstr "Could not import playlist."
 
 #: src/features/party/not-in-party.tsx
 msgid "Could not join"
@@ -1369,6 +1401,10 @@ msgstr "Could not read that file"
 msgid "Could not save that setting"
 msgstr "Could not save that setting"
 
+#: src/app/music/page.tsx
+msgid "Could not search the active music source for this saved track."
+msgstr "Could not search the active music source for this saved track."
+
 #: src/features/party/not-in-party.tsx
 msgid "Could not start a party"
 msgstr "Could not start a party"
@@ -1400,6 +1436,14 @@ msgstr "Counts down, then plays the next episode. Off, the prompt waits for you.
 #: src/features/playlists/playlists.tsx
 msgid "Create"
 msgstr "Create"
+
+#: src/app/music/library.tsx
+msgid "Create a playlist or import an M3U or Tsugi JSON collection to begin."
+msgstr "Create a playlist or import an M3U or Tsugi JSON collection to begin."
+
+#: src/app/music/library.tsx
+msgid "Create playlist"
+msgstr "Create playlist"
 
 #: src/components/media/people.tsx
 msgid "Creator"
@@ -1520,6 +1564,7 @@ msgstr "Delete {name}"
 msgid "Delete all"
 msgstr "Delete all"
 
+#: src/app/music/library.tsx
 #: src/features/playlists/playlists.tsx
 msgid "Delete playlist"
 msgstr "Delete playlist"
@@ -1757,6 +1802,10 @@ msgstr "Eclipse community addon store"
 msgid "Edit"
 msgstr "Edit"
 
+#: src/app/music/player-settings.tsx
+msgid "Enable equalizer"
+msgstr "Enable equalizer"
+
 #: src/features/player/controls.tsx
 msgid "Ends at {endsAt}"
 msgstr "Ends at {endsAt}"
@@ -1881,6 +1930,7 @@ msgid "Explore"
 msgstr "Explore"
 
 #: src/app/history/page.tsx
+#: src/app/music/library.tsx
 msgid "Export"
 msgstr "Export"
 
@@ -1985,6 +2035,10 @@ msgstr "Fit"
 #: src/app/music/player-settings.tsx
 msgid "Fit Studio layout inside window"
 msgstr "Fit Studio layout inside window"
+
+#: src/app/music/player-settings.tsx
+msgid "Flat"
+msgstr "Flat"
 
 #: src/app/settings/interface.tsx
 msgid "Floating"
@@ -2278,6 +2332,10 @@ msgstr "Image"
 msgid "Import"
 msgstr "Import"
 
+#: src/app/music/library.tsx
+msgid "Import playlist"
+msgstr "Import playlist"
+
 #: src/app/music/player-settings.tsx
 msgid "Import Studio layout"
 msgstr "Import Studio layout"
@@ -2541,6 +2599,11 @@ msgstr "Lets the TV's decoder keep picture and sound in step itself, which plays
 msgid "Lets the TV's decoder keep picture and sound in step itself, which plays 4K and HDR more smoothly on some TVs. Turn it off if video stutters or stays black."
 msgstr "Lets the TV's decoder keep picture and sound in step itself, which plays 4K and HDR more smoothly on some TVs. Turn it off if video stutters or stays black."
 
+#: src/app/music/library.tsx
+#: src/app/music/page.tsx
+msgid "Library"
+msgstr "Library"
+
 #: src/app/settings/_components/licenses.tsx
 msgid "Licences"
 msgstr "Licences"
@@ -2607,6 +2670,14 @@ msgstr "Loading music…"
 #: src/app/settings/_components/version-settings.tsx
 msgid "Loading…"
 msgstr "Loading…"
+
+#: src/app/music/library.tsx
+msgid "Local audio — this session"
+msgstr "Local audio — this session"
+
+#: src/app/music/page.tsx
+msgid "Local audio EQ could not be initialized on this device."
+msgstr "Local audio EQ could not be initialized on this device."
 
 #: src/features/player/controls.tsx
 msgid "Lock screen"
@@ -2888,6 +2959,7 @@ msgstr "Music sections"
 msgid "Music settings"
 msgstr "Music settings"
 
+#: src/app/music/volume-control.tsx
 #: src/features/player/picture-in-picture.tsx
 #: src/features/player/volume.tsx
 #: src/lib/input/actions.ts
@@ -2924,6 +2996,7 @@ msgstr "Never"
 msgid "New code"
 msgstr "New code"
 
+#: src/app/music/library.tsx
 #: src/features/playlists/playlists.tsx
 msgid "New playlist"
 msgstr "New playlist"
@@ -3054,6 +3127,10 @@ msgstr "No live TV here"
 msgid "No matching lyrics found."
 msgstr "No matching lyrics found."
 
+#: src/app/music/page.tsx
+msgid "No matching playable track was found in the active music source."
+msgstr "No matching playable track was found in the active music source."
+
 #: src/features/party/chat.tsx
 msgid "No messages yet. Say hello."
 msgstr "No messages yet. Say hello."
@@ -3086,9 +3163,17 @@ msgstr "No setting matches."
 msgid "No subtitles were found in that file"
 msgstr "No subtitles were found in that file"
 
+#: src/app/music/page.tsx
+msgid "No supported audio files were selected."
+msgstr "No supported audio files were selected."
+
 #: src/app/music/browse.tsx
 msgid "No tracks available from this addon."
 msgstr "No tracks available from this addon."
+
+#: src/app/music/library.tsx
+msgid "No tracks yet. Save the playing track or import a playlist."
+msgstr "No tracks yet. Save the playing track or import a playlist."
 
 #: src/lib/party/follow.ts
 msgid "No version of {title} plays here."
@@ -3391,6 +3476,10 @@ msgstr "Open its page"
 #: src/features/versions/version-list.tsx
 msgid "Open link"
 msgstr "Open link"
+
+#: src/app/music/library.tsx
+msgid "Open local audio"
+msgstr "Open local audio"
 
 #: src/lib/i18n.ts
 msgid "Open main menu"
@@ -3900,6 +3989,19 @@ msgstr "Playing on and the next and previous buttons pass over episodes marked a
 msgid "Playlist"
 msgstr "Playlist"
 
+#: src/app/music/library.tsx
+msgid "Playlist files must be smaller than 1 MB."
+msgstr "Playlist files must be smaller than 1 MB."
+
+#: src/app/music/library.tsx
+msgid "Playlist imported. Unmatched tracks will be searched in the active music source when played."
+msgstr "Playlist imported. Unmatched tracks will be searched in the active music source when played."
+
+#: src/app/music/library.tsx
+msgid "Playlist name"
+msgstr "Playlist name"
+
+#: src/app/music/library.tsx
 #: src/components/shell/layout.tsx
 #: src/features/playlists/playlists.tsx
 msgid "Playlists"
@@ -4248,6 +4350,10 @@ msgstr "Remove music source"
 msgid "Remove server"
 msgstr "Remove server"
 
+#: src/app/music/library.tsx
+msgid "Remove track from playlist"
+msgstr "Remove track from playlist"
+
 #: src/app/history/page.tsx
 msgid "Removed from history"
 msgstr "Removed from history"
@@ -4255,6 +4361,10 @@ msgstr "Removed from history"
 #: src/features/playlists/playlists.tsx
 msgid "Rename"
 msgstr "Rename"
+
+#: src/app/music/library.tsx
+msgid "Reopen files after restarting Tsugi"
+msgstr "Reopen files after restarting Tsugi"
 
 #: src/app/music/player.tsx
 #: src/app/music/studio-player.tsx
@@ -4440,6 +4550,10 @@ msgstr "Save subtitles"
 #: src/app/settings/cache.tsx
 msgid "Save title pages"
 msgstr "Save title pages"
+
+#: src/app/music/page.tsx
+msgid "Save track to library"
+msgstr "Save track to library"
 
 #: src/app/settings/cache.tsx
 msgid "Save what you browse"
@@ -4985,6 +5099,10 @@ msgstr "Sort by"
 msgid "Sound"
 msgstr "Sound"
 
+#: src/app/music/player-settings.tsx
+msgid "Sound profile"
+msgstr "Sound profile"
+
 #: src/app/history/page.tsx
 msgid "Source"
 msgstr "Source"
@@ -5414,6 +5532,10 @@ msgstr "The default for every profile. A profile that changes it keeps its own."
 msgid "The device is signed in"
 msgstr "The device is signed in"
 
+#: src/app/music/player-settings.tsx
+msgid "The equalizer processes locally opened audio files. Remote addon streams play without EQ to avoid cross-origin audio interruptions."
+msgstr "The equalizer processes locally opened audio files. Remote addon streams play without EQ to avoid cross-origin audio interruptions."
+
 #: src/lib/party/party.ts
 msgid "The host removed you from the party."
 msgstr "The host removed you from the party."
@@ -5675,6 +5797,10 @@ msgstr "This isn't a .wgsl pass file."
 msgid "This item was not found"
 msgstr "This item was not found"
 
+#: src/app/music/page.tsx
+msgid "This local file is no longer available. Reopen it from your device."
+msgstr "This local file is no longer available. Reopen it from your device."
+
 #: src/app/sign-in/page.tsx
 msgid "This profile has a PIN."
 msgstr "This profile has a PIN."
@@ -5812,6 +5938,10 @@ msgstr "Top tabs"
 msgid "Track {n}"
 msgstr "Track {n}"
 
+#: src/app/music/library.tsx
+msgid "tracks"
+msgstr "tracks"
+
 #: src/app/music/browse.tsx
 #: src/lib/hosts/shell/player.ts
 msgid "Tracks"
@@ -5921,6 +6051,7 @@ msgstr "Unfinished"
 msgid "Unknown language"
 msgstr "Unknown language"
 
+#: src/app/music/volume-control.tsx
 #: src/features/player/picture-in-picture.tsx
 #: src/features/player/volume.tsx
 msgid "Unmute"
@@ -6112,6 +6243,10 @@ msgstr "View"
 msgid "Visit"
 msgstr "Visit"
 
+#: src/app/music/player-settings.tsx
+msgid "Vocal clarity"
+msgstr "Vocal clarity"
+
 #: src/lib/hosts/shell/android.ts
 msgid "Voice search failed"
 msgstr "Voice search failed"
@@ -6119,6 +6254,7 @@ msgstr "Voice search failed"
 #: src/app/music/junction-player.tsx
 #: src/app/music/player.tsx
 #: src/app/music/studio-player.tsx
+#: src/app/music/volume-control.tsx
 #: src/features/player/volume.tsx
 msgid "Volume"
 msgstr "Volume"
@@ -6163,6 +6299,10 @@ msgstr "Waiting for {names}"
 #: src/app/sign-in/page.tsx
 msgid "Waiting for approval…"
 msgstr "Waiting for approval…"
+
+#: src/app/music/player-settings.tsx
+msgid "Warm"
+msgstr "Warm"
 
 #: src/app/live-tv/_components/channel-details.tsx
 #: src/features/live-tv/live-reminders.tsx
@@ -6448,6 +6588,10 @@ msgstr "Your {name}"
 msgid "Your badges"
 msgstr "Your badges"
 
+#: src/app/music/library.tsx
+msgid "Your collection"
+msgstr "Your collection"
+
 #: src/app/music/browse.tsx
 msgid "Your music starts here"
 msgstr "Your music starts here"
@@ -6471,6 +6615,10 @@ msgstr "Your player does not report back, so mark it as watched once you finish.
 #: src/features/party/not-in-party.tsx
 msgid "Your player plays in another app, which can't follow a party. Choose the app's own player in settings to watch along."
 msgstr "Your player plays in another app, which can't follow a party. Choose the app's own player in settings to watch along."
+
+#: src/app/music/library.tsx
+msgid "Your playlists live on this device independently of your music sources."
+msgstr "Your playlists live on this device independently of your music sources."
 
 #: src/app/item/_components/rating.tsx
 msgid "Your rating"
