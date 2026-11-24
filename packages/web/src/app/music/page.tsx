@@ -27,6 +27,8 @@ import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 import type { TrendingRecording } from '@/lib/music/discovery';
 import { makeRecentPlay, mergeRecentPlays, readRecentPlays, storeRecentPlays, type RecentMusicPlay } from '@/lib/music/history';
 
+const SAVED_PLAYLIST_ID = 'tsugi-saved-tracks';
+
 /** Music lives outside the AIOStreams/Jellyfin session. */
 export function MusicPage({
   openVideo,
@@ -302,8 +304,8 @@ export function MusicPage({
       return {
         id,
         title: file.name.replace(/\.[^.]+$/, ''),
-        artist: 'Local file',
-        album: 'This session',
+        artist: t`Local file`,
+        album: t`This session`,
       } satisfies EclipseTrack;
     });
     if (tracks.length) {
@@ -332,17 +334,19 @@ export function MusicPage({
     setDuration(0);
     setPaused(true);
     setResolving(false);
-    setQuality('Local');
+    setQuality(t`Local`);
   }
 
   function saveTrackInLibrary(track: EclipseTrack) {
     const sourceId = activeSource?.id ?? playingSourceId;
     const entry = savedTrack(track, sourceId);
     setPlaylists((current) => {
-      const existing = current.find((list) => list.name === 'Saved tracks');
+      const existing = current.find((list) => list.id === SAVED_PLAYLIST_ID);
       if (existing) return current.map((list) =>
         list.id === existing.id ? addToMusicPlaylist(list, entry) : list);
-      return [...current, addToMusicPlaylist(createMusicPlaylist('Saved tracks'), entry)];
+      return [...current, addToMusicPlaylist({
+        ...createMusicPlaylist(t`Saved tracks`), id: SAVED_PLAYLIST_ID,
+      }, entry)];
     });
   }
 
@@ -764,7 +768,7 @@ export function MusicPage({
       )}
       <MusicPlayer p={{
         track: playing,
-        sourceName: playingSourceId === LOCAL_SOURCE ? 'Local audio' :
+        sourceName: playingSourceId === LOCAL_SOURCE ? t`Local audio` :
           connections.find((item) => item.id === playingSourceId)?.manifest.name ?? '',
         queue, index: queueIndex, paused, loading: resolving, error: playError,
         position, duration, volume, quality, expanded, shuffle, repeat,

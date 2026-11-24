@@ -1,3 +1,4 @@
+import { t } from '@lingui/core/macro';
 import { storage } from '../storage';
 import type { EclipseTrack } from './eclipse';
 
@@ -89,7 +90,7 @@ function fromM3U(text: string): SavedMusicTrack[] {
     }
     ext = '';
     const separator = label.indexOf(' - ');
-    const artist = separator > 0 ? label.slice(0, separator) : 'Unknown artist';
+    const artist = separator > 0 ? label.slice(0, separator) : t`Unknown artist`;
     const title = separator > 0 ? label.slice(separator + 3) : label;
     if (title) tracks.push(savedTrack({ id: 'm3u:' + tracks.length + ':' + title, title, artist }));
     if (tracks.length >= MAX_TRACKS) break;
@@ -99,7 +100,7 @@ function fromM3U(text: string): SavedMusicTrack[] {
 
 export function importMusicPlaylist(filename: string, text: string): MusicPlaylist {
   if (text.length > 1024 * 1024) throw new Error('Playlist files must be smaller than 1 MB.');
-  const name = clean(filename.replace(/\.(json|m3u8?|csv)$/i, ''), 80) || 'Imported playlist';
+  const name = clean(filename.replace(/\.(json|m3u8?|csv)$/i, ''), 80) || t`Imported playlist`;
   const base = createMusicPlaylist(name);
   if (/\.m3u8?$/i.test(filename)) return { ...base, tracks: fromM3U(text) };
   if (/\.json$/i.test(filename)) {
