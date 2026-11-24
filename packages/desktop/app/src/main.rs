@@ -713,6 +713,11 @@ pub fn handle(
                 p.control_music_audio(request, action, value);
             }
         }
+        Inbound::MusicAudioPrepare { request, url } => {
+            if let Some(p) = player.as_ref() {
+                p.prepare_music_audio(request, url);
+            }
+        }
         Inbound::AudioDevices => {
             if let Some(p) = player.as_ref() {
                 p.audio_devices();

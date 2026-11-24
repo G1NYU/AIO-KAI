@@ -12,6 +12,7 @@ import {
   type MusicConnection,
 } from '@/lib/music/connections';
 import { providerFor } from '@/lib/music/providers';
+import { nextYouTubeMusicTarget, youtubeMusicTarget } from '@/lib/music/youtube-music';
 import { supportsYouTubeMusic } from '@/lib/hosts/shell/youtube-music';
 import { appBridge, type ShellMessage } from '@/lib/hosts/shell/bridge';
 import { MusicPlayer, type RepeatMode } from './player';
@@ -108,7 +109,7 @@ export function MusicPage({
   const [repeat, setRepeat] = React.useState<RepeatMode>('off');
   const audioRef = React.useRef<HTMLAudioElement>(null);
   const playbackRequest = React.useRef(0);
-  const nativeAudio = React.useRef<{ request: string; sourceId: string; track: EclipseTrack; recorded: boolean; timer?: ReturnType<typeof setTimeout> } | null>(null);
+  const nativeAudio = React.useRef<{ request: string; sourceId: string; track: EclipseTrack; recorded: boolean; preparedUrl?: string | null; timer?: ReturnType<typeof setTimeout> } | null>(null);
   const nativeEvent = React.useRef<(message: Extract<ShellMessage, { type: 'music-audio-state' }>) => void>(() => {});
   const volumeRef = React.useRef(volume);
   volumeRef.current = volume;
@@ -119,12 +120,13 @@ export function MusicPage({
     if (current) appBridge()?.send({ type: 'music-audio-control', request: current.request, action, value });
   }
 
-  function stopNativeAudio() {
+  function stopNativeAudio(nextTarget?: string | null) {
     const current = nativeAudio.current;
     if (!current) return;
     clearTimeout(current.timer);
     nativeAudio.current = null;
-    appBridge()?.send({ type: 'music-audio-control', request: current.request, action: 'stop', value: 0 });
+    const action = nextTarget && current.preparedUrl === nextTarget ? 'switch' : 'stop';
+    appBridge()?.send({ type: 'music-audio-control', request: current.request, action, value: 0 });
   }
 
   React.useEffect(() => {
@@ -322,7 +324,7 @@ export function MusicPage({
 
   async function play(track: EclipseTrack, at: number, source: MusicConnection, fromQueue = false) {
     const request = ++playbackRequest.current;
-    stopNativeAudio();
+    stopNativeAudio(source.kind === 'youtube-music' ? youtubeMusicTarget(track.id) : null);
     audioRef.current?.pause();
     releaseFolderURL();
     if (!fromQueue) setQueue(tracks);
@@ -678,6 +680,13 @@ export function MusicPage({
     if (message.status === 'playing' && !current.recorded) {
       current.recorded = true;
       setRecent(previous => mergeRecentPlays(previous, makeRecentPlay(current.sourceId, current.track)));
+    }
+    if (message.status === 'playing') {
+      const target = nextYouTubeMusicTarget(queue, queueIndex, repeat, shuffle);
+      if (current.preparedUrl !== target) {
+        current.preparedUrl = target;
+        appBridge()?.send({ type: 'music-audio-prepare', request: current.request, url: target });
+      }
     }
     if (message.status === 'ended') {
       nativeAudio.current = null;

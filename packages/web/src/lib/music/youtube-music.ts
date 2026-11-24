@@ -11,6 +11,20 @@ const obj = (value: unknown): ObjectValue =>
 const arr = (value: unknown): unknown[] => Array.isArray(value) ? value : [];
 const str = (value: unknown): string => typeof value === 'string' ? value : '';
 const videoId = (id: string): boolean => /^[\w-]{11}$/.test(id);
+export function youtubeMusicTarget(id: string): string | null {
+  return videoId(id) ? 'https://www.youtube.com/watch?v=' + id : null;
+}
+
+/** Only prepare the next predictable queue entry, never an arbitrary search
+ * result or a shuffled/repeated current track. */
+export function nextYouTubeMusicTarget(
+  queue: readonly EclipseTrack[], at: number, repeat: 'off' | 'all' | 'one', shuffle: boolean,
+): string | null {
+  if (shuffle || repeat === 'one' || at < 0 || at >= queue.length || queue.length < 2) return null;
+  const next = queue[at + 1] ?? (repeat === 'all' ? queue[0] : undefined);
+  return next && next.id !== queue[at]?.id ? youtubeMusicTarget(next.id) : null;
+}
+
 const browseId = (id: string): boolean => /^(?:MPRE|UC|VL|MPLA|OLAK5uy_)[\w-]{1,175}$/.test(id);
 
 function nodes(root: unknown, key: string, limit = 500): ObjectValue[] {

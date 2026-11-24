@@ -149,6 +149,10 @@ pub enum Inbound {
         action: String,
         value: f64,
     },
+    MusicAudioPrepare {
+        request: String,
+        url: Option<String>,
+    },
     /// Asks for an `audio-devices` answer.
     AudioDevices,
     /// A subtitle file the user dropped or picked, base64-encoded.

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readMusicSources, remembersMusicSources, saveMusicSources, youtubeMusicConnection } from '../src/lib/music/connections';
 
-import { parseYouTubeMusicHome, youtubeMusicProvider } from '../src/lib/music/youtube-music';
+import { nextYouTubeMusicTarget, parseYouTubeMusicHome, youtubeMusicProvider } from '../src/lib/music/youtube-music';
 
 const values = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -143,5 +143,20 @@ describe('YouTube Music home catalogues', () => {
     expect(await provider.catalog(first, 30, signal)).toEqual([]);
     expect(await provider.catalog({ ...first, id: 'unknown' })).toEqual([]);
     expect(request).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('predictable YouTube Music queue prebuffer', () => {
+  const songs = [
+    { id: 'abcdefghijk', title: 'First', artist: 'Fixture' },
+    { id: 'zyxwvutsrqp', title: 'Second', artist: 'Fixture' },
+  ];
+  it('only prepares the next deterministic valid track', () => {
+    expect(nextYouTubeMusicTarget(songs, 0, 'off', false)).toBe('https://www.youtube.com/watch?v=zyxwvutsrqp');
+    expect(nextYouTubeMusicTarget(songs, 1, 'all', false)).toBe('https://www.youtube.com/watch?v=abcdefghijk');
+    expect(nextYouTubeMusicTarget(songs, 1, 'off', false)).toBeNull();
+    expect(nextYouTubeMusicTarget(songs, 0, 'one', false)).toBeNull();
+    expect(nextYouTubeMusicTarget(songs, 0, 'off', true)).toBeNull();
+    expect(nextYouTubeMusicTarget([songs[0]!, { ...songs[1]!, id: 'invalid' }], 0, 'off', false)).toBeNull();
   });
 });

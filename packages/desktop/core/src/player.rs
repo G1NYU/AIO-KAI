@@ -441,6 +441,19 @@ impl Player {
         }
     }
 
+    pub fn prepare_music_audio(&self, request: String, url: Option<String>) {
+        if cfg!(windows)
+            && request.len() <= 100
+            && url
+                .as_ref()
+                .is_none_or(|target| crate::music_resolver::is_target(target))
+            && let Ok(audio) = self.music_audio.lock()
+            && let Some(audio) = &*audio
+        {
+            audio.send(crate::music_audio::Command::Prepare { request, url });
+        }
+    }
+
     pub fn stop_music_audio(&self) {
         if let Ok(audio) = self.music_audio.lock()
             && let Some(audio) = &*audio

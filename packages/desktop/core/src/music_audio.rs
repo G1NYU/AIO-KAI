@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use crate::bridge::Outbound;
 use crate::mpv::{Event, Kind, Mpv};
-use crate::music_resolver::Transfer;
+use crate::music_resolver::{self, Transfer};
 use crate::music_stream::{self, Source};
 use crate::player::Emit;
 
@@ -21,6 +21,10 @@ pub enum Command {
         request: String,
         action: String,
         value: f64,
+    },
+    Prepare {
+        request: String,
+        url: Option<String>,
     },
     Stop,
 }
@@ -308,6 +312,53 @@ struct Pending {
     transfer: Transfer,
 }
 
+enum PreparedState {
+    Transferring(Transfer),
+    Complete(Result<Arc<Source>, &'static str>),
+}
+
+struct Prepared {
+    owner: String,
+    url: String,
+    state: PreparedState,
+    expires: Option<Instant>,
+}
+
+impl Prepared {
+    fn new(owner: String, url: String) -> Self {
+        let state = match Transfer::start(&url) {
+            Ok(transfer) => PreparedState::Transferring(transfer),
+            Err(message) => PreparedState::Complete(Err(message)),
+        };
+        Self {
+            owner,
+            url,
+            state,
+            expires: None,
+        }
+    }
+
+    fn expired(&self, now: Instant) -> bool {
+        self.expires.is_some_and(|deadline| now >= deadline)
+    }
+
+    fn matches(&self, url: &str, now: Instant) -> bool {
+        self.url == url && !self.expired(now)
+    }
+
+    fn hold_for_transition(&mut self, now: Instant) {
+        self.expires = Some(now + Duration::from_secs(8));
+    }
+
+    fn poll(&mut self) {
+        if let PreparedState::Transferring(transfer) = &mut self.state
+            && let Some(result) = transfer.poll().transpose()
+        {
+            self.state = PreparedState::Complete(result.and_then(Source::from_bytes));
+        }
+    }
+}
+
 fn start_session(
     library: &Path,
     emit: &Emit,
@@ -331,6 +382,7 @@ fn start_session(
 fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
     let mut session: Option<Session> = None;
     let mut pending: Option<Pending> = None;
+    let mut prepared: Option<Prepared> = None;
     loop {
         match inbox.recv_timeout(Duration::from_millis(50)) {
             Ok(Command::Load {
@@ -341,21 +393,34 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                 // A fresh instance isolates queued EOF/property events from the previous track.
                 pending.take();
                 session.take();
+                let next = prepared
+                    .take()
+                    .filter(|item| item.matches(&url, Instant::now()));
                 if !volume.is_finite() {
                     fail(emit, &request, "Invalid native music stream.");
                     continue;
                 }
                 report(emit, &request, "loading", 0.0, 0.0, None);
                 if cfg!(windows) {
-                    match Transfer::start(&url) {
-                        Ok(transfer) => {
+                    let state = match next {
+                        Some(item) => item.state,
+                        None => match Transfer::start(&url) {
+                            Ok(transfer) => PreparedState::Transferring(transfer),
+                            Err(message) => PreparedState::Complete(Err(message)),
+                        },
+                    };
+                    match state {
+                        PreparedState::Transferring(transfer) => {
                             pending = Some(Pending {
                                 request,
                                 volume,
                                 transfer,
                             });
                         }
-                        Err(message) => fail(emit, &request, message),
+                        PreparedState::Complete(Ok(source)) => {
+                            session = start_session(library, emit, request, source, volume);
+                        }
+                        PreparedState::Complete(Err(message)) => fail(emit, &request, message),
                     }
                 } else if allowed_url(&url) {
                     session = start_session(
@@ -369,14 +434,33 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                     fail(emit, &request, "Invalid native music stream.");
                 }
             }
+            Ok(Command::Prepare { request, url }) => {
+                if cfg!(windows)
+                    && session
+                        .as_ref()
+                        .is_some_and(|player| player.loaded && player.request == request)
+                {
+                    if let Some(url) = url.filter(|url| music_resolver::is_target(url)) {
+                        if !prepared
+                            .as_ref()
+                            .is_some_and(|item| item.owner == request && item.url == url)
+                        {
+                            prepared = Some(Prepared::new(request, url));
+                        }
+                    } else {
+                        prepared.take();
+                    }
+                }
+            }
             Ok(Command::Control {
                 request,
                 action,
                 value,
             }) => {
                 if pending.as_ref().is_some_and(|item| item.request == request) {
-                    if action == "stop" {
+                    if action == "stop" || action == "switch" {
                         pending.take();
+                        prepared.take();
                     } else if action == "volume"
                         && value.is_finite()
                         && let Some(item) = &mut pending
@@ -387,20 +471,29 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                     .as_ref()
                     .is_some_and(|player| player.request == request)
                 {
-                    if action == "stop" {
+                    if action == "stop" || action == "switch" {
                         session.take();
+                        if action == "switch" {
+                            if let Some(item) = &mut prepared {
+                                item.hold_for_transition(Instant::now());
+                            }
+                        } else {
+                            prepared.take();
+                        }
                     } else if value.is_finite()
                         && let Some(player) = &session
                         && player.control(&action, value).is_err()
                     {
                         fail(emit, &request, "Native audio control failed.");
                         session.take();
+                        prepared.take();
                     }
                 }
             }
             Ok(Command::Stop) => {
                 pending.take();
                 session.take();
+                prepared.take();
             }
             Err(RecvTimeoutError::Disconnected) => return,
             Err(RecvTimeoutError::Timeout) => {}
@@ -418,8 +511,20 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                 Err(message) => fail(emit, &item.request, message),
             }
         }
+        if prepared
+            .as_ref()
+            .is_some_and(|item| item.expired(Instant::now()))
+        {
+            prepared.take();
+        }
+        if let Some(item) = &mut prepared {
+            item.poll();
+        }
         if session.as_mut().is_some_and(|player| !player.update(emit)) {
             session.take();
+            if let Some(item) = &mut prepared {
+                item.hold_for_transition(Instant::now());
+            }
         }
     }
 }
@@ -441,6 +546,25 @@ mod tests {
         assert_eq!(classify_log("https://example.test/?private=hidden"), None);
         assert!(probe_status(206).contains("responds"));
         assert!(probe_status(416).contains("416"));
+    }
+
+    #[test]
+    fn prepared_audio_is_bound_to_exact_target_and_short_handoff() {
+        let now = Instant::now();
+        let url = "https://www.youtube.com/watch?v=abcdefghijk";
+        let mut item = Prepared {
+            owner: "fixture".into(),
+            url: url.into(),
+            state: PreparedState::Complete(Err("fixture refusal")),
+            expires: None,
+        };
+        assert!(item.matches(url, now));
+        assert!(!item.matches("https://www.youtube.com/watch?v=zyxwvutsrqp", now));
+        item.hold_for_transition(now);
+        assert!(item.matches(url, now + Duration::from_secs(7)));
+        assert!(!item.matches(url, now + Duration::from_secs(8)));
+        item.poll();
+        assert!(matches!(item.state, PreparedState::Complete(Err("fixture refusal"))));
     }
 
     #[test]
