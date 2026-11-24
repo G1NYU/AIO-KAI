@@ -134,6 +134,25 @@ pub enum Inbound {
         request: String,
         id: String,
     },
+    YoutubeMusicRequest {
+        request: String,
+        operation: String,
+        value: String,
+    },
+    MusicAudioLoad {
+        request: String,
+        url: String,
+        volume: f64,
+    },
+    MusicAudioControl {
+        request: String,
+        action: String,
+        value: f64,
+    },
+    MusicAudioPrepare {
+        request: String,
+        url: Option<String>,
+    },
     /// Asks for an `audio-devices` answer.
     AudioDevices,
     /// A subtitle file the user dropped or picked, base64-encoded.
@@ -346,6 +365,18 @@ pub enum Outbound {
         url: Option<String>,
         #[serde(rename = "originalLanguage", skip_serializing_if = "Option::is_none")]
         original_language: Option<String>,
+    },
+    YoutubeMusicResult {
+        request: String,
+        data: Option<Value>,
+        error: Option<String>,
+    },
+    MusicAudioState {
+        request: String,
+        status: String,
+        position: f64,
+        duration: f64,
+        error: Option<String>,
     },
     PlayerState {
         #[serde(flatten)]

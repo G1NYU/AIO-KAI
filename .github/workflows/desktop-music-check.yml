@@ -1,0 +1,58 @@
+name: Desktop Music Validation
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/desktop-music-check.yml'
+      - 'packages/web/src/app.tsx'
+      - 'packages/web/src/app/music/**'
+      - 'packages/web/src/app/desktop-landing/**'
+      - 'packages/web/src/components/shell/layout.tsx'
+      - 'packages/web/src/lib/music/**'
+      - 'packages/web/src/lib/desktop-area.tsx'
+      - 'packages/web/tests/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-music-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web typecheck, lint, test and desktop assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build shared core types
+        run: pnpm -F @aiostreams/core build
+      - name: Typecheck web application
+        run: pnpm -F @aiostreams/web typecheck
+      - name: Lint web application
+        run: pnpm -F @aiostreams/web lint
+      - name: Test Eclipse protocol and music source persistence
+        run: pnpm exec vitest run packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts packages/web/tests/player-template.test.ts packages/web/tests/player-layout.test.ts packages/web/tests/music-feature-pack.test.ts packages/web/tests/music-lyrics.test.ts packages/web/tests/music-history.test.ts packages/web/tests/eclipse-appearance.test.ts packages/web/tests/music-library.test.ts packages/web/tests/audio-profiles.test.ts
+      - name: Build standalone desktop web assets
+        run: pnpm -F @aiostreams/web build:standalone
+      - name: Extract source catalogs for review
+        if: always()
+        run: pnpm -F @aiostreams/web i18n:extract
+      - name: Upload generated source catalogs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: eclipse-source-catalogs
+          retention-days: 7
+          path: |
+            packages/web/src/locales/en-GB.po
+            packages/web/src/locales/messages.pot

@@ -261,3 +261,211 @@ fn player(
         .map_err(|e| e.to_string())?;
     serde_json::from_str(&text).map_err(|e| e.to_string())
 }
+
+const MUSIC_VERSION: &str = "1.20260213.01.00";
+
+/// Anonymous music metadata and direct, provider-issued audio URLs only.
+/// No account cookies, signature deciphering, or arbitrary request destinations.
+pub fn music_request(operation: &str, value: &str) -> Result<Value, &'static str> {
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(10)))
+        .build()
+        .into();
+    match operation {
+        "home" if value.is_empty() => {
+            music_metadata(&agent, "browse", json!({ "browseId": "FEmusic_home" }))
+        }
+        "explore" if value.is_empty() => {
+            music_metadata(&agent, "browse", json!({ "browseId": "FEmusic_explore" }))
+        }
+        "search" if !value.trim().is_empty() && value.chars().count() <= 200 => {
+            music_metadata(&agent, "search", json!({ "query": value.trim() }))
+        }
+        "browse" if music_browse_id(value) => {
+            music_metadata(&agent, "browse", json!({ "browseId": value }))
+        }
+        "audio" if music_video_id(value) => music_audio(&agent, value),
+        _ => Err("Invalid YouTube Music request."),
+    }
+}
+
+fn music_video_id(id: &str) -> bool {
+    id.len() == 11 && music_id_chars(id)
+}
+
+fn music_id_chars(id: &str) -> bool {
+    id.bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
+fn music_browse_id(id: &str) -> bool {
+    id.len() <= 180
+        && music_id_chars(id)
+        && ["MPRE", "UC", "VL", "MPLA", "OLAK5uy_"]
+            .iter()
+            .any(|prefix| id.len() > prefix.len() && id.starts_with(*prefix))
+}
+
+fn music_metadata(
+    agent: &ureq::Agent,
+    operation: &str,
+    mut body: Value,
+) -> Result<Value, &'static str> {
+    body["context"] = json!({
+        "client": {
+            "clientName": "WEB_REMIX",
+            "clientVersion": MUSIC_VERSION,
+            "hl": "en",
+        }
+    });
+    let mut response = agent
+        .post(format!(
+            "https://music.youtube.com/youtubei/v1/{operation}?prettyPrint=false"
+        ))
+        .header("Content-Type", "application/json")
+        .header("Origin", "https://music.youtube.com")
+        .header("Referer", "https://music.youtube.com/")
+        .header("X-YouTube-Client-Name", "67")
+        .header("X-YouTube-Client-Version", MUSIC_VERSION)
+        .send(body.to_string())
+        .map_err(|_| "YouTube Music did not answer.")?;
+    let text = response
+        .body_mut()
+        .read_to_string()
+        .map_err(|_| "Could not read the YouTube Music response.")?;
+    if text.len() > 4 * 1024 * 1024 {
+        return Err("YouTube Music returned too much data.");
+    }
+    let data: Value = serde_json::from_str(&text).map_err(|_| "Invalid YouTube Music response.")?;
+    if data["contents"].is_null() && data["header"].is_null() {
+        return Err("YouTube Music returned no accessible results.");
+    }
+    Ok(json!({
+        "contents": data["contents"],
+        "header": data["header"],
+    }))
+}
+
+fn direct_music_audio(streaming: &Value) -> Option<Value> {
+    streaming["adaptiveFormats"]
+        .as_array()?
+        .iter()
+        .filter_map(|format| {
+            let mime = format["mimeType"].as_str()?;
+            if !mime.starts_with("audio/mp4") && !mime.starts_with("audio/webm") {
+                return None;
+            }
+            if format["audioTrack"]["audioIsDefault"] == false {
+                return None;
+            }
+            let url = url::Url::parse(format["url"].as_str()?).ok()?;
+            let host = url.host_str()?;
+            if url.scheme() != "https"
+                || !url.username().is_empty()
+                || url.password().is_some()
+                || url.port_or_known_default() != Some(443)
+                || !(host == "googlevideo.com" || host.ends_with(".googlevideo.com"))
+            {
+                return None;
+            }
+            let bitrate = format["bitrate"].as_u64().unwrap_or(0);
+            Some((
+                bitrate,
+                json!({
+                    "url": url.as_str(),
+                    "format": mime.split(';').next(),
+                    "quality": format!("{} kbps", bitrate / 1000),
+                }),
+            ))
+        })
+        .max_by_key(|(bitrate, _)| *bitrate)
+        .map(|(_, stream)| stream)
+}
+
+fn music_audio(agent: &ureq::Agent, video_id: &str) -> Result<Value, &'static str> {
+    // Reuse the existing desktop resolver's direct-format client; do not
+    // change the video resolver or try to unlock restricted content.
+    let client = CLIENTS
+        .iter()
+        .find(|client| !client.hls)
+        .ok_or("YouTube audio is unavailable.")?;
+    let answer = player(agent, client, video_id, None)
+        .map_err(|_| "YouTube audio could not be resolved.")?;
+    music_playability(&answer["playabilityStatus"])?;
+    direct_music_audio(&answer["streamingData"])
+        .ok_or("YouTube did not supply a directly playable audio stream.")
+}
+
+// Fixed messages only: the upstream reason may include account-specific data.
+fn music_playability(status: &Value) -> Result<(), &'static str> {
+    match status["status"].as_str() {
+        Some("OK") => Ok(()),
+        Some("LOGIN_REQUIRED") => {
+            let reason = status["reason"].as_str().unwrap_or("").to_ascii_lowercase();
+            if reason.contains("bot") {
+                Err("YouTube requires bot verification on this network (LOGIN_REQUIRED).")
+            } else {
+                Err("YouTube requires sign-in for this track (LOGIN_REQUIRED).")
+            }
+        }
+        Some("AGE_CHECK_REQUIRED" | "CONTENT_CHECK_REQUIRED") => {
+            Err("YouTube requires content or age verification.")
+        }
+        Some("UNPLAYABLE") => Err("YouTube reports this track is unavailable (UNPLAYABLE)."),
+        Some("ERROR") => Err("YouTube reports a playback error (ERROR)."),
+        Some("LIVE_STREAM_OFFLINE") => Err("YouTube reports that this live stream is offline."),
+        _ => Err("YouTube returned an unsupported playback status."),
+    }
+}
+
+#[cfg(test)]
+mod music_tests {
+    use super::*;
+
+    #[test]
+    fn classifies_playability_without_leaking_provider_reasons() {
+        assert_eq!(music_playability(&json!({"status": "OK"})), Ok(()));
+        assert_eq!(
+            music_playability(&json!({
+                "status": "LOGIN_REQUIRED",
+                "reason": "Sign in to confirm you're not a bot"
+            })),
+            Err("YouTube requires bot verification on this network (LOGIN_REQUIRED).")
+        );
+        assert_eq!(
+            music_playability(
+                &json!({"status": "LOGIN_REQUIRED", "reason": "private account data"})
+            ),
+            Err("YouTube requires sign-in for this track (LOGIN_REQUIRED).")
+        );
+        assert!(music_playability(&json!({"status": "UNPLAYABLE"})).is_err());
+        assert!(music_playability(&Value::Null).is_err());
+    }
+
+    #[test]
+    fn restricts_music_targets() {
+        assert!(music_video_id("abcDEF_1234"));
+        assert!(!music_video_id("https://example.test"));
+        assert!(music_browse_id("MPREtest"));
+        assert!(!music_browse_id("FEmusic_library"));
+        assert!(!music_browse_id("VL../secret"));
+    }
+
+    #[test]
+    fn picks_only_direct_audio_on_youtube_media_hosts() {
+        let data = json!({
+            "adaptiveFormats": [
+                {"mimeType": "video/mp4", "bitrate": 900000, "url": "https://a.googlevideo.com/v"},
+                {"mimeType": "audio/mp4", "bitrate": 128000, "url": "https://a.googlevideo.com/a"},
+                {"mimeType": "audio/webm", "bitrate": 160000, "url": "https://b.googlevideo.com/b"},
+                {"mimeType": "audio/webm", "bitrate": 500000, "url": "https://googlevideo.com.evil.test/c"},
+                {"mimeType": "audio/mp4", "bitrate": 600000, "signatureCipher": "not-a-direct-url"},
+                {"mimeType": "audio/mp4", "bitrate": 800000, "url": "https://a.googlevideo.com/d", "audioTrack": {"audioIsDefault": false}}
+            ]
+        });
+        let result = direct_music_audio(&data).unwrap();
+        assert_eq!(result["url"], "https://b.googlevideo.com/b");
+        assert_eq!(result["quality"], "160 kbps");
+        assert!(direct_music_audio(&json!({"adaptiveFormats": []})).is_none());
+    }
+}

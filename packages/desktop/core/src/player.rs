@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -230,6 +230,8 @@ pub struct Player {
     auto_cache: Option<u64>,
     /// What mpv plays for each YouTube address handed to the page.
     youtube: Arc<Mutex<HashMap<String, String>>>,
+    music_library: PathBuf,
+    music_audio: Mutex<Option<crate::music_audio::MusicAudio>>,
     emit: Emit,
 }
 
@@ -318,6 +320,8 @@ impl Player {
             styled: Mutex::default(),
             auto_cache,
             youtube: Arc::default(),
+            music_library: library.to_path_buf(),
+            music_audio: Mutex::default(),
             emit,
         })
     }
@@ -346,6 +350,115 @@ impl Player {
             });
         if let Err(e) = spawned {
             log::warn!("youtube: {e}");
+        }
+    }
+
+    pub fn youtube_music_request(&self, request: String, operation: String, value: String) {
+        static IN_FLIGHT: AtomicUsize = AtomicUsize::new(0);
+        if request.len() > 100 || value.len() > 800 || operation.len() > 10 {
+            return;
+        }
+        if IN_FLIGHT.fetch_add(1, Ordering::AcqRel) >= 4 {
+            IN_FLIGHT.fetch_sub(1, Ordering::AcqRel);
+            (self.emit)(Outbound::YoutubeMusicResult {
+                request,
+                data: None,
+                error: Some("Too many YouTube Music requests. Try again.".into()),
+            });
+            return;
+        }
+        let emit = self.emit.clone();
+        let fallback_request = request.clone();
+        let spawned = std::thread::Builder::new()
+            .name("youtube-music".into())
+            .spawn(move || {
+                let result = if cfg!(windows) && operation == "audio" {
+                    crate::music_resolver::target(&value)
+                        .map(|url| serde_json::json!({ "url": url }))
+                } else {
+                    crate::youtube::music_request(&operation, &value)
+                };
+                let (data, error) = match result {
+                    Ok(data) => (Some(data), None),
+                    Err(error) => (None, Some(error.to_string())),
+                };
+                IN_FLIGHT.fetch_sub(1, Ordering::AcqRel);
+                emit(Outbound::YoutubeMusicResult {
+                    request,
+                    data,
+                    error,
+                });
+            });
+        if spawned.is_err() {
+            IN_FLIGHT.fetch_sub(1, Ordering::AcqRel);
+            (self.emit)(Outbound::YoutubeMusicResult {
+                request: fallback_request,
+                data: None,
+                error: Some("Could not start YouTube Music request.".into()),
+            });
+        }
+    }
+
+    pub fn load_music_audio(&self, request: String, url: String, volume: f64) {
+        use crate::music_audio::{Command, MusicAudio};
+        if request.len() > 100 || url.len() > 16384 {
+            return;
+        }
+        if let Ok(mut audio) = self.music_audio.lock() {
+            if audio.is_none() {
+                *audio = MusicAudio::new(self.music_library.clone(), self.emit.clone()).ok();
+            }
+            if let Some(audio) = &*audio
+                && audio.send(Command::Load {
+                    request: request.clone(),
+                    url,
+                    volume,
+                })
+            {
+                return;
+            }
+        }
+        (self.emit)(Outbound::MusicAudioState {
+            request,
+            status: "error".into(),
+            position: 0.0,
+            duration: 0.0,
+            error: Some("Native music engine is unavailable.".into()),
+        });
+    }
+
+    pub fn control_music_audio(&self, request: String, action: String, value: f64) {
+        if request.len() <= 100
+            && action.len() <= 10
+            && let Ok(audio) = self.music_audio.lock()
+            && let Some(audio) = &*audio
+        {
+            audio.send(crate::music_audio::Command::Control {
+                request,
+                action,
+                value,
+            });
+        }
+    }
+
+    pub fn prepare_music_audio(&self, request: String, url: Option<String>) {
+        if cfg!(windows)
+            && request.len() <= 100
+            && url
+                .as_ref()
+                .is_none_or(|target| crate::music_resolver::is_target(target))
+            && let Ok(audio) = self.music_audio.lock()
+            && let Some(audio) = &*audio
+        {
+            audio.send(crate::music_audio::Command::Prepare { request, url });
+        }
+    }
+
+    pub fn stop_music_audio(&self) {
+        if let Ok(audio) = self.music_audio.lock()
+            && let Some(audio) = &*audio
+        {
+            audio.send(crate::music_audio::Command::Stop);
         }
     }
 
@@ -675,6 +788,10 @@ impl Player {
 
 impl Drop for Player {
     fn drop(&mut self) {
+        // Stop the independent music engine before tearing down video playback.
+        if let Ok(audio) = self.music_audio.get_mut() {
+            audio.take();
+        }
         // Dropping the sender ends the worker after what was sent.
         self.requests.take();
         if let Some(worker) = self.worker.take() {

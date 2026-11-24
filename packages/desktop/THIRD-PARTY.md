@@ -18,6 +18,12 @@ AIOStreams Desktop is licensed under the AGPL-3.0. It ships with:
   the AIOStreams repository. Licensed under the Apache-2.0; its licence text is beside it in
   `vulkan/VulkanRT-License.txt`. Source:
   [KhronosGroup/Vulkan-Loader](https://github.com/KhronosGroup/Vulkan-Loader).
+- **Windows x64 Tsugi music tools** (portable development package only):
+  separately invoked, unmodified upstream [yt-dlp 2026.11.23](https://github.com/yt-dlp/yt-dlp/releases/tag/2026.11.23)
+  executable (GPL-3.0-or-later including bundled dependencies) and
+  [Deno v2.9.8](https://github.com/denoland/deno/releases/tag/v2.9.8) (MIT).
+  Pinned downloads, licenses and source references are in
+  `music-tools`, prepared by `scripts/fetch-music-tools.ps1`.
 - **Rust crates** built into the app, under MIT, Apache-2.0 and other permissive licences.
   `third-party-licenses.html` lists each crate with its licence text.
 - **JavaScript libraries** built into the web app in `web` (`Contents/Resources/web` on macOS).

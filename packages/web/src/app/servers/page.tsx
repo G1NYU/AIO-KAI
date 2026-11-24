@@ -3,7 +3,7 @@ import { Trans } from '@lingui/react/macro';
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
-import { BiDotsVerticalRounded, BiPlus } from 'react-icons/bi';
+import { BiDotsVerticalRounded, BiPlus, BiMusic } from 'react-icons/bi';
 import { Button, IconButton } from '@aiostreams/ui/button';
 import {
   ContextMenu,
@@ -57,10 +57,12 @@ function AddServer({
   initial,
   onAdded,
   onBack,
+  openMusic,
 }: {
   initial?: string | null;
   onAdded(server: SavedServer): void;
   onBack?: () => void;
+  openMusic?: () => void;
 }) {
   const [address, setAddress] = React.useState(initial ?? '');
   const [busy, setBusy] = React.useState(false);
@@ -92,15 +94,17 @@ function AddServer({
           <Trans>Add a server</Trans>
         </h1>
         <p className="text-sm text-[--muted]">
-          <Trans>
-            The address of the AIOStreams instance where you set up your addon.
-            Other Jellyfin servers work too.
-          </Trans>
+          {currentHost().name === 'desktop'
+            ? <Trans>Enter your video server address. Compatible Jellyfin servers work too.</Trans>
+            : <Trans>
+                The address of the AIOStreams instance where you set up your addon.
+                Other Jellyfin servers work too.
+              </Trans>}
         </p>
       </div>
       <TextInput
         label={t`Server address`}
-        placeholder="https://aiostreams.example.com"
+        placeholder={currentHost().name === 'desktop' ? 'https://example.com' : 'https://aiostreams.example.com'}
         value={address}
         onValueChange={setAddress}
         autoComplete="url"
@@ -117,7 +121,10 @@ function AddServer({
       >
         <Trans>Connect</Trans>
       </Button>
-      <LinkRow links={[!!onBack && { label: t`Back`, onClick: onBack }]} />
+      <LinkRow links={[
+        !!onBack && { label: t`Back`, onClick: onBack },
+        !!openMusic && { label: t`Music`, onClick: openMusic },
+      ]} />
     </form>
   );
 }
@@ -341,18 +348,28 @@ function ServerList({
   onSignOut,
   onForget,
   onAdd,
+  openMusic,
 }: {
   servers: SavedServer[];
   onChoose(server: SavedServer): void;
   onSignOut(server: SavedServer): void;
   onForget(server: SavedServer): void;
   onAdd(): void;
+  openMusic?: () => void;
 }) {
   return (
     <div className="space-y-8">
       <h1 data-ui="page-title" className="text-center text-2xl font-semibold">
         <Trans>Choose a server</Trans>
       </h1>
+      {openMusic && (
+        <div className="flex justify-center">
+          <Button intent="gray-subtle" onClick={openMusic}>
+            <BiMusic aria-hidden className="mr-2" />
+            <Trans>Music</Trans>
+          </Button>
+        </div>
+      )}
       <motion.ul
         data-ui="servers"
         className="flex flex-wrap justify-center gap-4"
@@ -393,16 +410,19 @@ function ServerList({
 export function ServersPage({
   onChoose,
   address,
+  openMusic,
 }: {
   onChoose(server: SavedServer): void;
   /** Filled into the add form, as from a link. */
   address?: string | null;
+  openMusic?: () => void;
 }) {
   const queryClient = useQueryClient();
   const [servers, setServers] = React.useState(savedServers);
   const [adding, setAdding] = React.useState(servers.length === 0 || !!address);
   React.useEffect(() => {
-    document.title = 'AIOStreams';
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- product and protocol names
+    document.title = currentHost().name === 'desktop' ? 'Tsugi' : 'AIOStreams';
   }, []);
 
   const [target, setTarget] = React.useState<SavedServer | null>(null);
@@ -445,6 +465,7 @@ export function ServersPage({
                 initial={address}
                 onAdded={onChoose}
                 onBack={servers.length ? () => setAdding(false) : undefined}
+                openMusic={openMusic}
               />
             ) : (
               <ServerList
@@ -459,6 +480,7 @@ export function ServersPage({
                   confirmForget.open();
                 }}
                 onAdd={() => setAdding(true)}
+                openMusic={openMusic}
               />
             )}
           </motion.div>

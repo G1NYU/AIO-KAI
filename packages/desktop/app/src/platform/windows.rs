@@ -235,7 +235,7 @@ pub fn register_links() {
             );
         }
     };
-    set(&root, None, "URL:AIOStreams");
+    set(&root, None, "URL:Tsugi");
     set(&root, Some("URL Protocol"), "");
     set(
         &format!(r"{root}\DefaultIcon"),
@@ -693,7 +693,7 @@ pub fn choose_folder(window: &Window, title: &str) -> Option<PathBuf> {
 
 pub fn fatal(message: &str) -> ! {
     log::error!("{message}");
-    let (text, title) = (wide(message), wide("AIOStreams"));
+    let (text, title) = (wide(message), wide("Tsugi"));
     unsafe {
         MessageBoxW(
             std::ptr::null_mut(),

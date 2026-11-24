@@ -15,11 +15,13 @@ import {
   BiHeart,
   BiHistory,
   BiHomeAlt2,
+  BiMusic,
   BiListUl,
   BiCog,
   BiSearch,
   BiTransferAlt,
 } from 'react-icons/bi';
+import { TSUGI_NAV_ICONS } from '@/components/tsugi-icons';
 import {
   AppLayout,
   AppLayoutContent,
@@ -30,6 +32,7 @@ import { Sidebar, type SidebarItem } from '@aiostreams/ui/shared/sidebar';
 import { cn } from '@aiostreams/ui/core/styling';
 import { useMediaQuery } from '@aiostreams/ui/hooks/media-query';
 import { useSession } from '@/lib/jellyfin/session';
+import { useDesktopArea } from '@/lib/desktop-area';
 import { useLiveTvShown } from '@/features/live-tv/live-tv';
 import { useCanSwitch } from '@/lib/profiles';
 import { navigate, to } from '@/lib/paths';
@@ -138,6 +141,9 @@ const WARM_UP_AFTER_MS = 10_000;
 
 export function WebLayout() {
   const { switchUser, user } = useSession();
+  const desktopArea = useDesktopArea();
+  const desktopIcon = (id: keyof typeof TSUGI_NAV_ICONS, fallback: React.ElementType) =>
+    currentHost().name === 'desktop' ? TSUGI_NAV_ICONS[id] : fallback;
   const several = useCanSwitch();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   // From the match the outlet shows, which can trail the location for a render.
@@ -153,7 +159,7 @@ export function WebLayout() {
   const activity: SidebarItem = {
     id: 'activity',
     name: t`Activity`,
-    iconType: BiHistory,
+    iconType: desktopIcon('activity', BiHistory),
     isCurrent: pathname.startsWith('/history'),
     onClick: () => navigate(to.history),
   };
@@ -161,7 +167,7 @@ export function WebLayout() {
     ? {
         id: 'downloads',
         name: t`Downloads`,
-        iconType: BiDownload,
+        iconType: desktopIcon('downloads', BiDownload),
         isCurrent: pathname.startsWith('/downloads'),
         onClick: () => navigate(to.downloads),
       }
@@ -192,7 +198,7 @@ export function WebLayout() {
     ? {
         id: 'live',
         name: t`Live TV`,
-        iconType: BiTv,
+        iconType: desktopIcon('live', BiTv),
         isCurrent: pathname.startsWith('/live'),
         onClick: () => navigate(to.live()),
       }
@@ -200,7 +206,7 @@ export function WebLayout() {
   const calendar: SidebarItem = {
     id: 'calendar',
     name: t`Calendar`,
-    iconType: BiCalendar,
+    iconType: desktopIcon('calendar', BiCalendar),
     isCurrent: pathname.startsWith('/calendar'),
     onClick: () => navigate(to.calendar()),
   };
@@ -208,27 +214,34 @@ export function WebLayout() {
   const together: SidebarItem = {
     id: 'party',
     name: inParty ? t`Watch party` : t`Watch together`,
-    iconType: BiGroup,
+    iconType: desktopIcon('party', BiGroup),
     onClick: () => openPartySheet(),
   };
   const playlists: SidebarItem = {
     id: 'playlists',
     name: t`Playlists`,
-    iconType: BiListUl,
+    iconType: desktopIcon('playlists', BiListUl),
     onClick: () => openPlaylists(),
   };
   const items: SidebarItem[] = [
     {
       id: 'home',
       name: t`Home`,
-      iconType: BiHomeAlt2,
+      iconType: desktopIcon('home', BiHomeAlt2),
       isCurrent: pathname === '/',
       onClick: () => navigate(to.home),
     },
+    ...(desktopArea ? [{
+      id: 'music',
+      name: t`Music`,
+      iconType: desktopIcon('music', BiMusic),
+      isCurrent: false,
+      onClick: desktopArea.openMusic,
+    }] : []),
     {
       id: 'discover',
       name: t`Discover`,
-      iconType: BiCompass,
+      iconType: desktopIcon('discover', BiCompass),
       isCurrent:
         pathname.startsWith('/discover') || pathname.startsWith('/library'),
       onClick: () => navigate(to.discover()),
@@ -236,14 +249,14 @@ export function WebLayout() {
     {
       id: 'search',
       name: t`Search`,
-      iconType: BiSearch,
+      iconType: desktopIcon('search', BiSearch),
       isCurrent: pathname.startsWith('/search'),
       onClick: () => navigate(to.search()),
     },
     {
       id: 'favourites',
       name: t`Favourites`,
-      iconType: BiHeart,
+      iconType: desktopIcon('favourites', BiHeart),
       isCurrent: pathname.startsWith('/favourites'),
       onClick: () => navigate(to.favourites()),
     },
@@ -258,7 +271,7 @@ export function WebLayout() {
   const settingsItem: SidebarItem = {
     id: 'settings',
     name: t`Settings`,
-    iconType: BiCog,
+    iconType: desktopIcon('settings', BiCog),
     isCurrent: pathname.startsWith('/settings'),
     onClick: () => navigate(to.settings()),
   };
@@ -266,7 +279,7 @@ export function WebLayout() {
   const switchItem: SidebarItem = {
     id: 'switch-user',
     name: t`Switch profile`,
-    iconType: BiTransferAlt,
+    iconType: desktopIcon('switch-user', BiTransferAlt),
     onClick: switchUser,
   };
   const you: SidebarItem = several

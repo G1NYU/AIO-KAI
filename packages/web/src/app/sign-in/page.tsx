@@ -11,6 +11,8 @@ import { cn } from '@aiostreams/ui/core/styling';
 import { LoadingOverlay, LoadingSpinner } from '@aiostreams/ui/loading-spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { BrandLogo } from '@/components/brand-logo';
+import { TsugiBrand } from '@/components/tsugi-brand';
+import { currentHost } from '@/lib/hosts';
 import {
   ConnectionError,
   JellyfinError,
@@ -105,11 +107,15 @@ export function Screen({
   className?: string;
   children: React.ReactNode;
 }) {
+  const desktop = currentHost().name === 'desktop';
   return (
     <div
       data-page="sign-in"
       data-name={name}
-      className="relative flex min-h-screen items-center justify-center bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,0.18),transparent_60%)] px-4 pb-[max(3rem,env(safe-area-inset-bottom))] pt-[max(3rem,env(safe-area-inset-top))]"
+      className={cn(
+        'relative flex min-h-screen items-center justify-center px-4 pb-[max(3rem,env(safe-area-inset-bottom))] pt-[max(3rem,env(safe-area-inset-top))]',
+        desktop ? 'bg-[#0B0B11]' : 'bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,0.18),transparent_60%)]'
+      )}
     >
       <div className={cn('w-full max-w-3xl space-y-8', className)}>
         <motion.div
@@ -117,7 +123,9 @@ export function Screen({
           animate={{ opacity: 1, scale: 1 }}
           transition={SPRING}
         >
-          <BrandLogo className="mx-auto max-h-16 max-w-[16rem] object-contain" />
+          {desktop
+            ? <TsugiBrand className="mx-auto justify-center" />
+            : <BrandLogo className="mx-auto max-h-16 max-w-[16rem] object-contain" />}
         </motion.div>
         {children}
       </div>

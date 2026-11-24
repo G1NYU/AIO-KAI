@@ -1,12 +1,15 @@
 import React from 'react';
 import { useServerInfo } from '@/lib/jellyfin/server-info';
 import { CachedImage } from './cached-image';
+import { TsugiBrand } from './tsugi-brand';
+import { currentHost } from '@/lib/hosts';
 
 /** The configuration's logo, or the product's when it has none or it fails. */
 export function BrandLogo({ className }: { className?: string }) {
   const { name, logo } = useServerInfo();
   const [failed, setFailed] = React.useState(false);
   React.useEffect(() => setFailed(false), [logo]);
+  if (currentHost().name === 'desktop') return <TsugiBrand className={className} />;
   return (
     <CachedImage
       data-ui="brand-logo"

@@ -318,6 +318,37 @@ body::-webkit-scrollbar {
     scrollbar-color: rgb(128 128 128 / 0.4) transparent;
   }
 }
+/* The desktop root is deliberately see-through for native video. Its
+   scrollbar belongs to html, not body: paint the gutter itself so the
+   black native surface cannot show through. Keep the stable scroll gutter
+   and mouse/keyboard scrolling; do not make the entire root opaque. */
+html[data-host='desktop'] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--tsugi-muted) var(--background);
+}
+html[data-host='desktop']::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  background: var(--background);
+}
+html[data-host='desktop']::-webkit-scrollbar-track,
+html[data-host='desktop']::-webkit-scrollbar-corner {
+  background: var(--background);
+}
+html[data-host='desktop']::-webkit-scrollbar-thumb {
+  border: 1px solid var(--background);
+  background: var(--tsugi-muted);
+}
+html[data-host='desktop'].playing {
+  scrollbar-color: transparent transparent;
+}
+html[data-host='desktop'].playing::-webkit-scrollbar,
+html[data-host='desktop'].playing::-webkit-scrollbar-track,
+html[data-host='desktop'].playing::-webkit-scrollbar-thumb,
+html[data-host='desktop'].playing::-webkit-scrollbar-corner {
+  background: transparent;
+  border-color: transparent;
+}
 /* A TV has nothing to drag a scrollbar with. */
 [data-tv]::-webkit-scrollbar,
 [data-tv] ::-webkit-scrollbar {
@@ -633,4 +664,644 @@ html[data-blur-spoilers]:not([data-tv])
     transform: translateY(-12rem);
     opacity: 0;
   }
+}
+
+
+/* TSUGI / DESKTOP — a borderless listening space.
+   Native video UI and mobile/browser shells retain their own styling. */
+:root[data-host='desktop'] {
+  --tsugi-canvas: #11111b;
+  --tsugi-surface: #181825;
+  --tsugi-panel: #1e1e2e;
+  --tsugi-ink: #cdd6f4;
+  --tsugi-muted: #a6adc8;
+  --tsugi-accent: #b4befe;
+  --tsugi-line: rgb(205 214 244 / 10%);
+  --tsugi-wash: rgb(180 190 254 / 10%);
+  --tsugi-glass: rgb(30 30 46 / 84%);
+  color-scheme: dark;
+}
+:root[data-host='desktop'][data-tsugi-theme='matte'] {
+  --tsugi-canvas: #08090b;
+  --tsugi-surface: #101114;
+  --tsugi-panel: #17181d;
+  --tsugi-ink: #e8e8eb;
+  --tsugi-muted: #a4a5b0;
+  --tsugi-accent: #d5d5dc;
+  --tsugi-line: rgb(232 232 235 / 9%);
+  --tsugi-wash: rgb(189 188 208 / 7%);
+  --tsugi-glass: rgb(20 21 24 / 88%);
+}
+:root[data-host='desktop'][data-tsugi-theme='aio-dark'] {
+  --tsugi-canvas: #090d10; --tsugi-surface: #101418;
+  --tsugi-panel: #181e22; --tsugi-ink: #e8edf0;
+  --tsugi-muted: #9bafb8; --tsugi-accent: #bdd8e5;
+  --tsugi-line: rgb(189 216 229 / 10%);
+  --tsugi-wash: rgb(189 216 229 / 9%);
+  --tsugi-glass: rgb(18 24 28 / 85%);
+}
+:root[data-host='desktop'][data-tsugi-theme='nightfall'] {
+  --tsugi-canvas: #0c0b10; --tsugi-surface: #14121a;
+  --tsugi-panel: #1c1923; --tsugi-ink: #ebe8f0;
+  --tsugi-muted: #aea5be; --tsugi-accent: #c4b9d7;
+  --tsugi-line: rgb(196 185 215 / 11%);
+  --tsugi-wash: rgb(196 185 215 / 10%);
+  --tsugi-glass: rgb(25 22 31 / 85%);
+}
+:root[data-host='desktop'][data-tsugi-theme='carbon'] {
+  --tsugi-canvas: #0b0e0f; --tsugi-surface: #121516;
+  --tsugi-panel: #1b2022; --tsugi-ink: #e0e6e8;
+  --tsugi-muted: #9fadaf; --tsugi-accent: #b3c9c9;
+  --tsugi-line: rgb(179 201 201 / 10%);
+  --tsugi-wash: rgb(179 201 201 / 8%);
+  --tsugi-glass: rgb(24 29 30 / 85%);
+}
+/* Desktop Watch consumes the same base palette as Listen. The existing
+   ThemeStyles portal and custom CSS can override these defaults; keep the
+   selector's specificity at :root so explicit profile colours win. */
+:root:where([data-host='desktop']) {
+  --background: var(--tsugi-canvas);
+  --foreground: var(--tsugi-ink);
+  --paper: var(--tsugi-panel);
+  --muted: var(--tsugi-muted);
+  --muted-highlight: var(--tsugi-ink);
+  --brand: var(--tsugi-accent);
+  --ring: var(--tsugi-accent);
+  --border: var(--tsugi-line);
+  --subtle: var(--tsugi-wash);
+  --subtle-highlight: var(--tsugi-wash);
+}
+:root:where([data-host='desktop']):not(.playing) body {
+  font-family: Inter, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: var(--background);
+}
+:root[data-host='desktop'] [data-page='desktop-landing'],
+:root[data-host='desktop'] [data-page='music'] {
+  background: var(--tsugi-canvas);
+  color: var(--tsugi-ink);
+}
+:root[data-host='desktop'] :where([data-page='music'],[data-page='desktop-landing'])
+:where(button, a, input, select):focus-visible {
+  outline: 2px solid var(--tsugi-accent);
+  outline-offset: 3px;
+}
+:root[data-host='desktop'] :where([data-page='music'],[data-page='desktop-landing'])
+:where(h1,h2,h3) { letter-spacing: -.035em; }
+
+/* Match Listen's flat navigation language without a persistent selection dot,
+   and without changing Watch routing,
+   user-selected navigation modes, posters, or playback. Low-specificity
+   defaults let the existing custom CSS continue to win. */
+:where(:root[data-host='desktop'] [data-ui='shell']) :is(
+  .UI-VerticalMenu__item, [data-ui='nav-item']
+) {
+  border-radius: 0;
+  background-color: transparent;
+  color: var(--muted);
+}
+:where(:root[data-host='desktop'] [data-ui='shell']) :is(
+  .UI-VerticalMenu__item, [data-ui='nav-item']
+):is([data-current='true'], [aria-current='page'], :hover, :focus-visible) {
+  color: var(--brand);
+  background-color: transparent;
+}
+:where(:root[data-host='desktop'] [data-ui='shell']) :is(
+  .UI-VerticalMenu__item, [data-ui='nav-item']
+):is([data-current='true'], [aria-current='page']) {
+  color: var(--foreground);
+  background-color: var(--subtle);
+}
+:where(:root[data-host='desktop'] [data-ui='shell']) .UI-VerticalMenu__itemIcon {
+  color: var(--foreground);
+  transform: none;
+}
+/* Remove previous fake window stripe. The actual native hit-testing remains intact. */
+.tsugi-chrome-wash { display: none !important; }
+:root[data-host='desktop'] [data-ui='window-controls'] button {
+  background: transparent;
+  border-radius: 0;
+}
+
+/* Tsugi entry: editorial scale, real theme tokens and one quiet focus dot. */
+:root[data-host='desktop'] .tsugi-landing {
+  isolation:isolate;
+  background:var(--tsugi-entry-canvas,var(--tsugi-canvas));
+  color:var(--tsugi-ink);
+  font-family:Inter,'Segoe UI',Arial,sans-serif;
+}
+.tsugi-landing {
+  --entry-accent:var(--tsugi-entry-accent,var(--tsugi-accent));
+  --entry-line:color-mix(in srgb,var(--tsugi-ink) 14%,transparent);
+}
+.tsugi-entry-stage {
+  display:flex;
+  flex:1;
+  align-items:center;
+  justify-content:center;
+  padding-block:clamp(2rem,7vh,7rem);
+}
+.tsugi-entry-composition {
+  display:grid;
+  grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);
+  align-items:center;
+  gap:clamp(2rem,5vw,7rem);
+  width:min(100%,1480px);
+}
+.tsugi-entry-brand {
+  position:relative;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  justify-content:center;
+  min-height:clamp(12rem,27vw,29rem);
+}
+.tsugi-entry-geometry {
+  width:clamp(7rem,15vw,15rem);
+  height:auto;
+  align-self:flex-end;
+  margin-block-end:clamp(.65rem,1.5vw,1.5rem);
+  margin-inline-end:clamp(.25rem,2vw,2rem);
+  color:var(--entry-accent);
+  opacity:.72;
+  pointer-events:none;
+}
+.tsugi-landing .tsugi-entry-wordmark {
+  font-family:'Segoe UI Variable Display',Inter,'Helvetica Neue',Arial,sans-serif;
+  font-size:clamp(3.8rem,10vw,12rem);
+  font-style:normal;
+  font-weight:800;
+  letter-spacing:-.085em;
+  line-height:.86;
+  text-transform:uppercase;
+  margin:0;
+  max-width:100%;
+}
+.tsugi-entry-index { min-width:0; }
+.tsugi-entry-list { border-top:1px solid var(--entry-line); }
+.tsugi-entry-link {
+  display:flex;
+  align-items:center;
+  gap:clamp(14px,1.8vw,26px);
+  width:100%;
+  min-height:clamp(94px,13vh,144px);
+  padding:clamp(16px,2.4vw,36px) 8px;
+  border-bottom:1px solid var(--entry-line);
+  background:transparent;
+  color:var(--tsugi-ink);
+  text-align:start;
+  cursor:pointer;
+  transition:color .16s ease;
+}
+.tsugi-entry-label-group {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-width:0;
+}
+.tsugi-entry-icon {
+  flex:none;
+  width:clamp(25px,2.5vw,40px);
+  height:clamp(25px,2.5vw,40px);
+  color:var(--tsugi-muted);
+  stroke-width:1.55;
+}
+.tsugi-entry-label {
+  min-width:0;
+  font-size:clamp(2rem,3.8vw,4.2rem);
+  line-height:1;
+  font-weight:700;
+  letter-spacing:-.055em;
+  overflow-wrap:anywhere;
+}
+.tsugi-entry-description {
+  color:var(--tsugi-muted);
+  font-size:clamp(.8rem,1.1vw,1.05rem);
+  overflow-wrap:anywhere;
+}
+.tsugi-entry-dot {
+  flex:none;
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:var(--entry-accent);
+  opacity:0;
+  transition:opacity .16s ease;
+}
+.tsugi-entry-link:hover,
+.tsugi-entry-link:focus-visible {
+  color:var(--entry-accent);
+}
+.tsugi-entry-link:hover .tsugi-entry-icon,
+.tsugi-entry-link:focus-visible .tsugi-entry-icon { color:var(--entry-accent); }
+.tsugi-entry-link:hover .tsugi-entry-dot,
+.tsugi-entry-link:focus-visible .tsugi-entry-dot { opacity:1; }
+:root[data-host='desktop'] .tsugi-entry-link:focus-visible {
+  outline-color:var(--entry-accent);
+}
+@media (max-width:900px) {
+  .tsugi-entry-composition {
+    grid-template-columns:minmax(0,1fr);
+    gap:clamp(2rem,5vh,4rem);
+    max-width:620px;
+  }
+  .tsugi-entry-brand {min-height:clamp(8rem,22vw,14rem);}
+  .tsugi-entry-geometry {width:clamp(6rem,20vw,10rem);}
+  .tsugi-landing .tsugi-entry-wordmark {font-size:clamp(3.5rem,15vw,8rem);}
+  .tsugi-entry-link {min-height:84px;}
+}
+@media (prefers-reduced-motion:reduce) {
+  .tsugi-entry-dot { transition:none; }
+}
+
+/* Reusable discreet controls; settings are the only intentional panel surface. */
+.tsugi-icon-action {
+  display:inline-flex;
+  width:42px; height:42px;
+  justify-content:center;
+  align-items:center;
+  color:var(--tsugi-muted);
+  background:transparent;
+  border-radius:50%;
+  cursor:pointer;
+  transition: color .16s ease, background .16s ease;
+}
+.tsugi-icon-action:hover { color:var(--tsugi-ink); background:var(--tsugi-wash); }
+.tsugi-overflow { position:relative; }
+.tsugi-overflow summary { list-style:none; }
+.tsugi-overflow summary::-webkit-details-marker { display:none; }
+.tsugi-overflow-panel {
+  position:absolute;
+  z-index:40;
+  top:calc(100% + 8px);
+  right:0;
+  width:220px;
+  padding:20px;
+  background:var(--tsugi-panel);
+  border:1px solid var(--tsugi-line);
+  box-shadow:0 18px 50px rgb(0 0 0 / 38%);
+}
+.tsugi-menu-select {
+  background:var(--tsugi-surface);
+  color:var(--tsugi-ink);
+  border:1px solid var(--tsugi-line);
+  padding:10px 12px;
+  min-height:42px;
+  border-radius:5px;
+}
+.tsugi-primary-action {
+  color:var(--tsugi-ink);
+  font-weight:600;
+  padding:10px 0;
+  background:transparent;
+  border-bottom:2px solid var(--tsugi-accent);
+}
+.tsugi-primary-action:hover { color:var(--tsugi-accent); }
+.tsugi-settings-backdrop {
+  background:rgb(0 0 0 / 65%);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+}
+.tsugi-settings-sheet {
+  background:var(--tsugi-panel);
+  color:var(--tsugi-ink);
+  box-shadow:-24px 0 72px rgb(0 0 0 / 36%);
+}
+.tsugi-settings-sheet input:not([type='checkbox']),
+.tsugi-settings-sheet select { border-radius:5px; }
+.tsugi-settings-sheet :where(article,section) { background:transparent; }
+
+/* Music uses the full window: album art and spacing form the hierarchy. */
+.tsugi-music-root {
+  background:var(--tsugi-canvas) !important;
+  color:var(--tsugi-ink) !important;
+  font-family:'Segoe UI Variable Text','Segoe UI',Inter,'Helvetica Neue',Arial,sans-serif;
+  font-size:1rem;
+  line-height:1.55;
+}
+.tsugi-music-root :where(button,input,select) { font-family:inherit; }
+.tsugi-music-root :where(h1,h2,h3) {
+  font-family:'Segoe UI Variable Display','Segoe UI',Inter,'Helvetica Neue',Arial,sans-serif;
+  letter-spacing:-.025em;
+}
+.tsugi-music-root [data-ui='music-track-row'] { font-size:1rem; }
+.tsugi-music-top { min-height:52px; }
+.tsugi-brand-action { text-align:left; }
+.tsugi-music-navigation { color:var(--tsugi-muted); gap:2.5rem; }
+.tsugi-music-navigation button {
+  padding:5px 0;
+  color:var(--tsugi-muted);
+  font-size:1.05rem;
+  font-weight:550;
+  transition:color .16s ease;
+}
+.tsugi-music-navigation button[aria-current='page'] {
+  color:var(--tsugi-accent);
+  font-weight:650;
+}
+.tsugi-music-navigation button:hover { color:var(--tsugi-ink); }
+.tsugi-eyebrow {
+  color:var(--tsugi-accent);
+  font-size:.7rem;
+  font-weight:600;
+  letter-spacing:.19em;
+  text-transform:uppercase;
+}
+.tsugi-hub-feature {
+  background:linear-gradient(100deg,var(--tsugi-surface),var(--tsugi-canvas));
+  min-height:330px;
+}
+.tsugi-hub-feature-art {
+  -webkit-mask-image:linear-gradient(to right,transparent 0%,black 42%);
+  mask-image:linear-gradient(to right,transparent 0%,black 42%);
+}
+.tsugi-hub-feature-art img { object-position:center 38%; }
+.tsugi-hub-feature::after {
+  content:'';
+  pointer-events:none;
+  position:absolute;
+  inset:auto 0 0;
+  height:1px;
+  background:linear-gradient(90deg,var(--tsugi-line),transparent);
+}
+.tsugi-music-shelf { scrollbar-width:thin; scrollbar-color:var(--tsugi-line) transparent; }
+.tsugi-music-tile { color:var(--tsugi-ink); }
+.tsugi-music-tile img {
+  border-radius:6px;
+  border:0;
+  transition:transform .23s ease,filter .23s ease;
+}
+.tsugi-music-tile:hover img { transform:translateY(-3px); filter:brightness(1.09); }
+.tsugi-hub :where(.tsugi-catalog-lane) { min-width:0; }
+.tsugi-music-root img { border-radius:6px; }
+.tsugi-music-root [data-ui='music-track-row'] {
+  border:0;
+  border-bottom:1px solid var(--tsugi-line);
+  border-radius:0;
+  background:transparent;
+  transition:background .14s ease;
+}
+.tsugi-music-root [data-ui='music-track-row']:hover { background:rgb(255 255 255 / 3%); }
+.tsugi-music-root .tsugi-discover-card,
+.tsugi-hub :where(.tsugi-discover-card) {
+  border:0;
+  border-radius:0;
+  background:transparent;
+}
+.tsugi-hub-empty { color:var(--tsugi-ink); }
+
+/* An edge-to-edge music dock; no floating box around the whole player. */
+.tsugi-mini-player {
+  background:var(--tsugi-glass) !important;
+  color:var(--tsugi-ink);
+  border:0;
+  border-top:1px solid var(--tsugi-line) !important;
+  border-radius:0;
+  box-shadow:0 -16px 42px rgb(0 0 0 / 16%);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+}
+.tsugi-mini-player img { border-radius:5px; }
+.tsugi-control {
+  color:var(--tsugi-muted);
+  border-radius:50%;
+  transition:color .15s ease, background .15s ease, transform .15s ease;
+}
+.tsugi-control:hover { color:var(--tsugi-ink); background:var(--tsugi-wash); }
+.tsugi-control:active { transform:scale(.94); }
+.tsugi-control[aria-pressed='true'] { color:var(--tsugi-accent); }
+.tsugi-play-toggle {
+  border-radius:50%;
+  background:var(--tsugi-accent);
+  color:var(--tsugi-canvas);
+  transition:filter .15s ease, transform .15s ease;
+}
+.tsugi-play-toggle:hover { filter:brightness(1.08); }
+.tsugi-play-toggle:active { transform:scale(.96); }
+.tsugi-dot-seeker:focus-within {
+  outline:2px solid var(--tsugi-accent);
+  outline-offset:2px;
+  border-radius:4px;
+}
+.tsugi-dot-input { opacity:0.001; margin:0; }
+.tsugi-dot-track {
+  position:absolute;
+  inset-inline-start:0;
+  width:100%;
+  height:8px;
+  pointer-events:none;
+  background-image:radial-gradient(circle,currentColor 1.15px,transparent 1.45px);
+  background-size:6px 4px;
+  opacity:.28;
+}
+.tsugi-dot-played { opacity:1; }
+.tsugi-dot-played[data-playing='true'] {
+  animation:tsugi-dot-flow .85s linear infinite;
+}
+@keyframes tsugi-dot-flow {
+  from { background-position:0 0; }
+  to { background-position:6px 0; }
+}
+
+/* Expanded listening: only two overlay actions until the user opens settings. */
+.tsugi-player-dialog {
+  color:var(--tsugi-ink) !important;
+  background:var(--tsugi-canvas) !important;
+  isolation:isolate;
+}
+.tsugi-player-ambient {
+  position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(ellipse 51% 47% at 25% 48%,var(--tsugi-wash),transparent 100%);
+  opacity:.58;
+}
+.tsugi-player-hud { color:var(--tsugi-ink); background:transparent; }
+.tsugi-junction-art { border-radius:8px; box-shadow:0 24px 70px rgb(0 0 0 / 25%); }
+.tsugi-junction-art-glow { border-radius:35%; filter:blur(54px); opacity:.16; transform:scale(.9); }
+.tsugi-junction-secondary {
+  border:0;
+  border-top:1px solid var(--tsugi-line);
+  border-radius:0;
+  background:transparent;
+}
+.tsugi-studio-artwork { border-radius:7px; }
+.tsugi-player-dialog [data-ui='tsugi-studio-stage'] {
+  border:0; background:transparent; box-shadow:none;
+}
+.tsugi-player-dialog [data-ui='tsugi-studio-stage'] button { transition:background .15s ease; }
+.tsugi-player-dialog [data-ui='tsugi-studio-stage'] input[type='range'] {accent-color:var(--tsugi-accent);}
+.tsugi-player-dialog [data-ui='tsugi-studio-stage'] [aria-pressed='true'] {color:var(--tsugi-accent);}
+@media (max-width:760px) {
+  .tsugi-hub-feature { min-height:270px; }
+  .tsugi-hub-feature-art { opacity:.42;position:absolute;inset:0; }
+  .tsugi-mini-player { padding-bottom:env(safe-area-inset-bottom); }
+}
+@media (prefers-reduced-motion:reduce) {
+  .tsugi-dot-played[data-playing='true'] { animation:none; }
+  .tsugi-entry-link,.tsugi-control,.tsugi-play-toggle,.tsugi-music-tile img {
+    transition-duration:.01ms;
+  }
+}
+@media (prefers-reduced-transparency:reduce) {
+  .tsugi-mini-player,.tsugi-settings-backdrop {
+    backdrop-filter:none;-webkit-backdrop-filter:none;
+  }
+  .tsugi-mini-player {background:var(--tsugi-panel) !important;}
+}
+
+/* Selected Eclipse Studio appearance is a full desktop-shell theme.
+   Overrides native mocha/matte tokens only while imported layout is selected. */
+:root[data-host='desktop'][data-tsugi-eclipse='on'] {
+  background:var(--tsugi-canvas);
+  color:var(--tsugi-ink);
+}
+:root[data-host='desktop'][data-tsugi-eclipse='on'] body,
+:root[data-host='desktop'][data-tsugi-eclipse='on'] [data-page='music'],
+:root[data-host='desktop'][data-tsugi-eclipse='on'] [data-page='desktop-landing'] {
+  background-color:var(--tsugi-canvas) !important;
+  color:var(--tsugi-ink);
+}
+:root[data-host='desktop'][data-tsugi-eclipse='on'] .tsugi-mini-player,
+:root[data-host='desktop'][data-tsugi-eclipse='on'] .tsugi-settings-sheet,
+:root[data-host='desktop'][data-tsugi-eclipse='on'] .tsugi-overflow-panel {
+  background:var(--tsugi-panel) !important;
+  color:var(--tsugi-ink);
+}
+:root[data-host='desktop'][data-tsugi-eclipse='on'] .tsugi-hub-feature {
+  background:linear-gradient(100deg,var(--tsugi-surface),var(--tsugi-canvas));
+}
+
+/* Studio is full-window by default; optional contained mode is strictly opt-in. */
+.tsugi-player-dialog [data-ui='tsugi-studio-viewport'][data-size='contained'] {
+  max-width:min(94vw,calc((100dvh - 120px) * 1.777778));
+  width:100%;
+  height:auto;
+}
+
+/* Music identity: a restrained print-like dot field with rounded, humane typography. */
+.tsugi-junction-content::before {
+  content: '';
+  position: absolute;
+  inset: -5vw -2vw;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .085;
+  background: radial-gradient(circle, var(--tsugi-accent) .7px, transparent .95px) 0 0 / 19px 19px;
+  -webkit-mask-image: radial-gradient(ellipse at 42% 52%, black, transparent 72%);
+  mask-image: radial-gradient(ellipse at 42% 52%, black, transparent 72%);
+}
+.tsugi-hub-feature::before {
+  content:'';
+  position:absolute;
+  z-index:0;
+  inset:0;
+  opacity:.065;
+  pointer-events:none;
+  background:radial-gradient(circle,var(--tsugi-accent) .7px,transparent 1px) 0 0 / 17px 17px;
+  -webkit-mask-image:linear-gradient(90deg,black,transparent 64%);
+  mask-image:linear-gradient(90deg,black,transparent 64%);
+}
+.tsugi-track-title {
+  font-family: 'Avenir Next','Segoe UI Variable Display',Inter,'Helvetica Neue',sans-serif;
+  letter-spacing: -.045em;
+  font-weight: 680;
+}
+.tsugi-brand-wordmark {
+  font-family: 'Avenir Next','Segoe UI Variable Display',Inter,sans-serif;
+  font-weight: 640;
+  font-style: italic;
+  letter-spacing: -.035em;
+}
+.tsugi-volume { color:var(--tsugi-muted); }
+.tsugi-volume-range {
+  appearance:none;
+  -webkit-appearance:none;
+  height:20px;
+  border:0;
+  background:transparent;
+  cursor:pointer;
+  outline-offset:3px;
+}
+.tsugi-volume-range::-webkit-slider-runnable-track {
+  height:3px;
+  border-radius:999px;
+  background:linear-gradient(90deg,var(--tsugi-accent) var(--tsugi-level),var(--tsugi-line) var(--tsugi-level));
+}
+.tsugi-volume-range::-moz-range-track {height:3px;border-radius:999px;background:var(--tsugi-line);}
+.tsugi-volume-range::-moz-range-progress {height:3px;border-radius:999px;background:var(--tsugi-accent);}
+.tsugi-volume-range::-webkit-slider-thumb {
+  appearance:none;
+  width:10px;height:10px;
+  border:2px solid var(--tsugi-canvas);
+  border-radius:50%;
+  background:var(--tsugi-accent);
+  margin-top:-3.5px;
+  box-shadow:0 0 0 1px var(--tsugi-accent);
+}
+.tsugi-volume-range::-moz-range-thumb {
+  width:9px;height:9px;border:2px solid var(--tsugi-canvas);
+  border-radius:50%;background:var(--tsugi-accent);
+}
+.tsugi-volume-compact .tsugi-volume-range { width:clamp(56px,6.5vw,115px); }
+@media (max-width:760px) {
+  .tsugi-junction-content::before {opacity:.055;}
+}
+@media (prefers-reduced-motion:reduce) {
+  .tsugi-entry-link,.tsugi-volume-range { transition:none; }
+}
+
+/* Independent library — editorial typography and lines, never boxed playlist cards. */
+.tsugi-library { min-width:0; }
+.tsugi-library-list-item {
+  color:var(--tsugi-muted);
+  background:transparent;
+  border-left:2px solid transparent;
+  transition:background .15s ease,color .15s ease;
+}
+.tsugi-library-list-item:hover {color:var(--tsugi-ink);background:var(--tsugi-wash);}
+.tsugi-library-list-item[aria-current='page'] {
+  border-left-color:var(--tsugi-accent);
+  color:var(--tsugi-ink);
+  background:var(--tsugi-wash);
+}
+.tsugi-library-input {
+  border:0;
+  border-bottom:1px solid var(--tsugi-line);
+  border-radius:0;
+  padding:12px 4px;
+  background:transparent;
+  color:var(--tsugi-ink);
+  outline-offset:3px;
+  font-size:.875rem;
+}
+.tsugi-library-input::placeholder {color:var(--tsugi-muted);}
+.tsugi-library-action {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 0;
+  color:var(--tsugi-muted);
+  background:transparent;
+  border-bottom:1px solid transparent;
+  transition:color .16s ease,border-color .16s ease;
+}
+.tsugi-library-action:hover {
+  color:var(--tsugi-ink);
+  border-bottom-color:var(--tsugi-accent);
+}
+.tsugi-library-tracks li:hover {background:var(--tsugi-wash);}
+.tsugi-local-track:hover {color:var(--tsugi-accent);}
+.tsugi-library img {border-radius:4px;}
+/* More usable featured art/text balance on tall and ultrawide monitors. */
+.tsugi-hub-feature {min-height:clamp(320px,42vh,570px);}
+.tsugi-hub-feature .tsugi-hub-feature-art img {object-position:center 35%;}
+.tsugi-hub-feature h3 {max-width:14ch;line-height:1.04;}
+.tsugi-mini-player [data-ui='tsugi-volume'] {align-self:center;}
+@media (min-width:1700px) {
+  .tsugi-library {padding-inline:clamp(0px,1vw,22px);}
+}
+@media (max-width:760px) {
+  .tsugi-hub-feature {min-height:350px;}
+  .tsugi-library-tracks {max-width:100%;}
 }
