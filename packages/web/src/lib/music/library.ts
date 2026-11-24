@@ -81,6 +81,9 @@ function fromM3U(text: string, unknownArtist: string): SavedMusicTrack[] {
       continue;
     }
     if (!line || line.startsWith('#')) continue;
+    // An M3U without EXTINF must never persist remote URL paths or tokens as track titles.
+    if (!ext && (/^[a-z][a-z0-9+.-]*:\/\//i.test(line) ||
+      /^(?:blob:|data:|magnet:|\/\/)/i.test(line))) continue;
     // Files and remote stream addresses are discarded. Only metadata is imported.
     let label = ext;
     if (!label) {

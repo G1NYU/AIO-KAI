@@ -43,6 +43,12 @@ describe('independent Tsugi playlists', () => {
     expect(list.tracks[0].title).toBe('Song');
     expect(JSON.stringify(list)).not.toContain('secret.example');
   });
+  it('does not convert a URL without EXTINF into stored metadata', () => {
+    const list = importMusicPlaylist('remote.m3u',
+      '#EXTM3U\nhttps://private.example/secret-token/song.mp3?code=abc\n');
+    expect(list.tracks).toHaveLength(0);
+    expect(JSON.stringify(list)).not.toContain('secret-token');
+  });
   it('rejects invalid formats and overlarge imports', () => {
     expect(() => importMusicPlaylist('list.txt','invalid')).toThrow();
     expect(() => importMusicPlaylist('list.json','{}')).toThrow();
