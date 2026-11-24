@@ -1246,3 +1246,43 @@ button.tsugi-read-row:hover:not(:disabled) { background:var(--tsugi-surface); }
 .tsugi-read-subnav button:focus-visible { outline:2px solid var(--tsugi-accent); outline-offset:3px; }
 .tsugi-read-settings nav button:hover:not(:disabled) { color:var(--tsugi-ink); }
 .tsugi-read-root .tsugi-read-action, .tsugi-read-root .tsugi-read-input { border-radius:2px; }
+
+/* Manga catalogue and series detail, separate from the immersive reader. */
+.tsugi-manga-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(145px,1fr)); gap:24px 18px; }
+.tsugi-manga-card { min-width:0; display:flex; flex-direction:column; gap:7px; text-align:left; color:var(--tsugi-ink); }
+.tsugi-manga-card:disabled { opacity:.65; }
+.tsugi-manga-cover { width:100%; aspect-ratio:2/3; background:var(--tsugi-surface); display:flex; justify-content:center; align-items:center; overflow:hidden; color:var(--tsugi-muted); border:1px solid var(--tsugi-line); }
+.tsugi-manga-cover img { width:100%; height:100%; object-fit:cover; display:block; }
+.tsugi-manga-cover > svg { width:28px; height:28px; }
+.tsugi-manga-card:hover .tsugi-manga-cover { border-color:var(--tsugi-accent); }
+.tsugi-manga-title { font-weight:600; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.tsugi-manga-detail { display:grid; grid-template-columns:minmax(120px,220px) minmax(0,1fr); align-items:start; gap:28px; padding-bottom:22px; border-bottom:1px solid var(--tsugi-line); }
+.tsugi-manga-genre { border:1px solid var(--tsugi-line); padding:3px 8px; }
+.tsugi-chapter-versions { border-bottom:1px solid var(--tsugi-line); }
+.tsugi-chapter-versions summary { display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; padding:14px 4px; list-style:none; }
+.tsugi-chapter-versions summary::before { content:'›'; color:var(--tsugi-muted); }
+.tsugi-chapter-versions[open] summary::before { transform:rotate(90deg); }
+.tsugi-chapter-versions summary > span:first-of-type { flex:1; }
+.tsugi-chapter-row { padding-block:12px; }
+
+/* An isolated reader viewport: never fit a webtoon strip to screen height. */
+.tsugi-chapter-reader { position:fixed; inset:36px 0 0; z-index:40; display:flex; flex-direction:column; background:var(--tsugi-canvas); color:var(--tsugi-ink); min-height:0; }
+.tsugi-chapter-toolbar { flex:none; display:flex; align-items:center; gap:10px; padding:9px 16px; background:var(--tsugi-canvas); border-bottom:1px solid var(--tsugi-line); }
+.tsugi-chapter-toolbar .tsugi-read-action { border-radius:2px; padding:7px 10px; }
+.tsugi-chapter-body { display:flex; flex:1; min-height:0; min-width:0; }
+.tsugi-chapter-viewport { flex:1; min-width:0; overflow:auto; background:#08080b; overscroll-behavior:contain; }
+.tsugi-chapter-pages { display:flex; flex-direction:column; align-items:center; gap:var(--reader-gap); }
+.tsugi-chapter-page { width:min(var(--reader-width),1440px); max-width:100%; flex:none; margin:0 auto; overflow-anchor:auto; }
+.tsugi-chapter-page img { width:100%; height:auto; display:block; }
+.tsugi-chapter-placeholder { width:100%; min-height:120px; background:#111116; color:#a0a0aa; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:10px; font-size:.8rem; }
+.tsugi-chapter-reader[data-mode='single'] .tsugi-chapter-pages, .tsugi-chapter-reader[data-mode='spread'] .tsugi-chapter-pages { flex-direction:row; min-height:100%; justify-content:center; align-items:flex-start; }
+.tsugi-chapter-reader[data-mode='spread'] .tsugi-chapter-pages[data-direction='rtl'] { flex-direction:row-reverse; }
+.tsugi-chapter-reader[data-mode='spread'] .tsugi-chapter-page { width:calc(var(--reader-width) / 2); max-width:50%; margin:0; }
+.tsugi-chapter-footer { border-top:1px solid var(--tsugi-line); border-bottom:0; flex-wrap:wrap; }
+.tsugi-chapter-jump { flex:1; min-width:65px; accent-color:var(--tsugi-accent); }
+.tsugi-chapter-settings { flex:none; width:min(290px,38vw); padding:18px; border-left:1px solid var(--tsugi-line); display:flex; flex-direction:column; gap:18px; overflow:auto; background:var(--tsugi-canvas); }
+.tsugi-chapter-settings label { font-size:.85rem; display:flex; flex-direction:column; gap:8px; }
+.tsugi-chapter-settings label:has(input[type='checkbox']) { flex-direction:row; }
+.tsugi-chapter-settings select { border:1px solid var(--tsugi-line); padding:8px; background:var(--tsugi-surface); }
+.tsugi-chapter-settings input { accent-color:var(--tsugi-accent); }
+@media(max-width:680px) { .tsugi-manga-grid { grid-template-columns:repeat(auto-fill,minmax(108px,1fr)); gap:15px 10px; } .tsugi-manga-detail { grid-template-columns:100px minmax(0,1fr); gap:15px; } .tsugi-chapter-toolbar { gap:5px; padding:7px; } .tsugi-chapter-settings { width:36vw; padding:10px; } }

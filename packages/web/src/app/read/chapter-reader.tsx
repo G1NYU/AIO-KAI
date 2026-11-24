@@ -50,10 +50,10 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
   const focusedAt = React.useRef(Date.now());
   const saved = React.useRef<number | null>(null);
   const finish = React.useRef(false);
+  const completed = React.useRef(chapter.isRead);
   const callbacks = React.useRef({ onSaved });
   callbacks.current = { onSaved };
   const failedSave = React.useRef(false);
-  const pageInFlight = React.useRef(false);
   const generation = React.useRef(0);
 
   React.useEffect(() => {
@@ -90,7 +90,7 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
       setIndex(page);
     }
     // Reaching the actual end of the last loaded page, not merely fetching it.
-    if (page === count - 1 && memory.current[page]?.shown &&
+    if (!completed.current && page === count - 1 && memory.current[page]?.shown &&
       element.scrollHeight - element.scrollTop - element.clientHeight < 12) {
       finish.current = true;
     }
@@ -119,6 +119,7 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
             if (!alive()) return;
             saved.current = progress;
             finish.current = false;
+            if (wantFinish) completed.current = true;
             setLastSaved(progress);
             setSaveError('');
             callbacks.current.onSaved(progress, wantFinish);
@@ -141,18 +142,19 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
           return;
         }
         const wanted = readerWindow(current.current, count, mode.current);
+        let evicted = false;
         for (const key of Object.keys(memory.current)) {
           const number = Number(key);
           if (!wanted.includes(number)) {
             const url = memory.current[number].url;
             if (url) URL.revokeObjectURL(url);
             delete memory.current[number];
+            evicted = true;
           }
         }
-        publish();
+        if (evicted) publish();
         const missing = wanted.find((number) => !memory.current[number]);
         if (missing === undefined) return;
-        pageInFlight.current = true;
         try {
           const url = await readImage({ kind: 'page', chapterId: chapter.id, index: missing }, controller.signal);
           if (!alive()) { URL.revokeObjectURL(url); return; }
@@ -161,7 +163,7 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
         } catch (error) {
           if (!alive()) return;
           memory.current[missing] = { url: '', error: error instanceof Error ? error.message : t`Could not load this page.` };
-        } finally { pageInFlight.current = false; }
+        }
         publish();
       } finally { running = false; }
     }
@@ -200,7 +202,7 @@ export function ChapterReader({ title, chapter, count, start, previous, next, on
     if (closing) return;
     if (complete) {
       if (!memory.current[count - 1]?.shown) return;
-      finish.current = true;
+      finish.current = !completed.current;
     }
     failedSave.current = false;
     closeAction.current = action;

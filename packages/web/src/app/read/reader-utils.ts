@@ -23,7 +23,11 @@ export function chapterGroups(chapters: ReadingChapter[]) {
     if (group) group.push(chapter);
     else groups.set(key, [chapter]);
   }
-  return [...groups.values()];
+  const result = [...groups.values()];
+  // Numeric chapter lists can be returned newest-first by a source.
+  if (result.every((group) => typeof group[0].chapterNumber === 'number' && group[0].chapterNumber! >= 0))
+    result.sort((a, b) => a[0].chapterNumber! - b[0].chapterNumber!);
+  return result;
 }
 
 export function neighboringChapter(chapters: ReadingChapter[], current: ReadingChapter, delta: number) {

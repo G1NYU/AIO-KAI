@@ -5,17 +5,18 @@ import { FiArrowLeft, FiBookOpen, FiChevronRight, FiCompass, FiGrid, FiSearch, F
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { applyEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import { readPlayerTheme } from '@/lib/music/player-theme';
-import { isReaderPagePath, prepareReading, readRequest } from '@/lib/hosts/shell/reading';
+import { prepareReading, readRequest, readImage } from '@/lib/hosts/shell/reading';
+import { ChapterReader } from './chapter-reader';
+import { chapterGroups, neighboringChapter, cleanSynopsis, type ReadingChapter as Chapter } from './reader-utils';
 
 type Nodes<T> = { nodes: T[]; totalCount: number };
 type Source = { id: string; name: string; lang: string; displayName?: string; supportsLatest: boolean };
 type Store = { indexUrl: string; name: string };
 type Extension = { storeIndexUrl?: string | null; pkgName: string; name: string; lang: string; versionName: string; isInstalled: boolean; isObsolete: boolean };
-type Manga = { id: number | string; title: string; author?: string | null; description?: string | null; inLibrary: boolean };
-type Chapter = { id: number; name: string; isRead: boolean; lastPageRead: number; pageCount: number };
+type Manga = { id: number | string; title: string; author?: string | null; artist?: string | null; genre?: string[]; thumbnailUrl?: string | null; description?: string | null; inLibrary: boolean };
 type Details = { manga: Manga; chapters: Chapter[] };
 type Catalogue = { mangas: Manga[]; hasNextPage: boolean };
-type Reader = { chapter: Chapter; count: number; index: number; path: string };
+type Reader = { chapter: Chapter; count: number; index: number };
 type Tab = 'library' | 'browse' | 'settings';
 type BrowseTab = 'sources' | 'extensions' | 'search';
 type SettingsPage = 'browse' | 'sources' | 'repositories' | null;
@@ -52,9 +53,9 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
   const [filter, setFilter] = React.useState('');
   const [details, setDetails] = React.useState<Details | null>(null);
   const [reader, setReader] = React.useState<Reader | null>(null);
-  const [loaded, setLoaded] = React.useState('');
-  const [savedPath, setSavedPath] = React.useState('');
-  const saved = React.useRef('');
+  const [expandedSynopsis, setExpandedSynopsis] = React.useState(false);
+  const [chapterFilter, setChapterFilter] = React.useState('');
+  const [extensionFailures, setExtensionFailures] = React.useState<Record<string, string>>({});
   const active = React.useRef(true);
 
   async function run(work: () => Promise<void>) {
@@ -135,39 +136,37 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
   async function showManga(manga: Manga) {
     const id = Number(manga.id);
     if (!Number.isSafeInteger(id) || id < 1) throw new Error(t`Invalid manga identifier.`);
+    setExpandedSynopsis(false);
+    setChapterFilter('');
     setDetails(await readRequest<Details>({ kind: 'manga', id }));
-  }
-  async function showPage(chapter: Chapter, count: number, index: number) {
-    const result = await readRequest<{ path: string; index: number }>({ kind: 'page', chapterId: chapter.id, index });
-    if (!isReaderPagePath(result.path) || result.index !== index) throw new Error(t`Invalid reading page.`);
-    setLoaded(''); setSavedPath(''); saved.current = '';
-    setReader({ chapter, count, index, path: result.path });
+    window.scrollTo(0, 0);
   }
   async function openChapter(chapter: Chapter) {
     const result = await readRequest<{ pageCount: number }>({ kind: 'chapter', id: chapter.id });
-    if (!Number.isSafeInteger(result.pageCount) || result.pageCount < 1) throw new Error(t`This chapter has no pages.`);
+    if (!Number.isSafeInteger(result.pageCount) || result.pageCount < 1 || result.pageCount > 2000) throw new Error(t`This chapter has no supported pages.`);
     const index = chapter.isRead ? 0 : Math.max(0, Math.min(chapter.lastPageRead || 0, result.pageCount - 1));
-    await showPage(chapter, result.pageCount, index);
+    setReader({ chapter, count: result.pageCount, index });
   }
-  async function persist(current: Reader) {
-    if (saved.current === current.path) return;
-    await readRequest({ kind: 'progress', chapterId: current.chapter.id, index: current.index, finished: current.index + 1 === current.count });
-    saved.current = current.path; setSavedPath(current.path);
-    setDetails((old) => old ? { ...old, chapters: old.chapters.map((chapter) =>
-      chapter.id === current.chapter.id ? { ...chapter, lastPageRead: current.index, isRead: chapter.isRead || current.index + 1 === current.count } : chapter) } : old);
+  async function changeExtension(extension: Extension) {
+    setExtensionFailures((old) => { const next = { ...old }; delete next[extension.pkgName]; return next; });
+    try {
+      await readRequest({ kind: extension.isInstalled ? 'uninstall-extension' : 'install-extension', package: extension.pkgName });
+      await loadExtensions(offset);
+    } catch (error) {
+      setExtensionFailures((old) => ({ ...old, [extension.pkgName]: error instanceof Error ? error.message : t`Extension operation failed.` }));
+    }
   }
-  React.useEffect(() => {
-    if (!busy && reader && loaded === reader.path && saved.current !== reader.path && !error) void run(() => persist(reader));
-  }, [busy, reader, loaded, error]);
-  function turnPage(delta: number) {
-    if (!reader || loaded !== reader.path) return;
-    const next = reader.index + delta;
-    if (next < 0 || next >= reader.count) return;
-    void run(async () => { await persist(reader); await showPage(reader.chapter, reader.count, next); });
-  }
+  if (reader && details) return <ChapterReader key={reader.chapter.id} title={details.manga.title}
+    chapter={reader.chapter} count={reader.count} start={reader.index}
+    previous={neighboringChapter(details.chapters, reader.chapter, -1)} next={neighboringChapter(details.chapters, reader.chapter, 1)}
+    onClose={() => setReader(null)} onChapter={(chapter) => { setReader(null); void run(() => openChapter(chapter)); }}
+    onSaved={(index, finished) => setDetails((old) => old ? { ...old, chapters: old.chapters.map((chapter) =>
+      chapter.id === reader.chapter.id ? { ...chapter, lastPageRead: index, isRead: chapter.isRead || finished } : chapter) } : old)} />;
+
   const tabs = [{ id: 'library' as const, label: t`Library`, Icon: FiBookOpen }, { id: 'browse' as const, label: t`Browse`, Icon: FiCompass }, { id: 'settings' as const, label: t`Settings`, Icon: FiSettings }];
   const rows = tab === 'library' ? library?.nodes || [] : browse?.result.mangas || [];
-  const mangaRow = (manga: Manga) => <button className="tsugi-read-row" key={manga.id} disabled={busy} onClick={() => void run(() => showManga(manga))}><span><span className="block font-medium">{manga.title}</span>{manga.author && <span className="text-sm text-[--tsugi-muted]">{manga.author}</span>}</span><FiChevronRight aria-hidden /></button>;
+  const mangaRow = (manga: Manga) => <button className="tsugi-manga-card" key={manga.id} disabled={busy} onClick={() => void run(() => showManga(manga))}><MangaCover manga={manga} /><span className="tsugi-manga-title">{manga.title}</span>{manga.author && <span className="truncate text-xs text-[--tsugi-muted]">{manga.author}</span>}</button>;
+  const mangaGrid = (items: Manga[]) => <div className="tsugi-manga-grid">{items.map(mangaRow)}</div>;
   const settingRow = (label: string, description: string, next: SettingsPage) => <button className="tsugi-read-row" disabled={busy} onClick={() => openSettings(next)}><span><span className="block font-medium">{label}</span><span className="text-sm text-[--tsugi-muted]">{description}</span></span><FiChevronRight aria-hidden /></button>;
 
   return <main data-page="read" className="tsugi-read-root min-h-dvh px-6 pb-12 pt-12 sm:px-10 lg:px-[5vw]">
@@ -181,25 +180,31 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
     </div>
     {busy && <p className="mb-4 text-sm text-[--tsugi-muted]" role="status"><Trans>Working…</Trans></p>}
     {error && <div role="alert" className="tsugi-read-error mb-4">{error}</div>}
-    {reader ? <section>
-      <div className="flex flex-wrap items-center justify-between gap-3 py-3"><button className="tsugi-read-action" disabled={busy} onClick={() => { setReader(null); setError(''); }}><Trans>Chapters</Trans></button><h2 className="text-lg font-medium">{reader.chapter.name}</h2><span>{reader.index + 1} / {reader.count}</span></div>
-      <div className="tsugi-read-image"><img key={reader.path} src={reader.path} alt={t`Reading page`} onLoad={() => setLoaded(reader.path)} onError={() => setError(t`Could not display this page.`)} /></div>
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-        <button className="tsugi-read-action" disabled={busy || reader.index === 0 || loaded !== reader.path} onClick={() => turnPage(-1)}><Trans>Previous</Trans></button>
-        <button className="tsugi-read-action" disabled={busy} onClick={() => void run(() => showPage(reader.chapter, reader.count, reader.index))}><Trans>Reload page</Trans></button>
-        {reader.index + 1 < reader.count ? <button className="tsugi-read-action" disabled={busy || loaded !== reader.path} onClick={() => turnPage(1)}><Trans>Next</Trans></button> : <button className="tsugi-read-action" disabled={busy || loaded !== reader.path} onClick={() => void run(async () => { await persist(reader); setReader(null); })}><Trans>Finish chapter</Trans></button>}
+    {details ? <section>
+      <button className="tsugi-read-action mb-6" disabled={busy} onClick={() => { setDetails(null); setError(''); if (tab === 'library') void run(loadLibrary); }}><FiArrowLeft aria-hidden /><Trans>Back</Trans></button>
+      <div className="tsugi-manga-detail">
+        <MangaCover manga={details.manga} />
+        <div className="min-w-0">
+          <h2 className="text-3xl font-semibold tracking-tight">{details.manga.title}</h2>
+          {details.manga.author && <p className="mt-2 text-[--tsugi-muted]">{details.manga.author}</p>}
+          {details.manga.genre?.length ? <div className="my-3 flex flex-wrap gap-2 text-xs text-[--tsugi-muted]">{details.manga.genre.map((genre) => <span className="tsugi-manga-genre" key={genre}>{genre}</span>)}</div> : null}
+          {details.manga.description && <div className="mt-4 max-w-3xl text-sm leading-relaxed">
+            <p className="whitespace-pre-wrap">{expandedSynopsis ? cleanSynopsis(details.manga.description) : cleanSynopsis(details.manga.description).slice(0, 650) + (cleanSynopsis(details.manga.description).length > 650 ? '…' : '')}</p>
+            {cleanSynopsis(details.manga.description).length > 650 && <button className="tsugi-library-action mt-2" onClick={() => setExpandedSynopsis(!expandedSynopsis)}>{expandedSynopsis ? t`Show less` : t`Read more`}</button>}
+          </div>}
+          <div className="my-5 flex flex-wrap gap-3">
+            <button className="tsugi-read-action" disabled={busy} onClick={() => void run(async () => { const inLibrary = !details.manga.inLibrary; await readRequest({ kind: 'set-library', id: Number(details.manga.id), inLibrary }); setDetails({ ...details, manga: { ...details.manga, inLibrary } }); })}>{details.manga.inLibrary ? t`Remove from library` : t`Add to library`}</button>
+            {details.chapters.length > 0 && <button className="tsugi-read-action" disabled={busy} onClick={() => void run(() => openChapter(details.chapters.find((chapter) => !chapter.isRead && chapter.lastPageRead > 0) || chapterGroups(details.chapters).find((group) => group.some((chapter) => !chapter.isRead))?.find((chapter) => !chapter.isRead) || chapterGroups(details.chapters)[0][0]))}><FiBookOpen aria-hidden /><Trans>Start or resume reading</Trans></button>}
+          </div>
+        </div>
       </div>
-      {savedPath === reader.path && <p className="mt-3 text-center text-xs text-[--tsugi-muted]"><Trans>Progress saved</Trans></p>}
-      {error && loaded === reader.path && <button className="tsugi-read-action mt-3" disabled={busy} onClick={() => void run(() => persist(reader))}><Trans>Retry saving progress</Trans></button>}
-    </section> : details ? <section>
-      <button className="tsugi-read-action mb-5" disabled={busy} onClick={() => { setDetails(null); setError(''); if (tab === 'library') void run(loadLibrary); }}><Trans>Back</Trans></button>
-      <h2 className="text-3xl font-semibold">{details.manga.title}</h2>
-      {details.manga.author && <p className="mt-2 text-[--tsugi-muted]">{details.manga.author}</p>}
-      {details.manga.description && <p className="mt-4 max-w-3xl whitespace-pre-wrap text-sm leading-relaxed">{details.manga.description}</p>}
-      <button className="tsugi-read-action my-5" disabled={busy} onClick={() => void run(async () => { const inLibrary = !details.manga.inLibrary; await readRequest({ kind: 'set-library', id: Number(details.manga.id), inLibrary }); setDetails({ ...details, manga: { ...details.manga, inLibrary } }); })}>{details.manga.inLibrary ? t`Remove from library` : t`Add to library`}</button>
-      <h3 className="mb-2 text-lg font-medium"><Trans>Chapters</Trans></h3>
+      <div className="my-5 flex flex-wrap items-center justify-between gap-3"><h3 className="text-xl font-medium"><Trans>Chapters</Trans> <span className="text-sm text-[--tsugi-muted]">({chapterGroups(details.chapters).length})</span></h3><input className="tsugi-read-input" value={chapterFilter} onChange={(event) => setChapterFilter(event.target.value)} placeholder={t`Find a chapter`} aria-label={t`Find a chapter`} /></div>
       {!details.chapters.length && <p><Trans>No chapters found.</Trans></p>}
-      {details.chapters.map((chapter) => <button className="tsugi-read-row" key={chapter.id} disabled={busy} onClick={() => void run(() => openChapter(chapter))}><span>{chapter.name}</span><span className="text-sm text-[--tsugi-muted]">{chapter.isRead ? t`Read` : chapter.lastPageRead > 0 ? t`Resume` : t`Unread`}</span></button>)}
+      {chapterGroups(details.chapters).filter((group) => group.some((chapter) => (chapter.name + ' ' + (chapter.scanlator || '')).toLowerCase().includes(chapterFilter.toLowerCase()))).map((group) => {
+        const first = group[0];
+        const chapterRow = (chapter: Chapter) => <button className="tsugi-read-row tsugi-chapter-row" key={chapter.id} disabled={busy} onClick={() => void run(() => openChapter(chapter))}><span><span className="block font-medium">{chapter.name}</span><span className="text-xs text-[--tsugi-muted]">{chapter.scanlator || (group.length > 1 ? t`Unknown translation group` : '')}</span></span><span className="text-xs text-[--tsugi-muted]">{chapter.isRead ? t`Read` : chapter.lastPageRead > 0 ? t`Resume` : t`Unread`}</span></button>;
+        return group.length === 1 ? chapterRow(first) : <details key={first.id} className="tsugi-chapter-versions"><summary><span className="font-medium">{first.name}</span><span className="text-xs text-[--tsugi-muted]">{group.length} <Trans>versions</Trans></span></summary><div className="pl-5">{group.map(chapterRow)}</div></details>;
+      })}
     </section> : tab === 'settings' ? (
       <section className="tsugi-read-settings">
         <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm text-[--tsugi-muted]" aria-label={t`Settings path`}>
@@ -252,7 +257,7 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
           </form>
           {!stores.length && !busy && <button className="tsugi-read-action" onClick={() => { setTab('settings'); openSettings('repositories'); }}><Trans>Add an extension repository</Trans></button>}
           {extensions && !extensions.nodes.length && !busy && <p className="py-6 text-[--tsugi-muted]"><Trans>No matching extensions.</Trans></p>}
-          {extensions?.nodes.map((extension) => <div key={extension.pkgName} className="tsugi-read-row"><span className="min-w-0"><span className="block font-medium">{extension.name}</span><span className="block break-all text-xs text-[--tsugi-muted]">{extension.lang} · {extension.versionName} · {stores.find((store) => store.indexUrl === extension.storeIndexUrl)?.name || extension.pkgName}</span></span><button className="tsugi-read-action" disabled={busy || (!extension.isInstalled && extension.isObsolete)} onClick={() => void run(async () => { await readRequest({ kind: extension.isInstalled ? 'uninstall-extension' : 'install-extension', package: extension.pkgName }); await loadExtensions(offset); })}>{extension.isInstalled ? t`Uninstall` : t`Install`}</button></div>)}
+          {extensions?.nodes.map((extension) => <div key={extension.pkgName} className="tsugi-read-row flex-wrap"><span className="min-w-0"><span className="block font-medium">{extension.name}</span><span className="block break-all text-xs text-[--tsugi-muted]">{extension.lang} · {extension.versionName} · {stores.find((store) => store.indexUrl === extension.storeIndexUrl)?.name || extension.pkgName}</span></span><button className="tsugi-read-action" disabled={busy || (!extension.isInstalled && extension.isObsolete)} onClick={() => void run(() => changeExtension(extension))}>{extension.isInstalled ? t`Uninstall` : t`Install`}</button>{extensionFailures[extension.pkgName] && <p className="basis-full text-xs text-[--tsugi-muted]" role="alert">{extensionFailures[extension.pkgName]}</p>}</div>)}
           {!!extensions?.totalCount && <div className="mt-4 flex items-center justify-between gap-3"><button className="tsugi-read-action" disabled={busy || offset === 0} onClick={() => void run(() => loadExtensions(Math.max(0, offset - 100)))}><Trans>Previous</Trans></button><span>{offset + extensions.nodes.length} / {extensions.totalCount}</span><button className="tsugi-read-action" disabled={busy || offset + 100 >= extensions.totalCount} onClick={() => void run(() => loadExtensions(offset + 100))}><Trans>Next</Trans></button></div>}
         </section> : browseTab === 'search' ? <section>
           <form className="mb-5 flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); void run(searchAll); }}>
@@ -263,7 +268,7 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
           {!sources.length && !busy && <button className="tsugi-read-action" onClick={() => switchBrowse('extensions')}><Trans>Install a source extension</Trans></button>}
           {globalTerm && <p className="mb-4 text-sm text-[--tsugi-muted]" role="status">{globalTerm} · {globalCompleted} / {sources.length}</p>}
           {globalResults.map((group) => <section key={group.source.id} className="mb-7"><h3 className="border-b border-[--tsugi-line] pb-2 font-semibold">{group.source.displayName || group.source.name}</h3>
-            {group.error ? <p className="py-3 text-sm text-[--tsugi-muted]">{group.error}</p> : group.result?.mangas.length ? group.result.mangas.map(mangaRow) : <p className="py-3 text-sm text-[--tsugi-muted]"><Trans>No matches.</Trans></p>}
+            {group.error ? <p className="py-3 text-sm text-[--tsugi-muted]">{group.error}</p> : group.result?.mangas.length ? mangaGrid(group.result.mangas) : <p className="py-3 text-sm text-[--tsugi-muted]"><Trans>No matches.</Trans></p>}
             {group.result?.hasNextPage && <button className="tsugi-read-action mt-2" disabled={busy} onClick={() => { setBrowseTab('sources'); setSource(group.source.id); setQuery(globalTerm); setBrowse({ source: group.source.id, query: globalTerm, mode: 'search', page: 1, result: group.result! }); }}><Trans>More results</Trans></button>}
           </section>)}
         </section> : !source ? <section>
@@ -278,7 +283,7 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
             <button className="tsugi-read-action" disabled={busy || !sources.find((item) => item.id === source)?.supportsLatest} onClick={() => void run(() => catalogue('latest'))}><Trans>Latest</Trans></button>
           </div>
           <form className="mb-5 flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); void run(() => catalogue('search')); }}><input className="tsugi-read-input grow" value={query} maxLength={200} onChange={(event) => setQuery(event.target.value)} placeholder={t`Search manga`} aria-label={t`Search manga`} /><button className="tsugi-read-action" disabled={busy || !query.trim()}><Trans>Search</Trans></button></form>
-          {rows.map(mangaRow)}
+          {mangaGrid(rows)}
           {!rows.length && !busy && <p className="py-6 text-[--tsugi-muted]"><Trans>No manga found.</Trans></p>}
           {browse && <div className="mt-4 flex items-center justify-between"><button className="tsugi-read-action" disabled={busy || browse.page === 1} onClick={() => void run(() => catalogue(browse.mode, browse.page - 1, browse.source, browse.query))}><Trans>Previous</Trans></button><span>{browse.page}</span><button className="tsugi-read-action" disabled={busy || !browse.result.hasNextPage} onClick={() => void run(() => catalogue(browse.mode, browse.page + 1, browse.source, browse.query))}><Trans>Next</Trans></button></div>}
         </section>}
@@ -286,10 +291,35 @@ export function ReadPage({ openWelcome, openVideo, openMusic }: {
     ) : <section>
       <div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-semibold"><Trans>Library</Trans></h2><button className="tsugi-read-action" disabled={busy} onClick={() => void run(loadLibrary)}><Trans>Refresh</Trans></button></div>
       {!rows.length && !busy && <div className="py-8"><p className="mb-4 text-[--tsugi-muted]"><Trans>Your library is empty. Browse a source to add manga.</Trans></p><button className="tsugi-read-action" onClick={() => switchTab('browse')}><Trans>Browse</Trans></button></div>}
-      {rows.map(mangaRow)}
+      {mangaGrid(rows)}
       {library && library.totalCount > library.nodes.length && <p className="mt-3 text-sm text-[--tsugi-muted]"><Trans>Showing the first 100 library entries.</Trans></p>}
     </section>}
   </main>;
+}
+
+function MangaCover({ manga }: { manga: Manga }) {
+  const box = React.useRef<HTMLDivElement>(null);
+  const [url, setUrl] = React.useState('');
+  const [failed, setFailed] = React.useState(false);
+  React.useEffect(() => {
+    const node = box.current;
+    const id = Number(manga.id);
+    if (!node || !manga.thumbnailUrl || !Number.isSafeInteger(id) || id < 1) return;
+    const controller = new AbortController();
+    let objectUrl = '';
+    setUrl(''); setFailed(false);
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      observer.disconnect();
+      void readImage({ kind: 'cover', id }, controller.signal).then((image) => {
+        if (controller.signal.aborted) { URL.revokeObjectURL(image); return; }
+        objectUrl = image; setUrl(image);
+      }).catch(() => { if (!controller.signal.aborted) setFailed(true); });
+    }, { rootMargin: '200px' });
+    observer.observe(node);
+    return () => { controller.abort(); observer.disconnect(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [manga.id, manga.thumbnailUrl]);
+  return <div ref={box} className="tsugi-manga-cover">{url && !failed ? <img src={url} alt="" onError={() => setFailed(true)} /> : <FiBookOpen aria-hidden />}</div>;
 }
 
 /** One-time native setup without a console window or manual script. */
