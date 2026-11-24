@@ -88,12 +88,15 @@ server.globalUpdateInterval = 0
     $client.Timeout = [TimeSpan]::FromSeconds(5)
     $auth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("${user}:$password"))
     $query = @{ query = 'query TsugiSmoke { aboutServer { version } sources(first: 1) { nodes { id name lang } } }' } | ConvertTo-Json -Compress
-    function Invoke-ReadingProbe([bool]$Authenticated) {
+    function Invoke-ReadingProbe([ValidateSet('valid', 'missing', 'invalid')][string]$CredentialMode) {
         $request = [Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Post, $url)
         try {
             $request.Content = [Net.Http.StringContent]::new($query, [Text.Encoding]::UTF8, 'application/json')
-            if ($Authenticated) {
+            if ($CredentialMode -eq 'valid') {
                 $request.Headers.Authorization = [Net.Http.Headers.AuthenticationHeaderValue]::new('Basic', $auth)
+            } elseif ($CredentialMode -eq 'invalid') {
+                $invalidAuth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("${user}:intentionally-invalid"))
+                $request.Headers.Authorization = [Net.Http.Headers.AuthenticationHeaderValue]::new('Basic', $invalidAuth)
             }
             $response = $client.SendAsync($request).GetAwaiter().GetResult()
             try {
@@ -102,7 +105,11 @@ server.globalUpdateInterval = 0
                 if ($status -eq 200) {
                     $body = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
                 }
-                return @{ Status = $status; Body = $body }
+                return @{
+                    Status = $status
+                    Body = $body
+                    BasicChallenge = @($response.Headers.WwwAuthenticate | Where-Object { $_.Scheme -eq 'Basic' }).Count -gt 0
+                }
             } finally { $response.Dispose() }
         } finally { $request.Dispose() }
     }
@@ -117,7 +124,7 @@ server.globalUpdateInterval = 0
             throw "Reading server exited during startup (exit $($process.ExitCode))"
         }
         try {
-            $result = Invoke-ReadingProbe $true
+            $result = Invoke-ReadingProbe 'valid'
             $last = "HTTP $($result.Status)"
             if ($result.Status -eq 200) {
                 $body = $result.Body
@@ -149,18 +156,34 @@ server.globalUpdateInterval = 0
         throw 'Unexpected reading server version'
     }
     Write-Host 'PASS: authenticated GraphQL query and exact upstream version v2.4.2373.'
-    $unauthorized = Invoke-ReadingProbe $false
-    if ($unauthorized.Status -eq 200) {
-        if ($null -ne $unauthorized.Body.data.sources) { throw 'Protected source query accepted unauthenticated access' }
-    } elseif ($unauthorized.Status -notin @(401, 403)) {
-        throw 'Unexpected unauthenticated reading response'
-    }
     $bound = @(Get-NetTCPConnection -OwningProcess $process.Id -State Listen -ErrorAction SilentlyContinue)
     if (-not ($bound | Where-Object { $_.LocalAddress -eq '127.0.0.1' -and $_.LocalPort -eq $port }) -or
         ($bound | Where-Object { $_.LocalAddress -notin @('127.0.0.1', '::1') })) {
         throw 'Reading server did not bind exclusively to loopback'
     }
-    Write-Host 'PASS: bundled Java, pinned Suwayomi version, authenticated GraphQL sources, anonymous rejection, loopback-only binding.'
+    Write-Host 'PASS: loopback-only binding.'
+    # Probe both negative cases before evaluating them. Never log response
+    # bodies, header values, credentials or other server configuration.
+    $negative = @{}
+    foreach ($mode in @('missing', 'invalid')) {
+        $probe = Invoke-ReadingProbe $mode
+        $hasSources = $null -ne $probe.Body.data.sources
+        $errorCount = if ($probe.Body.errors) { @($probe.Body.errors).Count } else { 0 }
+        Write-Host "Reading auth ($mode): HTTP $($probe.Status); Basic challenge: $($probe.BasicChallenge); protected data: $hasSources; GraphQL errors: $errorCount"
+        $negative[$mode] = $probe
+    }
+    foreach ($mode in @('missing', 'invalid')) {
+        $probe = $negative[$mode]
+        if ($null -ne $probe.Body.data.sources) {
+            throw "Protected source query accepted $mode credentials"
+        }
+        # Upstream JavalinSetup BASIC_AUTH explicitly throws UnauthorizedResponse.
+        # Fail closed: neither redirects nor generic errors prove authorization.
+        if ($probe.Status -ne 401 -or -not $probe.BasicChallenge) {
+            throw "Unexpected reading auth response ($mode): HTTP $($probe.Status); Basic challenge: $($probe.BasicChallenge)"
+        }
+    }
+    Write-Host 'PASS: bundled Java, pinned Suwayomi version, authenticated GraphQL sources, missing and invalid credentials rejected, loopback-only binding.'
 } finally {
     if ($client) { $client.Dispose() }
     if ($listener) { $listener.Stop() }

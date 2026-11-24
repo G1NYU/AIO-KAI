@@ -102,3 +102,19 @@ only if the direct Mihon compatibility acceptance can still be met.
   The reference script remains available for diagnosis. No runtime is yet
   shipped in the app. Next verify unauthorized rejection, binding and clean
   shutdown; then implement the native process broker and extension store UI.
+
+## Authentication checkpoint (run 45380319661)
+
+The minimal official Zulu/JAR layout passed download integrity, startup,
+authenticated GraphQL and exact v2.4.2373 version validation. The negative
+probe failed with "Unexpected unauthenticated reading response" before the
+binding check; the old probe did not log its actual HTTP status. No conclusion
+about the cause or security can be made from this failure alone.
+Upstream JavalinSetup.kt explicitly returns UnauthorizedResponse and a Basic
+challenge for missing or incorrect Basic credentials. The documented config
+value is basic_auth; retain it and all existing protections. Move binding
+verification ahead of the negative probes; report only status, Basic challenge
+presence, protected data presence and error count for missing/incorrect
+credentials. Require both to be rejected with 401 plus a Basic challenge.
+Do not treat arbitrary errors, redirects or an unauthenticated successful
+query as proof of authentication. Do not ship the runtime until this gate passes.
