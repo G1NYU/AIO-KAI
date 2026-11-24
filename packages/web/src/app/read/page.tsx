@@ -1,8 +1,7 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiArrowLeft, FiBookOpen, FiChevronRight, FiCompass, FiGrid, FiSearch, FiSettings, FiGlobe, FiClock, FiBook, FiRefreshCw, FiBookmark } from 'react-icons/fi';
-import { TsugiBrand } from '@/components/tsugi-brand';
+import { FiArrowLeft, FiBookOpen, FiChevronRight, FiCompass, FiGrid, FiSearch, FiSettings, FiGlobe, FiClock, FiRefreshCw, FiBookmark } from 'react-icons/fi';
 import { MediaNavigation } from '@/components/shell/media-navigation';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { prepareReading, readRequest, readImage } from '@/lib/hosts/shell/reading';
@@ -26,8 +25,8 @@ type SettingsPage = 'browse' | 'sources' | 'repositories' | 'reader' | 'trackers
 type SearchGroup = { source: Source; result?: Catalogue; error?: string };
 type Mode = 'popular' | 'latest' | 'search';
 
-export function ReadPage({ openWelcome, visible }: {
-  openWelcome(): void; visible: boolean;
+export function ReadPage({ visible }: {
+  visible: boolean;
 }) {
   const desktopArea = useDesktopArea();
   const [tab, setTab] = React.useState<Tab>('library');
@@ -230,8 +229,8 @@ export function ReadPage({ openWelcome, visible }: {
   const settingRow = (label: string, description: string, next: SettingsPage) => <button className="tsugi-read-row" disabled={busy} onClick={() => openSettings(next)}><span><span className="block font-medium">{label}</span><span className="text-sm text-[--tsugi-muted]">{description}</span></span><FiChevronRight aria-hidden /></button>;
 
   return <main data-page="read" className="tsugi-read-root tsugi-read-workspace">
+    <header className="tsugi-read-media-header"><MediaNavigation area="read" disabled={busy} /></header>
     <aside className="tsugi-reading-rail">
-      <button className="tsugi-reading-brand" disabled={busy} onClick={openWelcome} aria-label={t({ id: "All media", message: "All media" })}><TsugiBrand markOnly /><strong><Trans id="Tsugi">Tsugi</Trans></strong></button>
       <nav aria-label={t({ id: "Reading sections", message: "Reading sections" })}>
         <span className="tsugi-reading-rail-label"><Trans id="Collection">Collection</Trans></span>
         {tabs.filter(({ id }) => id === 'library').map(({ id, label, Icon }) => <button key={id} aria-current={tab === id ? 'page' : undefined} disabled={busy} onClick={() => switchTab(id)}><Icon aria-hidden />{label}</button>)}
@@ -242,11 +241,10 @@ export function ReadPage({ openWelcome, visible }: {
         <span className="tsugi-reading-rail-label"><Trans id="Preferences">Preferences</Trans></span>
         <button aria-current={tab === 'settings' ? 'page' : undefined} disabled={busy} onClick={() => switchTab('settings')}><FiSettings aria-hidden /><Trans id="Settings">Settings</Trans></button>
       </nav>
-      <div className="tsugi-reading-rail-bottom"><MediaNavigation area="read" rail disabled={busy} /></div>
     </aside>
     <div className="tsugi-reading-content" ref={content}>
       <header className="tsugi-reading-header">
-        <div><p className="tsugi-reading-kicker"><FiBook aria-hidden /><Trans id="Read">Read</Trans></p><h1>{details ? t({ id: "Series", message: "Series" }) : tab === 'library' ? t({ id: "Library", message: "Library" }) : tab === 'settings' ? t({ id: "Settings", message: "Settings" }) : browseTab === 'search' ? t({ id: "Global search", message: "Global search" }) : browseTab === 'extensions' ? t({ id: "Extensions", message: "Extensions" }) : t({ id: "Browse", message: "Browse" })}</h1></div>
+        <div><h1>{details ? t({ id: "Series", message: "Series" }) : tab === 'library' ? t({ id: "Library", message: "Library" }) : tab === 'settings' ? t({ id: "Settings", message: "Settings" }) : browseTab === 'search' ? t({ id: "Global search", message: "Global search" }) : browseTab === 'extensions' ? t({ id: "Extensions", message: "Extensions" }) : t({ id: "Browse", message: "Browse" })}</h1></div>
         <form className="tsugi-reading-global" onSubmit={(event) => { event.preventDefault(); if (!globalQuery.trim() || busy) return; setDetails(null); setTab('browse'); setBrowseTab('search'); void run(async () => { const result = await readRequest<Nodes<Source>>({ kind: 'sources' }); const available = result.nodes.filter((item) => item.id !== '0'); setSources(available); await searchAll(available); }); }}>
           <FiSearch aria-hidden /><input value={globalQuery} onChange={(event) => setGlobalQuery(event.target.value)} maxLength={200} placeholder={t({ id: "Search all installed sources", message: "Search all installed sources" })} aria-label={t({ id: "Global manga search", message: "Global manga search" })} /><button disabled={busy || !globalQuery.trim()} aria-label={t({ id: "Search", message: "Search" })}><FiChevronRight aria-hidden /></button>
         </form>
@@ -386,7 +384,7 @@ export function ReadPage({ openWelcome, visible }: {
     ) : <section>
       {recent.length > 0 && libraryView === 'all' && !libraryFilter.trim() && <section className="tsugi-reading-resume"><h2><FiClock aria-hidden /><Trans id="Continue reading">Continue reading</Trans></h2><div className="tsugi-reading-resume-list">{recent.slice(0, 6).map((manga) => <button key={manga.id} className="tsugi-reading-resume-card" disabled={busy} onClick={() => void run(() => resumeManga(manga))}><MangaCover manga={manga} /><span><strong>{manga.title}</strong><small>{manga.lastReadChapter?.name}</small><small>{manga.lastReadChapter?.isRead ? t({ id: "Next chapter", message: "Next chapter" }) : t({ id: "Resume reading", message: "Resume reading" })}</small></span><FiChevronRight /></button>)}</div></section>}
       <div className="tsugi-reading-list-header"><nav className="tsugi-read-subnav" aria-label={t({ id: "Library view", message: "Library view" })}><button aria-current={libraryView === 'all' ? 'page' : undefined} onClick={() => setLibraryView('all')}><Trans id="All manga">All manga</Trans></button><button aria-current={libraryView === 'reading' ? 'page' : undefined} onClick={() => setLibraryView('reading')}><Trans id="In progress">In progress</Trans></button></nav><div className="tsugi-reading-filters"><input className="tsugi-read-input" placeholder={t({ id: "Find in library", message: "Find in library" })} aria-label={t({ id: "Find in library", message: "Find in library" })} value={libraryFilter} onChange={(event) => setLibraryFilter(event.target.value)} /><select className="tsugi-read-input" aria-label={t({ id: "Library sort", message: "Library sort" })} value={librarySort} onChange={(event) => setLibrarySort(event.target.value as typeof librarySort)}><option value="title"><Trans id="Title">Title</Trans></option><option value="recent"><Trans id="Recently read">Recently read</Trans></option></select><button className="tsugi-read-action" disabled={busy} onClick={() => void run(loadLibrary)} aria-label={t({ id: "Refresh library", message: "Refresh library" })}><FiRefreshCw aria-hidden /></button></div></div>
-      {!allLibrary.length && !busy && <div className="tsugi-reading-empty"><FiBookOpen aria-hidden /><h2><Trans id="Your library is empty">Your library is empty</Trans></h2><p><Trans id="Browse a source to add manga and keep your reading progress in one place.">Browse a source to add manga and keep your reading progress in one place.</Trans></p><button className="tsugi-read-action" onClick={() => switchTab('browse')}><Trans id="Browse sources">Browse sources</Trans></button></div>}
+      {!allLibrary.length && !busy && <div className="tsugi-reading-empty"><FiBookOpen aria-hidden /><h2><Trans id="Your library is empty">Your library is empty</Trans></h2><p><Trans id="Browse a source to add manga and keep your reading progress in one place.">Browse a source to add manga and keep your reading progress in one place.</Trans></p><div className="tsugi-empty-actions"><button className="tsugi-read-action tsugi-empty-primary" onClick={() => switchTab('browse')}><Trans id="Browse sources">Browse sources</Trans></button><button className="tsugi-read-action" onClick={() => switchBrowse('extensions')}><Trans id="Extensions">Extensions</Trans></button></div></div>}
       {!!allLibrary.length && !rows.length && !busy && <p className="py-8 text-[--tsugi-muted]"><Trans id="No manga match your filters.">No manga match your filters.</Trans></p>}
       {mangaGrid(rows)}
       {library && library.totalCount > library.nodes.length && <p className="mt-3 text-sm text-[--tsugi-muted]"><Trans id="Showing the first 100 library entries.">Showing the first 100 library entries.</Trans></p>}

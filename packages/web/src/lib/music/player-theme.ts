@@ -17,7 +17,7 @@ export type PlayerPalette = {
 export const PLAYER_PALETTES: Record<PlayerThemeId, PlayerPalette> = {
   sumi: {
     foreground: '#E8E6DF', surface: '#171A1D', canvas: '#101214',
-    panel: '#202428', border: '#363C41', accent: '#A8D3E5',
+    panel: '#202428', border: '#363C41', accent: '#D5D5DC',
     accentText: '#101214', muted: '#A3ABB0',
   },
   mocha: {
@@ -32,7 +32,7 @@ export const PLAYER_PALETTES: Record<PlayerThemeId, PlayerPalette> = {
   },
   'aio-dark': {
     foreground: '#E8EDF0', surface: '#101418', canvas: '#090D10',
-    panel: '#181E22', border: '#343D42', accent: '#BDD8E5',
+    panel: '#181E22', border: '#343D42', accent: '#D5D5DC',
     accentText: '#0E1518', muted: '#9BAFB8',
   },
   nightfall: {
@@ -42,7 +42,7 @@ export const PLAYER_PALETTES: Record<PlayerThemeId, PlayerPalette> = {
   },
   carbon: {
     foreground: '#E0E6E8', surface: '#121516', canvas: '#0B0E0F',
-    panel: '#1B2022', border: '#3A4447', accent: '#B3C9C9',
+    panel: '#1B2022', border: '#3A4447', accent: '#D5D5DC',
     accentText: '#0E1516', muted: '#9FADAF',
   },
 };
@@ -68,4 +68,47 @@ export function readPlayerTheme(): PlayerThemeId {
 export function savePlayerTheme(theme: PlayerThemeId): void {
   if (!isPlayerTheme(theme)) return;
   try { storage.set(KEY, theme); storage.set('tsugi-global-import-colors-v1', false); } catch { /* Device storage may be blocked. */ }
+}
+
+/** Accent and canvas are independent saved preferences. Presets are deliberately
+ *  constrained to accessible colors instead of accepting arbitrary CSS. */
+export const PLAYER_ACCENTS = {
+  silver: '#D5D5DC',
+  blue: '#9AB8FF',
+  lavender: '#B4BEFE',
+  amber: '#E4BA87',
+  rose: '#E9A0A8',
+} as const;
+export type PlayerAccentId = keyof typeof PLAYER_ACCENTS;
+const ACCENT_KEY = 'tsugi-global-accent-v1';
+export function isPlayerAccent(value: unknown): value is PlayerAccentId {
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(PLAYER_ACCENTS, value);
+}
+export function readPlayerAccent(): PlayerAccentId {
+  try {
+    const value = storage.get<unknown>(ACCENT_KEY);
+    return isPlayerAccent(value) ? value : 'silver';
+  } catch { return 'silver'; }
+}
+export function savePlayerAccent(value: PlayerAccentId): void {
+  if (isPlayerAccent(value)) storage.set(ACCENT_KEY, value);
+}
+function luminance(value: string): number | undefined {
+  const hex = /^#([0-9a-f]{6})$/i.exec(value);
+  const rgb = /^rgb\(\s*(\d{1,3})[ ,]+(\d{1,3})[ ,]+(\d{1,3})\s*\)$/.exec(value);
+  const channels = hex ? [0,2,4].map(i => parseInt(hex[1].slice(i,i+2),16)) : rgb ? rgb.slice(1).map(Number) : null;
+  if (!channels || channels.some(n => n > 255)) return undefined;
+  const linear = channels.map(v => { const n = v / 255; return n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4; });
+  return linear[0] * .2126 + linear[1] * .7152 + linear[2] * .0722;
+}
+export function withPlayerAccent(palette: PlayerPalette, id: PlayerAccentId): PlayerPalette {
+  const canvas = luminance(palette.canvas) ?? 0;
+  const candidate = PLAYER_ACCENTS[id];
+  const light = luminance(candidate) ?? 1;
+  const ratio = (Math.max(canvas, light) + .05) / (Math.min(canvas, light) + .05);
+  // Imported light layouts must remain readable. Fall back to the derived
+  // contrasting text rather than painting a pale control on a pale canvas.
+  const accent = ratio >= 3 ? candidate : palette.foreground;
+  const accentText = (luminance(accent) ?? 1) > .179 ? '#101214' : '#FFFFFF';
+  return { ...palette, accent, accentText };
 }

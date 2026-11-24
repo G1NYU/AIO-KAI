@@ -293,7 +293,7 @@ function Standalone() {
       </AnimatePresence>
       {desktop && reading && readerReady && (area === 'read' || (readVisited && (area === 'music' || area === 'welcome'))) && (
         <ServerInfoProvider value={NO_SERVER_INFO}>
-          <div hidden={area !== 'read'} inert={area !== 'read'}><ReadPage visible={area === 'read'} openWelcome={openWelcome} /></div>
+          <div hidden={area !== 'read'} inert={area !== 'read'}><ReadPage visible={area === 'read'} /></div>
         </ServerInfoProvider>
       )}
       {desktop && (

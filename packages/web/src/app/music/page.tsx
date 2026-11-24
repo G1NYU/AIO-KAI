@@ -731,7 +731,7 @@ export function MusicPage({
             setQueue([entry.track]);
             void play(entry.track, 0, source, true);
           }}
-          onConfigure={() => setSettingsOpen(true)} />}
+          onConfigure={() => setSettingsOpen(true)} onLibrary={() => setTab('library')} />}
 
         {tab === 'library' && (
           <>

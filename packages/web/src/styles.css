@@ -664,7 +664,7 @@ html[data-blur-spoilers]:not([data-tv])
 :root[data-host='desktop'][data-tsugi-theme='aio-dark'] {
   --tsugi-canvas: #090d10; --tsugi-surface: #101418;
   --tsugi-panel: #181e22; --tsugi-ink: #e8edf0;
-  --tsugi-muted: #9bafb8; --tsugi-accent: #bdd8e5;
+  --tsugi-muted: #9bafb8; --tsugi-accent: #d5d5dc;
   --tsugi-line: rgb(189 216 229 / 10%);
   --tsugi-wash: rgb(189 216 229 / 9%);
   --tsugi-glass: rgb(18 24 28 / 85%);
@@ -680,7 +680,7 @@ html[data-blur-spoilers]:not([data-tv])
 :root[data-host='desktop'][data-tsugi-theme='carbon'] {
   --tsugi-canvas: #0b0e0f; --tsugi-surface: #121516;
   --tsugi-panel: #1b2022; --tsugi-ink: #e0e6e8;
-  --tsugi-muted: #9fadaf; --tsugi-accent: #b3c9c9;
+  --tsugi-muted: #9fadaf; --tsugi-accent: #d5d5dc;
   --tsugi-line: rgb(179 201 201 / 10%);
   --tsugi-wash: rgb(179 201 201 / 8%);
   --tsugi-glass: rgb(24 29 30 / 85%);
@@ -1431,13 +1431,13 @@ body:has(.tsugi-chapter-reader) .tsugi-reading-music-open { display:none; }
 :root[data-host='desktop'] {
   --tsugi-font: 'Segoe UI Variable Text','Segoe UI',Inter,'Helvetica Neue',Arial,sans-serif;
   --tsugi-display: 'Segoe UI Variable Display','Segoe UI',Inter,'Helvetica Neue',Arial,sans-serif;
-  --tsugi-focus: #A8D3E5;
+  --tsugi-focus: #D5D5DC;
   --radius: 2px;
   --radius-md: 2px;
 }
 :root[data-host='desktop'][data-tsugi-theme='sumi'] {
   --tsugi-canvas:#101214; --tsugi-surface:#171A1D; --tsugi-panel:#202428;
-  --tsugi-ink:#E8E6DF; --tsugi-muted:#A3ABB0; --tsugi-accent:#A8D3E5;
+  --tsugi-ink:#E8E6DF; --tsugi-muted:#A3ABB0; --tsugi-accent:#D5D5DC;
   --tsugi-line:#363C41; --tsugi-wash:#1D2023; --tsugi-glass:#202428;
 }
 :root[data-host='desktop']:not(.playing) body,
@@ -1664,3 +1664,70 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 :root[data-host='desktop'] .tsugi-global-palettes button[aria-pressed='true'] { border-color:var(--tsugi-focus); }
 :root[data-host='desktop'] :is(.tsugi-global-settings,.tsugi-settings-sheet) { border-color:var(--tsugi-line); }
 :root[data-host='desktop'] .tsugi-reading-rail .tsugi-reading-rail-bottom button { min-height:38px; }
+
+/* Media workspace: larger readable controls, shared top destinations and a
+   consistent content rhythm. No artificial dashboard tiles or decorative data. */
+:root[data-host='desktop'] .tsugi-read-workspace {
+  display:grid; grid-template-columns:220px minmax(0,1fr);
+  grid-template-rows:auto minmax(0,1fr);
+}
+.tsugi-read-media-header { grid-column:1/-1; border-bottom:1px solid var(--tsugi-line); padding:10px clamp(22px,3vw,60px); background:var(--tsugi-canvas); }
+.tsugi-read-media-header .tsugi-entry-settings { margin-inline-start:auto; }
+:root[data-host='desktop'] .tsugi-reading-rail { width:auto; padding:24px 12px; background:var(--tsugi-canvas); }
+:root[data-host='desktop'] .tsugi-reading-rail nav { gap:4px; }
+:root[data-host='desktop'] .tsugi-reading-rail nav button { font-size:14px; min-height:42px; padding:10px 12px; }
+:root[data-host='desktop'] .tsugi-reading-rail-label { font-size:11px; letter-spacing:.06em; margin:18px 12px 6px; }
+:root[data-host='desktop'] .tsugi-reading-content { padding:30px clamp(24px,3vw,54px) 80px; }
+:root[data-host='desktop'] .tsugi-reading-header { align-items:center; padding-bottom:18px; margin-bottom:22px; }
+:root[data-host='desktop'] .tsugi-reading-header h1 { font-size:clamp(28px,2.4vw,40px); letter-spacing:-.04em; }
+:root[data-host='desktop'] .tsugi-reading-global { width:min(440px,48%); padding:0; border:0; }
+:root[data-host='desktop'] .tsugi-reading-global input { font-size:14px; min-height:42px; padding:0 12px; background:var(--tsugi-surface); border:1px solid var(--tsugi-line); }
+:root[data-host='desktop'] :is(.tsugi-category-link,.tsugi-read-action,.tsugi-read-input) { font-size:14px; min-height:40px; }
+:root[data-host='desktop'] .tsugi-read-action { padding:9px 15px; }
+:root[data-host='desktop'] .tsugi-read-input { padding:9px 12px; }
+:root[data-host='desktop'] .tsugi-read-settings { max-width:1100px; }
+:root[data-host='desktop'] .tsugi-reading-settings-index { gap:0; }
+:root[data-host='desktop'] .tsugi-reading-settings-index > h2 { font-size:23px; margin:12px 0; }
+:root[data-host='desktop'] .tsugi-reading-settings-index > p { font-size:14px; line-height:1.55; max-width:72ch; margin-bottom:18px; }
+:root[data-host='desktop'] .tsugi-reading-settings-index .tsugi-read-row { min-height:70px; padding:14px 0; font-size:15px; }
+:root[data-host='desktop'] .tsugi-reading-settings-index .tsugi-read-row small { font-size:13px; }
+:root[data-host='desktop'] .tsugi-reading-settings-index .tsugi-read-row .tsugi-read-action { min-width:112px; padding:8px 18px; }
+:root[data-host='desktop'] .tsugi-reading-settings-index > .tsugi-read-action { align-self:flex-start; margin-top:16px; }
+:root[data-host='desktop'] .tsugi-reading-empty,.tsugi-hub-empty {
+  max-width:620px; margin:clamp(32px,8vh,95px) auto 0; padding:34px 18px 42px;
+  align-items:center; text-align:center;
+}
+:root[data-host='desktop'] .tsugi-reading-empty > svg,.tsugi-hub-empty > svg { color:var(--tsugi-muted); width:44px; height:44px; }
+:root[data-host='desktop'] .tsugi-reading-empty h2,.tsugi-hub-empty h2 { font-size:clamp(24px,2.1vw,32px); letter-spacing:-.035em; font-weight:650; }
+:root[data-host='desktop'] .tsugi-reading-empty p,.tsugi-hub-empty p { font-size:15px; line-height:1.55; max-width:46ch; }
+.tsugi-empty-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:18px; }
+.tsugi-empty-actions .tsugi-read-action { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:11px 18px; }
+.tsugi-empty-actions .tsugi-empty-primary { background:var(--tsugi-ink); color:var(--tsugi-canvas); border-color:var(--tsugi-ink); font-weight:600; }
+.tsugi-empty-actions .tsugi-empty-primary:hover { background:var(--tsugi-accent); color:var(--tsugi-on-accent); }
+:root[data-host='desktop'] .tsugi-music-root > div { max-width:1640px; margin-inline:auto; }
+:root[data-host='desktop'] .tsugi-music-top { margin-bottom:24px; padding-bottom:12px; }
+:root[data-host='desktop'] .tsugi-music-navigation { gap:26px; margin-bottom:28px; }
+:root[data-host='desktop'] .tsugi-music-navigation button { font-size:15px; min-height:38px; }
+:root[data-host='desktop'] .tsugi-index-body { max-width:1120px; gap:clamp(56px,8vw,130px); }
+:root[data-host='desktop'] .tsugi-index .tsugi-index-wordmark { font-size:clamp(5rem,9vw,9rem); }
+:root[data-host='desktop'] .tsugi-index-signature svg { width:82px; height:82px; }
+:root[data-host='desktop'] .tsugi-index-link { min-height:clamp(84px,12vh,114px); }
+.tsugi-accent-heading { margin-top:26px; }
+.tsugi-accent-options { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 20px; }
+.tsugi-accent-options button { display:flex; align-items:center; gap:8px; min-height:40px; padding:8px 12px; border:1px solid var(--tsugi-line); color:var(--tsugi-ink); }
+.tsugi-accent-options button i { width:15px; height:15px; border-radius:50%; flex:none; }
+.tsugi-accent-options button[aria-pressed='true'] { border-color:var(--tsugi-accent); background:var(--tsugi-wash); }
+.tsugi-accent-options button:focus-visible { outline:2px solid var(--tsugi-focus); outline-offset:2px; }
+.tsugi-media-navigation .tsugi-category-link[aria-current='page'] { border-bottom-color:var(--tsugi-accent); }
+:root[data-host='desktop'] .tsugi-music-navigation button[aria-current='page'],:root[data-host='desktop'] .tsugi-read-subnav button[aria-current='page'] { border-color:var(--tsugi-accent); }
+.tsugi-index-link:hover .tsugi-media-icon { color:var(--tsugi-accent); }
+@media(max-width:900px) { :root[data-host='desktop'] .tsugi-read-workspace { grid-template-columns:170px minmax(0,1fr); } }
+@media(max-width:650px) {
+  :root[data-host='desktop'] .tsugi-read-workspace { grid-template-columns:58px minmax(0,1fr); }
+  :root[data-host='desktop'] .tsugi-reading-rail { padding:16px 5px; }
+  :root[data-host='desktop'] .tsugi-reading-rail nav button { font-size:0; justify-content:center; padding:10px 0; }
+  :root[data-host='desktop'] .tsugi-reading-content { padding:22px 14px 60px; }
+  :root[data-host='desktop'] .tsugi-reading-global { width:100%; }
+  .tsugi-read-media-header { padding:8px 10px; }
+  :root[data-host='desktop'] .tsugi-index .tsugi-index-wordmark { font-size:clamp(4rem,14vw,6rem); }
+}

@@ -22,7 +22,6 @@ export function DesktopLandingPage({ openVideo, openMusic, openRead }: {
       <div className="tsugi-index-identity">
         <div className="tsugi-index-signature"><TsugiBrand markOnly /></div>
         <h1 className="tsugi-index-wordmark"><Trans id="Tsugi">Tsugi</Trans></h1>
-        <span className="tsugi-index-kanji" aria-hidden lang="ja">次</span>
       </div>
       <nav className="tsugi-index-destinations" aria-label={t({ id: "Media sections", message: "Media sections" })}>
         {sections.map(({ id, label, open }) => <button key={id} type="button" onClick={open} className="tsugi-index-link" aria-label={label}>

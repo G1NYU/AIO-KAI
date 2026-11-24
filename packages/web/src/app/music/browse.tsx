@@ -140,7 +140,7 @@ export function MusicCollection({
 }
 
 export function MusicDiscover({
-  source, onPlay, onFind, recent, onPlayRecent, onConfigure,
+  source, onPlay, onFind, recent, onPlayRecent, onConfigure, onLibrary,
 }: {
   source: MusicConnection | undefined;
   onPlay: PlayCollection;
@@ -148,6 +148,7 @@ export function MusicDiscover({
   recent: RecentMusicPlay[];
   onPlayRecent(item: RecentMusicPlay): void;
   onConfigure(): void;
+  onLibrary(): void;
 }) {
   const [shelves, setShelves] = React.useState<Shelf[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -214,8 +215,10 @@ export function MusicDiscover({
       <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-[--tsugi-muted]">
         <Trans>Connect a music source to browse albums, playlists and tracks.</Trans>
       </p>
-      <button type="button" className="tsugi-primary-action mt-8 inline-flex items-center gap-2"
-        onClick={onConfigure}><FiSettings aria-hidden /><Trans>Manage music sources</Trans></button>
+      <div className="tsugi-empty-actions">
+        <button type="button" className="tsugi-read-action tsugi-empty-primary" onClick={onConfigure}><FiSettings aria-hidden /><Trans>Manage music sources</Trans></button>
+        <button type="button" className="tsugi-read-action" onClick={onLibrary}><Trans id="Open local library">Open local library</Trans></button>
+      </div>
     </section>
   );
 

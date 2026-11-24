@@ -15,7 +15,8 @@ import { VolumeControl } from './volume-control';
 import { storage } from '@/lib/storage';
 import type { AudioProfile } from '@/lib/music/audio-profiles';
 import { notifyEclipseAppearance } from '@/lib/music/eclipse-appearance';
-import { PLAYER_PALETTES, readPlayerTheme, type PlayerPalette, type PlayerThemeId } from '@/lib/music/player-theme';
+import type { PlayerPalette } from '@/lib/music/player-theme';
+import { resolveGlobalPalette } from '@/components/shell/global-settings';
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -119,7 +120,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
   const [importedTemplate, setImportedTemplate] = React.useState(initialStage.template);
   const [importedJson, setImportedJson] = React.useState<unknown>(initialStage.imported);
   const [importError, setImportError] = React.useState('');
-  const [theme, setTheme] = React.useState<PlayerThemeId>(readPlayerTheme);
+  const [palette, setPalette] = React.useState(resolveGlobalPalette);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [studioContained, setStudioContained] = React.useState(() =>
     storage.get<boolean>('tsugi-studio-contained-v1') === true
@@ -127,7 +128,6 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
   const [showHeader, setShowHeader] = React.useState(() =>
     storage.get<boolean>('tsugi-player-header-visible-v1') === true
   );
-  const palette = PLAYER_PALETTES[theme];
   const template = stageId === 'nocturne' ? NOCTURNE_STAGE
     : stageId === 'imported' ? importedTemplate : null;
 
@@ -136,12 +136,11 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
   }, [stageId, importedTemplate, importedJson]);
 
   React.useEffect(() => {
-    const sync = (event: Event) => {
-      const next = (event as CustomEvent<PlayerThemeId>).detail;
-      if (next && Object.prototype.hasOwnProperty.call(PLAYER_PALETTES, next)) setTheme(next);
-    };
+    const sync = () => setPalette(resolveGlobalPalette());
+    sync();
     window.addEventListener('tsugi-theme-change', sync);
-    return () => window.removeEventListener('tsugi-theme-change', sync);
+    window.addEventListener('tsugi-eclipse-appearance-change', sync);
+    return () => { window.removeEventListener('tsugi-theme-change', sync); window.removeEventListener('tsugi-eclipse-appearance-change', sync); };
   }, []);
 
   function changeStage(next: PlayerStageId) {

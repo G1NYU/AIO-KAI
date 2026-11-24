@@ -109,7 +109,7 @@ try {
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'sumi');
   assert.deepEqual(await landing.locator('.tsugi-index-link').allTextContents(), ['Movies & TV', 'Music', 'Read']);
   assert.equal(await landing.locator('.tsugi-index-link svg').count(), 3);
-  assert.equal(await landing.locator('.tsugi-index-kanji').textContent(), '次');
+  assert.equal(await landing.locator('.tsugi-index-kanji').count(), 0);
   assert.equal(await landing.getByRole('heading', { name: 'Tsugi', exact: true }).count(), 1);
   await capture('01-launcher');
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).click();
@@ -117,7 +117,7 @@ try {
   const field = entry.getByRole('textbox', { name: /Server address/ });
   await field.waitFor();
   await field.focus();
-  assert.equal(await field.evaluate((node) => getComputedStyle(node).outlineColor), 'rgb(168, 211, 229)');
+  assert.equal(await field.evaluate((node) => getComputedStyle(node).outlineColor), 'rgb(213, 213, 220)');
   assert.equal(await field.evaluate((node) => getComputedStyle(node).borderRadius), '2px');
   assert.equal(await entry.locator('[data-ui="auth-card"]').evaluate((node) => getComputedStyle(node).borderRadius), '0px');
   assert.equal(await entry.getByRole('button', { name: 'Connect', exact: true }).evaluate((node) => getComputedStyle(node).borderRadius), '2px');
@@ -135,9 +135,11 @@ try {
   const paletteButton = globalDialog.getByRole('button', { name: 'Mocha', exact: true });
   assert.equal(await paletteButton.evaluate(node => getComputedStyle(node).borderRadius), '2px');
   await paletteButton.click();
+  await globalDialog.getByRole('button', { name: 'Amber', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.tsugiAccent === 'amber' && document.documentElement.style.getPropertyValue('--tsugi-accent') === '#E4BA87');
   await globalDialog.getByRole('button', { name: 'Close', exact: true }).click();
   await field.focus();
-  assert.equal(await field.evaluate((node) => getComputedStyle(node).outlineColor), 'rgb(168, 211, 229)');
+  assert.equal(await field.evaluate((node) => getComputedStyle(node).outlineColor), 'rgb(213, 213, 220)');
   await mediaNav.getByRole('button', { name: 'All media', exact: true }).click();
   await landing.waitFor();
   console.log('PASS: shared movie entry canvas, centered brand, square controls and palette-independent field focus.');
@@ -147,7 +149,9 @@ try {
   await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
   await page.locator('[data-page="desktop-landing"]').getByRole('button', { name: 'Read', exact: true }).click();
   const rail = page.locator('.tsugi-reading-rail');
-  await rail.getByRole('button', { name: 'App settings', exact: true }).click();
+  const readMedia = page.locator('.tsugi-read-media-header');
+  assert.equal(await page.locator('html').getAttribute('data-tsugi-accent'), 'amber');
+  await readMedia.getByRole('button', { name: 'App settings', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).waitFor();
   assert.equal(await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).getAttribute('aria-pressed'), 'true');
   await page.getByRole('dialog').getByRole('button', { name: 'Mocha', exact: true }).click();
@@ -223,7 +227,7 @@ try {
   // function or synthetic native status. Keep it playing through the Read
   // transition, then verify the video environment stops competing audio.
   await reader.getByRole('button', { name: 'Chapters', exact: true }).click();
-  await rail.getByRole('button', { name: 'Music', exact: true }).click();
+  await readMedia.getByRole('button', { name: 'Music', exact: true }).click();
   const music = page.locator('[data-page="music"]');
   await music.waitFor({ state: 'visible' });
   const musicSettings = music.getByRole('dialog', { name: 'Music settings' });
@@ -278,7 +282,7 @@ try {
   assert.equal(await reader.getByRole('button', { name: 'Chapters', exact: true }).isEnabled(), true);
   await capture('07-reading-with-music');
   await reader.getByRole('button', { name: 'Chapters', exact: true }).click();
-  await rail.getByRole('button', { name: 'Movies & TV', exact: true }).click();
+  await readMedia.getByRole('button', { name: 'Movies & TV', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('[data-ui="tsugi-audio-engine"]')?.paused === true);
   console.log('PASS: real local WAV playback continues in a chapter, focus mode and Music round trip; video entry pauses music.');
   // Exercise the real frontend native audio protocol with synthetic metadata
@@ -311,7 +315,7 @@ try {
   assert.equal(nativeMessages.filter(m => m.action === 'stop').length, 0);
   assert.deepEqual(nativeMessages.filter(m => m.action === 'pause').map(m => m.value), [1, 0]);
   await reader.getByRole('button', { name: 'Chapters', exact: true }).click();
-  await rail.getByRole('button', { name: 'Movies & TV', exact: true }).click();
+  await readMedia.getByRole('button', { name: 'Movies & TV', exact: true }).click();
   await page.waitForFunction(() => window.__readerFixture.nativeMessages.some(m => m.action === 'stop'));
   console.log('PASS: simulated native music transport remains loaded through Read and Music round trip; video entry sends stop.');
   assert.deepEqual(errors, []);
