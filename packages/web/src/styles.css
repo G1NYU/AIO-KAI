@@ -1236,3 +1236,13 @@ button.tsugi-read-row:hover:not(:disabled) { background:var(--tsugi-surface); }
 .tsugi-read-image { display:flex; justify-content:center; align-items:center; background:var(--tsugi-surface); min-height:12rem; }
 .tsugi-read-image img { display:block; max-width:100%; max-height:76vh; object-fit:contain; }
 .tsugi-read-error { padding:.8rem 1rem; border-left:2px solid var(--tsugi-accent); background:var(--tsugi-surface); }
+
+/* Reading: flat, separated navigation and settings in the Tsugi palette. */
+.tsugi-read-settings { max-width:860px; }
+.tsugi-read-subnav { display:flex; flex-wrap:wrap; gap:1.75rem; border-bottom:1px solid var(--tsugi-line); }
+.tsugi-read-subnav button { display:inline-flex; align-items:center; gap:.55rem; padding:.75rem 0; color:var(--tsugi-muted); border-bottom:2px solid transparent; }
+.tsugi-read-subnav button[aria-current] { color:var(--tsugi-ink); border-bottom-color:var(--tsugi-accent); }
+.tsugi-read-subnav button:disabled { opacity:.5; cursor:not-allowed; }
+.tsugi-read-subnav button:focus-visible { outline:2px solid var(--tsugi-accent); outline-offset:3px; }
+.tsugi-read-settings nav button:hover:not(:disabled) { color:var(--tsugi-ink); }
+.tsugi-read-root .tsugi-read-action, .tsugi-read-root .tsugi-read-input { border-radius:2px; }
