@@ -47,3 +47,17 @@ describe('Vault transfer guards',()=>{
     expect(vaultResponseAllowed('pdf','application/pdf')).toBe(true);
   });
 });
+
+import { kitsuLandscapes } from '../src/components/landscape-artwork';
+describe('Landscape artwork provider guards',()=>{
+  const item=(url:string,ageRating='PG',adult=false)=>({attributes:{ageRating,adult,coverImage:{large:url}}});
+  it('accepts at most two distinct safe-rated Kitsu CDN landscape candidates',()=>{
+    const a='https://media.kitsu.io/manga/cover_images/1/large.jpg';
+    const b='https://media.kitsu.app/manga/cover_images/2/large.jpg';
+    expect(kitsuLandscapes({data:[null,item('http://media.kitsu.io/a'),item('https://untrusted.invalid/a'),item(a,'R'),item(a,'PG',true),item(a),item(a),item(b),item('https://media.kitsu.io/c')]})).toEqual([{url:a,provider:'kitsu'},{url:b,provider:'kitsu'}]);
+  });
+  it('rejects malformed or untrusted input without throwing',()=>{
+    expect(kitsuLandscapes(null)).toEqual([]);
+    expect(kitsuLandscapes({data:[{},item('https://user:pass@media.kitsu.io/a'),item('https://media.kitsu.io:8080/a')]})).toEqual([]);
+  });
+});

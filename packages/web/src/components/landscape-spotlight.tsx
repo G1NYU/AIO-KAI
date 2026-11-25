@@ -1,12 +1,68 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 
-const landscapeUrl = 'https://api.nekosapi.com/v4/images/random/file?rating=safe&tags=landscape';
+import { landscapeCandidates, type LandscapeArtwork } from './landscape-artwork';
 
-export function LandscapeSpotlight({title,eyebrow,description,actionLabel,onAction,disabled=false}:{title:string;eyebrow:string;description:string;actionLabel:string;onAction:()=>void;disabled?:boolean}) {
-  const [external,setExternal] = useState(false);
-  const [failed,setFailed] = useState(false);
+const preferenceKey = 'tsugi.landscape.local-only';
+const preferenceEvent = 'tsugi-landscape-preference';
+let localOnly = false;
+function externalEnabled() {
+  try { return localStorage.getItem(preferenceKey) !== 'true'; }
+  catch { return !localOnly; }
+}
+function subscribe(callback: () => void) {
+  window.addEventListener(preferenceEvent, callback);
+  window.addEventListener('storage', callback);
+  return () => {
+    window.removeEventListener(preferenceEvent, callback);
+    window.removeEventListener('storage', callback);
+  };
+}
+function setExternal(enabled: boolean) {
+  localOnly = !enabled;
+  try { localStorage.setItem(preferenceKey, String(localOnly)); } catch { /* In-memory preference. */ }
+  window.dispatchEvent(new Event(preferenceEvent));
+}
+function ArtworkImage({artwork,onFailure,onReady}:{artwork:LandscapeArtwork;onFailure:()=>void;onReady:()=>void}) {
+  const [loaded,setLoaded] = useState(false);
+  useEffect(()=>{
+    if (loaded) return;
+    const timer = window.setTimeout(onFailure, 6000);
+    return ()=>window.clearTimeout(timer);
+  },[loaded,onFailure]);
+  return <img src={artwork.url} alt="" referrerPolicy="no-referrer" style={{opacity:loaded?1:0}}
+    onError={onFailure} onLoad={e=>{
+      const {naturalWidth,naturalHeight}=e.currentTarget;
+      if (naturalHeight===0||naturalWidth/naturalHeight<1.2) { onFailure(); return; }
+      setLoaded(true);onReady();
+    }}/>;
+}
+function RemoteArtwork({onProvider}:{onProvider:(provider:LandscapeArtwork['provider']|null)=>void}) {
+  const [candidates,setCandidates] = useState<LandscapeArtwork[]>([]);
+  const [index,setIndex] = useState(0);
+  useEffect(()=>{
+    const controller = new AbortController();
+    let active = true;
+    const timer=window.setTimeout(()=>controller.abort(),4000);
+    void landscapeCandidates(controller.signal).then(result=>{
+      if(active)setCandidates(result);
+    }).finally(()=>window.clearTimeout(timer));
+    return ()=>{active=false;controller.abort();window.clearTimeout(timer);};
+  },[]);
+  const artwork=candidates[index];
+  const fail=useCallback(()=>{onProvider(null);setIndex(current=>current===index?current+1:current);},[index,onProvider]);
+  const ready=useCallback(()=>{if(artwork)onProvider(artwork.provider);},[artwork,onProvider]);
+  return artwork?<ArtworkImage key={artwork.url} artwork={artwork} onFailure={fail} onReady={ready}/>:null;
+}
+
+type SpotlightProps = {title:string;eyebrow:string;description:string;actionLabel:string;onAction:()=>void;disabled?:boolean};
+export function LandscapeSpotlight(props:SpotlightProps) {
+  const external = useSyncExternalStore(subscribe,externalEnabled,()=>true);
+  return <SpotlightContent key={external?'remote':'local'} {...props} external={external}/>;
+}
+function SpotlightContent({title,eyebrow,description,actionLabel,onAction,disabled=false,external}:SpotlightProps&{external:boolean}) {
+  const [provider,setProvider] = useState<LandscapeArtwork['provider']|null>(null);
   return <section className="tsugi-spotlight tsugi-landscape-spotlight" data-ui="landscape-spotlight">
     <div className="tsugi-spotlight-backdrop" aria-hidden="true">
       <svg viewBox="0 0 1600 600" preserveAspectRatio="xMidYMid slice" className="tsugi-landscape-fallback">
@@ -17,15 +73,16 @@ export function LandscapeSpotlight({title,eyebrow,description,actionLabel,onActi
         <path d="M0 560 340 460 650 520 965 395 1250 500 1600 420V600H0Z" fill="#192b3b"/>
         <path d="M0 600 740 532 1100 545 1600 482V600Z" fill="#14212c"/>
       </svg>
-      {external&&!failed&&<img src={landscapeUrl} alt="" referrerPolicy="no-referrer" onError={()=>setFailed(true)} onLoad={e=>{if(e.currentTarget.naturalWidth/e.currentTarget.naturalHeight<1.2)setFailed(true);}}/>}
+      {external&&<RemoteArtwork onProvider={setProvider}/>}
     </div>
     <div className="tsugi-spotlight-copy">
       <p className="tsugi-feature-kicker">{eyebrow}</p><h2>{title}</h2><p>{description}</p>
       <button type="button" className="tsugi-read-action tsugi-series-primary mt-6" onClick={onAction} disabled={disabled}>{actionLabel}</button>
     </div>
     <div className="tsugi-landscape-credit">
-      {external&&!failed?<><span><Trans>Nekos API</Trans></span><button type="button" onClick={()=>setExternal(false)}><Trans>Use local artwork</Trans></button></>:<button type="button" title={t`External illustrations are filtered but may be incorrectly classified.`} onClick={()=>{setFailed(false);setExternal(true);}}><Trans>Enable external illustration</Trans></button>}
-      {external&&failed&&<span role="status"><Trans>Illustration unavailable</Trans></span>}
+      {external&&provider==='kitsu'&&<span><Trans>Kitsu</Trans></span>}
+      {external&&provider==='nekos'&&<span><Trans>Nekos API</Trans></span>}
+      {external?<button type="button" title={t`External illustrations are filtered but may be incorrectly classified.`} onClick={()=>{setProvider(null);setExternal(false);}}><Trans>Use local artwork</Trans></button>:<button type="button" onClick={()=>{setProvider(null);setExternal(true);}}><Trans>Enable external illustration</Trans></button>}
     </div>
   </section>;
 }

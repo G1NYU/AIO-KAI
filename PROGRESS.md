@@ -521,3 +521,8 @@ Migration commit 1be0b4c passed Unified Windows validation (45558491536) and the
 - Music queue candidate: move upcoming tracks earlier/later, remove or clear upcoming in mini and expanded players; current track and history remain unchanged. Added regression coverage to the existing explicit CI test list (desktop-area.test.ts). Pending CI; package only through the existing gate.
 
 - Hero/Vault commit 3fc0c62, CI 45565155078: native Windows check and web TypeScript passed; web lint failed only on two unlocalized labels. Corrected both in this candidate. Package requested via existing gated development ZIP workflow; no public release. Real-source and physical Windows acceptance still pending.
+
+### Automatic Read/Vault landscape artwork (2026-11-25)
+- Prior package run 45565586608 on 79fcf06 completed successfully; Windows x64 test artifact 14999897845. Physical Windows acceptance remains outstanding.
+- User approved the exact hero patch and further pushes in this chat. Kitsu safe-rated wide covers first, Nekos scenic fallback, bundled SVG always present. Shared persistent local-only opt-out, bounded network/image timeouts, host allowlist for Kitsu and aspect ratio checks. No new dependencies or playback changes.
+- Local standalone TypeScript and fixture checks passed on the prepared patch; full application CI and live provider behavior pending. Next: Readest-inspired local EPUB/PDF reader, then native authorized book/audio downloads and import into Read/Music, then gated unified Windows package.
