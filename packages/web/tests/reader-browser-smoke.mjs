@@ -517,6 +517,14 @@ try {
   assert.equal(await music.locator('.tsugi-library-shell').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),3);
   await music.locator('.tsugi-hub-inspector').getByRole('heading',{name:'Sources & plugins',exact:true}).waitFor();
   assert.equal(await music.locator('.tsugi-atmosphere[data-placement="library"]').count(),0);
+  const libraryNavFits = await music.locator('.tsugi-library-sidebar').evaluate(sidebar => {
+    const edge = sidebar.getBoundingClientRect();
+    return Array.from(sidebar.querySelectorAll('.tsugi-library-nav')).every(button => {
+      const rect = button.getBoundingClientRect();
+      return rect.left >= edge.left - 1 && rect.right <= edge.right + 1;
+    });
+  });
+  assert.ok(libraryNavFits, 'collection navigation stays inside its sidebar');
   await capture('06-music-library-overview');
   await music.getByRole('navigation',{name:'Music collection'}).getByRole('button',{name:/Local music/}).click();
   await music.getByRole('textbox',{name:'Find tracks',exact:true}).waitFor();
@@ -541,6 +549,13 @@ try {
   await page.waitForFunction(() => { const audio = document.querySelector('[data-ui="tsugi-audio-engine"]'); return audio && !audio.paused && audio.currentTime > 0.1; });
   assert.equal(await music.getByRole('heading', { name: 'Library', exact: true }).count(), 1);
   assert.equal(await music.getByRole('navigation', { name: 'Music sections', exact: true }).count(), 1);
+  const trackColumnOffsets = await music.locator('.tsugi-music-hub').evaluate(hub => {
+    const header = hub.querySelector('.tsugi-hub-columns');
+    const row = hub.querySelector('.tsugi-collection-play');
+    return Array.from(header.children).slice(0,5).map((node,i) =>
+      Math.abs(node.getBoundingClientRect().left - row.children[i].getBoundingClientRect().left));
+  });
+  assert.ok(trackColumnOffsets.every(offset => offset < 3), 'track headers align with their cells: ' + trackColumnOffsets.join(','));
   await capture('06-music-library');
   const timeBefore = await page.locator('[data-ui="tsugi-audio-engine"]').evaluate((audio) => audio.currentTime);
   await music.getByRole('button', { name: 'Read', exact: true }).click();

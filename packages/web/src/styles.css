@@ -2588,7 +2588,7 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 :root[data-host='desktop'] .tsugi-video-entry { isolation:isolate; overflow:hidden; }
 :root[data-host='desktop'] .tsugi-video-entry-content { position:relative; z-index:1; }
 :root[data-host='desktop'] .tsugi-atmosphere[data-placement='entry'] .tsugi-atmosphere-brand {
-  left:5vw; top:14%; transform:rotate(-14deg);
+  left:5vw; top:22%; width:min(34vw,560px); opacity:.085; transform:rotate(-11deg);
 }
 :root[data-host='desktop'] .tsugi-video-entry [data-ui='auth-card'] {
   max-width:440px; background:transparent; border:0; border-radius:0;
@@ -2910,3 +2910,32 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 @media(max-width:1450px) { .tsugi-vault-manager.tsugi-vault-workspace,.tsugi-music-hub .tsugi-library-shell,.tsugi-hub-collection.tsugi-music-detail-canvas { grid-template-columns:168px minmax(0,1fr) 248px; } .tsugi-dashboard-list .tsugi-dashboard-transfer { grid-template-columns:minmax(0,1.5fr) minmax(76px,.65fr) auto; } .tsugi-dashboard-transfer .tsugi-dashboard-destination { display:none; } .tsugi-dashboard-transfer .tsugi-vault-actions { flex-wrap:wrap; max-width:130px; } }
 @media(max-width:1100px) { .tsugi-vault-manager.tsugi-vault-workspace,.tsugi-music-hub .tsugi-library-shell,.tsugi-hub-collection.tsugi-music-detail-canvas { grid-template-columns:156px minmax(0,1fr); } .tsugi-dashboard-right { grid-column:2; border-inline-start:0; border-top:1px solid var(--tsugi-line); } .tsugi-dashboard-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .tsugi-hub-collection .tsugi-hub-inspector { grid-column:2; } }
 @media(max-width:760px) { .tsugi-vault-manager.tsugi-vault-workspace,.tsugi-music-hub .tsugi-library-shell,.tsugi-hub-collection.tsugi-music-detail-canvas { grid-template-columns:1fr; } .tsugi-dashboard-right,.tsugi-hub-collection .tsugi-hub-inspector { grid-column:1; } .tsugi-dashboard-left,.tsugi-music-hub .tsugi-library-sidebar { border-inline-end:0; border-bottom:1px solid var(--tsugi-line); } .tsugi-dashboard-list .tsugi-dashboard-transfer { grid-template-columns:minmax(0,1fr) auto; } .tsugi-dashboard-progress { grid-row:2; } .tsugi-music-hub .tsugi-hub-columns,.tsugi-music-hub .tsugi-collection-row .tsugi-collection-play { grid-template-columns:22px minmax(0,1fr) 48px 20px; } .tsugi-music-hub .tsugi-hub-columns > :nth-child(3),.tsugi-music-hub .tsugi-hub-columns > :nth-child(4),.tsugi-music-hub .tsugi-collection-album,.tsugi-music-hub .tsugi-hub-source { display:none; } .tsugi-hub-collection .tsugi-music-detail-track,.tsugi-hub-remote-columns { grid-template-columns:22px minmax(0,1fr) 48px; } .tsugi-hub-collection .tsugi-hub-remote-album,.tsugi-hub-collection .tsugi-hub-source,.tsugi-hub-remote-columns > :nth-child(3),.tsugi-hub-remote-columns > :nth-child(4) { display:none; } }
+
+/* Reference dashboard alignment: constrain intrinsic grid sizes and use a
+   shared track schema for the heading and rows, including the action gutter. */
+.tsugi-music-hub .tsugi-library-sidebar nav { grid-template-columns:minmax(0,1fr); min-width:0; }
+.tsugi-music-hub .tsugi-library-nav { min-width:0; max-width:100%; gap:8px; padding:10px 8px; font-size:13px; }
+.tsugi-music-hub .tsugi-library-nav small { flex:none; font-variant-numeric:tabular-nums; }
+.tsugi-music-hub .tsugi-library-sidebar { overflow:hidden; }
+.tsugi-dashboard-left nav { grid-template-columns:minmax(0,1fr); }
+.tsugi-dashboard-nav { min-width:0; gap:8px; padding-inline:8px; }
+.tsugi-dashboard-nav span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+:root[data-host='desktop'] .tsugi-music-hub .tsugi-hub-columns {
+  grid-template-columns:26px minmax(0,1.7fr) minmax(0,1fr) minmax(65px,.6fr) 52px 20px;
+  padding:12px 55px 12px 15px; border-bottom:1px solid var(--tsugi-line);
+}
+.tsugi-music-hub .tsugi-hub-columns > :first-child { grid-column:auto; }
+.tsugi-music-hub .tsugi-hub-columns > :nth-child(2) { display:block; }
+.tsugi-music-hub .tsugi-hub-columns > :nth-child(3) { text-align:start; }
+.tsugi-music-hub .tsugi-hub-columns > :nth-child(5) { text-align:end; }
+.tsugi-music-hub .tsugi-collection-row:not(:has(> .tsugi-icon-action)) { padding-inline-end:40px; }
+:root[data-host='desktop'] .tsugi-music-hub :is(.tsugi-collection-header,.tsugi-hub-columns,.tsugi-collection-row)::after { content:none; }
+:root[data-host='desktop'] .tsugi-music-hub .tsugi-collection-header { border-bottom:1px solid var(--tsugi-line); }
+:root[data-host='desktop'] .tsugi-music-hub .tsugi-collection-row { border-bottom:1px solid var(--tsugi-line); }
+:root[data-host='desktop'] .tsugi-music-hub .tsugi-collection-row:last-child { border-bottom:0; }
+@media (min-width:1101px) and (max-width:1450px) {
+  .tsugi-vault-manager.tsugi-vault-workspace,.tsugi-music-hub .tsugi-library-shell,.tsugi-hub-collection.tsugi-music-detail-canvas { grid-template-columns:190px minmax(0,1fr) 248px; }
+}
+@media (max-width:760px) {
+  :root[data-host='desktop'] .tsugi-music-hub .tsugi-hub-columns { grid-template-columns:22px minmax(0,1fr) 48px 20px; }
+}
