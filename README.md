@@ -63,7 +63,7 @@ Extension compatibility varies by source. Repositories and extensions are not bu
 - Import EPUB and PDF files into a persistent offline collection, independent of the manga engine setup.
 - EPUB pagination or continuous scrolling, font size, paper themes and table of contents; PDF page navigation.
 - Resume from saved EPUB CFI or PDF page; embedded raster EPUB covers and PDF first-page thumbnails are extracted on opening.
-- Uses the pinned [Readest Foliate fork](https://github.com/readest/foliate-js) and PDF.js in a separate rendering origin. Book scripts are disabled. Real EPUB/PDF rendering and PDF resume passed browser acceptance; the latest cover and native file-import changes are under validation.
+- Uses the pinned [Readest Foliate fork](https://github.com/readest/foliate-js) and PDF.js in a separate rendering origin. Book scripts are disabled. Real EPUB/PDF rendering, PDF resume, PDF thumbnails and mocked native file imports passed browser acceptance.
 
 ## Vault
 
@@ -124,7 +124,7 @@ For native staging, dependency pins and the complete packaging procedure, see th
 
 ### Current status
 
-The [most recent successful Windows package](https://github.com/G1NYU/TSUGI/actions/runs/45565586608) is from commit `79fcf06`. Later source changes are under validation; the package does not contain them.
+The [most recent successful Windows package](https://github.com/G1NYU/TSUGI/actions/runs/45575216104) is from commit `264f1bc`. [Download the portable Windows x64 candidate](https://github.com/G1NYU/TSUGI/actions/runs/45575216104/artifacts/15003678114). All packaging gates passed: 97 web regression tests, browser interaction smoke, 28 native tests (4 ignored), Windows release compilation and packaged EXE reading preparation. The downloaded outer and inner ZIPs passed integrity checks; the inner archive contains the executable, music tools and ebook engine.
 
 | Roadmap | Status |
 | :--- | :--- |
@@ -132,11 +132,11 @@ The [most recent successful Windows package](https://github.com/G1NYU/TSUGI/acti
 | Kitsu/Nekos hero fallback | Browser fixture validated |
 | Manga collection, history, update queue, migration and batch add | Browser acceptance passed |
 | Readest/Foliate EPUB/PDF rendering and persistent PDF resume | CI 45573987775 passed |
-| Embedded book covers and native Vault import | Implemented; combined validation pending |
+| Embedded book covers and native Vault import | Browser acceptance passed; physical Windows file transfer pending |
 | Persistent native Vault jobs and authorized YouTube M4A exports | Source implemented; live transfers pending |
 | TorBox cloud destination | Mock API tests passed; live account pending |
 | Direct Z-Library account integration | Blocked: supported authentication contract unverified |
-| Unified Windows package | Candidate pending combined CI |
+| Unified Windows package | CI 45575216104 passed; portable candidate available |
 
 Physical Windows UI, live music playback, tracker authorization and source compatibility still require acceptance. Refract and MangaBaka integrations are not currently shipped.
 

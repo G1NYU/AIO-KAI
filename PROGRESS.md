@@ -591,3 +591,9 @@ Migration commit 1be0b4c passed Unified Windows validation (45558491536) and the
 
 ### Unified Windows candidate request (2026-11-25)
 - Run 45574806055 web passed 97 regression tests, real EPUB/PDF rendering and PDF cover/position persistence, mocked native completed-file imports into Books and Music and duplicate book prevention. Windows failed only the Rc capture addressed in parent 8c0a97a. Added browser source-selection → Vault permission/queue regression and a native completed-file access guard test. Request a gated Windows package on this combined revision. Packaging and physical Windows acceptance remain pending; no stable release or verified Z-Library provider.
+
+
+### Unified Windows candidate verified (2026-11-25)
+- Commit `264f1bcc2219f8b6ee75e8f6c2622ad8e5aa79fe`; run [45575216104](https://github.com/G1NYU/TSUGI/actions/runs/45575216104) completed successfully. Web: 97 tests, browser interaction smoke and standalone production build. Native: 28 passed, 4 ignored; optimized Windows compilation passed. Package: native EXE reading setup exercise passed and portable archive uploaded.
+- Artifact [15003678114](https://github.com/G1NYU/TSUGI/actions/runs/45575216104/artifacts/15003678114), 99,958,479 bytes. Downloaded and checked both nested ZIPs for integrity; inner archive has 423 entries and includes `.portable`, `current/Tsugi.exe`, yt-dlp, Deno, EPUB engine and PDF worker. Standalone web archive also passed integrity (359 entries).
+- No stable release, installer, or physical desktop acceptance claimed. Remaining: test the actual Windows UI with live authorized sources, native Vault transfers and file import, book rendering in WebView, TorBox live account and trackers. Z-Library direct account integration remains blocked by lack of a verified supported authentication contract; authorized direct links and local EPUB/PDF import are available. Keep the previous working build and back up portable data before testing.
