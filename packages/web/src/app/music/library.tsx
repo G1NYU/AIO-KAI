@@ -27,7 +27,7 @@ export function MusicLibrary({
   recent: RecentMusicPlay[];
   activeTrackId?: string;
   onPlayRecent(entry: RecentMusicPlay): void;
-  onChange(next: MusicPlaylist[]): void;
+  onChange(next: MusicPlaylist[]): boolean;
   onPlay(track: SavedMusicTrack): void;
   playing: SavedMusicTrack | null;
   localTracks: SavedMusicTrack[];
@@ -78,7 +78,7 @@ export function MusicLibrary({
     event.preventDefault();
     try {
       const next = createMusicPlaylist(newName);
-      onChange([...playlists,next]);
+      if (!onChange([...playlists,next])) return;
       choose(next.id);
       setNewName('');
       setError('');
@@ -99,7 +99,7 @@ export function MusicLibrary({
     setError('');
     try {
       const list = importMusicPlaylist(file.name, await file.text(), t`Unknown artist`);
-      onChange([...playlists,list]);
+      if (!onChange([...playlists,list])) return;
       choose(list.id);
       setNotice(t`Playlist imported. Unmatched tracks will be searched in the active music source when played.`);
     } catch (reason) {
@@ -124,7 +124,7 @@ export function MusicLibrary({
 
   function removePlaylist() {
     if (!current) return;
-    onChange(playlists.filter(list => list.id !== current.id));
+    if (!onChange(playlists.filter(list => list.id !== current.id))) return;
     choose('overview');
   }
 
