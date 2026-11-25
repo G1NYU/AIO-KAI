@@ -167,6 +167,15 @@ mod windows {
         engine.rpc("forceRemove",vec![json!(cancelled)],true)?;
         engine.until(&cancelled,"removed",Duration::from_secs(15))?;
         println!("PASS: Rust pause, resume, telemetry and cancellation");
+        // The same native client now transfers through a bounded validator-checking
+        // gateway, so Aria2 never sees or follows the upstream URL itself.
+        let source=aiostreams_desktop_core::vault_gateway::Source::probe(&format!("{}three.bin",url.as_str()),true)?;
+        let job=std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let gateway=aiostreams_desktop_core::vault_gateway::Gateway::start(source,0,&random_hex()?,job)?;
+        let gid=engine.add(&gateway.url(),"gateway.bin")?;
+        let result=engine.until(&gid,"complete",Duration::from_secs(60))?;
+        if result.completed!=FIXTURE_LEN||result.total!=FIXTURE_LEN{return Err("Gateway output size mismatch");}
+        println!("PASS: Rust engine through validated native range gateway");
         Ok(())
     }
 }
