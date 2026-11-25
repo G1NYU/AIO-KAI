@@ -434,6 +434,14 @@ pub enum Outbound {
         data: Option<Value>,
         error: Option<String>,
     },
+    MusicAudioMeter {
+        request: String,
+        level: f64,
+    },
+    MusicAudioDsp {
+        request: String,
+        error: Option<String>,
+    },
     MusicAudioState {
         request: String,
         status: String,

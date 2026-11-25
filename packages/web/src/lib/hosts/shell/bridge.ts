@@ -33,6 +33,8 @@ export type ShellMessage =
       url: string | null;
       originalLanguage?: string;
     }
+  | { type: 'music-audio-meter'; request: string; level: number }
+  | { type: 'music-audio-dsp'; request: string; error: string | null }
   | {
       type: 'music-audio-state';
       request: string;

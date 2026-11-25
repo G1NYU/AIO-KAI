@@ -148,6 +148,37 @@ fn fail(emit: &Emit, request: &str, message: &str) {
     report(emit, request, "error", 0.0, 0.0, Some(message));
 }
 
+// The bridge sends a closed numeric enum, never arbitrary filter strings.
+const METER_FLAG: u8 = 8;
+const METER_PROPERTY: &str = "af-metadata/tsugi-meter/by-key/lavfi.astats.Overall.RMS_level";
+fn dsp_mode(value: f64) -> Option<u8> {
+    if !value.is_finite() || value.fract() != 0.0 || !(0.0..=13.0).contains(&value) { return None; }
+    let mode = value as u8;
+    (mode & 7 <= 5).then_some(mode)
+}
+fn dsp_filters(mode: u8) -> String {
+    let gains = match mode & 7 {
+        2 => Some((2, 0, -1)),
+        3 => Some((5, -1, -1)),
+        4 => Some((-1, 3, 1)),
+        5 => Some((-1, 0, 4)),
+        _ => None,
+    };
+    let mut filters = Vec::new();
+    if let Some((low, mid, high)) = gains {
+        filters.push(format!("@tsugi-eq:lavfi=[volume=-6dB,bass=f=140:g={low},equalizer=f=1100:t=q:w=0.8:g={mid},treble=f=6500:g={high}]"));
+    }
+    if mode & METER_FLAG != 0 {
+        filters.push("@tsugi-meter:astats=metadata=1:reset=1:measure_perchannel=none:measure_overall=RMS_level".into());
+    }
+    filters.join(",")
+}
+fn meter_level(value: &str) -> Option<f64> {
+    if value == "-inf" { return Some(0.0); }
+    let db: f64 = value.parse().ok()?;
+    db.is_finite().then(|| ((db + 55.0) / 55.0).clamp(0.0, 1.0))
+}
+
 struct Session {
     // Field order matters: destroy mpv before the registered callback context.
     mpv: Mpv,
@@ -163,6 +194,8 @@ struct Session {
     timing_reported: bool,
     cache_key: Option<String>,
     cache_recorded: bool,
+    dsp: u8,
+    last_meter: Instant,
 }
 
 impl Session {
@@ -211,6 +244,8 @@ impl Session {
             timing_reported: false,
             cache_key: None,
             cache_recorded: false,
+            dsp: 0,
+            last_meter: now,
         })
     }
 
@@ -261,6 +296,14 @@ impl Session {
             fail(emit, &self.request, message);
             return false;
         }
+        if self.loaded && self.dsp & METER_FLAG != 0 && self.last_meter.elapsed() >= Duration::from_millis(80) {
+            if let Some(level) = self.mpv.get_property(METER_PROPERTY, Kind::String)
+                .and_then(|value| value.as_str().and_then(meter_level))
+            {
+                emit(Outbound::MusicAudioMeter { request: self.request.clone(), level });
+            }
+            self.last_meter = Instant::now();
+        }
         if self.loaded && self.last_report.elapsed() >= Duration::from_millis(200) {
             let number = |name| {
                 self.mpv
@@ -298,6 +341,22 @@ impl Session {
             self.last_report = Instant::now();
         }
         true
+    }
+
+    fn configure_dsp(&mut self, value: f64, emit: &Emit) {
+        let Some(mode) = dsp_mode(value) else { return; };
+        if !self.loaded || self.dsp == mode { return; }
+        match self.mpv.set_property("af", &dsp_filters(mode)) {
+            Ok(()) => {
+                self.dsp = mode;
+                emit(Outbound::MusicAudioDsp { request: self.request.clone(), error: None });
+            }
+            Err(_) => {
+                // Optional DSP must never enter the fatal transport/control path.
+                let _ = self.mpv.set_property("af", &dsp_filters(self.dsp));
+                emit(Outbound::MusicAudioDsp { request: self.request.clone(), error: Some("Native audio effects could not be applied.".into()) });
+            }
+        }
     }
 
     fn control(&self, action: &str, value: f64) -> Result<(), String> {
@@ -495,6 +554,8 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                     if action == "stop" || action == "advance" {
                         if action == "stop" { replay = None; }
                         session.take();
+                    } else if action == "dsp" {
+                        if let Some(player) = &mut session { player.configure_dsp(value, emit); }
                     } else if value.is_finite()
                         && let Some(player) = &session
                         && player.control(&action, value).is_err()
@@ -563,6 +624,70 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_dsp_is_a_closed_enum_and_meter_is_bounded() {
+        for value in [-1.0, 1.5, 6.0, 7.0, 14.0, f64::NAN, f64::INFINITY] { assert!(dsp_mode(value).is_none()); }
+        assert_eq!(dsp_mode(11.0), Some(11));
+        assert_eq!(dsp_filters(0), "");
+        assert_eq!(dsp_filters(1), "");
+        assert!(dsp_filters(3).contains("bass=f=140:g=5"));
+        assert!(!dsp_filters(3).contains("astats"));
+        assert!(dsp_filters(11).contains("RMS_level"));
+        assert_eq!(meter_level("-inf"), Some(0.0));
+        assert_eq!(meter_level("-55"), Some(0.0));
+        assert_eq!(meter_level("2"), Some(1.0));
+        assert_eq!(meter_level("NaN"), None);
+    }
+
+    // Exercise the real pinned mpv DLL on the existing Windows validation
+    // runner with a generated sine, null audio output and no network access.
+    #[cfg(all(windows, target_arch = "x86_64"))]
+    #[test]
+    fn native_dsp_filters_and_metadata_on_pinned_mpv() {
+        let library = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../vendor/x86_64/libmpv-2.dll");
+        if !library.is_file() {
+            assert!(std::env::var_os("CI").is_none(), "CI did not stage the pinned mpv DLL");
+            return;
+        }
+        let library = library.canonicalize().expect("resolve pinned mpv");
+        let _vulkan = unsafe { libloading::Library::new(library.with_file_name("vulkan").join("vulkan-1.dll")) }.ok();
+        let mpv = Mpv::new(&library, &[("config","no"),("idle","yes"),("vid","no"),("vo","null"),("ao","null"),("audio-display","no"),("load-scripts","no"),("ytdl","no")]).expect("load pinned mpv");
+        let path = std::env::temp_dir().join(format!("tsugi-dsp-test-{}.wav", std::process::id()));
+        let samples = 48_000u32 * 4;
+        let size = samples * 2;
+        let mut wav = Vec::with_capacity((size + 44) as usize);
+        wav.extend(b"RIFF"); wav.extend((36 + size).to_le_bytes()); wav.extend(b"WAVEfmt ");
+        wav.extend(16u32.to_le_bytes()); wav.extend(1u16.to_le_bytes()); wav.extend(1u16.to_le_bytes());
+        wav.extend(48_000u32.to_le_bytes()); wav.extend(96_000u32.to_le_bytes());
+        wav.extend(2u16.to_le_bytes()); wav.extend(16u16.to_le_bytes()); wav.extend(b"data"); wav.extend(size.to_le_bytes());
+        for i in 0..samples {
+            let value = (6000.0 * (i as f64 * 440.0 * std::f64::consts::TAU / 48_000.0).sin()) as i16;
+            wav.extend(value.to_le_bytes());
+        }
+        std::fs::write(&path, wav).expect("write fixture");
+        let result = (|| -> Result<f64, String> {
+            mpv.command(&["loadfile", path.to_str().ok_or("invalid fixture path")?, "replace"])?;
+            let deadline = Instant::now() + Duration::from_secs(8);
+            while Instant::now() < deadline {
+                match mpv.wait_event(0.05, |_| false) {
+                    Some(Event::FileLoaded) => { mpv.set_property("af", &dsp_filters(11))?; }
+                    Some(Event::EndFile { .. }) => break,
+                    _ => {}
+                }
+                if let Some(level) = mpv.get_property(METER_PROPERTY, Kind::String).and_then(|value| value.as_str().and_then(meter_level))
+                    && level > 0.0
+                {
+                    mpv.set_property("af", "")?;
+                    return Ok(level);
+                }
+            }
+            Err("No real RMS metadata from pinned mpv".into())
+        })();
+        drop(mpv);
+        let _ = std::fs::remove_file(&path);
+        assert!(result.is_ok(), "{result:?}");
+    }
 
     #[test]
     fn classifies_failures_without_exposing_stream_urls() {

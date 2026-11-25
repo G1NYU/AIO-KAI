@@ -9,6 +9,11 @@ export const AUDIO_PROFILES = {
 } as const;
 
 export type AudioProfile = keyof typeof AUDIO_PROFILES;
+const NATIVE_PROFILE: Record<AudioProfile,number> = {flat:1,warm:2,bass:3,vocal:4,bright:5};
+/** Closed native effect enum; bit 3 enables real level telemetry. */
+export function nativeDspMode(profile: AudioProfile, enabled: boolean, meter: boolean): number {
+  return (enabled ? NATIVE_PROFILE[profile] : 0) + (meter ? 8 : 0);
+}
 const KEY = 'tsugi-audio-profile-v1';
 
 export function isAudioProfile(value: unknown): value is AudioProfile {
