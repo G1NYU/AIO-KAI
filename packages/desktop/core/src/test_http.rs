@@ -2,6 +2,10 @@
 use std::{io::{BufRead, BufReader, Read, Write}, net::TcpListener, thread, time::Duration};
 
 pub(crate) fn response(status: u16, mime: &'static str, body: Vec<u8>) -> (String, thread::JoinHandle<String>) {
+    response_after(status, mime, body, || {})
+}
+
+pub(crate) fn response_after(status: u16, mime: &'static str, body: Vec<u8>, before_write: impl FnOnce() + Send + 'static) -> (String, thread::JoinHandle<String>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     let worker = thread::spawn(move || {
@@ -33,6 +37,7 @@ pub(crate) fn response(status: u16, mime: &'static str, body: Vec<u8>) -> (Strin
         let mut input = vec![0; length];
         reader.read_exact(&mut input).unwrap();
         drop(reader);
+        before_write();
         write!(stream, "HTTP/1.1 {status} Fixture\r\nContent-Type: {mime}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).unwrap();
         stream.write_all(&body).unwrap();
         headers + "\r\n" + &String::from_utf8_lossy(&input)

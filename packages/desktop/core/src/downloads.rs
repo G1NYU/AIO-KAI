@@ -1021,6 +1021,81 @@ mod vault_tests {
         fs::remove_dir_all(dir).unwrap();
     }
     #[test]
+    fn native_queue_runs_two_transfers_and_waits_for_a_free_slot() {
+        let dir = std::env::temp_dir().join(format!("tsugi-vault-concurrent-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        fs::create_dir_all(&dir).unwrap();
+        let (events, received) = mpsc::channel();
+        let (arrived, arrivals) = mpsc::channel();
+        let mut servers = Vec::new();
+        let mut releases = Vec::new();
+        let mut jobs = Vec::new();
+        let payload = b"%PDF-1.4\nTsugi concurrent fixture\n%%EOF\n".to_vec();
+        for index in 0..3 {
+            let (release, wait) = mpsc::channel();
+            releases.push(release);
+            let arrived = arrived.clone();
+            let (url, server) = crate::test_http::response_after(200, "application/pdf", payload.clone(), move || {
+                arrived.send(index).unwrap();
+                wait.recv_timeout(Duration::from_secs(8)).unwrap();
+            });
+            servers.push(server);
+            let id = format!("vault-concurrent-{index}");
+            let mut spec = spec(&url, &format!("Vault/{id}/book.pdf"));
+            spec.id = id;
+            spec.title = "book.pdf".into();
+            // Loopback HTTP is test-only; production Command::Add still applies
+            // the existing HTTPS-only admission checks.
+            jobs.push(Job { spec, folder: dir.clone(), state: State::Queued, bytes: 0, total: None, error: None });
+        }
+        let mut queue = Queue {
+            folder: dir.clone(), concurrent: 2, jobs, running: HashMap::new(),
+            removing: HashMap::new(), speeds: HashMap::new(), events,
+            emit: Box::new(|_| {}), state_file: dir.join("queue.json"),
+            shared: Arc::new(Mutex::new(Shared::default())), agent: agent(),
+        };
+        queue.changed();
+        let mut first = vec![arrivals.recv_timeout(Duration::from_secs(5)).unwrap(), arrivals.recv_timeout(Duration::from_secs(5)).unwrap()];
+        first.sort_unstable();
+        assert_eq!(first, vec![0, 1], "both initial requests must reach their servers before either is released");
+        assert_eq!(queue.running.len(), 2);
+        assert_eq!(queue.jobs[2].state, State::Queued);
+        assert!(arrivals.recv_timeout(Duration::from_millis(200)).is_err());
+        releases[0].send(()).unwrap();
+        let finish = |queue: &mut Queue| {
+            loop {
+                match received.recv_timeout(Duration::from_secs(5)).unwrap() {
+                    Event::Progress { id, bytes, total } => {
+                        let job = queue.jobs.iter_mut().find(|job| job.spec.id == id).unwrap();
+                        job.bytes = bytes; job.total = total;
+                    }
+                    Event::Finished { id, result } => {
+                        assert!(result.is_ok(), "fixture transfer failed: {id}");
+                        queue.finished(&id, result);
+                        return id;
+                    }
+                    Event::Command(_) => panic!("unexpected command"),
+                }
+            }
+        };
+        assert_eq!(finish(&mut queue), "vault-concurrent-0");
+        assert_eq!(arrivals.recv_timeout(Duration::from_secs(5)).unwrap(), 2);
+        releases[1].send(()).unwrap();
+        releases[2].send(()).unwrap();
+        finish(&mut queue);
+        finish(&mut queue);
+        assert!(queue.running.is_empty());
+        let saved: Saved = serde_json::from_slice(&fs::read(&queue.state_file).unwrap()).unwrap();
+        assert_eq!(saved.concurrent, Some(2));
+        assert!(saved.jobs.iter().all(|job| job.state == State::Done));
+        for index in 0..3 {
+            let file = dir.join(format!("Vault/vault-concurrent-{index}/book.pdf"));
+            assert_eq!(fs::read(&file).unwrap(), payload);
+            assert!(!part_of(&file).exists());
+        }
+        for server in servers { server.join().unwrap(); }
+        fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
     fn native_direct_transfer_writes_real_bytes_and_rejects_html() {
         let dir = std::env::temp_dir().join(format!("tsugi-vault-http-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
         fs::create_dir_all(&dir).unwrap();
