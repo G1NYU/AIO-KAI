@@ -80,7 +80,8 @@ export function MusicCollection({
   return (
     <section role="dialog" aria-modal="true" aria-label={t`Music collection`}
       className="tsugi-player-dialog tsugi-music-detail fixed inset-0 z-40 overflow-y-auto">
-      <div className="tsugi-music-detail-canvas min-h-screen w-full px-6 pb-32 pt-14 sm:px-[3vw]">
+      <div className="tsugi-music-detail-canvas tsugi-hub-collection min-h-screen w-full px-6 pb-32 pt-14 sm:px-[3vw]">
+        <aside className="tsugi-dashboard-left tsugi-hub-collection-nav"><h2><Trans>Music</Trans></h2><button type="button" className="tsugi-dashboard-nav" onClick={onClose}><BiArrowBack aria-hidden/><span><Trans>Return to music</Trans></span></button><h3><Trans>Collection</Trans></h3><p className="tsugi-dashboard-current">{current.title}</p></aside><div className="tsugi-hub-collection-main">
         <button type="button" onClick={nested ? () => setNested(null) : onClose}
           className="tsugi-music-detail-back mb-9 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white/65 hover:bg-white/10">
           <BiArrowBack aria-hidden /> <Trans>Back to music</Trans>
@@ -111,19 +112,19 @@ export function MusicCollection({
               <input className="tsugi-read-input tsugi-detail-search" value={trackFilter} onChange={event=>setTrackFilter(event.target.value)} aria-label={t`Find collection tracks`} placeholder={t`Find tracks in collection`}/>
             </div>
             {visibleTracks.length===0&&<p className="tsugi-library-muted"><Trans>No matching tracks.</Trans></p>}
+            <div className="tsugi-hub-remote-columns"><span>#</span><span><Trans>Title</Trans></span><span><Trans>Album</Trans></span><span><Trans>Source</Trans></span><span><Trans>Time</Trans></span></div>
             <div className="tsugi-music-detail-track-grid" data-multi={visibleTracks.length>8}>
             {visibleTracks.map(({track,at}) => (
               <button key={track.id + ':' + at} type="button"
                 onClick={() => { onPlay(source, detail.tracks, at); onClose(); }}
                 className="tsugi-music-detail-track flex w-full items-center gap-4 border-b border-white/[0.08] px-4 py-3 text-left transition-colors hover:bg-white/[0.04]">
                 <span className="w-6 text-right text-xs text-white/35">{at + 1}</span>
-                <Cover src={track.artworkURL} size="small" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{track.title}</span>
                   <span className="block truncate text-xs text-white/50">{track.artist}</span>
                 </span>
-                {typeof track.duration==='number'&&<span className="tsugi-track-duration">{Math.floor(track.duration/60)}:{String(Math.floor(track.duration%60)).padStart(2,'0')}</span>}
-                <BiPlay aria-hidden className="tsugi-detail-row-play"/>
+                <span className="tsugi-hub-remote-album" title={track.album}>{track.album||current.title}</span><span className="tsugi-hub-source"><span>{source.manifest.name}</span></span>
+                <span className="tsugi-track-duration">{typeof track.duration==='number'?Math.floor(track.duration/60)+':'+String(Math.floor(track.duration%60)).padStart(2,'0'):'—'}</span>
               </button>
             ))}
             </div>
@@ -146,6 +147,7 @@ export function MusicCollection({
         {detail && !detail.tracks.length && !detail.albums.length && (
           <p className="text-white/50"><Trans>No tracks available from this addon.</Trans></p>
         )}
+        </div><aside className="tsugi-dashboard-right tsugi-hub-inspector"><section className="tsugi-dashboard-panel"><h3><Trans>Collection details</Trans></h3><dl className="tsugi-hub-details"><div><dt><Trans>Title</Trans></dt><dd>{detail?.title||current.title}</dd></div><div><dt><Trans>Artist</Trans></dt><dd>{detail?.artist||current.artist||'—'}</dd></div>{current.year&&<div><dt><Trans>Year</Trans></dt><dd>{current.year}</dd></div>}<div><dt><Trans>Tracks</Trans></dt><dd>{detail?.tracks.length??'—'}</dd></div></dl></section><section className="tsugi-dashboard-panel"><h3><Trans>Sources & plugins</Trans></h3><div className="tsugi-dashboard-service"><span>{source.manifest.name}</span><small><Trans>Current source</Trans></small></div></section></aside>
       </div>
     </section>
   );

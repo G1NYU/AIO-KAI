@@ -282,6 +282,10 @@ try {
   }
   await vault.getByRole('region',{name:'Getting started with Vault'}).waitFor();
   assert.equal(await vault.locator('.tsugi-vault-intake').count(),1);
+  const vaultShell=vault.locator('.tsugi-vault-workspace');
+  assert.equal(await vaultShell.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),3);
+  assert.equal(await vaultShell.locator('.tsugi-dashboard-metrics > div').count(),4);
+  assert.equal(await vaultShell.locator('.tsugi-dashboard-right').getByRole('heading',{name:'Save to',exact:true}).count(),1);
   assert.deepEqual(heroRequests,[],'Vault does not fetch remote decorative artwork');
   await capture('01-vault-onboarding');
   await vault.getByRole('button',{name:'Got it',exact:true}).click();
@@ -510,6 +514,8 @@ try {
   if (await musicSettings.isVisible()) await musicSettings.getByRole('button', { name: 'Close', exact: true }).click();
   await music.getByRole('button', { name: 'Library', exact: true }).click();
   await music.getByRole('heading',{name:'Your music, organized.',exact:true}).waitFor();
+  assert.equal(await music.locator('.tsugi-library-shell').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),3);
+  await music.locator('.tsugi-hub-inspector').getByRole('heading',{name:'Sources & plugins',exact:true}).waitFor();
   assert.equal(await music.locator('.tsugi-atmosphere[data-placement="library"]').count(),0);
   await capture('06-music-library-overview');
   await music.getByRole('navigation',{name:'Music collection'}).getByRole('button',{name:/Local music/}).click();
@@ -599,9 +605,11 @@ try {
   await detail.getByRole('button', { name: 'Play all', exact: true }).waitFor();
   assert.equal(await detail.locator('.tsugi-atmosphere').count(),0);
   const trackBounds = await detail.getByRole('region', { name: 'Collection tracks' }).boundingBox();
-  assert.ok(trackBounds.width>1200);
+  assert.ok(trackBounds.width>500&&trackBounds.width<1200);
+  assert.equal(await detail.locator('.tsugi-hub-collection').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),3);
+  assert.equal(await detail.locator('.tsugi-hub-remote-columns').getByText('Source',{exact:true}).count(),1);
   const trackGrid=detail.locator('.tsugi-music-detail-track-grid');
-  assert.equal(await trackGrid.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),2);
+  assert.equal(await trackGrid.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),1);
   await page.setViewportSize({width:800,height:900});
   assert.equal(await trackGrid.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),1);
   await page.setViewportSize({width:1440,height:900});

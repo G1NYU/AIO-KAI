@@ -755,6 +755,15 @@ export function MusicPage({
           <>
             {libraryError && <p role="alert" className="mb-6 text-sm text-amber-200">{libraryError}</p>}
             <MusicLibrary playlists={playlists} onChange={setPlaylists} recent={recent} localRequest={localLibraryRequest}
+              sources={connections.map(source=>({id:source.id,name:source.manifest.name}))}
+              onManageSources={()=>setSettingsOpen(true)} onDiscover={()=>setTab('discover')} onSearch={()=>setTab('search')}
+              onPlaySavedCollection={(entries)=>{
+                const source=connections.find(item=>item.id===entries[0]?.sourceId);
+                if(source&&entries.every(entry=>entry.sourceId===source.id)){playCollection(source,entries,0);return;}
+                const local=entries.flatMap(entry=>{const item=localTracks.find(track=>track.id===entry.id);return item?[item]:[];});
+                if(local.length===entries.length&&local.length){setQueue(local);void playLocalTrack(local[0],0,true);return;}
+                setLibraryError(t`Play all requires tracks from the same connected source or local files. Filter by source first.`);
+              }}
               activeTrackId={playing?.id} onPlayRecent={(entry) => {
                 const source = connections.find(item => item.id === entry.sourceId);
                 if (!source) { setLibraryError(t`Connect the original music source to play this track.`); return; }

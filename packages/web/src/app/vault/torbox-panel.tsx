@@ -14,7 +14,7 @@ function errorMessage(error: unknown) {
   return t`TorBox could not complete the request. Check your account and the download link.`;
 }
 
-export function TorBoxPanel({initialLink='',compact=false,manageOnly=false,onOpenCloud}:{initialLink?:string;compact?:boolean;manageOnly?:boolean;onOpenCloud?:()=>void} = {}) {
+export function TorBoxPanel({initialLink='',compact=false,manageOnly=false,onOpenCloud,onConnectionChange}:{initialLink?:string;compact?:boolean;manageOnly?:boolean;onOpenCloud?:()=>void;onConnectionChange?:(value:boolean)=>void} = {}) {
   const active = useRef<AbortController | null>(null);
   const [key, setKey] = useState('');
   const [connected, setConnected] = useState(false);
@@ -24,6 +24,7 @@ export function TorBoxPanel({initialLink='',compact=false,manageOnly=false,onOpe
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [checking,setChecking]=useState(true);
+  useEffect(()=>{if(!checking)onConnectionChange?.(connected);},[checking,connected,onConnectionChange]);
   useEffect(() => {
     let alive = true;
     if (supportsNativeTorBox()) void nativeTorBox('status').then(result => {
@@ -41,7 +42,7 @@ export function TorBoxPanel({initialLink='',compact=false,manageOnly=false,onOpe
     setBusy(true); setError(''); setNotice('');
     try { await work(controller.signal); }
     catch (e) {
-      if (controller.signal.aborted) setError(t`TorBox request timed out or was cancelled. Refresh the cloud list before retrying a submission.`);
+      if (controller.signal.aborted) setError(t`TorBox request timed out or was cancelled. Check your TorBox dashboard before retrying a submission.`);
       else { setError(errorMessage(e)); if(e instanceof TorBoxError && e.kind==='auth')setConnected(false); }
     } finally {
       window.clearTimeout(timeout);
