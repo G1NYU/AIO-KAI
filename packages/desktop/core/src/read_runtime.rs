@@ -47,9 +47,9 @@ impl ReadOperation {
             }
             Self::Trackers => "query TsugiTrackers { trackers(first: 50) { nodes { id name isLoggedIn supportsReadingDates supportsPrivateTracking } totalCount } }",
             Self::Library => {
-                "query TsugiLibrary { mangas(condition: { inLibrary: true }, first: 100) { nodes { id title author thumbnailUrl inLibrary unreadCount categories { nodes { id } } lastReadChapter { id name lastPageRead pageCount isRead lastReadAt } } totalCount } }"
+                "query TsugiLibrary { mangas(condition: { inLibrary: true }, first: 100, order: [{ by: ID, byType: ASC }]) { nodes { id sourceId title author thumbnailUrl inLibrary unreadCount categories { nodes { id } } lastReadChapter { id name lastPageRead pageCount isRead lastReadAt } } totalCount } }"
             }
-            Self::History => "query TsugiHistory { chapters(filter: { lastReadAt: { greaterThan: 0 } }, order: [{ by: LAST_READ_AT, byType: DESC }], first: 100) { nodes { id name lastReadAt lastPageRead pageCount isRead manga { id title author thumbnailUrl inLibrary } } totalCount } }",
+            Self::History => "query TsugiHistory { chapters(filter: { lastReadAt: { greaterThan: \"0\" } }, order: [{ by: LAST_READ_AT, byType: DESC }], first: 100) { nodes { id name lastReadAt lastPageRead pageCount isRead manga { id title author thumbnailUrl inLibrary } } totalCount } }",
             Self::Updates => "query TsugiUpdates { chapters(filter: { inLibrary: { equalTo: true }, isRead: { equalTo: false } }, order: [{ by: FETCHED_AT, byType: DESC }], first: 100) { nodes { id name fetchedAt uploadDate lastPageRead pageCount isRead manga { id title author thumbnailUrl inLibrary } } totalCount } }",
             Self::Categories => "query TsugiCategories { categories(first: 100) { nodes { id name order } totalCount } }",
         }
@@ -1363,10 +1363,20 @@ impl ReadRuntime {
 
     /// Read persisted metadata and chapters without contacting the extension.
     /// Essential for reading history and migration away from a dead source.
+    /// Bounded page of the same library query. Stable ID order prevents
+    /// missing entries merely because titles are duplicated.
+    pub fn library_page(&self, offset: u32) -> Result<Value, &'static str> {
+        if offset > 100_000 { return Err("Library offset exceeds the supported limit."); }
+        let reply = self.client.send_document(
+            "query TsugiLibraryPage($offset: Int!) { mangas(condition: { inLibrary: true }, first: 100, offset: $offset, order: [{ by: ID, byType: ASC }]) { nodes { id sourceId title author thumbnailUrl inLibrary unreadCount categories { nodes { id } } lastReadChapter { id name lastPageRead pageCount isRead lastReadAt } } totalCount } }",
+            json!({"offset": offset}), Some(&self.client.authorization))?;
+        decode(ReadOperation::Library, reply)
+    }
+
     pub fn cached_manga(&self, id: i32) -> Result<Value, &'static str> {
         if id <= 0 { return Err("Invalid manga identifier."); }
         let mut manga = self.client.document(
-            "query TsugiCachedManga($id: Int!) { manga(id: $id) { id title author artist description genre thumbnailUrl inLibrary chapters { nodes { id name mangaId chapterNumber sourceOrder scanlator pageCount isRead isBookmarked lastPageRead } } } }",
+            "query TsugiCachedManga($id: Int!) { manga(id: $id) { id sourceId title author artist description genre thumbnailUrl inLibrary categories { nodes { id } } chapters { nodes { id name mangaId chapterNumber sourceOrder scanlator pageCount isRead isBookmarked lastPageRead } } } }",
             "manga", json!({"id": id}))?;
         let chapters = manga.as_object_mut().and_then(|value| value.remove("chapters"))
             .and_then(|value| value.get("nodes").cloned())
@@ -2013,6 +2023,9 @@ mod tests {
         assert_eq!(library["manga"]["inLibrary"], true);
         let list = managed.query(ReadOperation::Library).expect("library query");
         assert!(list["nodes"].as_array().unwrap().iter().any(|item| item["id"] == manga_id.to_string()));
+        let paged = managed.library_page(0).expect("native library page");
+        assert_eq!(paged["nodes"], list["nodes"]);
+        assert!(managed.library_page(100_001).is_err());
         let history = managed.query(ReadOperation::History).expect("native reading history");
         assert!(history["nodes"].as_array().unwrap().iter().any(|item| item["id"] == id && item["manga"]["id"] == manga_id));
         let updates = managed.query(ReadOperation::Updates).expect("native unread chapter feed");

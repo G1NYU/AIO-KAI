@@ -63,3 +63,22 @@ describe('missing library cover fallback', () => {
     expect(selectFallbackCover({ data: [{ ...item, images: { jpg: { large_image_url: 'https://elsewhere.test/cover.jpg' } } }] }, 'Original Story')).toBeUndefined();
   });
 });
+
+import { batchTitles, migrationPlan } from '../src/app/read/collection-transfer-utils';
+
+describe('collection transfer', () => {
+  it('deduplicates normalized titles, preserves commas and accepts converted Mihon JSON', () => {
+    expect(batchTitles('  Original Story\noriginal story\nAnother Story\n', 'titles')).toEqual(['Original Story', 'Another Story']);
+    expect(batchTitles('title,status,chaptersRead\n"Story, Two",CURRENT,4\n"Story ""Quoted""",PLANNING,0', 'csv')).toEqual(['Story, Two', 'Story "Quoted"']);
+    expect(batchTitles('{"backupManga":[{"title":"Original Story","lastChapterRead":42}]}', 'mihon')).toEqual(['Original Story']);
+    expect(() => batchTitles('{"mangaLibrary":[]}', 'mihon')).toThrow();
+    expect(() => batchTitles('"broken', 'csv')).toThrow();
+  });
+  it('copies only unambiguous positive flags and retains unmatched and unfinished progress', () => {
+    const old = [{ ...chapter(1, 1, 'A'), isRead: true, isBookmarked: true }, { ...chapter(2, 2, 'A'), lastPageRead: 4 }, { ...chapter(3, 3, 'A'), isRead: true }, { ...chapter(4, 4, 'A'), isRead: true }];
+    const next = [chapter(11, 1, 'B'), chapter(12, 2, 'B'), chapter(13, 3, 'B'), chapter(14, 3, 'C')];
+    expect(migrationPlan(old, next)).toEqual({ matched: 2, read: [11], bookmarked: [11], partial: ['Chapter 2'], unmatched: ['Chapter 3', 'Chapter 4'] });
+    expect(migrationPlan(old, [{ ...next[0], isRead: true, isBookmarked: true }, ...next.slice(1)]).read).toEqual([]);
+    expect(migrationPlan([{ ...old[0] }, { ...old[0], id: 22 }], [next[0]]).read).toEqual([]);
+  });
+});

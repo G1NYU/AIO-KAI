@@ -61,6 +61,7 @@ pub enum ReadAction {
     Status,
     Sources,
     Library,
+    LibraryPage { offset: u32 },
     History,
     Updates,
     Categories,

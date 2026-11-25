@@ -58,3 +58,5 @@ Static two-row square pixel rules replace named horizontal workspace/collection 
 ### Reader collection workspace
 
 History, Chapter updates and Categories sit in the Collection rail. Compact chapter rows use existing source artwork and two-row separators. Categories use a management rail and title membership list, plus shelf filters on Library. Update progress uses the selected accent, with explicit engine status and a manual refresh action. Category deletion does not remove manga. No empty decorative panels beyond actionable empty states.
+
+Migration and Batch Add use a compact form followed by result rows and explicit review. Do not automatically remove old titles or guess ambiguous chapters. Batch import never maps tracker IDs to source IDs. Existing artwork and playback paths remain unchanged.

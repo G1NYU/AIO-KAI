@@ -32,6 +32,10 @@ try {
     const manga = { id: '1', title: 'Tsugi Original Fixture', author: 'Tsugi', thumbnailUrl: '/api/v1/manga/1/thumbnail', inLibrary: true, unreadCount: 2, description: '**Original fixture** for reader tests.', genre: ['Adventure'] };
     const chapters = [{ id: 11, name: 'Chapter 1', chapterNumber: 1, scanlator: 'Original', isRead: false, lastPageRead: 0, pageCount: 4 }, { id: 12, name: 'Chapter 2', chapterNumber: 2, scanlator: 'Original', isRead: false, lastPageRead: 0, pageCount: 4 }];
     manga.categories = { nodes: [] };
+    manga.sourceId = '12345';
+    const replacement = { id: '3', sourceId: '67890', title: 'Tsugi Original Fixture', author: 'Tsugi', inLibrary: false, categories: { nodes: [] } };
+    const replacementChapters = [{ id: 31, name: 'Chapter 1', chapterNumber: 1, isRead: false, isBookmarked: false, lastPageRead: 0, pageCount: 4 }];
+    const batchTitle = { id: '4', sourceId: '67890', title: 'Batch Fixture', author: 'Tsugi', inLibrary: false, categories: { nodes: [] } };
     const state = window.__readerFixture = { requests: [], lastPath: '', serial: 0, installed: false, stores: [], progress: [], nativeMessages: [], nativeRequest: null, categories: [], categorySequence: 0, updateChecks: 0 };
     const nodes = (items) => ({ nodes: items, totalCount: items.length });
     const emit = (message) => queueMicrotask(() => { for (const listener of listeners) listener(message); });
@@ -71,7 +75,12 @@ try {
         let data;
         let error = null;
         switch (a.kind) {
-          case 'library': data = nodes([manga, { id: '2', title: 'ZZ Missing Fixture', author: 'Tsugi', inLibrary: true, unreadCount: 0 }]); break;
+          case 'library': data = nodes([manga, { id: '2', title: 'ZZ Missing Fixture', author: 'Tsugi', inLibrary: true, unreadCount: 0 }, ...[replacement, batchTitle].filter(item => item.inLibrary)]); break;
+          case 'set-library': {
+            const target = [manga, replacement, batchTitle].find(item => Number(item.id) === a.id);
+            if (!target) throw new Error('Unknown saved title');
+            target.inLibrary = a.inLibrary; data = { manga: target }; break;
+          }
           case 'categories': data = nodes(state.categories); break;
           case 'save-category': {
             let category = state.categories.find(item => item.id === a.id);
@@ -90,7 +99,7 @@ try {
             data = { category: { id: a.id } }; break;
           case 'history': data = nodes([{ ...chapters[0], lastReadAt: 1760000000000, manga }]); break;
           case 'updates': data = nodes([{ ...chapters[1], fetchedAt: 1760000000000, manga }]); break;
-          case 'cached-manga': data = { manga, chapters }; break;
+          case 'cached-manga': data = a.id === 3 ? { manga: replacement, chapters: replacementChapters } : a.id === 4 ? { manga: batchTitle, chapters: [] } : { manga, chapters }; break;
           case 'start-library-update': state.updateChecks++; data = { jobsInfo: { isRunning: true, totalJobs: 1, finishedJobs: 0, skippedCategoriesCount: 0, skippedMangasCount: 0 } }; break;
           case 'library-update-status': data = { jobsInfo: { isRunning: false, totalJobs: state.updateChecks ? 1 : 0, finishedJobs: state.updateChecks ? 1 : 0, skippedCategoriesCount: 0, skippedMangasCount: 0 } }; break;
           case 'trackers': data = nodes([{ id: 1, name: 'MyAnimeList', isLoggedIn: !!state.trackerConnected, supportsReadingDates: true, supportsPrivateTracking: false }]); break;
@@ -101,15 +110,15 @@ try {
           case 'tracker-bind': if (a.remoteId !== '44') throw new Error('Expected lossless tracker ID'); state.trackRecord = { id: 91, trackerId: 1, title: 'Original tracker match', lastChapterRead: 0, totalChapters: 2 }; data = { trackRecord: state.trackRecord }; break;
           case 'tracker-sync': state.trackRecord.lastChapterRead = 1; data = { trackRecords: [state.trackRecord] }; break;
           case 'tracker-unbind': state.trackRecord = null; data = { clientMutationId: null }; break;
-          case 'chapter-flags': data = { chapters: chapters.filter((chapter) => a.ids.includes(chapter.id)).map((chapter) => { if (typeof a.read === 'boolean') { chapter.isRead = a.read; if (!a.read) chapter.lastPageRead = 0; } if (typeof a.bookmarked === 'boolean') chapter.isBookmarked = a.bookmarked; return { id: chapter.id, isRead: chapter.isRead, isBookmarked: !!chapter.isBookmarked, lastPageRead: chapter.lastPageRead }; }) }; break;
+          case 'chapter-flags': data = { chapters: [...chapters, ...replacementChapters].filter((chapter) => a.ids.includes(chapter.id)).map((chapter) => { if (typeof a.read === 'boolean') { chapter.isRead = a.read; if (!a.read) chapter.lastPageRead = 0; } if (typeof a.bookmarked === 'boolean') chapter.isBookmarked = a.bookmarked; return { id: chapter.id, isRead: chapter.isRead, isBookmarked: !!chapter.isBookmarked, lastPageRead: chapter.lastPageRead }; }) }; break;
           case 'stores': data = nodes(state.stores); break;
           case 'add-store': state.stores.push({ name: 'Original fixture store', indexUrl: a.index }); data = { ok: true }; break;
           case 'refresh-extensions': data = { ok: true }; break;
           case 'extensions': data = nodes(state.stores.length && (a.installed === undefined || a.installed === state.installed) && (!a.language || a.language === 'en') ? [{ pkgName: 'org.tsugi.fixture', name: 'Original extension', lang: 'en', versionName: '1.6', storeIndexUrl: state.stores[0].indexUrl, isInstalled: state.installed, isObsolete: false }] : []); break;
           case 'install-extension': state.installed = true; data = { ok: true }; break;
-          case 'sources': data = nodes(state.installed ? [{ id: '12345', name: 'Original source', lang: 'en', supportsLatest: true }] : []); break;
-          case 'catalogue': data = { mangas: [manga], hasNextPage: false }; break;
-          case 'manga': data = { manga, chapters }; break;
+          case 'sources': data = nodes(state.installed ? [{ id: '12345', name: 'Original source', lang: 'en', supportsLatest: true }, ...(state.transferEnabled ? [{ id: '67890', name: 'Replacement source', lang: 'en', supportsLatest: true }] : [])] : []); break;
+          case 'catalogue': data = { mangas: a.source === '67890' ? a.query === 'Batch Fixture' ? [batchTitle] : [replacement] : [manga], hasNextPage: false }; break;
+          case 'manga': data = a.id === 3 ? { manga: replacement, chapters: replacementChapters } : { manga, chapters }; break;
           case 'chapter': data = { id: a.id, pageCount: 4 }; break;
           case 'cover':
           case 'page':
@@ -530,6 +539,30 @@ try {
   await readMedia.getByRole('button', { name: 'Movies & TV', exact: true }).click();
   await page.waitForFunction(() => window.__readerFixture.nativeMessages.some(m => m.action === 'stop'));
   console.log('PASS: simulated native music transport remains loaded through Read and Music round trip; video entry sends stop.');
+  await page.evaluate(() => { window.__readerFixture.transferEnabled = true; });
+  await mediaNav.getByRole('button', { name: 'Read', exact: true }).click();
+  await rail.waitFor();
+  await rail.getByRole('button', { name: 'Migrate', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Original title', exact: true }).selectOption('1');
+  await page.getByRole('combobox', { name: 'Replacement source', exact: true }).selectOption('67890');
+  await page.getByRole('button', { name: 'Search replacement', exact: true }).click();
+  await page.locator('.tsugi-transfer-workspace').getByRole('button', { name: /Tsugi Original Fixture/ }).click();
+  await page.getByRole('heading', { name: 'Transfer preview', exact: true }).waitFor();
+  await capture('10-reader-migration');
+  await page.getByRole('button', { name: 'Copy progress and keep original', exact: true }).click();
+  await page.getByText(/Replacement verified. Original retained/).waitFor();
+  assert.ok(await page.evaluate(() => window.__readerFixture.requests.some(a => a.kind === 'set-library' && a.id === 3 && a.inLibrary)));
+  assert.equal(await page.evaluate(() => window.__readerFixture.requests.some(a => a.kind === 'set-library' && a.id === 1 && !a.inLibrary)), false);
+  await rail.getByRole('button', { name: 'Batch Add', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Search source', exact: true }).selectOption('67890');
+  await page.getByRole('textbox', { name: 'Titles to import', exact: true }).fill('Batch Fixture\nBatch Fixture\nTsugi Original Fixture');
+  await page.getByRole('button', { name: 'Find matches', exact: true }).click();
+  await page.getByText('Search complete. Review the matches before adding.', { exact: true }).waitFor();
+  assert.equal(await page.locator('.tsugi-batch-row').count(), 2);
+  await capture('11-reader-batch');
+  await page.getByRole('button', { name: 'Add reviewed titles (1)', exact: true }).click();
+  await page.getByText('1 titles added. Existing entries were not overwritten.', { exact: true }).waitFor();
+  assert.ok(await page.evaluate(() => window.__readerFixture.requests.some(a => a.kind === 'set-library' && a.id === 4 && a.inLibrary)));
   assert.deepEqual(errors, []);
-  console.log('PASS: readable launcher/labels, repository registration, catalogue filter, extension install, source browse, image transfer, scroll progress, reader settings and chapter switching (mock bridge).');
+  console.log('PASS: migration preview preserves original; reviewed batch import skips duplicate titles.');
 } finally { await browser.close(); }

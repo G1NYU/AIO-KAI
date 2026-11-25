@@ -1,11 +1,12 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiArrowLeft, FiBookOpen, FiChevronRight, FiCompass, FiGrid, FiSearch, FiSettings, FiGlobe, FiClock, FiRefreshCw, FiBookmark, FiFolder, FiBell, FiPlus, FiCheck } from 'react-icons/fi';
+import { FiArrowLeft, FiBookOpen, FiChevronRight, FiCompass, FiGrid, FiSearch, FiSettings, FiGlobe, FiClock, FiRefreshCw, FiBookmark, FiFolder, FiBell, FiPlus, FiCheck, FiRepeat } from 'react-icons/fi';
 import { MediaNavigation } from '@/components/shell/media-navigation';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { prepareReading, readRequest, readImage } from '@/lib/hosts/shell/reading';
 import { ChapterReader } from './chapter-reader';
+import { BatchAddWorkspace, MigrationWorkspace } from './collection-transfer';
 import { lookupMissingCover, mayLookUpCover, readCoverFallback, saveCoverFallback } from './cover-fallback';
 import { ReaderSettings } from './reader-settings';
 import { MangaTracking, type Tracker } from './tracking';
@@ -16,11 +17,11 @@ type Nodes<T> = { nodes: T[]; totalCount: number };
 type Source = { id: string; name: string; lang: string; displayName?: string; supportsLatest: boolean };
 type Store = { indexUrl: string; name: string };
 type Extension = { storeIndexUrl?: string | null; pkgName: string; name: string; lang: string; versionName: string; isInstalled: boolean; isObsolete: boolean };
-type Manga = { id: number | string; categories?: { nodes: { id: number }[] }; title: string; author?: string | null; artist?: string | null; genre?: string[]; thumbnailUrl?: string | null; description?: string | null; inLibrary: boolean; unreadCount?: number; lastReadChapter?: { id: number; name: string; lastPageRead: number; pageCount: number; isRead: boolean; lastReadAt?: number | string } | null };
+type Manga = { id: number | string; sourceId?: string; categories?: { nodes: { id: number }[] }; title: string; author?: string | null; artist?: string | null; genre?: string[]; thumbnailUrl?: string | null; description?: string | null; inLibrary: boolean; unreadCount?: number; lastReadChapter?: { id: number; name: string; lastPageRead: number; pageCount: number; isRead: boolean; lastReadAt?: number | string } | null };
 type Details = { manga: Manga; chapters: Chapter[] };
 type Catalogue = { mangas: Manga[]; hasNextPage: boolean };
 type Reader = { chapter: Chapter; count: number; index: number };
-type Tab = 'library' | 'history' | 'updates' | 'categories' | 'browse' | 'settings';
+type Tab = 'library' | 'history' | 'updates' | 'categories' | 'migrate' | 'batch' | 'browse' | 'settings';
 type Category = { id: number; name: string; order: number };
 type Activity = Chapter & { manga: Manga; lastReadAt?: number | string; fetchedAt?: number | string; uploadDate?: number | string };
 type UpdateStatus = { jobsInfo: { isRunning: boolean; totalJobs: number; finishedJobs: number; skippedCategoriesCount: number; skippedMangasCount: number } };
@@ -111,7 +112,16 @@ export function ReadPage({ visible }: {
     setCategoryId(old => next.some(item => item.id === old) ? old : 0);
   }
   async function loadLibrary() {
-    setLibrary(await readRequest<Nodes<Manga>>({ kind: 'library' }));
+    const first = await readRequest<Nodes<Manga>>({ kind: 'library' });
+    const entries = new Map(first.nodes.map(item => [String(item.id), item]));
+    let offset = first.nodes.length;
+    while (offset < first.totalCount && offset < 100_000) {
+      const page = await readRequest<Nodes<Manga>>({ kind: 'library-page', offset });
+      if (!page.nodes.length) break;
+      for (const item of page.nodes) entries.set(String(item.id), item);
+      offset += page.nodes.length;
+    }
+    setLibrary({ nodes: [...entries.values()], totalCount: first.totalCount });
     await loadCategories();
   }
   async function loadHistory() { setHistory(await readRequest<Nodes<Activity>>({ kind: 'history' })); }
@@ -205,7 +215,7 @@ export function ReadPage({ visible }: {
     content.current?.scrollTo(0, 0);
     if (next === 'settings') { setSettingsPage(null); return; }
     if (next === 'browse') { setBrowseTab('sources'); setSource(''); setBrowse(null); }
-    void run(next === 'library' || next === 'categories' ? loadLibrary : next === 'history' ? loadHistory : next === 'updates' ? loadUpdates : loadSources);
+    void run(next === 'migrate' || next === 'batch' ? async () => { await loadLibrary(); await loadSources(); } : next === 'library' || next === 'categories' ? loadLibrary : next === 'history' ? loadHistory : next === 'updates' ? loadUpdates : loadSources);
   }
   function switchBrowse(next: BrowseTab) {
     setDetails(null); setReader(null); setTab('browse'); setBrowseTab(next); setSource(''); setBrowse(null); setError('');
@@ -288,6 +298,8 @@ export function ReadPage({ visible }: {
     { id: 'history' as const, label: t({ id: "History", message: "History" }), Icon: FiClock },
     { id: 'updates' as const, label: t({ id: "Chapter updates", message: "Chapter updates" }), Icon: FiBell },
     { id: 'categories' as const, label: t({ id: "Categories", message: "Categories" }), Icon: FiFolder },
+    { id: 'migrate' as const, label: t({ id: "Migrate", message: "Migrate" }), Icon: FiRepeat },
+    { id: 'batch' as const, label: t({ id: "Batch Add", message: "Batch Add" }), Icon: FiPlus },
   ];
   const allLibrary = library?.nodes || [];
   const recent = allLibrary.filter((manga) => manga.lastReadChapter).sort((a, b) => Number(b.lastReadChapter?.lastReadAt || 0) - Number(a.lastReadChapter?.lastReadAt || 0));
@@ -415,7 +427,9 @@ export function ReadPage({ visible }: {
             <button className="tsugi-read-action" disabled={busy} onClick={() => switchTab('browse')}><Trans id="Return to Browse">Return to Browse</Trans></button>
           </>}
       </section>
-    ) : tab === 'history' || tab === 'updates' ? (
+    ) : tab === 'migrate' ? <MigrationWorkspace library={allLibrary} sources={sources} busy={busy} run={run} reload={loadLibrary} />
+    : tab === 'batch' ? <BatchAddWorkspace library={allLibrary} sources={sources} busy={busy} run={run} reload={loadLibrary} />
+    : tab === 'history' || tab === 'updates' ? (
       <section className="tsugi-reading-activity">
         <div className="tsugi-reading-list-header">
           <div><h2 className="text-xl font-semibold">{tab === 'history' ? <Trans id="Recently read chapters">Recently read chapters</Trans> : <Trans id="Recently fetched unread chapters">Recently fetched unread chapters</Trans>}</h2>
@@ -469,7 +483,7 @@ export function ReadPage({ visible }: {
             <input type="checkbox" checked={categoryContains(manga, categoryId)} disabled={busy} onChange={event => { const assigned = event.target.checked; void run(async () => { await readRequest({ kind: 'assign-category', mangaId: Number(manga.id), categoryId, assigned }); await loadLibrary(); }); }} />
           </label>)}
           {!allLibrary.length && <p className="text-sm text-[--tsugi-muted]"><Trans id="Save manga to your library before assigning categories.">Save manga to your library before assigning categories.</Trans></p>}
-          {library && library.totalCount > library.nodes.length && <p className="mt-3 text-sm text-[--tsugi-muted]"><Trans id="Showing the first 100 library entries.">Showing the first 100 library entries.</Trans></p>}
+          {library && library.totalCount > library.nodes.length && <p className="mt-3 text-sm text-[--tsugi-muted]"><Trans id="Some library entries could not be loaded.">Some library entries could not be loaded.</Trans></p>}
         </section> : <div className="tsugi-reading-empty"><FiFolder aria-hidden /><h2><Trans id="Organize your collection">Organize your collection</Trans></h2><p><Trans id="Create a category or choose one to manage its titles.">Create a category or choose one to manage its titles.</Trans></p></div>}
       </section>
     ) : tab === 'browse' ? (
@@ -548,7 +562,7 @@ export function ReadPage({ visible }: {
       {!!allLibrary.length && !rows.length && !busy && <p className="py-8 text-[--tsugi-muted]"><Trans id="No manga match your filters.">No manga match your filters.</Trans></p>}
       {!!allLibrary.length && <div className="tsugi-library-grid-heading"><h2>{libraryView === 'reading' ? <Trans id="In progress">In progress</Trans> : <Trans id="Your collection">Your collection</Trans>}</h2><span>{rows.length}</span></div>}
       {mangaGrid(rows)}
-      {library && library.totalCount > library.nodes.length && <p className="mt-3 text-sm text-[--tsugi-muted]"><Trans id="Showing the first 100 library entries.">Showing the first 100 library entries.</Trans></p>}
+      {library && library.totalCount > library.nodes.length && <p className="mt-3 text-sm text-[--tsugi-muted]"><Trans id="Some library entries could not be loaded.">Some library entries could not be loaded.</Trans></p>}
     </section>}
     </div>
   </main>;

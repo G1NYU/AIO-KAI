@@ -2316,3 +2316,24 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-library-shelves button[aria-current='page'] { background:color-mix(in srgb,var(--tsugi-accent) 13%,var(--tsugi-canvas)); color:var(--tsugi-accent); }
 .tsugi-library-shelves button:hover { color:var(--tsugi-ink); }
 @media(max-width:900px) { .tsugi-reader-categories { grid-template-columns:minmax(0,1fr); gap:24px; } }
+
+/* Migration and batch import: reviewable data-first tools, not decorative cards. */
+.tsugi-transfer-workspace { max-width:1250px; }
+.tsugi-transfer-intro { margin-bottom:24px; }
+.tsugi-transfer-intro h2,.tsugi-transfer-preview h2 { font-size:20px; font-weight:650; }
+.tsugi-transfer-intro p,.tsugi-transfer-preview p { color:var(--tsugi-muted); font-size:14px; line-height:1.65; margin-top:8px; }
+.tsugi-transfer-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-bottom:24px; }
+.tsugi-transfer-form label { display:grid; gap:7px; min-width:0; font-size:13px; color:var(--tsugi-muted); }
+.tsugi-transfer-form label select { width:100%; }
+.tsugi-transfer-search,.tsugi-batch-input,.tsugi-transfer-form > div { grid-column:1/-1; }
+.tsugi-transfer-search { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.tsugi-batch-input { resize:vertical; width:100%; line-height:1.6; }
+.tsugi-transfer-preview { margin:20px 0; padding:20px; background:var(--tsugi-surface); border-radius:var(--tsugi-radius-control); }
+.tsugi-transfer-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:14px; margin:20px 0; }
+.tsugi-transfer-stats strong { display:block; font-size:25px; color:var(--tsugi-accent); }
+.tsugi-transfer-stats small { display:block; color:var(--tsugi-muted); font-size:12px; }
+.tsugi-transfer-preview > button { margin-top:18px; }
+.tsugi-transfer-result { display:flex; align-items:center; gap:8px; padding:14px 0; color:var(--tsugi-accent); font-size:14px; }
+.tsugi-batch-row { gap:16px; }
+.tsugi-batch-row select { max-width:55%; }
+@media(max-width:760px) { .tsugi-transfer-form { grid-template-columns:minmax(0,1fr); } .tsugi-batch-row { flex-wrap:wrap; } .tsugi-batch-row select { max-width:100%; width:100%; } }

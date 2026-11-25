@@ -290,6 +290,7 @@ fn execute(
         ReadAction::Status => reader.query(ReadOperation::Status),
         ReadAction::Sources => reader.query(ReadOperation::Sources),
         ReadAction::Library => reader.query(ReadOperation::Library),
+        ReadAction::LibraryPage { offset } => reader.library_page(offset),
         ReadAction::History => reader.query(ReadOperation::History),
         ReadAction::Updates => reader.query(ReadOperation::Updates),
         ReadAction::Categories => reader.query(ReadOperation::Categories),

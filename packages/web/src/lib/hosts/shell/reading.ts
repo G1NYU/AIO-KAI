@@ -3,6 +3,7 @@ import { appBridge, ask } from './bridge';
 
 export type ReadAction =
   | { kind: 'prepare' | 'status' | 'sources' | 'library' | 'history' | 'updates' | 'categories' | 'library-update-status' | 'start-library-update' | 'stores' | 'refresh-extensions' | 'trackers' }
+  | { kind: 'library-page'; offset: number }
   | { kind: 'save-category'; id?: number; name: string }
   | { kind: 'delete-category' | 'cached-manga'; id: number }
   | { kind: 'assign-category'; mangaId: number; categoryId: number; assigned: boolean }
