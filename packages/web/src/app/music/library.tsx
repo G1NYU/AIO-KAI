@@ -195,7 +195,7 @@ export function MusicLibrary({
             {visibleRecent ? recentRows.map(entry => trackRow(entry.track, entry.sourceId + ':' + entry.track.id, () => onPlayRecent(entry))) : rows.map((track, index) => trackRow(track, track.id + ':' + index, () => localView ? onPlayLocal(track) : onPlay(track), !localView, localView && folder.busy && folderTracks.some(item => item.id === track.id)))}
           </ol>
         </> : <div className="tsugi-collection-empty tsugi-library-empty-atmosphere">
-          <TsugiAtmosphere placement="library" />
+          {localView&&!filter.trim()&&<TsugiAtmosphere placement="library" />}
           <FiDisc aria-hidden />
           <h3>{filter.trim() ? t`No matching tracks` : localView ? t`Add your music` : visibleRecent ? t`No recent tracks` : t`This playlist is empty`}</h3>
           <p>{filter.trim() ? t`Try a different title or artist.` : localView ? t`Open individual audio files or connect a music folder to browse your collection.` : visibleRecent ? t`Tracks you play from music sources will appear here.` : t`Save tracks from search or add the currently playing track.`}</p>

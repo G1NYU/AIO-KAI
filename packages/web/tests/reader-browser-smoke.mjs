@@ -50,7 +50,7 @@ try {
           if(message.operation==='disconnect')state.torboxConnected=false;
           if(message.operation==='submit')state.torboxLink=message.value;
           const authenticated=!!state.torboxConnected;
-          emit({type:'torbox-result',request:message.request,data:{connected:authenticated,items:[]},error:message.operation==='connect'&&!authenticated?'auth':null});
+          emit({type:'torbox-result',request:message.request,data:{connected:authenticated,items:authenticated?[{id:1,name:'Fixture cloud archive.zip',state:'completed',finished:true},{id:2,name:'Fixture pending audio.m4a',state:'downloading',finished:false}]:[]},error:message.operation==='connect'&&!authenticated?'auth':null});
           return;
         }
         if (message.type === 'download-config') {state.vaultConcurrent=message.concurrent;return;}
@@ -74,7 +74,7 @@ try {
             flexColumns: [{ musicResponsiveListItemFlexColumnRenderer: { text: { runs: [{ text: 'Native fixture track' }] } } }],
             thumbnail: { musicThumbnailRenderer: { thumbnail: { thumbnails: [{ url: 'https://lh3.googleusercontent.com/tsugi-fixture=w120-h120', width: 120, height: 120 }] } } },
           } };
-          const data = message.operation === 'search' ? [fixtureTrack, fixturePlaylist] : message.operation === 'browse' ? fixtureTrack : message.operation === 'home' ? { musicCarouselShelfRenderer: {
+          const data = message.operation === 'search' ? [fixtureTrack, fixturePlaylist] : message.operation === 'browse' ? Array.from({length:12},(_,i)=>({musicResponsiveListItemRenderer:{...fixtureTrack.musicResponsiveListItemRenderer,playlistItemData:{videoId:'abcdefghij'+i.toString(36)},flexColumns:[{musicResponsiveListItemFlexColumnRenderer:{text:{runs:[{text:'Collection track '+(i+1)}]}}}]}})) : message.operation === 'home' ? { musicCarouselShelfRenderer: {
             header: { musicCarouselShelfBasicHeaderRenderer: { title: { runs: [{ text: 'Fixture recommendations' }] } } },
             contents: [{ musicResponsiveListItemRenderer: {
               playlistItemData: { videoId: 'abcdefghijk' },
@@ -293,6 +293,7 @@ try {
   await vault.getByRole('button', { name: 'Enable external illustration' }).click();
   await vault.getByText('Nekos API', { exact: true }).waitFor();
   assert.equal(await page.evaluate(() => localStorage.getItem('tsugi.landscape.local-only')), 'false');
+  assert.equal(await vault.locator('.tsugi-vault-intake').count(),0,'local intake closed by default');
   await capture('01-vault');
   await vault.getByRole('button', { name: 'All media', exact: true }).click();
   await landing.waitFor();
@@ -304,12 +305,14 @@ try {
   await field.focus();
   assert.equal(await field.evaluate((node) => getComputedStyle(node).outlineColor), 'rgb(213, 213, 220)');
   assert.equal(await field.evaluate((node) => getComputedStyle(node).borderRadius), '8px');
-  assert.equal(await entry.locator('[data-ui="auth-card"]').evaluate((node) => getComputedStyle(node).borderRadius), '14px');
-  assert.equal(await entry.locator('[data-ui="auth-card"]').evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(19, 20, 23)');
+  assert.equal(await entry.locator('[data-ui="auth-card"]').evaluate((node) => getComputedStyle(node).borderRadius), '0px');
+  assert.equal(await entry.locator('[data-ui="auth-card"]').evaluate((node) => getComputedStyle(node).backgroundColor), 'rgba(0, 0, 0, 0)');
+  assert.equal(await entry.locator('[data-ui="auth-card"]').evaluate(node=>getComputedStyle(node).boxShadow),'none');
   const entryAtmosphere = entry.locator('.tsugi-atmosphere[data-placement="entry"]');
   assert.equal(await entryAtmosphere.getAttribute('aria-hidden'), 'true');
   assert.equal(await entryAtmosphere.evaluate(node => getComputedStyle(node).pointerEvents), 'none');
   assert.ok((await entryAtmosphere.locator('.tsugi-brand-wordmark').boundingBox()).width > 240);
+  assert.equal(await entryAtmosphere.locator('svg').count(),0,'only signature text in background');
   assert.equal(await entry.getByRole('button', { name: 'Connect', exact: true }).evaluate((node) => getComputedStyle(node).borderRadius), '8px');
   assert.equal(await entry.evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(16, 18, 20)');
   const brand = await entry.locator('.tsugi-auth-brand').boundingBox();
@@ -513,6 +516,9 @@ try {
   await music.getByRole('button', { name: /Local music/ }).waitFor();
   await music.getByRole('textbox', { name: 'Find tracks', exact: true }).waitFor();
   assert.equal(await music.locator('.tsugi-atmosphere[data-placement="library"]').count(), 1);
+  const libraryBrand=await music.locator('.tsugi-atmosphere[data-placement="library"] .tsugi-brand-wordmark').boundingBox();
+  const libraryCanvas=await music.locator('.tsugi-library-empty-atmosphere').boundingBox();
+  assert.ok(libraryBrand.x>=libraryCanvas.x&&libraryBrand.x+libraryBrand.width<=libraryCanvas.x+libraryCanvas.width);
   const musicLibraryGlyph = await music.getByRole('navigation', { name: 'Music sections' }).getByRole('button', { name: 'Library', exact: true }).locator('svg path').first().getAttribute('d');
   const readerGlyph = await music.getByRole('button', { name: 'Read', exact: true }).locator('svg path').first().getAttribute('d');
   assert.notEqual(musicLibraryGlyph, readerGlyph, 'music library and reading category use distinct glyphs');
@@ -596,10 +602,14 @@ try {
   const detail = page.getByRole('dialog', { name: 'Music collection', exact: true });
   await detail.getByRole('heading', { name: 'Fixture playlist', exact: true }).waitFor();
   await detail.getByRole('button', { name: 'Play all', exact: true }).waitFor();
-  assert.equal(await detail.locator('.tsugi-atmosphere[data-placement="collection"] img').count(), 1);
-  assert.equal(await detail.locator('.tsugi-atmosphere').evaluate(node => getComputedStyle(node).pointerEvents), 'none');
+  assert.equal(await detail.locator('.tsugi-atmosphere').count(),0);
   const trackBounds = await detail.getByRole('region', { name: 'Collection tracks' }).boundingBox();
-  assert.ok(trackBounds.width < 1100 && trackBounds.width > 600);
+  assert.ok(trackBounds.width>1200);
+  const trackGrid=detail.locator('.tsugi-music-detail-track-grid');
+  assert.equal(await trackGrid.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),2);
+  await page.setViewportSize({width:800,height:900});
+  assert.equal(await trackGrid.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),1);
+  await page.setViewportSize({width:1440,height:900});
   await capture('11-music-collection-atmosphere');
   await detail.getByRole('button', { name: 'Back to music', exact: true }).click();
   await detail.waitFor({ state: 'detached' });
@@ -614,6 +624,7 @@ try {
   await queueTrack.click();
   await selectedVaultQueue.getByText('Native fixture track - abcdefghijk.m4a',{exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>window.__readerFixture.vaultRequests[0].jobs[0].files[0].url),'https://www.youtube.com/watch?v=abcdefghijk');
+  await selectedVaultQueue.getByRole('button',{name:'Add download',exact:true}).click();
   await selectedVaultQueue.getByRole('button',{name:'Batch links',exact:true}).click();
   await selectedVaultQueue.getByLabel('Download links (one per line)').fill('https://example.org/first.epub\nhttps://example.org/second.mp3\nhttps://youtu.be/abcdefghijk');
   await selectedVaultQueue.getByRole('checkbox',{name:/I have permission/}).check();
@@ -639,8 +650,24 @@ try {
   await providers.getByRole('button',{name:'Connect TorBox',exact:true}).click();
   await providers.getByText('Connected for this session.',{exact:true}).waitFor();
   assert.equal(await providers.getByRole('button',{name:'Send to TorBox',exact:true}).count(),0);
-  await selectedVaultQueue.getByRole('button',{name:'Cloud · TorBox',exact:true}).click();
-  await selectedVaultQueue.getByLabel('Cloud download URL').waitFor();
+  await capture('12-vault-providers');
+  assert.equal(await selectedVaultQueue.locator('.tsugi-vault-queue-tools').count(),0);
+  await providers.getByRole('button',{name:'Open cloud downloads',exact:true}).click();
+  await selectedVaultQueue.getByRole('table',{name:'Cloud download list'}).waitFor();
+  assert.equal(await selectedVaultQueue.getByRole('row').count(),3);
+  await selectedVaultQueue.getByRole('combobox',{name:'Cloud download filter'}).selectOption('done');
+  assert.equal(await selectedVaultQueue.getByRole('row').count(),2);
+  await selectedVaultQueue.getByRole('combobox',{name:'Cloud download filter'}).selectOption('all');
+  await selectedVaultQueue.getByRole('textbox',{name:'Search cloud downloads'}).fill('pending');
+  assert.equal(await selectedVaultQueue.getByRole('row').count(),2);
+  await selectedVaultQueue.getByRole('textbox',{name:'Search cloud downloads'}).fill('');
+  await capture('12-vault-cloud');
+  await selectedVaultQueue.getByRole('button',{name:'New cloud download',exact:true}).click();
+  await selectedVaultQueue.getByLabel('Cloud download URL').fill('https://example.org/fixture.zip');
+  await selectedVaultQueue.getByRole('checkbox',{name:/I have permission/}).check();
+  await selectedVaultQueue.getByRole('button',{name:'Send to TorBox',exact:true}).click();
+  await selectedVaultQueue.getByText('Submitted to TorBox. Check your dashboard or refresh the list for its status.',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>window.__readerFixture.torboxLink),'https://example.org/fixture.zip');
   await selectedVaultQueue.getByRole('button',{name:'Providers',exact:true}).click();
   await providers.getByRole('button',{name:'Disconnect TorBox',exact:true}).click();
   await providers.getByRole('button',{name:'Connect TorBox',exact:true}).waitFor();

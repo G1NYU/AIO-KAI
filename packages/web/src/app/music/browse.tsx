@@ -12,7 +12,6 @@ import { providerFor } from '@/lib/music/providers';
 import type { TrendingRecording } from '@/lib/music/discovery';
 import { MusicCharts } from './charts';
 import { MusicArtwork } from './music-artwork';
-import { TsugiAtmosphere } from '@/components/tsugi-atmosphere';
 import type { RecentMusicPlay } from '@/lib/music/history';
 
 export type PlayCollection = (source: MusicConnection, songs: EclipseTrack[], at: number) => void;
@@ -79,7 +78,6 @@ export function MusicCollection({
     <section role="dialog" aria-modal="true" aria-label={t`Music collection`}
       className="tsugi-player-dialog tsugi-music-detail fixed inset-0 z-40 overflow-y-auto">
       <div className="tsugi-music-detail-canvas min-h-screen w-full px-6 pb-32 pt-14 sm:px-[3vw]">
-        <TsugiAtmosphere key={current.id} placement="collection" artwork={current.artworkURL} />
         <button type="button" onClick={nested ? () => setNested(null) : onClose}
           className="tsugi-music-detail-back mb-9 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white/65 hover:bg-white/10">
           <BiArrowBack aria-hidden /> <Trans>Back to music</Trans>
@@ -107,6 +105,7 @@ export function MusicCollection({
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold"><Trans>Tracks</Trans></h2>
             </div>
+            <div className="tsugi-music-detail-track-grid" data-multi={detail.tracks.length>8}>
             {detail.tracks.map((track, at) => (
               <button key={track.id + ':' + at} type="button"
                 onClick={() => { onPlay(source, detail.tracks, at); onClose(); }}
@@ -119,6 +118,7 @@ export function MusicCollection({
                 </span>
               </button>
             ))}
+            </div>
           </section>
         )}
         {detail && detail.albums.length > 0 && (

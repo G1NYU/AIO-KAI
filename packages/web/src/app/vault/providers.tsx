@@ -1,26 +1,18 @@
 import { Trans } from '@lingui/react/macro';
 import { appBridge } from '@/lib/hosts/shell/bridge';
+import { BrushDisc, BrushFolder, BrushDownload } from '@/components/tsugi-icons';
 import { TorBoxPanel } from './torbox-panel';
 
 /** Provider management does not enqueue jobs or change the active resolver. */
-export function VaultProviders({engineAvailable}:{engineAvailable?:boolean}) {
+export function VaultProviders({engineAvailable,onOpenCloud}:{engineAvailable?:boolean;onOpenCloud:()=>void}) {
   const bridge=appBridge();
-  return <section data-ui="tsugi-vault-providers">
-    <h3><Trans>Download providers</Trans></h3>
-    <p><Trans>Manage local transfer sources and your optional cloud account. Downloads are started separately in Vault.</Trans></p>
-    <div className="tsugi-vault-file-row">
-      <div><strong><Trans>Direct files</Trans></strong><p><Trans>Public HTTPS book and audio links. No account required.</Trans></p></div>
-      <span>{bridge?.platform==='windows'?<Trans>Desktop queue available</Trans>:<Trans>Unavailable</Trans>}</span>
-    </div>
-    <div className="tsugi-vault-file-row">
-      <div><strong><Trans>YouTube Music</Trans></strong><p><Trans>yt-dlp resolves authorized individual tracks. Tsugi sends eligible audio streams to its managed transfer engine.</Trans></p></div>
-      <span>{bridge?.youtubeMusic===true?<Trans>Desktop resolver advertised</Trans>:<Trans>Resolver not advertised</Trans>}</span>
-    </div>
-    {engineAvailable!==undefined&&<div className="tsugi-vault-file-row">
-      <div><strong><Trans>Aria2 Next</Trans></strong><p><Trans>Tsugi automatically manages direct files and eligible resolved audio. Validated ranges support segmented downloads; incompatible streams use the built-in transfer path.</Trans></p></div>
-      <span>{engineAvailable?<Trans>Managed engine ready</Trans>:<Trans>Built-in fallback active</Trans>}</span>
-    </div>}
-    <div className="tsugi-pixel-rule" aria-hidden="true"/>
-    <TorBoxPanel manageOnly/>
+  return <section data-ui="tsugi-vault-providers" className="tsugi-vault-providers">
+    <TorBoxPanel manageOnly onOpenCloud={onOpenCloud}/>
+    <section className="tsugi-vault-service-list">
+      <h3><Trans>Built-in providers</Trans></h3>
+      <div className="tsugi-vault-service"><BrushFolder aria-hidden/><div><strong><Trans>Direct files</Trans></strong><small><Trans>Books and audio · HTTPS</Trans></small></div><span data-ready={bridge?.platform==='windows'}>{bridge?.platform==='windows'?<Trans>Desktop queue available</Trans>:<Trans>Unavailable</Trans>}</span></div>
+      <div className="tsugi-vault-service"><BrushDisc aria-hidden/><div><strong><Trans>YouTube Music</Trans></strong><small><Trans>Track exports</Trans></small></div><span data-ready={bridge?.youtubeMusic===true}>{bridge?.youtubeMusic===true?<Trans>Desktop resolver advertised</Trans>:<Trans>Resolver not advertised</Trans>}</span></div>
+      {engineAvailable!==undefined&&<div className="tsugi-vault-service"><BrushDownload aria-hidden/><div><strong><Trans>Aria2 Next</Trans></strong><small><Trans>Automatic transfer engine</Trans></small></div><span data-ready={engineAvailable}>{engineAvailable?<Trans>Managed engine ready</Trans>:<Trans>Built-in fallback active</Trans>}</span></div>}
+    </section>
   </section>;
 }
