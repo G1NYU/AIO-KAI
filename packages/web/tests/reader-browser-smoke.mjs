@@ -220,6 +220,10 @@ try {
   assert.equal(await onboarding.isVisible(), false, 'onboarding does not reopen after completion');
   await landing.getByRole('button', { name: 'App settings', exact: true }).click();
   const bootSettings = page.getByRole('dialog');
+  const startup = bootSettings.getByLabel('Open on startup');
+  await startup.selectOption('music');
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('tsugi-startup-area-v1'))), 'music');
+  await startup.selectOption('auto');
   await bootSettings.getByRole('button', { name: 'Default', exact: true }).click();
   await bootSettings.getByRole('button', { name: 'Silver', exact: true }).click();
   await bootSettings.getByRole('button', { name: 'Close', exact: true }).click();
@@ -338,9 +342,7 @@ try {
   assert.equal(await entryAtmosphere.locator('svg').count(),0,'only signature text in background');
   assert.equal(await entry.getByRole('button', { name: 'Connect', exact: true }).evaluate((node) => getComputedStyle(node).borderRadius), '8px');
   assert.equal(await entry.evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(16, 18, 20)');
-  const brand = await entry.locator('.tsugi-auth-brand').boundingBox();
-  const card = await entry.locator('[data-ui="auth-card"]').boundingBox();
-  assert.ok(Math.abs((brand.x + brand.width / 2) - (card.x + card.width / 2)) < 3, 'auth brand is centered over the form');
+  assert.equal(await entry.locator('.tsugi-auth-brand').count(), 0, 'desktop setup has no redundant foreground wordmark');
   await capture('02-movie-setup');
   const mediaNav = page.locator('.tsugi-entry-media-nav');
   await mediaNav.getByRole('button', { name: 'App settings', exact: true }).click();
@@ -537,6 +539,9 @@ try {
   await capture('10-addon-store');
   await musicSettings.getByRole('button', { name: /Installed sources/ }).click();
   await musicSettings.getByRole('heading', { name: 'Connect a music source', exact: true }).waitFor();
+  const connectButton = musicSettings.getByRole('button', { name: 'Connect', exact: true });
+  const connectPadding = await connectButton.evaluate(node => ({left:parseFloat(getComputedStyle(node).paddingLeft),right:parseFloat(getComputedStyle(node).paddingRight)}));
+  assert.ok(connectPadding.left >= 16 && connectPadding.right >= 16, 'source Connect button leaves space around label');
   await capture('10-wide-music-sources');
   await page.setViewportSize({ width: 1440, height: 900 });
   if (await musicSettings.isVisible()) await musicSettings.getByRole('button', { name: 'Close', exact: true }).click();

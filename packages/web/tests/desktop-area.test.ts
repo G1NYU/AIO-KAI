@@ -6,6 +6,13 @@ describe('unified Tsugi launcher', () => {
     expect(initialDesktopArea(true, false, true)).toBe('welcome');
     expect(initialDesktopArea(true, true, true)).toBe('welcome');
   });
+  it('honors explicit supported startup preferences without changing web startup', () => {
+    expect(initialDesktopArea(true,false,true,'music')).toBe('music');
+    expect(initialDesktopArea(true,true,true,'vault')).toBe('vault');
+    expect(initialDesktopArea(true,false,true,'read')).toBe('read');
+    expect(initialDesktopArea(true,false,false,'read')).toBe('welcome');
+    expect(initialDesktopArea(false,true,true,'music')).toBe('video');
+  });
   it('preserves older desktop and browser behavior outside the unified package', () => {
     expect(initialDesktopArea(true, true)).toBe('video');
     expect(initialDesktopArea(true, false)).toBe('welcome');

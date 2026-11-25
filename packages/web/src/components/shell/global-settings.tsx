@@ -6,6 +6,8 @@ import { PLAYER_PALETTES, readPlayerTheme, savePlayerTheme, isPlayerTheme, type 
 import { applyEclipseAppearance, deriveEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import { readPlayerStage } from '@/lib/music/player-layout';
 import { storage } from '@/lib/storage';
+import { readStartupArea, saveStartupArea, type StartupArea } from '@/lib/desktop-area';
+import { appBridge } from '@/lib/hosts/shell/bridge';
 
 const IMPORT_COLORS_KEY = 'tsugi-global-import-colors-v1';
 const importedColors = () => storage.get<boolean>(IMPORT_COLORS_KEY) !== false;
@@ -94,7 +96,9 @@ export function GlobalAppearanceSettings() {
     {hasImported && <label className="flex items-center gap-3"><input type="checkbox" checked={useImported} onChange={(event) => { storage.set(IMPORT_COLORS_KEY, event.target.checked); announce(theme); }} /><Trans id="Use imported player layout colours throughout Tsugi">Use imported player layout colours throughout Tsugi</Trans></label>}
   </section>;
 }
-export function GlobalSettingsDialog({open,onClose}:{open:boolean;onClose():void}) {
+export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:boolean;onClose():void;hasReadSection?:boolean}) {
+  const [startup,setStartup] = React.useState(readStartupArea);
+  const bridge = appBridge();
   const dialog = React.useRef<HTMLDialogElement>(null);
   React.useEffect(() => {
     const node = dialog.current;
@@ -104,6 +108,30 @@ export function GlobalSettingsDialog({open,onClose}:{open:boolean;onClose():void
   }, [open]);
   return <dialog ref={dialog} className="tsugi-global-settings" onCancel={(event) => { event.preventDefault(); onClose(); }} aria-labelledby="tsugi-app-settings-title">
     <header><h2 id="tsugi-app-settings-title"><Trans id="App settings">App settings</Trans></h2><button className="tsugi-read-action" onClick={onClose}><Trans id="Close">Close</Trans></button></header>
+    <section className="tsugi-app-general" aria-label={t`General preferences`}>
+      <h3><Trans>General</Trans></h3>
+      <label><Trans>Open on startup</Trans>
+        <select className="tsugi-menu-select w-full" value={startup === 'read' && !hasReadSection ? 'auto' : startup} onChange={event => {
+          const value = event.target.value as StartupArea;
+          saveStartupArea(value);
+          setStartup(value);
+        }}>
+          <option value="auto">{t`Automatic (recommended)`}</option>
+          <option value="welcome">{t`Media index`}</option>
+          <option value="video">{t`Movies & TV`}</option>
+          <option value="music">{t`Music`}</option>
+          {hasReadSection && <option value="read">{t`Read`}</option>}
+          <option value="vault">{t`Vault`}</option>
+        </select>
+      </label>
+      <p><Trans>Applies the next time Tsugi opens. Each media section keeps its own source, reading, playback and transfer settings.</Trans></p>
+    </section>
     <GlobalAppearanceSettings />
+    <section className="tsugi-app-about" aria-label={t`About Tsugi`}>
+      <h3 className="font-semibold text-[--tsugi-ink]"><Trans>About Tsugi</Trans></h3>
+      {bridge?.version && <p><Trans>Version</Trans> · {bridge.version}</p>}
+      <p><Trans>Open-source desktop media workspace. Music sources and server connections are managed in their respective sections.</Trans></p>
+      <a className="text-[--tsugi-accent] underline" href="https://github.com/G1NYU/TSUGI" target="_blank" rel="noopener noreferrer"><Trans>Project and documentation</Trans></a>
+    </section>
   </dialog>;
 }

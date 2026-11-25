@@ -1,4 +1,5 @@
 import React from 'react';
+import { storage } from './storage';
 
 /** A desktop-only mode above the AIOStreams (Jellyfin) session boundary. */
 export type DesktopArea = 'welcome' | 'video' | 'music' | 'read' | 'vault';
@@ -25,13 +26,29 @@ export function useDesktopArea(): DesktopAreaActions | null {
   return React.useContext(DesktopAreaContext);
 }
 
-/** Existing users keep their familiar streaming startup; new desktop users choose. */
+export type StartupArea = DesktopArea | 'auto';
+const STARTUP_KEY = 'tsugi-startup-area-v1';
+export function isStartupArea(value: unknown): value is StartupArea {
+  return typeof value === 'string' && ['auto','welcome','video','music','read','vault'].includes(value);
+}
+export function readStartupArea(): StartupArea {
+  const value = storage.get<unknown>(STARTUP_KEY);
+  return isStartupArea(value) ? value : 'auto';
+}
+export function saveStartupArea(value: StartupArea): void {
+  if (isStartupArea(value)) storage.set(STARTUP_KEY,value);
+}
+
+/** Existing users keep their familiar streaming startup unless explicitly changed. */
 export function initialDesktopArea(
   isDesktop: boolean,
   hasSavedServer: boolean,
   hasReadSection = false,
+  preference: StartupArea = 'auto',
 ): DesktopArea {
-  return !isDesktop || (hasSavedServer && !hasReadSection) ? 'video' : 'welcome';
+  if (!isDesktop) return 'video';
+  if (preference !== 'auto' && isStartupArea(preference) && (preference !== 'read' || hasReadSection)) return preference;
+  return hasSavedServer && !hasReadSection ? 'video' : 'welcome';
 }
 
 /** Music is intentionally exclusive with the native video environment. */

@@ -2953,6 +2953,14 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-source-row small { color:var(--tsugi-muted);font-size:12px; }
 .tsugi-source-form { display:flex;flex-wrap:wrap;gap:8px; }
 .tsugi-source-form input { flex:1 1 200px;min-width:0;padding:12px;background:var(--tsugi-canvas);border:1px solid var(--tsugi-line);border-radius:var(--tsugi-radius-control); }
+.tsugi-source-form > button[type='submit'] { flex:0 0 auto; justify-content:center; min-width:112px; min-height:46px; padding:12px 20px; font-weight:650; white-space:nowrap; }
 .tsugi-source-addon,.tsugi-source-store-error { display:flex;flex-direction:column;gap:10px;padding:16px;background:var(--tsugi-row);border-radius:var(--tsugi-radius-panel); }
 .tsugi-source-sheet :is(button,a,input):focus-visible,.tsugi-stage-queue button:focus-visible { outline:2px solid var(--tsugi-focus);outline-offset:2px; }
 @media(max-width:760px) { .tsugi-stage-queue { inset:84px 10px 10px; width:auto; } }
+
+/* General preferences are separate from the palette picker. */
+.tsugi-app-general { display:grid; gap:16px; padding:22px 0; border-bottom:1px solid var(--tsugi-line); }
+.tsugi-app-general h3 { font-weight:650; }
+.tsugi-app-general p,.tsugi-app-about { color:var(--tsugi-muted); font-size:.84rem; line-height:1.55; }
+.tsugi-app-general label { display:grid; gap:8px; font-size:14px; }
+.tsugi-app-about { display:grid; gap:8px; padding:18px 0 0; border-top:1px solid var(--tsugi-line); }

@@ -52,7 +52,7 @@ import { WindowControls } from './components/shell/window-controls';
 import { InputSetup } from './components/shell/input-setup';
 import { CrashReportDialog } from './components/shell/crash-report';
 import { SplashEnd } from './lib/splash';
-import { DesktopAreaContext, initialDesktopArea, allowsMusicPlayback, type DesktopArea } from './lib/desktop-area';
+import { DesktopAreaContext, initialDesktopArea, readStartupArea, allowsMusicPlayback, type DesktopArea } from './lib/desktop-area';
 import { DesktopLandingPage } from './app/desktop-landing/page';
 import { MusicPage } from './app/music/page';
 import { VaultPage } from './app/vault/page';
@@ -147,7 +147,7 @@ function Standalone() {
   const books = desktop && appBridge()?.platform === 'windows';
   const [readerReady, setReaderReady] = React.useState(supportsReading);
   const [area, setArea] = React.useState<DesktopArea>(() =>
-    initialDesktopArea(desktop, !!currentServer(), reading || books)
+    initialDesktopArea(desktop, !!currentServer(), reading || books, desktop ? readStartupArea() : 'auto')
   );
   const [globalSettings, setGlobalSettings] = React.useState(false);
   const [readVisited, setReadVisited] = React.useState(area === 'read');
@@ -265,7 +265,7 @@ function Standalone() {
   return (
     <DesktopAreaContext.Provider value={desktop ? areaActions : null}>
       <>
-      {desktop && <><GlobalAppearance /><GlobalSettingsDialog open={globalSettings} onClose={() => setGlobalSettings(false)} /></>}
+      {desktop && <><GlobalAppearance /><GlobalSettingsDialog open={globalSettings} onClose={() => setGlobalSettings(false)} hasReadSection={reading || books} /></>}
       {desktop && area === 'video' && (!base || picking) && <MediaNavigation area="video" className="tsugi-entry-media-nav" />}
       <AnimatePresence mode="wait">
         <motion.div

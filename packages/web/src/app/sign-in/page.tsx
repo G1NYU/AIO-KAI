@@ -11,7 +11,6 @@ import { cn } from '@aiostreams/ui/core/styling';
 import { LoadingOverlay, LoadingSpinner } from '@aiostreams/ui/loading-spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { BrandLogo } from '@/components/brand-logo';
-import { TsugiBrand } from '@/components/tsugi-brand';
 import { TsugiAtmosphere } from '@/components/tsugi-atmosphere';
 import { currentHost } from '@/lib/hosts';
 import {
@@ -120,15 +119,13 @@ export function Screen({
     >
       {desktop && <TsugiAtmosphere placement="entry" />}
       <div className={cn('w-full max-w-3xl space-y-8', desktop && 'tsugi-video-entry-content', className)}>
-        <motion.div
+        {!desktop && <motion.div
           initial={{ opacity: 0, scale: 0.92 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={SPRING}
         >
-          {desktop
-            ? <TsugiBrand className="tsugi-auth-brand mx-auto flex w-fit justify-center" />
-            : <BrandLogo className="mx-auto max-h-16 max-w-[16rem] object-contain" />}
-        </motion.div>
+          <BrandLogo className="mx-auto max-h-16 max-w-[16rem] object-contain" />
+        </motion.div>}
         {children}
       </div>
     </div>
