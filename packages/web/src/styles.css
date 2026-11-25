@@ -2523,3 +2523,17 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   :root[data-host='desktop'] input[type='checkbox'] { appearance:auto; -webkit-appearance:auto; }
   :root[data-host='desktop'] input[type='checkbox']::before { display:none; }
 }
+
+/* Books reuse the manga workspace rail, cover grid and library controls. */
+.tsugi-book-cover { flex-direction:column; gap:12px; }
+.tsugi-book-cover > span { color:var(--tsugi-muted); font-size:12px; letter-spacing:.12em; }
+.tsugi-book-detail { grid-template-columns:minmax(110px,180px) minmax(0,1fr); }
+.tsugi-books-content .tsugi-manga-card progress { width:100%; height:4px; accent-color:var(--tsugi-accent); }
+.tsugi-book-reader { min-height:calc(100dvh - 145px); display:flex; flex-direction:column; gap:12px; }
+.tsugi-book-toolbar { flex-wrap:wrap; padding-inline:0; }
+.tsugi-book-toolbar strong { flex:1; min-width:120px; }
+.tsugi-book-preferences { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; }
+.tsugi-book-preferences label { display:flex; align-items:center; gap:8px; font-size:13px; }
+.tsugi-book-preferences .tsugi-read-input { max-width:200px; min-width:0; }
+.tsugi-book-preferences input[type='number'] { width:75px; }
+.tsugi-book-reader iframe { flex:1; display:block; width:100%; min-height:460px; height:calc(100dvh - 220px); border:0; border-radius:var(--tsugi-radius-control); background:var(--tsugi-surface); }

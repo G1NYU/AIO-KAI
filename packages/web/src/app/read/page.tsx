@@ -329,6 +329,7 @@ export function ReadPage({ visible }: {
   return <main data-page="read" className="tsugi-read-root tsugi-read-workspace">
     <TsugiRail area="read" disabled={busy} className="tsugi-reading-rail" mediaClassName="tsugi-read-media-header">
       <nav className="tsugi-rail-local" aria-label={t({ id: "Reading sections", message: "Reading sections" })}>
+        {desktopArea?.openBooks && <><span className="tsugi-reading-rail-label"><Trans>Read</Trans></span><button type="button" disabled={busy} onClick={desktopArea.openBooks} aria-label={t`Books`} title={t`Books`}><FiBookOpen aria-hidden/><Trans>Books</Trans></button><div className="tsugi-pixel-rule" aria-hidden="true"/></>}
         <span className="tsugi-reading-rail-label"><Trans id="Collection">Collection</Trans></span>
         {tabs.map(({ id, label, Icon }) => <button key={id} aria-label={label} title={label} aria-current={tab === id ? 'page' : undefined} disabled={busy} onClick={() => switchTab(id)}><Icon aria-hidden />{label}</button>)}
         <div className="tsugi-pixel-rule" aria-hidden="true" />
@@ -625,7 +626,7 @@ function SourceMangaCover({ manga, fallbackEnabled }: { manga: Manga; fallbackEn
 }
 
 /** One-time native setup without a console window or manual script. */
-export function ReadSetupPage({ openWelcome, onReady }: { openWelcome(): void; onReady(): void }) {
+export function ReadSetupPage({ openWelcome, onReady, openBooks }: { openWelcome(): void; onReady(): void; openBooks?: () => void }) {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState('');
   async function setup() {
@@ -649,6 +650,7 @@ export function ReadSetupPage({ openWelcome, onReady }: { openWelcome(): void; o
       {error && <p role="alert" className="tsugi-read-error">{error}</p>}
       <div className="flex flex-wrap gap-3">
         <button className="tsugi-read-action" disabled={busy} onClick={() => void setup()}>{busy ? t({ id: "Preparing…", message: "Preparing…" }) : error ? t({ id: "Retry setup", message: "Retry setup" }) : t({ id: "Set up reading", message: "Set up reading" })}</button>
+        {openBooks && <button className="tsugi-read-action" disabled={busy} onClick={openBooks}><Trans>Open local books</Trans></button>}
         <button className="tsugi-read-action" disabled={busy} onClick={openWelcome}><Trans id="Back to all media">Back to all media</Trans></button>
       </div>
     </section>

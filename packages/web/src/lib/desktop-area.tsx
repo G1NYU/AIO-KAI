@@ -9,6 +9,8 @@ export type DesktopAreaActions = {
   openVideo(): void;
   openSettings(): void;
   openRead?: () => void;
+  openBooks?: () => void;
+  openManga?: () => void;
   openVault?: () => void;
   openLocalMusic?: () => void;
   openVideoDownloads?: () => void;

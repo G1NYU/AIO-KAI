@@ -57,6 +57,8 @@ import { DesktopLandingPage } from './app/desktop-landing/page';
 import { MusicPage } from './app/music/page';
 import { VaultPage } from './app/vault/page';
 import { ReadPage, ReadSetupPage } from './app/read/page';
+import { BooksPage } from './app/read/books-page';
+import { appBridge } from './lib/hosts/shell/bridge';
 import { supportsReading, supportsReadingSection } from './lib/hosts/shell/reading';
 import { GlobalAppearance, GlobalSettingsDialog } from './components/shell/global-settings';
 import { MediaNavigation } from './components/shell/media-navigation';
@@ -142,14 +144,18 @@ function Standalone() {
   const [base, setBase] = React.useState(currentServer);
   const desktop = currentHost().name === 'desktop';
   const reading = desktop && supportsReadingSection();
+  const books = desktop && appBridge()?.platform === 'windows';
   const [readerReady, setReaderReady] = React.useState(supportsReading);
   const [area, setArea] = React.useState<DesktopArea>(() =>
-    initialDesktopArea(desktop, !!currentServer(), reading)
+    initialDesktopArea(desktop, !!currentServer(), reading || books)
   );
   const [globalSettings, setGlobalSettings] = React.useState(false);
   const [readVisited, setReadVisited] = React.useState(area === 'read');
   const openSettings = React.useCallback(() => setGlobalSettings(true), []);
+  const [readMode, setReadMode] = React.useState<'manga' | 'books'>(reading ? 'manga' : 'books');
   const openRead = React.useCallback(() => { setReadVisited(true); setArea('read'); }, []);
+  const openBooks = React.useCallback(() => { setReadMode('books'); setArea('read'); }, []);
+  const openManga = React.useCallback(() => { setReadMode('manga'); setReadVisited(true); setArea('read'); }, []);
   const [musicLibraryRequest, setMusicLibraryRequest] = React.useState(0);
   const openMusic = React.useCallback(() => setArea('music'), []);
   const openLocalMusic = React.useCallback(() => { setMusicLibraryRequest(value => value + 1); setArea('music'); }, []);
@@ -158,8 +164,8 @@ function Standalone() {
   const openWelcome = React.useCallback(() => setArea('welcome'), []);
   const openVideoDownloads = React.useCallback(() => { openVideo(); navigate(to.downloads); }, [openVideo]);
   const areaActions = React.useMemo(
-    () => ({ openWelcome, openMusic, openVideo, openSettings, openVault, openLocalMusic, openVideoDownloads, openRead: reading ? openRead : undefined }),
-    [openWelcome, openMusic, openVideo, openSettings, openVault, openLocalMusic, openVideoDownloads, openRead, reading]
+    () => ({ openWelcome, openMusic, openVideo, openSettings, openVault, openLocalMusic, openVideoDownloads, openRead: reading || books ? openRead : undefined, openBooks: books ? openBooks : undefined, openManga: reading ? openManga : undefined }),
+    [openWelcome, openMusic, openVideo, openSettings, openVault, openLocalMusic, openVideoDownloads, openRead, reading, books, openBooks, openManga]
   );
   // Who's watching, asked across the saved servers.
   const [picking, setPicking] = React.useState(() => {
@@ -266,12 +272,12 @@ function Standalone() {
         >
           {desktop && area === 'welcome' ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
-              <DesktopLandingPage openVideo={openVideo} openMusic={openMusic} openRead={reading ? openRead : undefined} openVault={openVault} />
+              <DesktopLandingPage openVideo={openVideo} openMusic={openMusic} openRead={reading || books ? openRead : undefined} openVault={openVault} />
               <SplashEnd />
             </ServerInfoProvider>
-          ) : desktop && area === 'read' && reading ? (
+          ) : desktop && area === 'read' && (reading || books) ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
-              {!readerReady && <ReadSetupPage openWelcome={openWelcome} onReady={() => { setReaderReady(true); setReadVisited(true); }} />}
+              {readMode === 'books' ? <BooksPage /> : !readerReady && <ReadSetupPage openBooks={books ? openBooks : undefined} openWelcome={openWelcome} onReady={() => { setReaderReady(true); setReadVisited(true); }} />}
               <SplashEnd />
             </ServerInfoProvider>
           ) : desktop && area === 'vault' ? (
@@ -303,7 +309,7 @@ function Standalone() {
       </AnimatePresence>
       {desktop && reading && readerReady && (area === 'read' || (readVisited && (area === 'music' || area === 'welcome' || area === 'vault'))) && (
         <ServerInfoProvider value={NO_SERVER_INFO}>
-          <div hidden={area !== 'read'} inert={area !== 'read'}><ReadPage visible={area === 'read'} /></div>
+          <div hidden={area !== 'read' || readMode !== 'manga'} inert={area !== 'read' || readMode !== 'manga'}><ReadPage visible={area === 'read' && readMode === 'manga'} /></div>
         </ServerInfoProvider>
       )}
       {desktop && (

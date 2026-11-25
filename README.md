@@ -117,7 +117,7 @@ The [most recent successful Windows package](https://github.com/G1NYU/TSUGI/acti
 | Automatic Kitsu/Nekos artwork and first-boot personalization | Source implemented; CI pending |
 | Manga collection management, history, update queue, migration and batch add | Implemented; runtime validation checkpoint passed |
 | Local Vault file transfers and TorBox cloud destination | Source implemented; live acceptance pending |
-| Readest-inspired isolated EPUB/PDF engine, local library and progress | Planned; rendering isolation required |
+| Readest/Foliate EPUB/PDF engine, local library and progress | Source implemented; rendering and persistence acceptance pending |
 | Authorized YouTube music downloads, ebook-provider integration and persistent native Vault queue | Planned |
 | Completed download import into Read and Music | Planned |
 | Unified Windows candidate and updated release documentation | Pending successful validation |
