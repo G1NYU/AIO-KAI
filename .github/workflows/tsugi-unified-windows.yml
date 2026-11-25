@@ -11,6 +11,7 @@ on:
       - 'packages/web/tests/**'
       - 'packages/web/scripts/**'
       - 'packages/web/ebook-frame/**'
+      - 'packages/web/public/tsugi-books/**'
       - 'packages/desktop/app/**'
       - 'packages/desktop/core/**'
       - 'packages/desktop/Cargo.lock'

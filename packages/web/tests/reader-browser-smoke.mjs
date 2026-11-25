@@ -2,6 +2,7 @@
 // an original, deterministic fake native bridge. No external manga source,
 // desktop EXE, Java download, user credentials or package artifact is used.
 import assert from 'node:assert/strict';
+import { pdfFixture, epubFixture } from './ebook-fixtures.mjs';
 import { pathToFileURL } from 'node:url';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -28,6 +29,7 @@ try {
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript(() => {
+    if (window.top !== window) return;
     const listeners = new Set();
     const manga = { id: '1', title: 'Tsugi Original Fixture', author: 'Tsugi', thumbnailUrl: '/api/v1/manga/1/thumbnail', inLibrary: true, unreadCount: 2, description: '**Original fixture** for reader tests.', genre: ['Adventure'] };
     const chapters = [{ id: 11, name: 'Chapter 1', chapterNumber: 1, scanlator: 'Original', isRead: false, lastPageRead: 0, pageCount: 4 }, { id: 12, name: 'Chapter 2', chapterNumber: 2, scanlator: 'Original', isRead: false, lastPageRead: 0, pageCount: 4 }];
@@ -143,7 +145,7 @@ try {
       : { status: 404, body: 'expired image capability' });
   });
   // Deny unrelated external requests; the test uses only original fixtures.
-  await page.route('**/*', (route) => route.request().url().startsWith(origin + '/') ? route.fallback() : route.abort());
+  await page.route('**/*', (route) => (route.request().url().startsWith(origin + '/') || route.request().url().startsWith('http://localhost:4179/tsugi-books/')) ? route.fallback() : route.abort());
   const heroRequests = [];
   const wideArt = '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="600"><rect width="1600" height="600" fill="#37495b"/></svg>';
   await page.route('https://kitsu.io/api/edge/manga?*', async route => {
@@ -645,4 +647,59 @@ try {
   assert.ok(await page.evaluate(() => window.__readerFixture.requests.some(a => a.kind === 'set-library' && a.id === 4 && a.inLibrary)));
   assert.deepEqual(errors, []);
   console.log('PASS: migration preview preserves original; reviewed batch import skips duplicate titles.');
+  // Real local book files, actual renderer, and real browser IndexedDB.
+  await rail.getByRole('button', {name:'Books', exact:true}).click();
+  const books = page.locator('[data-page="books"]');
+  await books.waitFor();
+  await books.getByLabel('Choose ebook files').setInputFiles([
+    {name:'Tsugi PDF Fixture.pdf',mimeType:'application/pdf',buffer:pdfFixture()},
+    {name:'Tsugi EPUB Fixture.epub',mimeType:'application/epub+zip',buffer:epubFixture()},
+  ]);
+  await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).click();
+  await books.getByRole('button',{name:'Read book',exact:true}).click();
+  const bookReader=books.locator('[data-ui="tsugi-book-reader"]');
+  await bookReader.getByRole('button',{name:'Next page',exact:true}).waitFor();
+  const bookFrame=bookReader.frameLocator('iframe');
+  await bookFrame.locator('canvas').waitFor({timeout:30000});
+  await bookReader.locator('[data-ui="book-progress"]').getByText('50%',{exact:true}).waitFor();
+  assert.equal(await bookReader.locator('iframe').evaluate(el=>{
+    try { return !!el.contentWindow.document; } catch { return false; }
+  }),false,'ebook document is cross-origin from privileged page');
+  const frame=page.frames().find(f=>f.url().startsWith('http://localhost:4179/tsugi-books/index.html'));
+  assert.ok(frame);
+  assert.equal(await frame.evaluate(()=>typeof window.aiostreamsApp),'undefined','desktop bridge absent from ebook origin');
+  await bookReader.getByRole('button',{name:'Next page',exact:true}).click();
+  await bookReader.locator('[data-ui="book-progress"]').getByText('100%',{exact:true}).waitFor();
+  await capture('12-book-pdf');
+  await bookReader.getByRole('button',{name:'Back to books',exact:true}).click();
+  await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).click();
+  await books.getByRole('button',{name:'Resume reading',exact:true}).click();
+  await bookReader.getByRole('spinbutton',{name:'Page',exact:false}).waitFor();
+  assert.equal(await bookReader.getByRole('spinbutton').inputValue(),'2');
+  await bookReader.getByRole('button',{name:'Back to books',exact:true}).click();
+  await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi EPUB Fixture'}).click();
+  await books.getByRole('button',{name:'Read book',exact:true}).click();
+  await bookReader.getByRole('combobox',{name:'Contents',exact:true}).waitFor({timeout:30000});
+  const epubFrame=page.frames().find(f=>f.url().startsWith('http://localhost:4179/tsugi-books/index.html'));
+  assert.ok(epubFrame);
+  await epubFrame.waitForFunction(()=>document.querySelector('foliate-view')?.renderer?.getContents?.().some(item=>item.doc?.body?.textContent.includes('Original words for the first chapter.')));
+  assert.equal(await epubFrame.evaluate(()=>document.querySelector('foliate-view').renderer.getContents().some(item=>item.doc?.body?.hasAttribute('data-unsafe-script-ran'))),false);
+  await bookReader.getByRole('combobox',{name:'Contents',exact:true}).selectOption({label:'Chapter two'});
+  await epubFrame.waitForFunction(()=>document.querySelector('foliate-view')?.renderer?.getContents?.().some(item=>item.doc?.body?.textContent.includes('Original words for the second chapter.')));
+  await bookReader.getByRole('combobox',{name:'Paper',exact:true}).selectOption('paper');
+  await capture('13-book-epub');
+  await bookReader.getByRole('button',{name:'Back to books',exact:true}).click();
+  // Reload the actual application, re-enter Read/Books, and check saved file
+  // metadata and PDF page survive a full page reload.
+  await page.reload({waitUntil:'domcontentloaded'});
+  await landing.getByRole('button',{name:'Read',exact:true}).click();
+  await page.locator('[data-page="read"] .tsugi-reading-rail').getByRole('button',{name:'Books',exact:true}).click();
+  await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi Original EPUB'}).waitFor();
+  await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).click();
+  await books.getByRole('button',{name:'Resume reading',exact:true}).click();
+  await bookReader.getByRole('spinbutton').waitFor();
+  assert.equal(await bookReader.getByRole('spinbutton').inputValue(),'2');
+  await bookReader.getByRole('button',{name:'Back to books',exact:true}).click();
+  console.log('PASS: real isolated local EPUB/PDF rendering, disabled book scripts and persistent PDF resume.');
+  assert.deepEqual(errors, []);
 } finally { await browser.close(); }
