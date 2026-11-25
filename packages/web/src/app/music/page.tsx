@@ -13,6 +13,7 @@ import {
   type MusicConnection,
 } from '@/lib/music/connections';
 import { providerFor } from '@/lib/music/providers';
+import { nativeYouTubeTarget } from '@/lib/music/youtube-music';
 import { supportsYouTubeMusic } from '@/lib/hosts/shell/youtube-music';
 import { appBridge, type ShellMessage } from '@/lib/hosts/shell/bridge';
 import { MusicPlayer, type RepeatMode } from './player';
@@ -351,7 +352,11 @@ export function MusicPage({
     setQuality('');
     setResolving(true);
     try {
-      const stream = await providerFor(source).resolve(track);
+      // Windows already resolves the public watch target in the native worker.
+      // Avoid an unnecessary bridge worker and round trip on the hot path.
+      const stream = source.kind === 'youtube-music' && appBridge()?.platform === 'windows'
+        ? { url: nativeYouTubeTarget(track.id), quality: undefined, format: undefined }
+        : await providerFor(source).resolve(track);
       if (request !== playbackRequest.current) return;
       if (!playbackAllowedRef.current) {
         setPlaying(null);

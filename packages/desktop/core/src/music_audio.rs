@@ -155,6 +155,10 @@ struct Session {
     duration: f64,
     last_report: Instant,
     failure: Option<&'static str>,
+    finished: bool,
+    timing_reported: bool,
+    cache_key: Option<String>,
+    cache_recorded: bool,
 }
 
 impl Session {
@@ -199,6 +203,10 @@ impl Session {
             duration: 0.0,
             last_report: now,
             failure: None,
+            finished: false,
+            timing_reported: false,
+            cache_key: None,
+            cache_recorded: false,
         })
     }
 
@@ -216,6 +224,7 @@ impl Session {
                 }
                 Event::EndFile { reason, .. } => {
                     if reason == "eof" && self.loaded && self.source.failure().is_none() {
+                        self.finished = true;
                         report(
                             emit,
                             &self.request,
@@ -270,6 +279,10 @@ impl Session {
             } else {
                 "playing"
             };
+            if status == "playing" && !self.timing_reported {
+                self.timing_reported = true;
+                log::info!("native music: decoder ready in {} ms", self.started.elapsed().as_millis());
+            }
             report(
                 emit,
                 &self.request,
@@ -304,8 +317,27 @@ impl Session {
 
 struct Pending {
     request: String,
+    url: String,
     volume: f64,
     transfer: Transfer,
+    started: Instant,
+}
+
+// A single, short-lived, in-memory buffer. No signed URLs, disk cache or
+// additional provider requests. It shares the active player's allocation.
+const REPLAY_TTL: Duration = Duration::from_secs(120);
+struct Replay {
+    url: String,
+    source: Arc<Source>,
+    stored: Instant,
+}
+impl Replay {
+    fn usable(&self, url: &str, now: Instant) -> bool {
+        self.url == url
+            && crate::music_resolver::is_target(url)
+            && now.saturating_duration_since(self.stored) < REPLAY_TTL
+            && self.source.failure().is_none()
+    }
 }
 
 fn start_session(
@@ -331,7 +363,11 @@ fn start_session(
 fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
     let mut session: Option<Session> = None;
     let mut pending: Option<Pending> = None;
+    let mut replay: Option<Replay> = None;
     loop {
+        if replay.as_ref().is_some_and(|item| !item.usable(&item.url, Instant::now())) {
+            replay = None;
+        }
         match inbox.recv_timeout(Duration::from_millis(50)) {
             Ok(Command::Load {
                 request,
@@ -347,12 +383,26 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                 }
                 report(emit, &request, "loading", 0.0, 0.0, None);
                 if cfg!(windows) {
+                    if replay.as_ref().is_some_and(|item| item.usable(&url, Instant::now())) {
+                        let item = replay.take().expect("checked replay");
+                        log::info!("native music: reused a validated audio buffer");
+                        session = start_session(library, emit, request, item.source, volume);
+                        if let Some(player) = &mut session {
+                            player.cache_key = Some(url);
+                        }
+                        continue;
+                    }
+                    // Do not retain an unrelated buffer while receiving a new one.
+                    replay = None;
+                    let started = Instant::now();
                     match Transfer::start(&url) {
                         Ok(transfer) => {
                             pending = Some(Pending {
                                 request,
+                                url,
                                 volume,
                                 transfer,
+                                started,
                             });
                         }
                         Err(message) => fail(emit, &request, message),
@@ -401,6 +451,7 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
             Ok(Command::Stop) => {
                 pending.take();
                 session.take();
+                replay = None;
             }
             Err(RecvTimeoutError::Disconnected) => return,
             Err(RecvTimeoutError::Timeout) => {}
@@ -413,13 +464,28 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
         {
             match result.and_then(Source::from_bytes) {
                 Ok(source) => {
+                    log::info!("native music: resolver and transfer completed in {} ms", item.started.elapsed().as_millis());
                     session = start_session(library, emit, item.request, source, item.volume);
+                    if let Some(player) = &mut session {
+                        player.cache_key = Some(item.url);
+                    }
                 }
                 Err(message) => fail(emit, &item.request, message),
             }
         }
-        if session.as_mut().is_some_and(|player| !player.update(emit)) {
-            session.take();
+        if let Some(player) = &mut session {
+            let alive = player.update(emit);
+            if alive && player.timing_reported && !player.cache_recorded && player.failure.is_none()
+                && player.source.failure().is_none()
+                && let Some(url) = &player.cache_key
+            {
+                replay = Some(Replay { url: url.clone(), source: player.source.clone(), stored: Instant::now() });
+                player.cache_recorded = true;
+            }
+            if !alive {
+                if !player.finished { replay = None; }
+                session.take();
+            }
         }
     }
 }
@@ -441,6 +507,19 @@ mod tests {
         assert_eq!(classify_log("https://example.test/?private=hidden"), None);
         assert!(probe_status(206).contains("responds"));
         assert!(probe_status(416).contains("416"));
+    }
+
+    #[test]
+    fn replay_is_exact_target_bounded_by_time_and_reuses_allocation() {
+        let source = Source::from_bytes(b"\x00\x00\x00\x18ftypM4A ".to_vec()).unwrap_or_else(|_| panic!("fixture header"));
+        let now = Instant::now();
+        let url = "https://www.youtube.com/watch?v=abcdefghijk";
+        let replay = Replay { url: url.into(), source: source.clone(), stored: now };
+        assert!(replay.usable(url, now));
+        assert!(Arc::ptr_eq(&source, &replay.source));
+        assert!(!replay.usable("https://www.youtube.com/watch?v=abcdefghijl", now));
+        assert!(!replay.usable(url, now + REPLAY_TTL));
+        assert!(!replay.usable("file:///test", now));
     }
 
     #[test]

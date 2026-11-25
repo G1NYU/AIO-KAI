@@ -4,7 +4,7 @@ import { DEFAULT_PLAYER_THEME, isPlayerTheme, PLAYER_PALETTES, PLAYER_ACCENTS, i
 import { NOCTURNE_STAGE } from '../src/lib/music/nocturne-stage';
 import { JUNCTION_STAGE } from '../src/lib/music/junction-stage';
 import { artworkCandidates, expandedArtwork } from '../src/lib/music/artwork';
-import { parseYouTubeMusicResults } from '../src/lib/music/youtube-music';
+import { nativeYouTubeTarget, parseYouTubeMusicResults } from '../src/lib/music/youtube-music';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -127,5 +127,13 @@ describe('Independent accents and expanded album artwork', () => {
       ] } } },
     } });
     expect(result.tracks[0]?.artworkURL).toBe(large);
+  });
+});
+
+
+describe('Windows native playback admission', () => {
+  it('constructs only canonical public targets for the native resolver', () => {
+    expect(nativeYouTubeTarget('abcdefghijk')).toBe('https://www.youtube.com/watch?v=abcdefghijk');
+    for (const id of ['abc','abcdefghij/','abcdefghijk&list=x','https://example.test']) expect(()=>nativeYouTubeTarget(id)).toThrow();
   });
 });

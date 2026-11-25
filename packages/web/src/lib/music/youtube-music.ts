@@ -11,6 +11,12 @@ const obj = (value: unknown): ObjectValue =>
 const arr = (value: unknown): unknown[] => Array.isArray(value) ? value : [];
 const str = (value: unknown): string => typeof value === 'string' ? value : '';
 const videoId = (id: string): boolean => /^[\w-]{11}$/.test(id);
+/** Windows owns extraction in the native audio worker. Construct only the
+ * canonical public watch target, never a guessed CDN or cached signed URL. */
+export function nativeYouTubeTarget(id: string): string {
+  if (!videoId(id)) throw new Error('Invalid YouTube Music track.');
+  return 'https://www.youtube.com/watch?v=' + id;
+}
 const browseId = (id: string): boolean => /^(?:MPRE|UC|VL|MPLA|OLAK5uy_)[\w-]{1,175}$/.test(id);
 
 function nodes(root: unknown, key: string, limit = 500): ObjectValue[] {
