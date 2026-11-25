@@ -41,6 +41,13 @@ try {
             playlistItemData: { videoId: 'abcdefghijk' },
             flexColumns: [{ musicResponsiveListItemFlexColumnRenderer: { text: { runs: [{ text: 'Native fixture track' }] } } }],
             thumbnail: { musicThumbnailRenderer: { thumbnail: { thumbnails: [{ url: 'https://lh3.googleusercontent.com/tsugi-fixture=w120-h120', width: 120, height: 120 }] } } },
+          } } : message.operation === 'home' ? { musicCarouselShelfRenderer: {
+            header: { musicCarouselShelfBasicHeaderRenderer: { title: { runs: [{ text: 'Fixture recommendations' }] } } },
+            contents: [{ musicResponsiveListItemRenderer: {
+              playlistItemData: { videoId: 'abcdefghijk' },
+              flexColumns: [{ musicResponsiveListItemFlexColumnRenderer: { text: { runs: [{ text: 'Native fixture track' }] } } }],
+              thumbnail: { musicThumbnailRenderer: { thumbnail: { thumbnails: [{ url: 'https://lh3.googleusercontent.com/tsugi-fixture=w120-h120', width: 120, height: 120 }] } } },
+            } }],
           } } : message.operation === 'audio' ? { url: 'https://www.youtube.com/watch?v=abcdefghijk', format: 'fixture' } : {};
           emit({ type: 'youtube-music-result', request: message.request, data, error: null });
           return;
@@ -183,6 +190,8 @@ try {
   await page.getByRole('dialog').getByRole('button', { name: 'Default', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
   assert.equal(await page.locator('[data-page="read"]').evaluate(node => getComputedStyle(node).fontFamily), dialogFont);
+  await page.locator('.tsugi-library-grid-heading').waitFor();
+  assert.equal(await page.locator('.tsugi-library-grid-heading > span').textContent(), '2');
   await capture('03-reading-library');
   assert.deepEqual(coverQueries, []);
   await rail.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -337,6 +346,12 @@ try {
   await music.waitFor({ state: 'visible' });
   await music.getByRole('button', { name: 'Music settings', exact: true }).click();
   await musicSettings.getByRole('button', { name: 'Connect YouTube Music', exact: true }).click();
+  await music.getByRole('button', { name: 'Discover', exact: true }).click();
+  await music.getByRole('heading', { name: 'Native fixture track', exact: true }).waitFor();
+  assert.equal(await music.getByRole('heading', { name: 'Discover', exact: true }).count(), 1);
+  await music.locator('.tsugi-catalog-lane').filter({ hasText: 'Fixture recommendations' }).waitFor();
+  await capture('09-music-discover');
+  await music.getByRole('navigation', { name: 'Music sections' }).getByRole('button', { name: 'Search', exact: true }).click();
   await music.getByRole('textbox', { name: 'Search music', exact: true }).fill('Native fixture track');
   await music.getByRole('button', { name: 'Search', exact: true }).last().click();
   await music.locator('[data-ui="music-track-row"]').filter({ hasText: 'Native fixture track' }).click();

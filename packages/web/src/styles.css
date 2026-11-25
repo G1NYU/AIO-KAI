@@ -2105,3 +2105,43 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 @media(prefers-reduced-motion:reduce) {
   :root[data-host='desktop'] .tsugi-media-navigation:not(.tsugi-media-navigation-rail) .tsugi-media-destinations .tsugi-category-link { transition:none; }
 }
+
+/* Discovery and reading: actual collections, compact shelves and useful metadata.
+   Keep artwork loaders, reader pages, external sources and player layouts intact. */
+:root[data-host='desktop'] .tsugi-discovery-workspace { display:flex; flex-direction:column; gap:28px; min-width:0; }
+:root[data-host='desktop'] .tsugi-discovery-workspace > section { margin:0; }
+.tsugi-discovery-source { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--tsugi-muted); }
+.tsugi-discovery-source strong { color:var(--tsugi-ink); font-weight:650; margin-inline-start:4px; }
+.tsugi-discovery-cover { border-radius:var(--tsugi-radius-art,10px); }
+.tsugi-discovery-placeholder { background:var(--tsugi-surface); color:var(--tsugi-muted); }
+.tsugi-discovery-cover.size-11 { border-radius:var(--tsugi-radius-small,6px); }
+:root[data-host='desktop'] .tsugi-discovery-workspace .tsugi-hub-feature.tsugi-feature-composition { max-width:none; padding-bottom:24px; gap:clamp(20px,3vw,44px); }
+:root[data-host='desktop'] .tsugi-discovery-workspace .tsugi-hub-feature-art { max-width:270px; border-radius:var(--tsugi-radius-art); }
+:root[data-host='desktop'] .tsugi-discovery-workspace .tsugi-hub-feature-art img { border-radius:inherit; }
+.tsugi-feature-kicker { color:var(--tsugi-muted); font-size:13px; font-weight:550; margin-bottom:10px; }
+:root[data-host='desktop'] .tsugi-discovery-workspace .tsugi-feature-copy h2 { max-width:24ch; line-height:1.08; }
+.tsugi-discovery-note { padding-block:8px 12px; }
+:root[data-host='desktop'] .tsugi-discovery-workspace h3 { font-size:20px; font-weight:650; letter-spacing:-.025em; }
+.tsugi-shelf-count { color:var(--tsugi-muted); font-size:13px; font-variant-numeric:tabular-nums; }
+:root[data-host='desktop'] .tsugi-discovery-workspace .tsugi-music-shelf { gap:16px; padding-bottom:12px; }
+:root[data-host='desktop'] .tsugi-discovery-workspace .tsugi-music-tile { width:clamp(136px,13vw,192px); }
+:root[data-host='desktop'] .tsugi-discovery-workspace .tsugi-music-tile img { border-radius:var(--tsugi-radius-art); }
+:root[data-host='desktop'] .tsugi-discovery-workspace .tsugi-music-tile:hover img { transform:none; }
+.tsugi-library-grid-heading { display:flex; align-items:baseline; gap:10px; margin:18px 0 16px; }
+.tsugi-library-grid-heading h2 { font-size:20px; font-weight:650; letter-spacing:-.025em; }
+.tsugi-library-grid-heading > span { color:var(--tsugi-muted); font-size:13px; font-variant-numeric:tabular-nums; }
+:root[data-host='desktop'] .tsugi-reading-resume { margin-bottom:26px; }
+:root[data-host='desktop'] .tsugi-reading-resume h2 { font-size:20px; font-weight:650; letter-spacing:-.025em; }
+:root[data-host='desktop'] .tsugi-reading-resume-list { grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:12px 20px; }
+:root[data-host='desktop'] .tsugi-reading-resume-card { padding:10px; border:0; border-radius:var(--tsugi-radius-control); align-items:center; gap:14px; background:var(--tsugi-surface); }
+:root[data-host='desktop'] .tsugi-reading-resume-card:hover { background:var(--tsugi-wash); }
+:root[data-host='desktop'] .tsugi-reading-resume-card .tsugi-manga-cover { width:62px; border-radius:var(--tsugi-radius-small); }
+.tsugi-reading-resume-card .tsugi-reading-resume-progress { display:flex; align-items:center; gap:8px; min-width:0; }
+.tsugi-reading-resume-progress progress { flex:1; min-width:0; width:100%; height:5px; accent-color:var(--tsugi-ink); border:0; border-radius:3px; overflow:hidden; background:var(--tsugi-line); }
+.tsugi-reading-resume-progress progress::-webkit-progress-bar { background:var(--tsugi-line); }
+.tsugi-reading-resume-progress progress::-webkit-progress-value { background:var(--tsugi-ink); }
+.tsugi-reading-resume-progress progress::-moz-progress-bar { background:var(--tsugi-ink); }
+.tsugi-reading-resume-card .tsugi-reading-resume-label { color:var(--tsugi-ink); }
+@media(min-width:760px) {
+  :root[data-host='desktop'] .tsugi-discovery-workspace .tsugi-hub-feature.tsugi-feature-composition[data-art='true'] { grid-template-columns:minmax(170px,270px) minmax(0,1fr); }
+}

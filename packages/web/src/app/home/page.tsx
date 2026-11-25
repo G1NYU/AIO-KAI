@@ -249,6 +249,7 @@ function EpisodeRow({
     >
       {items?.map((item) => {
         const left = remainingMs(item);
+        const remaining = duration(left);
         return (
           <ItemMenu key={item.Id} item={item}>
             <WideCard
@@ -263,7 +264,7 @@ function EpisodeRow({
               title={itemTitle(item)}
               subtitle={itemSubtitle(item)}
               meta={
-                left && progressOf(item) ? t`${duration(left)} left` : undefined
+                left && progressOf(item) ? t`${remaining} left` : undefined
               }
               metaOnArtwork={currentHost().name === 'desktop' && id === 'resume'}
               progress={progressOf(item)}

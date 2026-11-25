@@ -25,9 +25,9 @@ function Cover({ src, size = 'full' }: { src?: string; size?: 'full' | 'small' }
   const box = size === 'small' ? 'size-11' : 'aspect-square w-full';
   return src
     ? <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer"
-        className={box + ' shrink-0 rounded-xl border border-white/10 object-cover'} />
-    : <span className={box + ' flex shrink-0 items-center justify-center rounded-xl bg-[#292335]'}>
-        <BiDisc aria-hidden className="text-3xl text-violet-200/70" />
+        className={box + ' tsugi-discovery-cover shrink-0 object-cover'} />
+    : <span className={box + ' tsugi-discovery-cover tsugi-discovery-placeholder flex shrink-0 items-center justify-center'}>
+        <BiDisc aria-hidden className="text-3xl" />
       </span>;
 }
 
@@ -223,14 +223,10 @@ export function MusicDiscover({
   );
 
   return (
-    <section aria-label={t`Music discovery`} className="tsugi-hub space-y-14">
-      <header className="flex flex-wrap items-end justify-between gap-5">
-        <div>
-          <h2 className="text-[clamp(2rem,3vw,3rem)] font-semibold tracking-[-.035em]">
-            <Trans>Discover</Trans>
-          </h2>
-        </div>
-        <span className="text-xs text-[--tsugi-muted]">{source.manifest.name}</span>
+    <section aria-label={t`Music discovery`} className="tsugi-hub tsugi-discovery-workspace">
+      <header className="tsugi-discovery-source">
+        <span><Trans>Browsing</Trans> <strong>{source.manifest.name}</strong></span>
+        <button type="button" className="tsugi-read-action" onClick={onConfigure}><FiSettings aria-hidden /><Trans>Music sources</Trans></button>
       </header>
 
       {loading && <p role="status" className="text-sm text-[--tsugi-muted]"><Trans>Loading music…</Trans></p>}
@@ -240,10 +236,11 @@ export function MusicDiscover({
         <section className="tsugi-hub-feature tsugi-feature-composition" data-art={featured.artworkURL ? 'true' : 'false'}
           aria-label={t`Featured music`}>
           <div className="tsugi-feature-copy">
-            <h3 className="line-clamp-3 text-[clamp(2rem,3.8vw,4.2rem)] font-semibold leading-tight tracking-[-.045em]">
+            <p className="tsugi-feature-kicker">{featuredRow.catalog.name}</p>
+            <h2 className="line-clamp-3 text-[clamp(1.85rem,3.2vw,3.4rem)] font-semibold leading-tight tracking-[-.045em]">
               {featured.title}
-            </h3>
-            <p className="mt-3 truncate text-sm text-[--tsugi-muted]">{featured.artist ?? featured.album ?? featuredRow.catalog.name}</p>
+            </h2>
+            {(featured.artist || featured.album) && <p className="mt-3 truncate text-sm text-[--tsugi-muted]">{featured.artist || featured.album}</p>}
             <button type="button" className="tsugi-read-action tsugi-series-primary mt-6 inline-flex w-fit items-center gap-2"
               onClick={() => openCatalogItem(featuredRow, featured)}>
               {featured.type === 'track' && <FiPlay aria-hidden />}
@@ -278,18 +275,20 @@ export function MusicDiscover({
       )}
 
       {!loading && !error && !hasCatalog && (
-        <p className="text-sm text-[--tsugi-muted]">
-          {source.kind === 'youtube-music'
-            ? <Trans>No YouTube Music shelves are available right now. Explore independent charts below or use Search.</Trans>
-            : <Trans>This addon does not publish shelves. Explore independent charts below or use Search.</Trans>}
-        </p>
+        <div className="tsugi-discovery-note">
+          <p className="text-sm text-[--tsugi-muted]">
+            {source.kind === 'youtube-music'
+              ? <Trans>No YouTube Music shelves are available right now. Explore independent charts below or use Search.</Trans>
+              : <Trans>This addon does not publish shelves. Explore independent charts below or use Search.</Trans>}
+          </p>
+        </div>
       )}
 
       {shelves.map((row) => (
         <section key={row.catalog.id} className="tsugi-catalog-lane">
           <div className="mb-5 flex items-baseline justify-between gap-4">
             <h3 className="text-2xl font-semibold tracking-tight">{row.catalog.name}</h3>
-            <span className="text-xs uppercase tracking-widest text-[--tsugi-muted]">{row.catalog.type}</span>
+            <span className="tsugi-shelf-count">{row.items.length > 0 ? row.items.length : ''}</span>
           </div>
           {row.unavailable && <p className="text-sm text-[--tsugi-muted]"><Trans>This shelf is temporarily unavailable.</Trans></p>}
           {row.items.length > 0 && (
