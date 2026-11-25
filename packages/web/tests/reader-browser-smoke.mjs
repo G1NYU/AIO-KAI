@@ -289,6 +289,26 @@ try {
   assert.equal(await vaultShell.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),3);
   assert.equal(await vaultShell.locator('.tsugi-dashboard-metrics > div').count(),4);
   assert.equal(await vaultShell.locator('.tsugi-dashboard-right').getByRole('heading',{name:'Save to',exact:true}).count(),1);
+  // Compare rendered colors, not raw CSS variable text: the column must
+  // match the media rail across theme changes while selected rows retain contrast.
+  const assertCanvasColumns = async (container, selector) => {
+    const colors = await container.evaluate((node, selector) => {
+      const probe = document.createElement('span');
+      probe.style.cssText = 'position:absolute;visibility:hidden;background:var(--tsugi-canvas)';
+      node.appendChild(probe);
+      const canvas = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      const columns = [...node.querySelectorAll(selector)].map(column => getComputedStyle(column).backgroundColor);
+      return { canvas, columns };
+    }, selector);
+    assert.ok(colors.columns.length >= 2, 'both workspace columns are present');
+    assert.ok(colors.columns.every(color => color === colors.canvas), 'workspace column backing matches canvas: ' + JSON.stringify(colors));
+  };
+  await assertCanvasColumns(vaultShell, '.tsugi-dashboard-left,.tsugi-dashboard-right');
+  const vaultSelection = await vaultShell.locator('.tsugi-dashboard-nav[aria-pressed="true"]').first().evaluate(node => ({
+    row: getComputedStyle(node).backgroundColor, column: getComputedStyle(node.closest('.tsugi-dashboard-left')).backgroundColor
+  }));
+  assert.notEqual(vaultSelection.row, vaultSelection.column, 'selected Vault row remains distinguishable');
   assert.deepEqual(heroRequests,[],'Vault does not fetch remote decorative artwork');
   await capture('01-vault-onboarding');
   await vault.getByRole('button',{name:'Got it',exact:true}).click();
@@ -524,6 +544,7 @@ try {
   await music.getByRole('heading',{name:'Your music, organized.',exact:true}).waitFor();
   assert.equal(await music.locator('.tsugi-library-shell').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),3);
   await music.locator('.tsugi-hub-inspector').getByRole('heading',{name:'Sources & plugins',exact:true}).waitFor();
+  await assertCanvasColumns(music.locator('.tsugi-library-shell'), '.tsugi-library-sidebar,.tsugi-hub-inspector');
   assert.equal(await music.locator('.tsugi-atmosphere[data-placement="library"]').count(),0);
   const libraryNavFits = await music.locator('.tsugi-library-sidebar').evaluate(sidebar => {
     const edge = sidebar.getBoundingClientRect();
@@ -630,6 +651,7 @@ try {
   const trackBounds = await detail.getByRole('region', { name: 'Collection tracks' }).boundingBox();
   assert.ok(trackBounds.width>500&&trackBounds.width<1200);
   assert.equal(await detail.locator('.tsugi-hub-collection').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),3);
+  await assertCanvasColumns(detail.locator('.tsugi-hub-collection'), '.tsugi-dashboard-left,.tsugi-dashboard-right');
   assert.equal(await detail.locator('.tsugi-hub-remote-columns').getByText('Source',{exact:true}).count(),1);
   const trackGrid=detail.locator('.tsugi-music-detail-track-grid');
   assert.equal(await trackGrid.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),1);

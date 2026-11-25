@@ -22,7 +22,7 @@ Baseline: consolidated Windows x64 build [68b75f1](https://github.com/G1NYU/TSUG
 | 7 | Surface palette: coherent theme-derived canvas/raised/alternate/hover states in library and all app sections | Contrast and visual review of all supported palettes; avoid clashing panels and preserve selected accent | Implemented; CI passed; full palette review open |
 | 8 | Playback queue: readable track names/art, clear current/up-next distinction, compact reorder/remove actions, sensible scrolling | Reordering, removing, clearing and playing queue entries verified; keyboard access | Implemented; CI passed; multi-item interaction review open |
 | 9 | Sources drawer: distinguish active/installed sources and connection actions from optional addon store; compact readable controls | Verify connect/disconnect, source selection and store error/loading states; avoid displaying secrets | Implemented; CI passed; live provider review open |
-| 10 | README: update project presentation and representative screenshots from user uploads; replace outdated visuals when final UI is stable | Accurate feature claims, inspect screenshots for private data, no bundled font files or misleading UI, verify image paths render | README updated; consolidated package requested; permanent screenshots pending |
+| 10 | README: update project presentation and representative screenshots from user uploads; replace outdated visuals when final UI is stable | Accurate feature claims, inspect screenshots for private data, no bundled font files or misleading UI, verify image paths render | README updated; consolidated package #96 succeeded; sidebar follow-up package requested; permanent screenshots pending |
 
 ## Milestone 1 — first implementation slice
 
@@ -39,3 +39,5 @@ Baseline: consolidated Windows x64 build [68b75f1](https://github.com/G1NYU/TSUG
 - [#94](https://github.com/G1NYU/TSUGI/actions/runs/45639079920): fullscreen stages and matrix.
 - [#95](https://github.com/G1NYU/TSUGI/actions/runs/45639525522): palette, queue and sources; [fixture previews](https://github.com/G1NYU/TSUGI/actions/runs/45639525522/artifacts/15035545390) expire after seven days.
 - Consolidated Windows packaging requested with additional narrow-window and matrix-mode browser assertions. Do not mark packaging or physical acceptance complete until verified.
+
+- [Consolidated packaging run 45641571177](https://github.com/G1NYU/TSUGI/actions/runs/45641571177) succeeded. Follow-up fixes the user-reported lighter workspace sidebar backing in both Music and Vault; computed-color browser assertions added. Fresh package requested.

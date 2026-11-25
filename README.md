@@ -127,7 +127,7 @@ For native staging, dependency pins and the complete packaging procedure, see th
 
 ### Current status
 
-The [last verified portable Windows package](https://github.com/G1NYU/TSUGI/actions/runs/45620044358) is from commit `68b75f1`. [Download that earlier portable candidate](https://github.com/G1NYU/TSUGI/actions/runs/45620044358/artifacts/15024790457). It predates the music polish described above. The newer source at [`f78a93d`](https://github.com/G1NYU/TSUGI/commit/f78a93dbe9fc2d12a676f06680b92ead4c34fad8) passed [Windows and web validation #95](https://github.com/G1NYU/TSUGI/actions/runs/45639525522), including browser interaction smoke. A consolidated package is requested for the next validation; use the workflow's latest successful packaging run rather than a source-only run.
+The [last successful portable Windows package](https://github.com/G1NYU/TSUGI/actions/runs/45641571177) is from commit `29874f5`. [Download the consolidated candidate](https://github.com/G1NYU/TSUGI/actions/runs/45641571177/artifacts/15035792773). Web, media-tools, Windows x64 and package jobs passed. It includes the nine polish implementation milestones and narrow-window/matrix tests. A follow-up package is requested for the remaining Music/Vault sidebar background correction; use the workflow's latest successful packaging run rather than a source-only run.
 
 ### Interface preview
 
