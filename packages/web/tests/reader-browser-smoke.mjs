@@ -42,7 +42,7 @@ try {
     const nodes = (items) => ({ nodes: items, totalCount: items.length });
     const emit = (message) => queueMicrotask(() => { for (const listener of listeners) listener(message); });
     window.aiostreamsApp = {
-      protocol: 2, version: 'fixture', platform: 'windows', reading: true, readingSetup: true, youtubeMusic: true, nativeMusicAudio: true, torbox: true, device: 'Fixture',
+      protocol: 2, version: 'fixture', platform: 'windows', reading: !new URLSearchParams(location.search).has('readerSetup'), readingSetup: true, youtubeMusic: true, nativeMusicAudio: true, torbox: true, device: 'Fixture',
       subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
       send(message) {
         if(message.type==='torbox-request'){
@@ -446,6 +446,7 @@ try {
   await page.getByRole('button', { name: /Browse Manage manga sources/ }).click();
   await page.getByRole('button', { name: /Sources Manage extension sources/ }).click();
   await page.getByRole('button', { name: /Extension repositories Add or remove/ }).click();
+  await page.getByText("Paste the HTTPS extension repository index URL you use with Mihon, Komikku or another compatible Tachiyomi fork. Adding a repository lists its extensions; install the ones you want from Extensions.",{exact:true}).waitFor();
   await page.getByRole('textbox', { name: 'Repository index URL' }).fill('https://example.test/index.pb');
   await page.getByRole('button', { name: 'Add repository', exact: true }).click();
   await page.getByText('Original fixture store', { exact: true }).waitFor();
@@ -1016,5 +1017,12 @@ try {
   await nativeQueue.getByRole('button',{name:'Open in Music',exact:true}).click();
   await music.getByText('Vault imported audio',{exact:true}).waitFor();
   console.log('PASS: completed Vault file import into persistent Books and session Music; duplicate book guarded.');
+  await page.evaluate(()=>localStorage.setItem('tsugi-startup-area-v1',JSON.stringify('welcome')));
+  await page.goto(origin+'/?readerSetup=1',{waitUntil:'domcontentloaded'});
+  await page.locator('[data-page="desktop-landing"]').getByRole('button',{name:'Read',exact:true}).click();
+  const setup=page.locator('[data-page="read-setup"]');
+  await setup.getByRole('heading',{name:'Mihon-compatible extensions',exact:true}).waitFor();
+  await setup.getByText("Already use Mihon, Komikku or another Tachiyomi-compatible fork? Tsugi supports the same compatible extension repositories. After setup, add a trusted repository URL in Settings → Browse → Sources → Extension repositories, then install individual extensions from Extensions. Sources are not bundled, and compatibility varies by extension.",{exact:true}).waitFor();
+  await capture('13-reader-setup-compatibility');
   assert.deepEqual(errors, []);
 } finally { await browser.close(); }

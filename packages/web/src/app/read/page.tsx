@@ -420,7 +420,7 @@ export function ReadPage({ visible }: {
           : settingsPage === 'sources' ? settingRow(t({ id: "Extension repositories", message: "Extension repositories" }), t({ id: "Add or remove trusted extension stores.", message: "Add or remove trusted extension stores." }), 'repositories')
           : <>
             <h2 className="text-xl font-semibold"><Trans id="Extension repositories">Extension repositories</Trans></h2>
-            <p className="my-3 text-sm text-[--tsugi-muted]"><Trans id="Paste a compatible HTTPS repository index URL. Adding a repository does not install extensions.">Paste a compatible HTTPS repository index URL. Adding a repository does not install extensions.</Trans></p>
+            <p className="my-3 text-sm text-[--tsugi-muted]"><Trans id="Paste the HTTPS extension repository index URL you use with Mihon, Komikku or another compatible Tachiyomi fork. Adding a repository lists its extensions; install the ones you want from Extensions.">Paste the HTTPS extension repository index URL you use with Mihon, Komikku or another compatible Tachiyomi fork. Adding a repository lists its extensions; install the ones you want from Extensions.</Trans></p>
             <form className="flex flex-wrap gap-2" onSubmit={(event) => {
               event.preventDefault();
               void run(async () => {
@@ -646,6 +646,10 @@ export function ReadSetupPage({ openWelcome, onReady, openBooks }: { openWelcome
     <section className="max-w-2xl space-y-4">
       <h2 className="text-xl font-semibold"><Trans id="Set up reading">Set up reading</Trans></h2>
       <p className="text-[--tsugi-muted]"><Trans id="Tsugi will download and verify its reading engine once. Internet access and a writable application folder are required. No separate Java or manga server installation is needed.">Tsugi will download and verify its reading engine once. Internet access and a writable application folder are required. No separate Java or manga server installation is needed.</Trans></p>
+      <div className="border-t border-[--tsugi-line] pt-4">
+        <h3 className="font-semibold"><Trans id="Mihon-compatible extensions">Mihon-compatible extensions</Trans></h3>
+        <p className="mt-2 text-sm leading-relaxed text-[--tsugi-muted]"><Trans id="Already use Mihon, Komikku or another Tachiyomi-compatible fork? Tsugi supports the same compatible extension repositories. After setup, add a trusted repository URL in Settings → Browse → Sources → Extension repositories, then install individual extensions from Extensions. Sources are not bundled, and compatibility varies by extension.">Already use Mihon, Komikku or another Tachiyomi-compatible fork? Tsugi supports the same compatible extension repositories. After setup, add a trusted repository URL in Settings → Browse → Sources → Extension repositories, then install individual extensions from Extensions. Sources are not bundled, and compatibility varies by extension.</Trans></p>
+      </div>
       {busy && <p role="status" className="text-[--tsugi-muted]"><Trans id="Preparing reading engine… This may take a few minutes.">Preparing reading engine… This may take a few minutes.</Trans></p>}
       {error && <p role="alert" className="tsugi-read-error">{error}</p>}
       <div className="flex flex-wrap gap-3">

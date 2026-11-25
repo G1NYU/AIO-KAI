@@ -433,7 +433,7 @@ jobs:
             exit 1
           fi
           cat > notes.md <<EOF
-          Second public Windows x64 portable preview of Tsugi. Fixes horizontal overflow when expanding Vault transfer settings; controls and bandwidth chart now fit the inspector at desktop and narrow widths.
+          Second public Windows x64 portable preview of Tsugi. Fixes horizontal overflow when expanding Vault transfer settings; controls and bandwidth chart now fit the inspector at desktop and narrow widths. Reader setup now explicitly explains Mihon, Komikku and compatible Tachiyomi fork repository support.
 
           - Movies & TV through the AIOStreams / Stremio addon and Jellyfin-compatible ecosystem.
           - Music, local library, saved albums and collections, native YouTube Music, Eclipse sources and fullscreen visualizers.
