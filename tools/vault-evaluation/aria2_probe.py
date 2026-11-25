@@ -20,6 +20,8 @@ import urllib.request
 PAYLOAD = hashlib.shake_256(b"tsugi-original-aria2-next-fixture").digest(16 * 1024 * 1024)
 ETAG = '"tsugi-fixture-v1"'
 DIGEST = hashlib.sha256(PAYLOAD).hexdigest()
+AUDIO = b"\x00\x00\x00\x18ftypM4A " + PAYLOAD[12:]
+AUDIO_DIGEST = hashlib.sha256(AUDIO).hexdigest()
 REQUESTS = []
 LOCK = threading.Lock()
 
@@ -28,10 +30,15 @@ class Fixture(http.server.BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
     def respond(self, body):
-        if not re.fullmatch(r"/(?:one|two|three|crash)\.bin", self.path):
+        is_audio = self.path in ("/media.m4a?sig=fixture-private", "/single.m4a?sig=fixture-private")
+        if is_audio and self.headers.get("User-Agent") != "Tsugi fixture":
+            self.send_error(403)
+            return
+        payload = AUDIO if is_audio else PAYLOAD
+        if not is_audio and not re.fullmatch(r"/(?:one|two|three|crash)\.bin", self.path):
             self.send_error(404)
             return
-        start, end = 0, len(PAYLOAD) - 1
+        start, end = 0, len(payload) - 1
         value = self.headers.get("Range")
         if value:
             match = re.fullmatch(r"bytes=(\d+)-(\d*)", value)
@@ -40,9 +47,9 @@ class Fixture(http.server.BaseHTTPRequestHandler):
                 return
             start = int(match[1])
             end = min(end, int(match[2])) if match[2] else end
-            if start > end or start >= len(PAYLOAD):
+            if start > end or start >= len(payload):
                 self.send_response(416)
-                self.send_header("Content-Range", f"bytes */{len(PAYLOAD)}")
+                self.send_header("Content-Range", f"bytes */{len(payload)}")
                 self.send_header("Content-Length", "0")
                 self.end_headers()
                 return
@@ -50,16 +57,17 @@ class Fixture(http.server.BaseHTTPRequestHandler):
             REQUESTS.append((self.command, self.path, start, end, value is not None))
         self.send_response(206 if value else 200)
         self.send_header("Content-Length", str(end - start + 1))
-        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Type", "audio/mp4" if is_audio else "application/octet-stream")
         self.send_header("Accept-Ranges", "bytes")
-        self.send_header("ETag", ETAG)
+        if not self.path.startswith("/single.m4a"):
+            self.send_header("ETag", ETAG)
         if value:
-            self.send_header("Content-Range", f"bytes {start}-{end}/{len(PAYLOAD)}")
+            self.send_header("Content-Range", f"bytes {start}-{end}/{len(payload)}")
         self.end_headers()
         if body:
             try:
                 for pos in range(start, end + 1, 65536):
-                    self.wfile.write(PAYLOAD[pos:min(pos + 65536, end + 1)])
+                    self.wfile.write(payload[pos:min(pos + 65536, end + 1)])
                     time.sleep(.012)
             except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                 pass
@@ -193,11 +201,13 @@ def main():
             engine.stop()
             if len(sys.argv) == 3:
                 native_root = pathlib.Path(temporary) / "rust"
-                subprocess.run([sys.argv[2], str(executable), origin, str(native_root)], check=True, timeout=150)
+                subprocess.run([sys.argv[2], str(executable), origin, str(native_root)], check=True, timeout=260)
                 assert hashlib.sha256((native_root / "output" / "one.bin").read_bytes()).hexdigest() == DIGEST
                 assert hashlib.sha256((native_root / "output" / "gateway.bin").read_bytes()).hexdigest() == DIGEST
                 assert hashlib.sha256((native_root / "runtime" / "restored.bin").read_bytes()).hexdigest() == DIGEST
-                print("PASS: Rust adapter, validated gateway and runtime recovery output SHA-256")
+                for name in ("media", "single"):
+                    assert hashlib.sha256((native_root / name / "audio.m4a").read_bytes()).hexdigest() == AUDIO_DIGEST
+                print("PASS: Rust adapter, validated gateway, runtime recovery and both audio output SHA-256 hashes")
         finally:
             engine.stop()
             server.shutdown()

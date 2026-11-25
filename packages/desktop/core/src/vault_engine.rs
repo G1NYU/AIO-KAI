@@ -77,7 +77,7 @@ fn free_port()->Result<u16>{
 }
 struct Engine{child:Child,agent:ureq::Agent,endpoint:String,secret:String}
 impl Engine{
-    fn start(binary:&Path,root:&Path,rate_mib:u32)->Result<Self>{
+    fn start(binary:&Path,root:&Path,rate_mib:u32,segmented:bool)->Result<Self>{
         let port=free_port()?;
         let secret=random::<32>()?;
         let output=root.join("output");
@@ -93,8 +93,10 @@ impl Engine{
                 "--file-allocation=none","--summary-interval=0","--show-console-readout=false",
                 "--max-concurrent-downloads=1","--follow-torrent=false","--follow-metalink=false",
                 "--no-netrc=true","--auto-file-renaming=false","--allow-overwrite=false",
-                "--http-accept-gzip=false","--split=2","--stream-max-connections=2","--min-split-size=1M",
+                "--http-accept-gzip=false","--min-split-size=1M",
                 "--state-save-interval=1","--save-session-interval=1","--max-tries=3"])
+            .arg(if segmented{"--split=2"}else{"--split=1"})
+            .arg(if segmented{"--stream-max-connections=2"}else{"--stream-max-connections=1"})
             .arg(format!("--rpc-listen-port={port}"))
             .arg(format!("--rpc-secret={secret}"))
             .arg(format!("--dir={}",output.display()))
@@ -159,7 +161,10 @@ pub fn transfer(binary:&Path,url:&str,path:&Path,stop:Arc<AtomicBool>,rate_mib:u
     allowed_mime:impl Fn(&str)->bool,report:impl Fn(u64,Option<u64>),fixture:bool)->Outcome{
     if stop.load(Ordering::Relaxed){return Outcome::Stopped;}
     if !verify_binary(binary)||path.exists(){return Outcome::Fallback;}
-    let result=transfer_inner(binary,url,path,&stop,rate_mib,allowed_mime,report,fixture);
+    let result=Source::probe(url,fixture).and_then(|source|{
+        if !allowed_mime(&source.mime){return Err("Source MIME not allowed");}
+        transfer_inner(binary,url,source,path,&stop,rate_mib,report)
+    });
     match result{
         Ok(Outcome::Complete)=>{cleanup(path);Outcome::Complete},
         Ok(Outcome::Stopped)=>Outcome::Stopped,
@@ -167,10 +172,28 @@ pub fn transfer(binary:&Path,url:&str,path:&Path,stop:Arc<AtomicBool>,rate_mib:u
         _=>{cleanup(path);Outcome::Fallback},
     }
 }
-fn transfer_inner(binary:&Path,url:&str,path:&Path,stop:&Arc<AtomicBool>,rate_mib:u32,
-    allowed_mime:impl Fn(&str)->bool,report:impl Fn(u64,Option<u64>),fixture:bool)->Result<Outcome>{
-    let source=Source::probe(url,fixture)?;
-    if !allowed_mime(&source.mime){return Err("Source MIME not allowed");}
+/// A freshly resolved audio URL stays in memory. Only the public watch URL,
+/// hash of the exact media URL, strong validator and length may be written to a restart manifest.
+pub fn transfer_media(binary:&Path,watch:&str,media_url:&str,headers:Vec<(String,String)>,path:&Path,
+    stop:Arc<AtomicBool>,rate_mib:u32,report:impl Fn(u64,Option<u64>),fixture:bool)->Outcome{
+    if stop.load(Ordering::Relaxed){return Outcome::Stopped;}
+    if !crate::music_resolver::is_target(watch)||!verify_binary(binary)||path.exists(){return Outcome::Fallback;}
+    let Ok(source)=Source::probe_media(media_url,headers,fixture)else{cleanup(path);return Outcome::Fallback;};
+    let resumable=source.segmented();
+    if !resumable{cleanup(path);}
+    // ETags are scoped to a representation, not globally unique. A rotated
+    // signed URL must restart instead of stitching unrelated responses.
+    let key=format!("{watch}#source={}",hex(&Sha256::digest(media_url.as_bytes())));
+    let result=transfer_inner(binary,&key,source,path,&stop,rate_mib,report);
+    match result{
+        Ok(Outcome::Complete)=>{cleanup(path);Outcome::Complete},
+        Ok(Outcome::Stopped)=>{if !resumable{cleanup(path);}Outcome::Stopped},
+        _ if stop.load(Ordering::Relaxed)=>{if !resumable{cleanup(path);}Outcome::Stopped},
+        _=>{cleanup(path);Outcome::Fallback}
+    }
+}
+fn transfer_inner(binary:&Path,url:&str,source:Source,path:&Path,stop:&Arc<AtomicBool>,rate_mib:u32,
+    report:impl Fn(u64,Option<u64)>)->Result<Outcome>{
     if stop.load(Ordering::Relaxed){return Ok(Outcome::Stopped);}
     let parent=path.parent().ok_or("Vault destination missing")?;
     fs::create_dir_all(parent).map_err(|_|"Vault destination unavailable")?;
@@ -181,6 +204,7 @@ fn transfer_inner(binary:&Path,url:&str,path:&Path,stop:&Arc<AtomicBool>,rate_mi
         cleanup(path);previous=None;
     }
     let total=source.total;
+    let segmented=source.segmented();
     let (token,gid,port)=match previous.as_ref(){
         Some(m)=>(m.token.clone(),m.gid.clone(),m.port),
         None=>(random::<32>()?,random::<8>()?,0),
@@ -201,7 +225,7 @@ fn transfer_inner(binary:&Path,url:&str,path:&Path,stop:&Arc<AtomicBool>,rate_mi
     fs::write(&input,format!("{}\n gid={}\n out=payload.bin\n",gateway.url(),gid)).map_err(|_|"Engine input unavailable")?;
     let root=normal_windows_path(&root)?;
     let binary=normal_windows_path(binary)?;
-    let mut engine=Engine::start(&binary,&root,rate_mib)?;
+    let mut engine=Engine::start(&binary,&root,rate_mib,segmented)?;
     let mut progress=0;
     let mut last_change=Instant::now();
     let deadline=Instant::now()+Duration::from_secs(900);

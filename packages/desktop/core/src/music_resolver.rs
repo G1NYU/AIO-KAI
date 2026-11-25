@@ -1,4 +1,4 @@
-//! Windows music transport: yt-dlp owns the media request. No URL handoff.
+//! Windows music transport: yt-dlp playback plus bounded export metadata resolution.
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, atomic::{AtomicU64, Ordering}};
@@ -76,16 +76,21 @@ pub(crate) struct Transfer {
 
 impl Transfer {
     pub(crate) fn start(value: &str) -> Result<Self, &'static str> {
-        Self::start_with(value, "bestaudio[protocol=https]", Duration::from_secs(25))
+        Self::start_with(value, "bestaudio[protocol=https]", Duration::from_secs(25), false)
     }
 
     // An explicit authorized Vault export, distinct from the playback format.
     // No muxing, authentication cookies, plugins, or post-processors.
     pub(crate) fn start_export(value: &str) -> Result<Self, &'static str> {
-        Self::start_with(value, "bestaudio[ext=m4a][protocol=https]", Duration::from_secs(120))
+        Self::start_with(value, "bestaudio[ext=m4a][protocol=https]", Duration::from_secs(120), false)
     }
 
-    fn start_with(value: &str, format: &str, timeout: Duration) -> Result<Self, &'static str> {
+    #[cfg(windows)]
+    pub(crate) fn start_resolve(value:&str)->Result<Self,&'static str>{
+        Self::start_with(value,"bestaudio[ext=m4a][protocol=https]",Duration::from_secs(35),true)
+    }
+
+    fn start_with(value: &str, format: &str, timeout: Duration, metadata:bool) -> Result<Self, &'static str> {
         if !is_target(value) {
             return Err("Invalid YouTube Music track.");
         }
@@ -102,7 +107,7 @@ impl Transfer {
             use std::os::windows::process::CommandExt;
             command.creation_flags(0x08000000);
         }
-        let mut child = command
+        command
             .args([
                 "--ignore-config",
                 "--no-plugin-dirs",
@@ -122,8 +127,10 @@ impl Transfer {
                 "--no-js-runtimes",
                 "--js-runtimes",
             ])
-            .arg(format!("deno:{}", runtime.display()))
-            .args(["-o", "-", "--", value])
+            .arg(format!("deno:{}", runtime.display()));
+        if metadata {command.args(["--skip-download","--dump-single-json"]);}
+        else {command.args(["-o","-"]);}
+        let mut child=command.args(["--",value])
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -135,7 +142,7 @@ impl Transfer {
         let counter = received.clone();
         Ok(Self {
             child,
-            stdout: Some(std::thread::spawn(move || read_audio(stdout, MAX_AUDIO, &counter))),
+            stdout: Some(std::thread::spawn(move || read_audio(stdout, if metadata {2*1024*1024}else{MAX_AUDIO}, &counter))),
             stderr: Some(std::thread::spawn(move || read_bounded(stderr, 256 * 1024))),
             deadline: Instant::now() + timeout,
             received,
@@ -192,9 +199,62 @@ impl Drop for Transfer {
     }
 }
 
+/// Sensitive resolved URLs and headers are intentionally not Debug/Serialize.
+#[cfg(windows)]
+pub(crate) struct ResolvedAudio{
+    pub(crate) url:String,
+    pub(crate) headers:MediaHeaders,
+}
+#[cfg(windows)]
+pub(crate) fn parse_resolved(bytes:&[u8])->Result<ResolvedAudio,&'static str>{
+    let value:serde_json::Value=serde_json::from_slice(bytes).map_err(|_|"Invalid music resolver metadata")?;
+    if value["ext"]!="m4a"||value["protocol"]!="https"||value["vcodec"]!="none"
+        || !value["acodec"].as_str().is_some_and(|v|!v.is_empty()&&v!="none")
+        ||value.get("requested_formats").is_some_and(|v|!v.is_null())
+        ||value.get("fragments").is_some_and(|v|!v.is_null())
+        ||value["is_live"].as_bool()==Some(true)
+        ||value["filesize"].as_u64().is_some_and(|n|n==0||n>MAX_AUDIO){
+        return Err("Resolver did not select a bounded direct M4A audio stream");
+    }
+    let url=value["url"].as_str().filter(|v|v.len()<=16384).ok_or("Resolved audio URL unavailable")?.to_owned();
+    let mut headers=Vec::new();
+    if let Some(h)=value["http_headers"].as_object(){
+        for (k,v) in h{
+            let key=k.to_ascii_lowercase();
+            // Do not silently strip access-dependent or request-specific headers.
+            if key=="accept-encoding"{continue;}
+            if !["user-agent","accept","accept-language","referer","origin","sec-fetch-mode"].contains(&key.as_str()){
+                return Err("Resolved media requires unsupported headers");
+            }
+            let v=v.as_str().filter(|v|v.len()<=2048&&!v.bytes().any(|b|b<32||b==127)).ok_or("Invalid resolved header")?;
+            headers.push((key,v.to_owned()));
+        }
+    }
+    if headers.len()>8{return Err("Too many resolved media headers");}
+    Ok(ResolvedAudio{url,headers})
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn resolved_metadata_rejects_unsupported_formats_and_credentials(){
+        let mut value=serde_json::json!({"url":"https://a.googlevideo.com/videoplayback?sig=private",
+            "ext":"m4a","protocol":"https","vcodec":"none","acodec":"mp4a.40.2",
+            "filesize":1234,"http_headers":{"User-Agent":"fixture","Accept-Encoding":"gzip"}});
+        let parsed=parse_resolved(&serde_json::to_vec(&value).unwrap()).unwrap();
+        assert_eq!(parsed.headers,vec![("user-agent".into(),"fixture".into())]);
+        value["http_headers"]["Cookie"]=serde_json::json!("secret");
+        assert!(parse_resolved(&serde_json::to_vec(&value).unwrap()).is_err());
+        value["http_headers"]=serde_json::json!({});
+        value["vcodec"]=serde_json::json!("avc1");
+        assert!(parse_resolved(&serde_json::to_vec(&value).unwrap()).is_err());
+        value["vcodec"]=serde_json::json!("none");
+        value["filesize"]=serde_json::json!(MAX_AUDIO+1);
+        assert!(parse_resolved(&serde_json::to_vec(&value).unwrap()).is_err());
+    }
 
     #[test]
     fn validates_exact_watch_targets() {

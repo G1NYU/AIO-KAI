@@ -200,6 +200,29 @@ mod windows {
         },true);
         if result!=Outcome::Complete||destination.join(".tsugi-aria2").exists(){return Err("Runtime adapter recovery failed");}
         println!("PASS: Runtime adapter resumed validated stage; first observed progress {:?}",first_report.get());
+        use aiostreams_desktop_core::vault_engine::transfer_media;
+        let watch="https://www.youtube.com/watch?v=abcdefghijk";
+        for (name,validated) in [("media",true),("single",false)]{
+            let dir=root.join(name);
+            fs::create_dir(&dir).map_err(|_|"Media fixture folder failed")?;
+            let target=dir.join("audio.m4a");
+            let media=format!("{}{name}.m4a?sig=fixture-private",url.as_str());
+            let headers=vec![("user-agent".into(),"Tsugi fixture".into())];
+            let stop=Arc::new(AtomicBool::new(false));
+            let signal=stop.clone();
+            let first=transfer_media(&binary,watch,&media,headers.clone(),&target,stop,2,move|bytes,_|{
+                if bytes>=2*1024*1024{signal.store(true,Ordering::Relaxed);}
+            },true);
+            if first!=Outcome::Stopped||target.exists(){return Err("Media pause did not stop safely");}
+            let manifest=dir.join(".tsugi-aria2/manifest.json");
+            if validated{
+                let content=fs::read_to_string(&manifest).map_err(|_|"Media recovery manifest missing")?;
+                if content.contains("fixture-private")||!content.contains(watch){return Err("Sensitive media URL persisted");}
+            }else if manifest.exists(){return Err("Unvalidated media stage survived pause");}
+            let result=transfer_media(&binary,watch,&media,headers,&target,Arc::new(AtomicBool::new(false)),2,|_,_|{},true);
+            if result!=Outcome::Complete||manifest.exists(){return Err("Media adapter completion failed");}
+            println!("PASS: {name} audio fixture paused, completed, no signed URL in manifest");
+        }
         Ok(())
     }
 }

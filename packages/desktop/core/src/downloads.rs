@@ -696,7 +696,7 @@ fn work(
                 }
             };
             let result = if file.kind == FileKind::Vault && music_resolver::is_target(&file.url) {
-                fetch_vault_music(&file.url, &path, &stop, report)
+                fetch_vault_music(&file.url, &path, &stop, report, vault_rate_mib)
             } else if file.kind == FileKind::Vault {
                 fetch_vault_backend(&agent, &file.url, &path, &stop, report, vault_rate_mib)
             } else {
@@ -896,6 +896,62 @@ fn vault_mime_allowed(ext: &str, content_type: &str) -> bool {
 // Uses the same bounded yt-dlp transport as playback, but asks for M4A only.
 // All file IO stays in the persistent Vault worker; no player state changes.
 fn fetch_vault_music(
+    url: &str, path: &Path, stop: &Arc<AtomicBool>,
+    report: impl Fn(u64, Option<u64>), rate_mib:u32,
+) -> Result<(), Failure> {
+    let error=|message:&str|Failure::Error(message.to_owned());
+    if stop.load(Ordering::Relaxed){return Err(Failure::Stopped);}
+    if path.exists(){return Err(error("A file already exists at the Vault destination"));}
+    #[cfg(windows)]
+    if let Some(binary)=crate::vault_engine::installed_binary(){
+        report(0,None);
+        let mut resolver=music_resolver::Transfer::start_resolve(url).map_err(error)?;
+        let metadata=loop{
+            if stop.load(Ordering::Relaxed){return Err(Failure::Stopped);}
+            if let Some(bytes)=resolver.poll().map_err(|m|error(&format!("YouTube extraction: {m}")))?{break bytes;}
+            thread::sleep(Duration::from_millis(100));
+        };
+        drop(resolver);
+        if let Ok(media)=music_resolver::parse_resolved(&metadata){
+            let part=part_of(path);
+            // An engine output is validated before it is visible in the library.
+            match crate::vault_engine::transfer_media(&binary,url,&media.url,media.headers,&part,stop.clone(),rate_mib,&report,false){
+                crate::vault_engine::Outcome::Complete=>{
+                    let result=finalize_media_part(&part,path,stop,&report);
+                    if result.is_err(){let _=fs::remove_file(&part);}
+                    return result;
+                },
+                crate::vault_engine::Outcome::Stopped=>return Err(Failure::Stopped),
+                crate::vault_engine::Outcome::Fallback=>{},
+            }
+        }
+        crate::vault_engine::cleanup(path);
+    }
+    #[cfg(not(windows))]
+    let _=rate_mib;
+    fetch_vault_music_native(url,path,stop,report)
+}
+
+#[cfg(windows)]
+fn finalize_media_part(part:&Path,path:&Path,stop:&AtomicBool,report:impl Fn(u64,Option<u64>))->Result<(),Failure>{
+    let error=|m:&str|Failure::Error(m.to_owned());
+    let meta=fs::symlink_metadata(part).map_err(|_|error("Media transfer: output missing"))?;
+    let size=meta.len();
+    if !meta.file_type().is_file()||!(16..=64*1024*1024).contains(&size){return Err(error("Media transfer: invalid audio size"));}
+    let mut file=fs::File::open(part).map_err(|_|error("Media transfer: output unreadable"))?;
+    let mut header=[0u8;16];
+    file.read_exact(&mut header).map_err(|_|error("Media transfer: incomplete audio header"))?;
+    if &header[4..8]!=b"ftyp"{return Err(error("Media transfer: output is not M4A"));}
+    drop(file);
+    if stop.load(Ordering::Relaxed){return Err(Failure::Stopped);}
+    if path.exists(){return Err(error("A file already exists at the Vault destination"));}
+    fs::rename(part,path).map_err(|_|error("Media transfer: could not finalize audio"))?;
+    report(size,Some(size));
+    Ok(())
+}
+
+// Compatibility path for unsupported CDN responses. Playback is unchanged.
+fn fetch_vault_music_native(
     url: &str, path: &Path, stop: &AtomicBool,
     report: impl Fn(u64, Option<u64>),
 ) -> Result<(), Failure> {
@@ -1344,6 +1400,23 @@ mod vault_tests {
     }
     #[cfg(windows)]
     #[test]
+    fn sidecar_audio_finalization_rejects_wrong_type_and_cancellation(){
+        let dir=std::env::temp_dir().join(format!("tsugi-audio-final-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        fs::create_dir_all(&dir).unwrap();
+        let part=dir.join("test.part");let path=dir.join("test.m4a");
+        fs::write(&part,b"not an audio file at all").unwrap();
+        assert!(finalize_media_part(&part,&path,&AtomicBool::new(false),|_,_|{}).is_err());
+        assert!(!path.exists());
+        fs::write(&part,b"\x00\x00\x00\x18ftypM4A \x00\x00\x00\x00").unwrap();
+        assert!(matches!(finalize_media_part(&part,&path,&AtomicBool::new(true),|_,_|{}),Err(Failure::Stopped)));
+        assert!(!path.exists());
+        assert!(finalize_media_part(&part,&path,&AtomicBool::new(false),|n,t|assert_eq!(Some(n),t)).is_ok());
+        assert!(path.exists()&&!part.exists());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
     #[ignore = "Requires real YouTube access and pinned music-tools next to the test executable"]
     fn live_youtube_export_writes_m4a() {
         // Big Buck Bunny (c) 2008 Blender Foundation, CC BY 3.0.
@@ -1352,7 +1425,7 @@ mod vault_tests {
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("big-buck-bunny.m4a");
         let stop = AtomicBool::new(false);
-        let result = fetch_vault_music("https://www.youtube.com/watch?v=YE7VzlLtp-4",&path,&stop,|_,_|{});
+        let result = fetch_vault_music("https://www.youtube.com/watch?v=YE7VzlLtp-4",&path,&Arc::new(stop),|_,_|{},0);
         let checked = match result {
             Ok(()) => {
                 let data = fs::read(&path).unwrap();

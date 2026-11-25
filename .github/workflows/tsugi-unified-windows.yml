@@ -167,6 +167,7 @@ jobs:
             if (-not $test -or -not (Test-Path -LiteralPath $test.executable -PathType Leaf)) { throw 'Cannot locate actual native test executable' }
             $tools = Join-Path (Split-Path -Parent $test.executable) 'music-tools'
             ./scripts/fetch-music-tools.ps1 -Destination $tools
+            ./scripts/fetch-vault-tools.ps1 -Destination (Join-Path (Split-Path -Parent $test.executable) 'vault-tools')
             & $test.executable live_youtube_export_writes_m4a --ignored --nocapture
             if ($LASTEXITCODE -ne 0) { throw 'Live YouTube export failed' }
           } finally { Pop-Location }

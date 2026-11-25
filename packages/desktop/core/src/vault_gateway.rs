@@ -43,6 +43,9 @@ pub struct Source {
     pub etag: String,
     pub mime: String,
     pub total: u64,
+    headers: Vec<(String,String)>,
+    // Unvalidated media is served through one full request, never stitched.
+    single_body: Option<Arc<AtomicBool>>,
 }
 impl Source {
     /// Production accepts HTTPS only; loopback HTTP is solely for the fixture client.
@@ -52,28 +55,60 @@ impl Source {
             || !parsed.username().is_empty() || parsed.password().is_some() || parsed.query().is_some() || parsed.fragment().is_some() {
             return Err("Source URL not eligible for range gateway");
         }
+        Self::probe_inner(url, allow_fixture, vec![], false)
+    }
+
+    /// Resolver-owned media only; never accept signed media URLs from the webview.
+    pub fn probe_media(url:&str, headers:Vec<(String,String)>, allow_fixture:bool)->Result<Self>{
+        let parsed=url::Url::parse(url).map_err(|_|"Invalid resolved media URL")?;
+        let cdn=parsed.host_str().is_some_and(|h|h=="googlevideo.com"||h.ends_with(".googlevideo.com"));
+        let fixture=allow_fixture&&parsed.scheme()=="http"&&parsed.host_str()==Some("127.0.0.1");
+        if !(fixture||cdn&&parsed.scheme()=="https"&&parsed.port_or_known_default()==Some(443)&&parsed.path()=="/videoplayback")
+            || !parsed.username().is_empty()||parsed.password().is_some()||parsed.fragment().is_some()||url.len()>16384{
+            return Err("Resolved media URL is not an eligible YouTube CDN stream");
+        }
+        if headers.len()>8||headers.iter().any(|(k,v)|!["user-agent","accept","accept-language","referer","origin","sec-fetch-mode"].contains(&k.as_str())
+            ||v.len()>2048||v.bytes().any(|b|b<32||b==127)){
+            return Err("Resolved media headers are not supported");
+        }
+        let source=Self::probe_inner(url,allow_fixture,headers,true)?;
+        if source.total>64*1024*1024||!["audio/mp4","audio/x-m4a"].contains(&source.mime.as_str()){
+            return Err("Resolved audio exceeds the export limit or is not M4A");
+        }
+        Ok(source)
+    }
+    pub fn segmented(&self)->bool{self.single_body.is_none()}
+
+    fn probe_inner(url:&str,allow_fixture:bool,headers:Vec<(String,String)>,media:bool)->Result<Self>{
         let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(20)))
             .timeout_connect(Some(Duration::from_secs(8))).max_redirects(0).https_only(!allow_fixture)
             .build().into();
-        let response = agent.get(url).header("Range","bytes=0-0").header("Accept-Encoding","identity").call()
+        let mut request=agent.get(url);
+        for (name,value) in &headers{request=request.header(name.as_str(),value.as_str());}
+        let response = request.header("Range","bytes=0-0").header("Accept-Encoding","identity").call()
             .map_err(|_| "Source probe failed")?;
         if response.status()!=206 || !identity(&response) { return Err("Source does not support validated ranges"); }
         let (start,end,total) = header(&response,"content-range").and_then(content_range).ok_or("Invalid source range")?;
         if start!=0 || end!=0 || header(&response,"content-length").and_then(|n| n.parse::<u64>().ok())!=Some(1) {
             return Err("Unexpected source probe length");
         }
-        let etag = header(&response,"etag").filter(|s| strong_etag(s)).ok_or("Strong validator required")?.to_owned();
+        let etag=header(&response,"etag").filter(|s|strong_etag(s)).unwrap_or("").to_owned();
+        if etag.is_empty()&&!media{return Err("Strong validator required");}
+        let single_body=etag.is_empty().then(||Arc::new(AtomicBool::new(false)));
         let mime = header(&response,"content-type").and_then(mime).ok_or("Source MIME unavailable")?;
         let mut bytes=Vec::new();
         response.into_body().into_reader().take(2).read_to_end(&mut bytes).map_err(|_|"Source probe unreadable")?;
         if bytes.len()!=1 { return Err("Source probe body mismatch"); }
-        Ok(Self { agent,url:url.to_owned(),etag,mime,total })
+        Ok(Self { agent,url:url.to_owned(),etag,mime,total,headers,single_body })
     }
 
     fn range(&self,start:u64,end:u64) -> Result<Vec<u8>> {
         if start>end || end>=self.total || end-start>=CHUNK { return Err("Invalid gateway range"); }
         let length=end-start+1;
-        let response=self.agent.get(&self.url).header("Range",format!("bytes={start}-{end}"))
+        if !self.segmented(){return Err("Unvalidated ranges are disabled");}
+        let mut request=self.agent.get(&self.url);
+        for (name,value) in &self.headers{request=request.header(name.as_str(),value.as_str());}
+        let response=request.header("Range",format!("bytes={start}-{end}"))
             .header("If-Match",&self.etag).header("If-Range",&self.etag).header("Accept-Encoding","identity")
             .call().map_err(|_|"Source range failed")?;
         if response.status()!=206 || !identity(&response)
@@ -87,6 +122,22 @@ impl Source {
         response.into_body().into_reader().take(length+1).read_to_end(&mut bytes).map_err(|_|"Source range unreadable")?;
         if bytes.len() as u64 != length { return Err("Source range length mismatch"); }
         Ok(bytes)
+    }
+
+    fn full_body(&self)->Result<ureq::http::Response<ureq::Body>>{
+        let used=self.single_body.as_ref().ok_or("Single stream unavailable")?;
+        if used.swap(true,Ordering::AcqRel){return Err("Unvalidated media cannot resume");}
+        let mut request=self.agent.get(&self.url);
+        for(name,value)in &self.headers{request=request.header(name.as_str(),value.as_str());}
+        let response=request.header("Range",format!("bytes=0-{}",self.total-1)).header("Accept-Encoding","identity")
+            .config().timeout_global(Some(Duration::from_secs(120))).timeout_recv_body(Some(Duration::from_secs(100))).build().call().map_err(|_|"Media transfer failed")?;
+        let status=response.status().as_u16();
+        if !identity(&response)||!(status==200||status==206&&header(&response,"content-range").and_then(content_range)==Some((0,self.total-1,self.total)))
+            ||header(&response,"content-type").and_then(mime).as_deref()!=Some(self.mime.as_str())
+            ||header(&response,"content-length").and_then(|n|n.parse::<u64>().ok())!=Some(self.total){
+            return Err("Media response changed or exceeded the expected size");
+        }
+        Ok(response)
     }
 }
 
@@ -136,6 +187,25 @@ fn serve(mut stream:TcpStream,source:&Source,path:&str,job:&AtomicBool,shutdown:
         let _=write!(stream,"HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",source.total);return;
     };
     let status=if range.is_some(){"206 Partial Content"}else{"200 OK"};
+    if !source.segmented(){
+        if start!=0||end!=source.total-1{reject(&mut stream,"416 Range Not Satisfiable");return;}
+        let response=if head{None}else{match source.full_body(){Ok(r)=>Some(r),Err(_)=>{reject(&mut stream,"502 Bad Gateway");return;}}};
+        if stopped(job,shutdown){return;}
+        if write!(stream,"HTTP/1.1 {status}\r\nContent-Length: {}\r\nContent-Type: {}\r\nAccept-Ranges: none\r\nConnection: close\r\n",source.total,source.mime).is_err(){return;}
+        if range.is_some()&&write!(stream,"Content-Range: bytes 0-{end}/{}\r\n",source.total).is_err(){return;}
+        if stream.write_all(b"\r\n").is_err()||head{return;}
+        let Some(response)=response else{return;};
+        let mut reader=response.into_body().into_reader();
+        let mut remaining=source.total;
+        let mut buf=[0u8;64*1024];
+        while remaining>0&&!stopped(job,shutdown){
+            let limit=remaining.min(buf.len() as u64) as usize;
+            let Ok(n)=reader.read(&mut buf[..limit])else{return;};
+            if n==0||stream.write_all(&buf[..n]).is_err(){return;}
+            remaining-=n as u64;
+        }
+        return;
+    }
     let first_end=end.min(start+CHUNK-1);
     let first_bytes=if head{None}else{
         match source.range(start,first_end) {
@@ -201,6 +271,13 @@ impl Drop for Gateway{
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn media_admission_rejects_untrusted_hosts_and_headers(){
+        for url in ["https://googlevideo.com.evil.test/videoplayback?sig=secret","http://googlevideo.com/videoplayback",
+            "https://googlevideo.com:444/videoplayback","https://user@googlevideo.com/videoplayback",
+            "https://googlevideo.com/other"]{assert!(Source::probe_media(url,vec![],false).is_err());}
+        assert!(Source::probe_media("https://a.googlevideo.com/videoplayback",vec![("cookie".into(),"secret".into())],false).is_err());
+    }
     #[test]
     fn range_bounds_and_validator_guards(){
         assert_eq!(requested_range(Some("bytes=2-999"),10),Some((2,9)));

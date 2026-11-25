@@ -6,6 +6,8 @@ on:
       - 'tools/vault-evaluation/aria2_probe.py'
       - 'packages/desktop/core/src/vault_gateway.rs'
       - 'packages/desktop/core/src/vault_engine.rs'
+      - 'packages/desktop/core/src/music_resolver.rs'
+      - 'packages/desktop/core/src/downloads.rs'
       - 'packages/desktop/core/Cargo.toml'
       - 'packages/desktop/Cargo.lock'
       - 'packages/desktop/core/examples/vault_engine_probe.rs'
