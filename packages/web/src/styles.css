@@ -2537,3 +2537,13 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-book-preferences .tsugi-read-input { max-width:200px; min-width:0; }
 .tsugi-book-preferences input[type='number'] { width:75px; }
 .tsugi-book-reader iframe { flex:1; display:block; width:100%; min-height:460px; height:calc(100dvh - 220px); border:0; border-radius:var(--tsugi-radius-control); background:var(--tsugi-surface); }
+
+.tsugi-vault-advanced { margin-block:18px; padding:14px 18px; border:1px solid var(--tsugi-line); border-radius:var(--tsugi-radius-control); }
+.tsugi-vault-advanced > summary { cursor:pointer; color:var(--tsugi-muted); font-weight:600; }
+.tsugi-vault-advanced[open] > summary { margin-bottom:18px; }
+:root[data-host='desktop'] .tsugi-track-download { width:min(520px,92vw); max-height:85vh; overflow:auto; padding:24px; }
+.tsugi-track-download > header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.tsugi-track-download-title { font-weight:600; overflow-wrap:anywhere; }
+.tsugi-track-permission { display:flex; align-items:center; gap:10px; margin-block:14px; }
+.tsugi-track-download [aria-pressed='true'] { border-color:var(--tsugi-accent); }
+.tsugi-track-download > section { padding-top:12px; }

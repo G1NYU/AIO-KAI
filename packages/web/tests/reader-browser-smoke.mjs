@@ -42,9 +42,17 @@ try {
     const nodes = (items) => ({ nodes: items, totalCount: items.length });
     const emit = (message) => queueMicrotask(() => { for (const listener of listeners) listener(message); });
     window.aiostreamsApp = {
-      protocol: 2, version: 'fixture', platform: 'windows', reading: true, readingSetup: true, youtubeMusic: true, nativeMusicAudio: true, device: 'Fixture',
+      protocol: 2, version: 'fixture', platform: 'windows', reading: true, readingSetup: true, youtubeMusic: true, nativeMusicAudio: true, torbox: true, device: 'Fixture',
       subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
       send(message) {
+        if(message.type==='torbox-request'){
+          if(message.operation==='connect')state.torboxConnected=message.value==='fixture-key';
+          if(message.operation==='disconnect')state.torboxConnected=false;
+          if(message.operation==='submit')state.torboxLink=message.value;
+          const authenticated=!!state.torboxConnected;
+          emit({type:'torbox-result',request:message.request,data:{connected:authenticated,items:[]},error:message.operation==='connect'&&!authenticated?'auth':null});
+          return;
+        }
         if (message.type === 'download-list') {
           emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs});return;
         }
@@ -567,6 +575,19 @@ try {
   await vault.locator('[data-ui="tsugi-desktop-rail"]').getByRole('button',{name:'Music',exact:true}).click();
   await music.locator('[data-ui="music-track-row"]').filter({ hasText: 'Native fixture track' }).click();
   await page.waitForFunction(() => window.__readerFixture.nativeMessages.some(m => m.type === 'music-audio-load'));
+  await music.getByRole('button',{name:'Download track',exact:true}).click();
+  const downloadDialog=page.getByRole('dialog',{name:'Download track',exact:true});
+  await downloadDialog.getByRole('checkbox',{name:/I have permission/}).check();
+  await downloadDialog.getByRole('button',{name:'Download',exact:true}).click();
+  await downloadDialog.getByText('Added to Vault. You can follow the download there.',{exact:true}).waitFor();
+  await downloadDialog.getByRole('button',{name:'Send to TorBox',exact:true}).click();
+  await downloadDialog.getByLabel('TorBox API key').fill('fixture-key');
+  await downloadDialog.getByRole('button',{name:'Connect TorBox'}).click();
+  await downloadDialog.getByRole('checkbox',{name:/I have permission/}).check();
+  await downloadDialog.locator('[data-ui="tsugi-torbox"]').getByRole('button',{name:'Send to TorBox',exact:true}).click();
+  await downloadDialog.getByText('Submitted to TorBox. Check your dashboard or refresh the list for its status.',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>window.__readerFixture.torboxLink),'https://www.youtube.com/watch?v=abcdefghijk');
+  await downloadDialog.getByRole('button',{name:'Close',exact:true}).click();
   const nativeRequest = await page.evaluate(() => window.__readerFixture.nativeRequest);
   assert.ok(nativeRequest);
   const miniQueue = music.locator('[data-ui="mini-queue"]');

@@ -3,7 +3,8 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 
-import { FiMenu } from 'react-icons/fi';
+import { BrushDownload, BrushSettings } from '@/components/tsugi-icons';
+import { TrackDownload } from './track-download';
 import type { EclipseTrack } from '@/lib/music/eclipse';
 import { parsePlayerTemplate } from '@/lib/music/player-template';
 import { readPlayerStage, savePlayerStage, type PlayerStageId } from '@/lib/music/player-layout';
@@ -42,6 +43,7 @@ export type MusicPlayerProps = {
   eqError: string;
   isFavorite: boolean;
   canFavorite: boolean;
+  canDownload?: boolean;
   onFavorite(): void;
   onAudioProfile(profile: AudioProfile): void;
   onEqEnabled(value: boolean): void;
@@ -126,6 +128,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
   const [importError, setImportError] = React.useState('');
   const [palette, setPalette] = React.useState(resolveGlobalPalette);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [downloadTrack,setDownloadTrack] = React.useState<{id:string;title:string}|null>(null);
   const [studioContained, setStudioContained] = React.useState(() =>
     storage.get<boolean>('tsugi-studio-contained-v1') === true
   );
@@ -179,12 +182,13 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
     if (!p.expanded) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      if (downloadTrack) return;
       if (settingsOpen) setSettingsOpen(false);
       else p.onExpanded(false);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [p.expanded, p.onExpanded, settingsOpen]);
+  }, [p.expanded, p.onExpanded, settingsOpen, downloadTrack]);
 
   const track = p.track;
   if (!track) return null;
@@ -208,6 +212,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
             <Timeline p={p} palette={palette} />
           </div>
           <div className="tsugi-mini-tools flex items-center justify-self-end gap-3">
+            {p.canDownload&&<button type="button" className={buttonClass} aria-label={t`Download track`} title={t`Download track`} onClick={()=>setDownloadTrack({id:track.id,title:track.title})}><BrushDownload aria-hidden className="text-lg"/></button>}
             {p.canFavorite && <button type="button" className={buttonClass} onClick={p.onFavorite}
               aria-label={t`Save playing track`} aria-pressed={p.isFavorite}>
               <FiHeart aria-hidden className="text-lg" fill={p.isFavorite ? 'currentColor' : 'none'} />
@@ -260,10 +265,11 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                   <p className="truncate text-sm">{p.sourceName}</p>
                 </div>
               )}
+              <div className="flex items-center gap-2">{p.canDownload&&<button type="button" className={buttonClass} aria-label={t`Download track`} title={t`Download track`} onClick={()=>setDownloadTrack({id:track.id,title:track.title})}><BrushDownload aria-hidden className="text-xl"/></button>}
               <button type="button" className={buttonClass}
                 aria-label={t`Player settings`} onClick={() => setSettingsOpen(true)}>
-                <FiMenu aria-hidden className="text-xl" />
-              </button>
+                <BrushSettings aria-hidden className="text-xl" />
+              </button></div>
             </header>
             {importError && <p role="alert" className="mt-4 text-sm text-amber-200">{importError}</p>}
             {template ? (
@@ -299,6 +305,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
           )}
         </section>
       )}
+      {downloadTrack&&<TrackDownload track={downloadTrack} onClose={()=>setDownloadTrack(null)}/>}
     </>
   );
 }

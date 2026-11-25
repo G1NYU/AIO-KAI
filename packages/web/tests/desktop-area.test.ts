@@ -144,3 +144,13 @@ describe('Embedded book cover guard',()=>{
     expect(await validBookCover(new Blob([new Uint8Array(512*1024+1)],{type:'image/png'}))).toBe(false);
   });
 });
+
+import { detectVaultSource } from '../src/app/vault/native-job';
+describe('Vault source detection',()=>{
+  it('detects a track link pasted with radio and playlist parameters',()=>{
+    expect(detectVaultSource('https://www.youtube.com/watch?v=abcdefghijk&list=RDabcdefghijk&start_radio=1')).toBe('youtube');
+    expect(youtubeVaultTrack('https://www.youtube.com/watch?v=abcdefghijk&list=RDabcdefghijk&start_radio=1')).toBe('abcdefghijk');
+    expect(detectVaultSource('https://example.org/book.epub')).toBe('file');
+    expect(detectVaultSource('https://youtube.com.example.org/watch?v=abcdefghijk')).toBe('file');
+  });
+});

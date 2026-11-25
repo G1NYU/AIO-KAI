@@ -1009,6 +1009,7 @@ export function MusicPage({
         isFavorite: !!playing && !!playlists.find(list => list.id === SAVED_PLAYLIST_ID)
           ?.tracks.some(track => track.id === playing.id && track.sourceId === playingSourceId),
         canFavorite: playingSourceId !== LOCAL_SOURCE,
+        canDownload: playingSourceId === YOUTUBE_MUSIC_ID && appBridge()?.platform === 'windows',
         onFavorite: togglePlayingFavorite,
         onAudioProfile: setAudioProfile, onEqEnabled: setEqEnabled,
         onExpanded: setExpanded, onToggle: toggle, onNext: next,
