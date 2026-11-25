@@ -1,0 +1,32 @@
+name: Vault Aria2 Next evaluation
+on:
+  push:
+    branches: [feature/tsugi-read-runtime]
+    paths:
+      - 'tools/vault-evaluation/**'
+      - '.github/workflows/tsugi-vault-engine-evaluation.yml'
+permissions:
+  contents: read
+jobs:
+  engine-fixtures:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Fetch and verify exact evaluation binary
+        shell: pwsh
+        run: |
+          $binary = Join-Path $env:RUNNER_TEMP 'aria2-next-3.1.2.exe'
+          Invoke-WebRequest -Uri 'https://github.com/AnInsomniacy/aria2-next/releases/download/v3.1.2/aria2-next-3.1.2-windows-x86_64.exe' -OutFile $binary
+          $digest = (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($digest -ne '94edc284cd84dec26a16ae9431378c5ab9e5cde8011482566483f4f0cb20c03f') { throw 'Aria2 Next digest mismatch' }
+          python -m py_compile tools/vault-evaluation/aria2_probe.py
+          python tools/vault-evaluation/aria2_probe.py $binary
+          if ($LASTEXITCODE -ne 0) { throw 'Engine evaluation failed' }
+      - name: Remove standalone evaluation binary
+        if: always()
+        shell: pwsh
+        run: Remove-Item (Join-Path $env:RUNNER_TEMP 'aria2-next-3.1.2.exe') -Force -ErrorAction SilentlyContinue
