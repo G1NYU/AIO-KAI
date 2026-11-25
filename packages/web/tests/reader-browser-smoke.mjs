@@ -31,7 +31,8 @@ try {
     const listeners = new Set();
     const manga = { id: '1', title: 'Tsugi Original Fixture', author: 'Tsugi', thumbnailUrl: '/api/v1/manga/1/thumbnail', inLibrary: true, unreadCount: 2, description: '**Original fixture** for reader tests.', genre: ['Adventure'] };
     const chapters = [{ id: 11, name: 'Chapter 1', chapterNumber: 1, scanlator: 'Original', isRead: false, lastPageRead: 0, pageCount: 4 }, { id: 12, name: 'Chapter 2', chapterNumber: 2, scanlator: 'Original', isRead: false, lastPageRead: 0, pageCount: 4 }];
-    const state = window.__readerFixture = { requests: [], lastPath: '', serial: 0, installed: false, stores: [], progress: [], nativeMessages: [], nativeRequest: null };
+    manga.categories = { nodes: [] };
+    const state = window.__readerFixture = { requests: [], lastPath: '', serial: 0, installed: false, stores: [], progress: [], nativeMessages: [], nativeRequest: null, categories: [], categorySequence: 0, updateChecks: 0 };
     const nodes = (items) => ({ nodes: items, totalCount: items.length });
     const emit = (message) => queueMicrotask(() => { for (const listener of listeners) listener(message); });
     window.aiostreamsApp = {
@@ -71,6 +72,27 @@ try {
         let error = null;
         switch (a.kind) {
           case 'library': data = nodes([manga, { id: '2', title: 'ZZ Missing Fixture', author: 'Tsugi', inLibrary: true, unreadCount: 0 }]); break;
+          case 'categories': data = nodes(state.categories); break;
+          case 'save-category': {
+            let category = state.categories.find(item => item.id === a.id);
+            if (category) category.name = a.name;
+            else { category = { id: ++state.categorySequence, name: a.name, order: state.categorySequence }; state.categories.push(category); }
+            data = { category }; break;
+          }
+          case 'assign-category':
+            if (a.mangaId !== 1) throw new Error('Unexpected category assignment');
+            manga.categories.nodes = manga.categories.nodes.filter(item => item.id !== a.categoryId);
+            if (a.assigned) manga.categories.nodes.push({ id: a.categoryId });
+            data = { manga }; break;
+          case 'delete-category':
+            state.categories = state.categories.filter(item => item.id !== a.id);
+            manga.categories.nodes = manga.categories.nodes.filter(item => item.id !== a.id);
+            data = { category: { id: a.id } }; break;
+          case 'history': data = nodes([{ ...chapters[0], lastReadAt: 1760000000000, manga }]); break;
+          case 'updates': data = nodes([{ ...chapters[1], fetchedAt: 1760000000000, manga }]); break;
+          case 'cached-manga': data = { manga, chapters }; break;
+          case 'start-library-update': state.updateChecks++; data = { jobsInfo: { isRunning: true, totalJobs: 1, finishedJobs: 0, skippedCategoriesCount: 0, skippedMangasCount: 0 } }; break;
+          case 'library-update-status': data = { jobsInfo: { isRunning: false, totalJobs: state.updateChecks ? 1 : 0, finishedJobs: state.updateChecks ? 1 : 0, skippedCategoriesCount: 0, skippedMangasCount: 0 } }; break;
           case 'trackers': data = nodes([{ id: 1, name: 'MyAnimeList', isLoggedIn: !!state.trackerConnected, supportsReadingDates: true, supportsPrivateTracking: false }]); break;
           case 'tracker-login': state.trackerConnected = true; data = { isLoggedIn: true }; break;
           case 'tracker-logout': state.trackerConnected = false; data = { isLoggedIn: false }; break;
@@ -223,6 +245,36 @@ try {
   assert.equal(await page.locator('.tsugi-library-grid-heading > span').textContent(), '2');
   await capture('03-reading-library');
   assert.deepEqual(coverQueries, []);
+  await rail.getByRole('button', { name: 'Categories', exact: true }).click();
+  await page.getByRole('textbox', { name: 'New category', exact: true }).fill('Seinen');
+  await page.getByRole('button', { name: 'Create category', exact: true }).click();
+  await page.getByRole('heading', { name: 'Seinen', exact: true }).waitFor();
+  await page.getByRole('checkbox', { name: 'Tsugi Original Fixture', exact: true }).check();
+  await page.getByRole('button', { name: 'Open shelf', exact: true }).click();
+  await page.locator('.tsugi-library-grid-heading').waitFor();
+  assert.equal(await page.locator('.tsugi-manga-card').count(), 1);
+  await page.getByRole('button', { name: 'All shelves', exact: true }).click();
+  assert.equal(await page.locator('.tsugi-manga-card').count(), 2);
+  await rail.getByRole('button', { name: 'Categories', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Category name', exact: true }).fill('Manga shelf');
+  await page.getByRole('button', { name: 'Rename category', exact: true }).click();
+  await page.getByRole('heading', { name: 'Manga shelf', exact: true }).waitFor();
+  await capture('03-reader-categories');
+  await page.getByRole('button', { name: 'Delete category', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm category deletion', exact: true }).click();
+  await page.getByRole('heading', { name: 'Organize your collection', exact: true }).waitFor();
+  await rail.getByRole('button', { name: 'History', exact: true }).click();
+  await page.locator('.tsugi-reader-activity-row').first().waitFor();
+  await capture('03-reader-history');
+  await rail.getByRole('button', { name: 'Chapter updates', exact: true }).click();
+  await page.locator('.tsugi-reader-activity-row').first().waitFor();
+  await page.getByRole('button', { name: 'Check for chapters', exact: true }).click();
+  await page.getByText('Checking library', { exact: true }).waitFor();
+  await page.getByText('Library update idle', { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => window.__readerFixture.updateChecks), 1);
+  await capture('03-reader-updates');
+  await rail.getByRole('button', { name: 'Library', exact: true }).click();
+  await page.locator('.tsugi-manga-card').first().waitFor();
   await rail.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: /Reader Set the default reading layout/ }).click();
   await page.getByRole('checkbox', { name: /Find missing library covers/ }).check();

@@ -2,7 +2,10 @@ import { t } from '@lingui/core/macro';
 import { appBridge, ask } from './bridge';
 
 export type ReadAction =
-  | { kind: 'prepare' | 'status' | 'sources' | 'library' | 'stores' | 'refresh-extensions' | 'trackers' }
+  | { kind: 'prepare' | 'status' | 'sources' | 'library' | 'history' | 'updates' | 'categories' | 'library-update-status' | 'start-library-update' | 'stores' | 'refresh-extensions' | 'trackers' }
+  | { kind: 'save-category'; id?: number; name: string }
+  | { kind: 'delete-category' | 'cached-manga'; id: number }
+  | { kind: 'assign-category'; mangaId: number; categoryId: number; assigned: boolean }
   | { kind: 'add-store' | 'remove-store'; index: string }
   | { kind: 'extensions'; offset: number; query?: string; store?: string; language?: string; installed?: boolean }
   | { kind: 'install-extension' | 'uninstall-extension'; package: string }

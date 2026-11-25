@@ -29,6 +29,9 @@ pub enum ReadOperation {
     Sources,
     Stores,
     Library,
+    History,
+    Updates,
+    Categories,
     Trackers,
 }
 
@@ -44,8 +47,11 @@ impl ReadOperation {
             }
             Self::Trackers => "query TsugiTrackers { trackers(first: 50) { nodes { id name isLoggedIn supportsReadingDates supportsPrivateTracking } totalCount } }",
             Self::Library => {
-                "query TsugiLibrary { mangas(condition: { inLibrary: true }, first: 100) { nodes { id title author thumbnailUrl inLibrary unreadCount lastReadChapter { id name lastPageRead pageCount isRead lastReadAt } } totalCount } }"
+                "query TsugiLibrary { mangas(condition: { inLibrary: true }, first: 100) { nodes { id title author thumbnailUrl inLibrary unreadCount categories { nodes { id } } lastReadChapter { id name lastPageRead pageCount isRead lastReadAt } } totalCount } }"
             }
+            Self::History => "query TsugiHistory { chapters(filter: { lastReadAt: { greaterThan: 0 } }, order: [{ by: LAST_READ_AT, byType: DESC }], first: 100) { nodes { id name lastReadAt lastPageRead pageCount isRead manga { id title author thumbnailUrl inLibrary } } totalCount } }",
+            Self::Updates => "query TsugiUpdates { chapters(filter: { inLibrary: { equalTo: true }, isRead: { equalTo: false } }, order: [{ by: FETCHED_AT, byType: DESC }], first: 100) { nodes { id name fetchedAt uploadDate lastPageRead pageCount isRead manga { id title author thumbnailUrl inLibrary } } totalCount } }",
+            Self::Categories => "query TsugiCategories { categories(first: 100) { nodes { id name order } totalCount } }",
         }
     }
 
@@ -55,6 +61,8 @@ impl ReadOperation {
             Self::Sources => "sources",
             Self::Stores => "extensionStores",
             Self::Library => "mangas",
+            Self::History | Self::Updates => "chapters",
+            Self::Categories => "categories",
             Self::Trackers => "trackers",
         }
     }
@@ -1353,6 +1361,69 @@ impl ReadRuntime {
         )
     }
 
+    /// Read persisted metadata and chapters without contacting the extension.
+    /// Essential for reading history and migration away from a dead source.
+    pub fn cached_manga(&self, id: i32) -> Result<Value, &'static str> {
+        if id <= 0 { return Err("Invalid manga identifier."); }
+        let mut manga = self.client.document(
+            "query TsugiCachedManga($id: Int!) { manga(id: $id) { id title author artist description genre thumbnailUrl inLibrary chapters { nodes { id name mangaId chapterNumber sourceOrder scanlator pageCount isRead isBookmarked lastPageRead } } } }",
+            "manga", json!({"id": id}))?;
+        let chapters = manga.as_object_mut().and_then(|value| value.remove("chapters"))
+            .and_then(|value| value.get("nodes").cloned())
+            .filter(Value::is_array).ok_or("Invalid cached chapters.")?;
+        Ok(json!({"manga": manga, "chapters": chapters}))
+    }
+
+    pub fn save_category(&self, id: Option<i32>, name: &str) -> Result<Value, &'static str> {
+        let name = name.trim();
+        if name.is_empty() || name.chars().count() > 80 || name.chars().any(char::is_control)
+            || name.eq_ignore_ascii_case("default") || id.is_some_and(|value| value <= 0) {
+            return Err("Invalid category name or identifier.");
+        }
+        if let Some(id) = id {
+            self.client.mutation(
+                "mutation TsugiRenameCategory($input: UpdateCategoryInput!) { updateCategory(input: $input) { category { id name order } } }",
+                "updateCategory", json!({"id": id, "patch": {"name": name}}))
+        } else {
+            self.client.mutation(
+                "mutation TsugiCreateCategory($input: CreateCategoryInput!) { createCategory(input: $input) { category { id name order } } }",
+                "createCategory", json!({"name": name}))
+        }
+    }
+
+    pub fn delete_category(&self, id: i32) -> Result<Value, &'static str> {
+        if id <= 0 { return Err("The default category cannot be removed."); }
+        self.client.mutation(
+            "mutation TsugiDeleteCategory($input: DeleteCategoryInput!) { deleteCategory(input: $input) { category { id } } }",
+            "deleteCategory", json!({"categoryId": id}))
+    }
+
+    pub fn assign_category(&self, manga_id: i32, category_id: i32, assigned: bool) -> Result<Value, &'static str> {
+        if manga_id <= 0 || category_id <= 0 { return Err("Invalid category assignment."); }
+        let patch = if assigned { json!({"addToCategories": [category_id]}) }
+            else { json!({"removeFromCategories": [category_id]}) };
+        self.client.mutation(
+            "mutation TsugiAssignCategory($input: UpdateMangaCategoriesInput!) { updateMangaCategories(input: $input) { manga { id categories { nodes { id } } } } }",
+            "updateMangaCategories", json!({"id": manga_id, "patch": patch}))
+    }
+
+    pub fn library_update_status(&self) -> Result<Value, &'static str> {
+        self.client.document(
+            "query TsugiLibraryUpdateStatus { libraryUpdateStatus { jobsInfo { isRunning totalJobs finishedJobs skippedCategoriesCount skippedMangasCount } } }",
+            "libraryUpdateStatus", json!({}))
+    }
+
+    pub fn start_library_update(&self) -> Result<Value, &'static str> {
+        // Do not clear an existing update queue or start two jobs.
+        let status = self.library_update_status()?;
+        if status["jobsInfo"]["isRunning"] == true { return Ok(status); }
+        let result = self.client.slow().mutation(
+            "mutation TsugiStartLibraryUpdate($input: UpdateLibraryInput!) { updateLibrary(input: $input) { updateStatus { jobsInfo { isRunning totalJobs finishedJobs skippedCategoriesCount skippedMangasCount } } } }",
+            "updateLibrary", json!({"categories": null}))?;
+        result.get("updateStatus").cloned().filter(Value::is_object)
+            .ok_or("Invalid library update status.")
+    }
+
     pub fn set_library(&self, id: i32, in_library: bool) -> Result<Value, &'static str> {
         if id <= 0 {
             return Err("Invalid manga identifier.");
@@ -1942,6 +2013,31 @@ mod tests {
         assert_eq!(library["manga"]["inLibrary"], true);
         let list = managed.query(ReadOperation::Library).expect("library query");
         assert!(list["nodes"].as_array().unwrap().iter().any(|item| item["id"] == manga_id.to_string()));
+        let history = managed.query(ReadOperation::History).expect("native reading history");
+        assert!(history["nodes"].as_array().unwrap().iter().any(|item| item["id"] == id && item["manga"]["id"] == manga_id));
+        let updates = managed.query(ReadOperation::Updates).expect("native unread chapter feed");
+        assert!(updates["nodes"].as_array().unwrap().iter().all(|item| item["isRead"] == false));
+        let status = managed.library_update_status().expect("native update queue status");
+        assert!(status["jobsInfo"]["isRunning"].is_boolean());
+        // Validate the generated input without starting remote work.
+        let response = managed.client.send_document(
+            "mutation TsugiUpdateContract($input: UpdateLibraryInput!) { updateLibrary(input: $input) @skip(if: true) { updateStatus { jobsInfo { isRunning totalJobs finishedJobs skippedCategoriesCount skippedMangasCount } } } }",
+            json!({"input": {"categories": null}}), Some(&managed.client.authorization),
+        ).expect("update queue GraphQL contract");
+        assert_eq!(response.status, 200);
+        assert!(response.body.get("errors").is_none_or(Value::is_null));
+        let cached = managed.cached_manga(manga_id).expect("cached manga without source refresh");
+        assert_eq!(cached["chapters"][0]["lastPageRead"], 1);
+        assert!(managed.save_category(None, "default").is_err());
+        let category = managed.save_category(None, "Fixture shelf").expect("create native category");
+        let category_id = category["category"]["id"].as_i64().unwrap() as i32;
+        managed.assign_category(manga_id, category_id, true).expect("assign native shelf");
+        let category = managed.save_category(Some(category_id), "Renamed fixture shelf").expect("rename native shelf");
+        assert_eq!(category["category"]["name"], "Renamed fixture shelf");
+        let categories = managed.query(ReadOperation::Categories).expect("native category list");
+        assert!(categories["nodes"].as_array().unwrap().iter().any(|item| item["id"] == category_id && item["name"] == "Renamed fixture shelf"));
+        let assigned = managed.query(ReadOperation::Library).expect("native category membership");
+        assert!(assigned["nodes"].as_array().unwrap().iter().any(|item| item["id"] == manga_id.to_string() && item["categories"]["nodes"].as_array().unwrap().iter().any(|category| category["id"] == category_id)));
         let details = managed.manga(manga_id).expect("retrieve saved progress");
         assert_eq!(details["chapters"][0]["isRead"], true);
         assert_eq!(details["chapters"][0]["lastPageRead"], 1);
@@ -1959,6 +2055,14 @@ mod tests {
         // not an in-memory copy of the previous broker's state.
         let mut managed = ReadRuntime::start(&runtime, &data).expect("reopen reading library");
         let list = managed.query(ReadOperation::Library).expect("persisted library");
+        assert!(list["nodes"].as_array().unwrap().iter().any(|item| item["id"] == manga_id.to_string()));
+        let categories = managed.query(ReadOperation::Categories).expect("persisted categories");
+        assert!(categories["nodes"].as_array().unwrap().iter().any(|item| item["id"] == category_id && item["name"] == "Renamed fixture shelf"));
+        let cached = managed.cached_manga(manga_id).expect("persisted cached chapter state");
+        assert_eq!(cached["chapters"][0]["lastPageRead"], 1);
+        managed.assign_category(manga_id, category_id, false).expect("remove category membership");
+        managed.delete_category(category_id).expect("remove category only");
+        let list = managed.query(ReadOperation::Library).expect("library after category removal");
         assert!(list["nodes"].as_array().unwrap().iter().any(|item| item["id"] == manga_id.to_string()));
         let details = managed.manga(manga_id).expect("persisted reading progress");
         assert_eq!(details["chapters"][0]["id"], id);

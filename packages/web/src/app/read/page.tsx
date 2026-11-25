@@ -1,7 +1,7 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiArrowLeft, FiBookOpen, FiChevronRight, FiCompass, FiGrid, FiSearch, FiSettings, FiGlobe, FiClock, FiRefreshCw, FiBookmark } from 'react-icons/fi';
+import { FiArrowLeft, FiBookOpen, FiChevronRight, FiCompass, FiGrid, FiSearch, FiSettings, FiGlobe, FiClock, FiRefreshCw, FiBookmark, FiFolder, FiBell, FiPlus, FiCheck } from 'react-icons/fi';
 import { MediaNavigation } from '@/components/shell/media-navigation';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { prepareReading, readRequest, readImage } from '@/lib/hosts/shell/reading';
@@ -16,11 +16,21 @@ type Nodes<T> = { nodes: T[]; totalCount: number };
 type Source = { id: string; name: string; lang: string; displayName?: string; supportsLatest: boolean };
 type Store = { indexUrl: string; name: string };
 type Extension = { storeIndexUrl?: string | null; pkgName: string; name: string; lang: string; versionName: string; isInstalled: boolean; isObsolete: boolean };
-type Manga = { id: number | string; title: string; author?: string | null; artist?: string | null; genre?: string[]; thumbnailUrl?: string | null; description?: string | null; inLibrary: boolean; unreadCount?: number; lastReadChapter?: { id: number; name: string; lastPageRead: number; pageCount: number; isRead: boolean; lastReadAt?: number | string } | null };
+type Manga = { id: number | string; categories?: { nodes: { id: number }[] }; title: string; author?: string | null; artist?: string | null; genre?: string[]; thumbnailUrl?: string | null; description?: string | null; inLibrary: boolean; unreadCount?: number; lastReadChapter?: { id: number; name: string; lastPageRead: number; pageCount: number; isRead: boolean; lastReadAt?: number | string } | null };
 type Details = { manga: Manga; chapters: Chapter[] };
 type Catalogue = { mangas: Manga[]; hasNextPage: boolean };
 type Reader = { chapter: Chapter; count: number; index: number };
-type Tab = 'library' | 'browse' | 'settings';
+type Tab = 'library' | 'history' | 'updates' | 'categories' | 'browse' | 'settings';
+type Category = { id: number; name: string; order: number };
+type Activity = Chapter & { manga: Manga; lastReadAt?: number | string; fetchedAt?: number | string; uploadDate?: number | string };
+type UpdateStatus = { jobsInfo: { isRunning: boolean; totalJobs: number; finishedJobs: number; skippedCategoriesCount: number; skippedMangasCount: number } };
+
+function activityDate(value?: number | string) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  const date = new Date(n < 100000000000 ? n * 1000 : n);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
 type BrowseTab = 'sources' | 'extensions' | 'search';
 type SettingsPage = 'browse' | 'sources' | 'repositories' | 'reader' | 'trackers' | null;
 type SearchGroup = { source: Source; result?: Catalogue; error?: string };
@@ -56,6 +66,16 @@ export function ReadPage({ visible }: {
   const lock = React.useRef(false);
   const [error, setError] = React.useState('');
   const [library, setLibrary] = React.useState<Nodes<Manga> | null>(null);
+  const [categories, setCategories] = React.useState<Category[]>([]);
+  const [categoryFilter, setCategoryFilter] = React.useState(0);
+  const [categoryId, setCategoryId] = React.useState(0);
+  const [categoryName, setCategoryName] = React.useState('');
+  const [renameCategory, setRenameCategory] = React.useState('');
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [categorySearch, setCategorySearch] = React.useState('');
+  const [history, setHistory] = React.useState<Nodes<Activity> | null>(null);
+  const [updates, setUpdates] = React.useState<Nodes<Activity> | null>(null);
+  const [updateStatus, setUpdateStatus] = React.useState<UpdateStatus | null>(null);
   const [sources, setSources] = React.useState<Source[]>([]);
   const [source, setSource] = React.useState('');
   const [query, setQuery] = React.useState('');
@@ -84,7 +104,29 @@ export function ReadPage({ visible }: {
     catch (e) { if (active.current) setError(e instanceof Error ? e.message : t({ id: "Reading request failed.", message: "Reading request failed." })); }
     finally { lock.current = false; if (active.current) setBusy(false); }
   }
-  async function loadLibrary() { setLibrary(await readRequest<Nodes<Manga>>({ kind: 'library' })); }
+  async function loadCategories() {
+    const next = (await readRequest<Nodes<Category>>({ kind: 'categories' })).nodes.filter(item => item.id > 0).sort((a, b) => a.order - b.order);
+    setCategories(next);
+    setCategoryFilter(old => next.some(item => item.id === old) ? old : 0);
+    setCategoryId(old => next.some(item => item.id === old) ? old : 0);
+  }
+  async function loadLibrary() {
+    setLibrary(await readRequest<Nodes<Manga>>({ kind: 'library' }));
+    await loadCategories();
+  }
+  async function loadHistory() { setHistory(await readRequest<Nodes<Activity>>({ kind: 'history' })); }
+  async function loadUpdates() {
+    setUpdates(await readRequest<Nodes<Activity>>({ kind: 'updates' }));
+    setUpdateStatus(await readRequest<UpdateStatus>({ kind: 'library-update-status' }));
+  }
+  async function saveCategory(id: number | undefined, name: string) {
+    const result = await readRequest<{ category: Category }>({ kind: 'save-category', id, name: name.trim() });
+    await loadLibrary();
+    setCategoryId(result.category.id);
+    setRenameCategory(result.category.name);
+    setCategoryName('');
+    setConfirmDelete(false);
+  }
   async function loadSources() {
     const result = await readRequest<Nodes<Source>>({ kind: 'sources' });
     const installed = result.nodes.filter((item) => item.id !== '0');
@@ -133,13 +175,37 @@ export function ReadPage({ visible }: {
     void run(loadLibrary);
     return () => { active.current = false; };
   }, []);
+  // Poll only while the update feed is visible; the native updater owns its
+  // queue and continues safely when the user navigates away.
+  React.useEffect(() => {
+    if (!visible || tab !== 'updates' || details || reader || busy || !updateStatus?.jobsInfo.isRunning) return;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const status = await readRequest<UpdateStatus>({ kind: 'library-update-status' });
+        if (cancelled) return;
+        if (!status.jobsInfo.isRunning) {
+          const result = await readRequest<Nodes<Activity>>({ kind: 'updates' });
+          if (cancelled) return;
+          setUpdates(result);
+        }
+        setUpdateStatus(status);
+      } catch (reason) {
+        if (!cancelled) {
+          setUpdateStatus(null);
+          setError(reason instanceof Error ? reason.message : t({ id: "Could not check update status.", message: "Could not check update status." }));
+        }
+      }
+    }, 4000);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [visible, tab, details, reader, busy, updateStatus]);
   function switchTab(next: Tab) {
     setReader(null); setDetails(null); setTab(next);
     setError('');
     content.current?.scrollTo(0, 0);
     if (next === 'settings') { setSettingsPage(null); return; }
     if (next === 'browse') { setBrowseTab('sources'); setSource(''); setBrowse(null); }
-    void run(next === 'library' ? loadLibrary : loadSources);
+    void run(next === 'library' || next === 'categories' ? loadLibrary : next === 'history' ? loadHistory : next === 'updates' ? loadUpdates : loadSources);
   }
   function switchBrowse(next: BrowseTab) {
     setDetails(null); setReader(null); setTab('browse'); setBrowseTab(next); setSource(''); setBrowse(null); setError('');
@@ -158,7 +224,7 @@ export function ReadPage({ visible }: {
     const result = await readRequest<Catalogue>({ kind: 'catalogue', source: selection, mode, page, query: mode === 'search' ? term : undefined });
     setBrowse({ source: selection, query: term, mode, page, result });
   }
-  async function showManga(manga: Manga) {
+  async function showManga(manga: Manga, cached = false) {
     setTrackingOpen(false);
     const id = Number(manga.id);
     if (!Number.isSafeInteger(id) || id < 1) throw new Error(t({ id: "Invalid manga identifier.", message: "Invalid manga identifier." }));
@@ -166,10 +232,16 @@ export function ReadPage({ visible }: {
     setChapterFilter('');
     setChapterState('all');
     setSelectedChapters([]);
-    const data = await readRequest<Details>({ kind: 'manga', id });
+    const data = await readRequest<Details>({ kind: cached ? 'cached-manga' : 'manga', id });
     setDetails(data);
     content.current?.scrollTo(0, 0);
     return data;
+  }
+  async function openActivity(entry: Activity) {
+    const data = await showManga(entry.manga, true);
+    const target = data.chapters.find(chapter => chapter.id === entry.id);
+    if (!target) throw new Error(t({ id: "This saved chapter is no longer available.", message: "This saved chapter is no longer available." }));
+    await openChapter(target);
   }
   async function resumeManga(manga: Manga) {
     const data = await showManga(manga);
@@ -211,11 +283,18 @@ export function ReadPage({ visible }: {
     onSaved={(index, finished) => setDetails((old) => old ? { ...old, chapters: old.chapters.map((chapter) =>
       chapter.id === reader.chapter.id ? { ...chapter, lastPageRead: index, isRead: chapter.isRead || finished } : chapter) } : old)} />;
 
-  const tabs = [{ id: 'library' as const, label: t({ id: "Library", message: "Library" }), Icon: FiBookOpen }];
+  const tabs = [
+    { id: 'library' as const, label: t({ id: "Library", message: "Library" }), Icon: FiBookOpen },
+    { id: 'history' as const, label: t({ id: "History", message: "History" }), Icon: FiClock },
+    { id: 'updates' as const, label: t({ id: "Chapter updates", message: "Chapter updates" }), Icon: FiBell },
+    { id: 'categories' as const, label: t({ id: "Categories", message: "Categories" }), Icon: FiFolder },
+  ];
   const allLibrary = library?.nodes || [];
   const recent = allLibrary.filter((manga) => manga.lastReadChapter).sort((a, b) => Number(b.lastReadChapter?.lastReadAt || 0) - Number(a.lastReadChapter?.lastReadAt || 0));
   const continuing = recent.filter((manga) => !manga.lastReadChapter?.isRead || !!manga.unreadCount);
-  const libraryRows = (libraryView === 'reading' ? continuing : allLibrary).filter((manga) => (manga.title + ' ' + (manga.author || '')).toLowerCase().includes(libraryFilter.trim().toLowerCase())).sort((a, b) => librarySort === 'recent' ? Number(b.lastReadChapter?.lastReadAt || 0) - Number(a.lastReadChapter?.lastReadAt || 0) : a.title.localeCompare(b.title));
+  const categoryContains = (manga: Manga, id: number) => !!manga.categories?.nodes.some(item => item.id === id);
+  const selectedCategory = categories.find(item => item.id === categoryId);
+  const libraryRows = (libraryView === 'reading' ? continuing : allLibrary).filter(manga => !categoryFilter || categoryContains(manga, categoryFilter)).filter((manga) => (manga.title + ' ' + (manga.author || '')).toLowerCase().includes(libraryFilter.trim().toLowerCase())).sort((a, b) => librarySort === 'recent' ? Number(b.lastReadChapter?.lastReadAt || 0) - Number(a.lastReadChapter?.lastReadAt || 0) : a.title.localeCompare(b.title));
   const rows = tab === 'library' ? libraryRows : browse?.result.mangas || [];
   const chapterRows = details ? chapterGroups(details.chapters).map((group) => group.filter((chapter) => (chapter.name + ' ' + (chapter.scanlator || '')).toLowerCase().includes(chapterFilter.toLowerCase()) && (chapterState === 'all' || (chapterState === 'bookmarked' ? chapter.isBookmarked : (chapterState === 'read') === chapter.isRead)))).filter((group) => group.length) : [];
   if (chapterOrder === 'desc') chapterRows.reverse();
@@ -236,7 +315,7 @@ export function ReadPage({ visible }: {
     <aside className="tsugi-reading-rail">
       <nav aria-label={t({ id: "Reading sections", message: "Reading sections" })}>
         <span className="tsugi-reading-rail-label"><Trans id="Collection">Collection</Trans></span>
-        {tabs.filter(({ id }) => id === 'library').map(({ id, label, Icon }) => <button key={id} aria-current={tab === id ? 'page' : undefined} disabled={busy} onClick={() => switchTab(id)}><Icon aria-hidden />{label}</button>)}
+        {tabs.map(({ id, label, Icon }) => <button key={id} aria-label={label} aria-current={tab === id ? 'page' : undefined} disabled={busy} onClick={() => switchTab(id)}><Icon aria-hidden />{label}</button>)}
         <span className="tsugi-reading-rail-label"><Trans id="Discover">Discover</Trans></span>
         <button aria-current={tab === 'browse' && browseTab === 'sources' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('sources')}><FiCompass aria-hidden /><Trans id="Browse">Browse</Trans></button>
         <button aria-current={tab === 'browse' && browseTab === 'search' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('search')}><FiSearch aria-hidden /><Trans id="Global search">Global search</Trans></button>
@@ -247,7 +326,7 @@ export function ReadPage({ visible }: {
     </aside>
     <div className="tsugi-reading-content" ref={content}>
       <header className="tsugi-reading-header">
-        <div><h1>{details ? t({ id: "Series", message: "Series" }) : tab === 'library' ? t({ id: "Library", message: "Library" }) : tab === 'settings' ? t({ id: "Settings", message: "Settings" }) : browseTab === 'search' ? t({ id: "Global search", message: "Global search" }) : browseTab === 'extensions' ? t({ id: "Extensions", message: "Extensions" }) : t({ id: "Browse", message: "Browse" })}</h1>
+        <div><h1>{details ? t({ id: "Series", message: "Series" }) : tabs.find(item => item.id === tab)?.label ?? (tab === 'settings' ? t({ id: "Settings", message: "Settings" }) : browseTab === 'search' ? t({ id: "Global search", message: "Global search" }) : browseTab === 'extensions' ? t({ id: "Extensions", message: "Extensions" }) : t({ id: "Browse", message: "Browse" }))}</h1>
           {!details && tab === 'library' && <p className="tsugi-library-summary"><Trans id="Saved titles">Saved titles</Trans> <strong>{allLibrary.length}</strong><span aria-hidden="true"> · </span><Trans id="Unread chapters">Unread chapters</Trans> <strong>{allLibrary.reduce((sum, manga) => sum + (manga.unreadCount || 0), 0)}</strong></p>}
         </div>
         <form className="tsugi-reading-global" onSubmit={(event) => { event.preventDefault(); if (!globalQuery.trim() || busy) return; setDetails(null); setTab('browse'); setBrowseTab('search'); void run(async () => { const result = await readRequest<Nodes<Source>>({ kind: 'sources' }); const available = result.nodes.filter((item) => item.id !== '0'); setSources(available); await searchAll(available); }); }}>
@@ -257,7 +336,7 @@ export function ReadPage({ visible }: {
     {busy && <p className="mb-4 text-sm text-[--tsugi-muted]" role="status"><Trans id="Working…">Working…</Trans></p>}
     {error && <div role="alert" className="tsugi-read-error mb-4">{error}</div>}
     {details ? <section>
-      <button className="tsugi-read-action mb-6" disabled={busy} onClick={() => { setDetails(null); setError(''); if (tab === 'library') void run(loadLibrary); content.current?.scrollTo(0, 0); }}><FiArrowLeft aria-hidden /><Trans id="Back">Back</Trans></button>
+      <button className="tsugi-read-action mb-6" disabled={busy} onClick={() => { setDetails(null); setError(''); if (tab === 'library') void run(loadLibrary); else if (tab === 'history') void run(loadHistory); else if (tab === 'updates') void run(loadUpdates); content.current?.scrollTo(0, 0); }}><FiArrowLeft aria-hidden /><Trans id="Back">Back</Trans></button>
       <div className="tsugi-series-layout">
       <aside className="tsugi-manga-detail">
         <MangaCover manga={details.manga} fallbackEnabled={visible && coverFallback} />
@@ -336,6 +415,63 @@ export function ReadPage({ visible }: {
             <button className="tsugi-read-action" disabled={busy} onClick={() => switchTab('browse')}><Trans id="Return to Browse">Return to Browse</Trans></button>
           </>}
       </section>
+    ) : tab === 'history' || tab === 'updates' ? (
+      <section className="tsugi-reading-activity">
+        <div className="tsugi-reading-list-header">
+          <div><h2 className="text-xl font-semibold">{tab === 'history' ? <Trans id="Recently read chapters">Recently read chapters</Trans> : <Trans id="Recently fetched unread chapters">Recently fetched unread chapters</Trans>}</h2>
+          <p className="mt-1 text-sm text-[--tsugi-muted]">{tab === 'history' ? <Trans id="Return to the exact chapter you opened.">Return to the exact chapter you opened.</Trans> : <Trans id="Unread chapters from your library, ordered by when they were added.">Unread chapters from your library, ordered by when they were added.</Trans>}</p></div>
+          <div className="flex flex-wrap gap-2">
+            {tab === 'updates' && <button className="tsugi-read-action" disabled={busy || updateStatus?.jobsInfo.isRunning} onClick={() => void run(async () => {
+              setUpdateStatus(await readRequest<UpdateStatus>({ kind: 'start-library-update' }));
+              setUpdates(await readRequest<Nodes<Activity>>({ kind: 'updates' }));
+            })}><FiRefreshCw aria-hidden /><Trans id="Check for chapters">Check for chapters</Trans></button>}
+            <button className="tsugi-read-action" disabled={busy} onClick={() => void run(tab === 'history' ? loadHistory : loadUpdates)}><Trans id="Refresh feed">Refresh feed</Trans></button>
+          </div>
+        </div>
+        {tab === 'updates' && updateStatus && <div className="tsugi-reader-update-status" role="status">
+          <span>{updateStatus.jobsInfo.isRunning ? <Trans id="Checking library">Checking library</Trans> : <Trans id="Library update idle">Library update idle</Trans>}</span>
+          {updateStatus.jobsInfo.totalJobs > 0 && <><progress max={updateStatus.jobsInfo.totalJobs} value={updateStatus.jobsInfo.finishedJobs} aria-label={t({ id: "Library update progress", message: "Library update progress" })} /><span>{updateStatus.jobsInfo.finishedJobs}/{updateStatus.jobsInfo.totalJobs}</span></>}
+          {updateStatus.jobsInfo.skippedMangasCount > 0 && <small>{updateStatus.jobsInfo.skippedMangasCount} <Trans id="titles skipped by update preferences">titles skipped by update preferences</Trans></small>}
+        </div>}
+        {(tab === 'history' ? history : updates)?.nodes.map(entry => <button key={entry.id} type="button" className="tsugi-read-row tsugi-reader-activity-row" disabled={busy} onClick={() => void run(() => openActivity(entry))}>
+          <MangaCover manga={entry.manga} fallbackEnabled={visible && coverFallback} />
+          <span className="min-w-0 grow"><strong className="block truncate">{entry.manga.title}</strong><small className="block text-[--tsugi-muted]">{entry.name}{tab === 'history' && entry.pageCount > 0 ? ' · ' + Math.min(entry.lastPageRead + 1, entry.pageCount) + '/' + entry.pageCount : ''}</small></span>
+          <small className="text-[--tsugi-muted]">{activityDate(tab === 'history' ? entry.lastReadAt : entry.fetchedAt)}</small>
+          <FiChevronRight aria-hidden />
+        </button>)}
+        {!busy && (tab === 'history' ? history : updates)?.nodes.length === 0 && <div className="tsugi-reading-empty">{tab === 'history' ? <FiClock aria-hidden /> : <FiBell aria-hidden />}<h2>{tab === 'history' ? <Trans id="No reading history yet">No reading history yet</Trans> : <Trans id="No unread updates">No unread updates</Trans>}</h2><p>{tab === 'history' ? <Trans id="Your reading activity will appear here.">Your reading activity will appear here.</Trans> : <Trans id="Check your library for new chapters.">Check your library for new chapters.</Trans>}</p></div>}
+        {((tab === 'history' ? history : updates)?.totalCount ?? 0) > 100 && <p className="mt-4 text-sm text-[--tsugi-muted]"><Trans id="Showing the latest 100 chapters.">Showing the latest 100 chapters.</Trans></p>}
+      </section>
+    ) : tab === 'categories' ? (
+      <section className="tsugi-reader-categories">
+        <aside className="tsugi-category-list">
+          <form className="flex flex-wrap gap-2" onSubmit={event => { event.preventDefault(); if (categoryName.trim()) void run(() => saveCategory(undefined, categoryName)); }}>
+            <input className="tsugi-read-input min-w-0 grow" value={categoryName} maxLength={80} onChange={event => setCategoryName(event.target.value)} placeholder={t({ id: "New category", message: "New category" })} aria-label={t({ id: "New category", message: "New category" })} />
+            <button className="tsugi-read-action" disabled={busy || !categoryName.trim()}><FiPlus aria-hidden /><Trans id="Create category">Create category</Trans></button>
+          </form>
+          <nav aria-label={t({ id: "Custom categories", message: "Custom categories" })} className="mt-5 grid gap-2">
+            {categories.map(category => <button type="button" key={category.id} className="tsugi-category-item" aria-current={categoryId === category.id ? 'page' : undefined} onClick={() => { setCategoryId(category.id); setRenameCategory(category.name); setConfirmDelete(false); }} disabled={busy}><FiFolder aria-hidden /><span className="min-w-0 grow truncate">{category.name}</span><small>{allLibrary.filter(manga => categoryContains(manga, category.id)).length}</small></button>)}
+          </nav>
+        </aside>
+        {selectedCategory ? <section className="min-w-0">
+          <div className="tsugi-reading-list-header"><h2 className="text-xl font-semibold">{selectedCategory.name}</h2><button className="tsugi-read-action" disabled={busy} onClick={() => { setCategoryFilter(categoryId); setLibraryView('all'); setLibraryFilter(''); switchTab('library'); }}><Trans id="Open shelf">Open shelf</Trans></button></div>
+          <form className="mb-3 flex flex-wrap gap-2" onSubmit={event => { event.preventDefault(); if (renameCategory.trim()) void run(() => saveCategory(categoryId, renameCategory)); }}>
+            <input className="tsugi-read-input min-w-0 grow" value={renameCategory} maxLength={80} onChange={event => setRenameCategory(event.target.value)} aria-label={t({ id: "Category name", message: "Category name" })} />
+            <button className="tsugi-read-action" disabled={busy || !renameCategory.trim() || renameCategory.trim() === selectedCategory.name}><Trans id="Rename category">Rename category</Trans></button>
+            <button type="button" className="tsugi-read-action" disabled={busy} onClick={() => setConfirmDelete(value => !value)}><Trans id="Delete category">Delete category</Trans></button>
+          </form>
+          {confirmDelete && <div className="tsugi-reader-category-confirm"><p><Trans id="Remove this category? Your manga and reading progress will stay in the library.">Remove this category? Your manga and reading progress will stay in the library.</Trans></p><button className="tsugi-read-action" disabled={busy} onClick={() => void run(async () => { await readRequest({ kind: 'delete-category', id: categoryId }); setCategoryId(0); setConfirmDelete(false); await loadLibrary(); })}><Trans id="Confirm category deletion">Confirm category deletion</Trans></button><button className="tsugi-read-action" onClick={() => setConfirmDelete(false)}><Trans id="Cancel">Cancel</Trans></button></div>}
+          <input className="tsugi-read-input my-4 w-full" value={categorySearch} onChange={event => setCategorySearch(event.target.value)} placeholder={t({ id: "Filter titles", message: "Filter titles" })} aria-label={t({ id: "Filter category titles", message: "Filter category titles" })} />
+          <p className="mb-2 text-sm text-[--tsugi-muted]"><Trans id="Select titles to include on this shelf. A title can belong to several categories.">Select titles to include on this shelf. A title can belong to several categories.</Trans></p>
+          {allLibrary.filter(manga => manga.title.toLowerCase().includes(categorySearch.trim().toLowerCase())).map(manga => <label key={manga.id} className="tsugi-read-row tsugi-reader-category-title">
+            <span className="min-w-0 grow truncate">{manga.title}</span>
+            {categoryContains(manga, categoryId) && <FiCheck aria-hidden />}
+            <input type="checkbox" checked={categoryContains(manga, categoryId)} disabled={busy} onChange={event => { const assigned = event.target.checked; void run(async () => { await readRequest({ kind: 'assign-category', mangaId: Number(manga.id), categoryId, assigned }); await loadLibrary(); }); }} />
+          </label>)}
+          {!allLibrary.length && <p className="text-sm text-[--tsugi-muted]"><Trans id="Save manga to your library before assigning categories.">Save manga to your library before assigning categories.</Trans></p>}
+          {library && library.totalCount > library.nodes.length && <p className="mt-3 text-sm text-[--tsugi-muted]"><Trans id="Showing the first 100 library entries.">Showing the first 100 library entries.</Trans></p>}
+        </section> : <div className="tsugi-reading-empty"><FiFolder aria-hidden /><h2><Trans id="Organize your collection">Organize your collection</Trans></h2><p><Trans id="Create a category or choose one to manage its titles.">Create a category or choose one to manage its titles.</Trans></p></div>}
+      </section>
     ) : tab === 'browse' ? (
       <section>
         <nav className="tsugi-read-subnav mb-7" aria-label={t({ id: "Browse sections", message: "Browse sections" })}>
@@ -391,7 +527,7 @@ export function ReadPage({ visible }: {
         </section>}
       </section>
     ) : <section>
-      {continuing.length > 0 && libraryView === 'all' && !libraryFilter.trim() && <section className="tsugi-reading-resume" aria-label={t({ id: "Continue reading", message: "Continue reading" })}>
+      {continuing.length > 0 && libraryView === 'all' && !categoryFilter && !libraryFilter.trim() && <section className="tsugi-reading-resume" aria-label={t({ id: "Continue reading", message: "Continue reading" })}>
         <h2><FiClock aria-hidden /><Trans id="Continue reading">Continue reading</Trans></h2>
         <div className="tsugi-reading-resume-list">{continuing.slice(0, 6).map((manga) => {
           const chapter = manga.lastReadChapter;
@@ -406,6 +542,7 @@ export function ReadPage({ visible }: {
             </span><FiChevronRight aria-hidden /></button>;
         })}</div>
       </section>}
+      {categories.length > 0 && <nav className="tsugi-library-shelves" aria-label={t({ id: "Library categories", message: "Library categories" })}><button type="button" aria-current={!categoryFilter ? 'page' : undefined} onClick={() => setCategoryFilter(0)}><Trans id="All shelves">All shelves</Trans></button>{categories.map(category => <button type="button" key={category.id} aria-current={categoryFilter === category.id ? 'page' : undefined} onClick={() => setCategoryFilter(category.id)}>{category.name}</button>)}<button type="button" disabled={busy} onClick={() => switchTab('categories')}><FiPlus aria-hidden /><Trans id="Manage categories">Manage categories</Trans></button></nav>}
       <div className="tsugi-reading-list-header"><nav className="tsugi-read-subnav" aria-label={t({ id: "Library view", message: "Library view" })}><button aria-current={libraryView === 'all' ? 'page' : undefined} onClick={() => setLibraryView('all')}><Trans id="All manga">All manga</Trans></button><button aria-current={libraryView === 'reading' ? 'page' : undefined} onClick={() => setLibraryView('reading')}><Trans id="In progress">In progress</Trans></button></nav><div className="tsugi-reading-filters"><input className="tsugi-read-input" placeholder={t({ id: "Find in library", message: "Find in library" })} aria-label={t({ id: "Find in library", message: "Find in library" })} value={libraryFilter} onChange={(event) => setLibraryFilter(event.target.value)} /><select className="tsugi-read-input" aria-label={t({ id: "Library sort", message: "Library sort" })} value={librarySort} onChange={(event) => setLibrarySort(event.target.value as typeof librarySort)}><option value="title"><Trans id="Title">Title</Trans></option><option value="recent"><Trans id="Recently read">Recently read</Trans></option></select><button className="tsugi-read-action" disabled={busy} onClick={() => void run(loadLibrary)} aria-label={t({ id: "Refresh library", message: "Refresh library" })}><FiRefreshCw aria-hidden /></button></div></div>
       {!allLibrary.length && !busy && <div className="tsugi-reading-empty"><FiBookOpen aria-hidden /><h2><Trans id="Your library is empty">Your library is empty</Trans></h2><p><Trans id="Browse a source to add manga and keep your reading progress in one place.">Browse a source to add manga and keep your reading progress in one place.</Trans></p><div className="tsugi-empty-actions"><button className="tsugi-read-action tsugi-empty-primary" onClick={() => switchTab('browse')}><Trans id="Browse sources">Browse sources</Trans></button><button className="tsugi-read-action" onClick={() => switchBrowse('extensions')}><Trans id="Extensions">Extensions</Trans></button></div></div>}
       {!!allLibrary.length && !rows.length && !busy && <p className="py-8 text-[--tsugi-muted]"><Trans id="No manga match your filters.">No manga match your filters.</Trans></p>}

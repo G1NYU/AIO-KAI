@@ -290,6 +290,15 @@ fn execute(
         ReadAction::Status => reader.query(ReadOperation::Status),
         ReadAction::Sources => reader.query(ReadOperation::Sources),
         ReadAction::Library => reader.query(ReadOperation::Library),
+        ReadAction::History => reader.query(ReadOperation::History),
+        ReadAction::Updates => reader.query(ReadOperation::Updates),
+        ReadAction::Categories => reader.query(ReadOperation::Categories),
+        ReadAction::SaveCategory { id, name } => reader.save_category(id, &name),
+        ReadAction::DeleteCategory { id } => reader.delete_category(id),
+        ReadAction::AssignCategory { manga_id, category_id, assigned } => reader.assign_category(manga_id, category_id, assigned),
+        ReadAction::CachedManga { id } => reader.cached_manga(id),
+        ReadAction::LibraryUpdateStatus => reader.library_update_status(),
+        ReadAction::StartLibraryUpdate => reader.start_library_update(),
         ReadAction::Trackers => reader.query(ReadOperation::Trackers),
         ReadAction::TrackerLogin { id } => {
             if !matches!(id, 1 | 2) { return Err("This tracker login is not enabled yet."); }
