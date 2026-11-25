@@ -12,6 +12,7 @@ export const shellDownloads: DownloadsHost = {
   remove: (id, files) => send({ type: 'download-remove', id, files }),
   list: () => send({ type: 'download-list' }),
   headers: true,
+  folder: { choose: () => send({ type: 'download-folder' }), open: id => send({ type: 'download-open', id }) },
   configure: ({ concurrent, wifiOnly }) =>
     send({ type: 'download-config', concurrent, wifiOnly }),
   subscribe: (listener) =>

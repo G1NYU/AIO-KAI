@@ -190,6 +190,32 @@ impl Downloads {
             .any(|p| p.video.as_deref() == Some(path) || p.subtitles.iter().any(|s| s == path))
     }
 
+    /// Read only a completed Vault job, never a caller-supplied path.
+    pub fn vault_file(&self, id: &str) -> Option<(&'static str, Vec<u8>)> {
+        if !id.starts_with("vault-") || id.len() > 64 ||
+            !id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_') { return None; }
+        let path = {
+            let shared = self.shared.lock().ok()?;
+            let job = shared.jobs.get(id)?;
+            if !job.done { return None; }
+            job.vault.clone()?
+        };
+        let mime = match path.extension()?.to_str()?.to_ascii_lowercase().as_str() {
+            "epub" => "application/epub+zip", "pdf" => "application/pdf",
+            "m4a" => "audio/mp4", "mp3" => "audio/mpeg", "flac" => "audio/flac",
+            "wav" => "audio/wav", "ogg" | "opus" => "audio/ogg", "aac" => "audio/aac",
+            _ => return None,
+        };
+        const IMPORT_LIMIT: u64 = 128 * 1024 * 1024;
+        let meta = fs::symlink_metadata(&path).ok()?;
+        if !meta.file_type().is_file() || meta.len() == 0 || meta.len() > IMPORT_LIMIT { return None; }
+        let mut data = Vec::new();
+        let file = fs::File::open(path).ok()?;
+        file.take(IMPORT_LIMIT + 1).read_to_end(&mut data).ok()?;
+        if data.is_empty() || data.len() as u64 > IMPORT_LIMIT { return None; }
+        Some((mime, data))
+    }
+
     pub fn job_folder(&self, id: &str) -> Option<PathBuf> {
         let shared = self.shared.lock().ok()?;
         let job = shared.jobs.get(id)?;

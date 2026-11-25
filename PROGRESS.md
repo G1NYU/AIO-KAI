@@ -577,3 +577,6 @@ Migration commit 1be0b4c passed Unified Windows validation (45558491536) and the
 
 ### Local book cover thumbnails (2026-11-25)
 - Extracts raster EPUB covers on first open and renders a PDF first-page thumbnail. Isolated frame converts to a bounded PNG; parent validates signature and size before storing the Blob with the local library metadata. Missing/unsupported art keeps the existing manga-style placeholder. No external cover lookup and no SVG transfer. Library now selects the most recently read unfinished book for the shared hero. Added cover guard and real PDF thumbnail assertion. Full rendering/Windows acceptance remains pending.
+
+### Completed Vault file access (2026-11-25)
+- CI 45573987775 passed 96 regression tests, Windows compilation and actual isolated EPUB/PDF browser acceptance, including PDF resume and script blocking. Added a bounded completed-job file accessor and native custom-protocol route with a required fetch header; no arbitrary file path input, no navigation use and no video playback authorization. Folder chooser/open bridge wired. Next attach explicit book/audio import UI; native compile and actual Windows transfer acceptance pending.

@@ -258,6 +258,7 @@ pub fn run(app: App) {
         .with_devtools(args.devtools)
         .with_initialization_script(bridge)
         .with_custom_protocol("aiostreams".into(), {
+            let vault_downloads = downloads.clone();
             #[cfg(windows)]
             let reading = reading.clone();
             move |_, req: Request<Vec<u8>>| {
@@ -270,6 +271,22 @@ pub fn run(app: App) {
                         .header("Cache-Control", "no-store")
                         .header("X-Content-Type-Options", "nosniff")
                         .body(Cow::Owned(body)).unwrap();
+                }
+                return Response::builder().status(404).body(Cow::Owned(Vec::new())).unwrap();
+            }
+            if let Some(id) = req.uri().path().strip_prefix("/__tsugi_vault/file/") {
+                // Require a same-origin fetch with an explicit header.
+                if req.method() == wry::http::Method::GET &&
+                    req.headers().get("X-Tsugi-Vault-Import").and_then(|v| v.to_str().ok()) == Some("1") {
+                    if let Some((mime, body)) = vault_downloads.vault_file(id) {
+                        return Response::builder().status(200)
+                            .header("Content-Type", mime)
+                            .header("Content-Disposition", "attachment")
+                            .header("Cache-Control", "no-store")
+                            .header("X-Content-Type-Options", "nosniff")
+                            .header("Content-Security-Policy", "default-src 'none'; sandbox")
+                            .body(Cow::Owned(body)).unwrap();
+                    }
                 }
                 return Response::builder().status(404).body(Cow::Owned(Vec::new())).unwrap();
             }
