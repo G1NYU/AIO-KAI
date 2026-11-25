@@ -158,7 +158,7 @@ export function MusicLibrary({
   }
   function cover(tracks:SavedMusicTrack[],fallback:React.ReactNode=<FiDisc aria-hidden/>){
     const artwork=[...new Set(tracks.flatMap(track=>track.artworkURL?[track.artworkURL]:[]))].slice(0,4);
-    return <span className="tsugi-library-cover" data-mosaic={artwork.length===4}>{artwork.length?(artwork.length===4?artwork:artwork.slice(0,1)).map(url=><MusicArtwork key={url} source={url} target={384} loading="lazy" />):fallback}</span>;
+    return <span className="tsugi-library-cover" data-mosaic={artwork.length===4}>{artwork.length?(artwork.length===4?artwork:artwork.slice(0,1)).map(url=><MusicArtwork key={url} source={url} className="size-full object-cover" target={384} loading="lazy" />):fallback}</span>;
   }
   const navItems=[{id:'overview',label:t`Overview`,icon:BrushMusicLibrary,count:undefined},{id:'local',label:t`Local music`,icon:FiDisc,count:allLocal.length},{id:'songs',label:t`Songs`,icon:BrushMusicLibrary,count:allLocal.length+saved.filter(track=>!allLocal.some(local=>local.id===track.id)).length},{id:'albums',label:t`Albums`,icon:FiDisc,count:undefined},{id:'artists',label:t`Artists`,icon:FiList,count:undefined},{id:'recent',label:t`Recently played`,icon:FiClock,count:recent.length}];
   return <section data-ui="tsugi-library" className="tsugi-library tsugi-collection tsugi-library-v2 tsugi-music-hub">

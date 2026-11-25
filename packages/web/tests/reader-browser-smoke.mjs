@@ -672,6 +672,7 @@ try {
   const saveCollection = detail.getByRole('button',{name:'Save collection to library',exact:true});
   await saveCollection.click();
   await detail.getByRole('button',{name:'Saved to library',exact:true}).waitFor();
+  assert.equal(await detail.getByRole('button',{name:'Saved to library',exact:true}).isDisabled(),true);
   const saveRow = detail.locator('.tsugi-music-detail-track').first().getByRole('button',{name:'Save track to library',exact:true});
   await saveRow.click();
   assert.equal(await saveRow.getAttribute('aria-pressed'),'true');

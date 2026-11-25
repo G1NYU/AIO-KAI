@@ -48,25 +48,26 @@ export function MusicCollection({
   onPlay: PlayCollection;
   saving: CollectionSaving;
 }) {
-  const [detail, setDetail] = React.useState<EclipseDetail | null>(null);
+  const [loaded, setLoaded] = React.useState<{ source: MusicConnection; item: EclipseCatalogItem; detail: EclipseDetail } | null>(null);
   const [nested, setNested] = React.useState<EclipseCatalogItem | null>(null);
   const [trackFilter,setTrackFilter]=React.useState('');
   const [saveNotice,setSaveNotice]=React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   const current = nested ?? selected;
+  const detail = loaded?.source === source && loaded.item === current ? loaded.detail : null;
 
   React.useEffect(() => setNested(null), [selected, source.id]);
   React.useEffect(() => {
     if (!current) return;
     const controller = new AbortController();
-    setDetail(null);
+    setLoaded(null);
     setTrackFilter('');
     setSaveNotice('');
     setError('');
     setLoading(true);
     providerFor(source).detail(current, controller.signal).then((result) => {
-      if (!controller.signal.aborted) setDetail(result);
+      if (!controller.signal.aborted) setLoaded({ source, item: current, detail: result });
     }).catch(() => {
       if (!controller.signal.aborted) setError(t`This collection is unavailable from the addon.`);
     }).finally(() => {
@@ -110,7 +111,7 @@ export function MusicCollection({
               <button type="button" onClick={() => { onPlay(source, detail.tracks, 0); onClose(); }}
                 className="tsugi-music-detail-play inline-flex items-center gap-2 rounded-full bg-violet-200 px-5 py-2.5 font-semibold text-[#171420]"><BiPlay aria-hidden/><Trans>Play all</Trans></button>
               <button type="button" className="tsugi-read-action" onClick={()=>{const tracks=[...detail.tracks];for(let i=tracks.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[tracks[i],tracks[j]]=[tracks[j],tracks[i]];}onPlay(source,tracks,0);onClose();}}><Trans>Shuffle</Trans></button>
-              {current.type !== 'track' && <button type="button" className="tsugi-read-action tsugi-save-track" disabled={collectionSaved} aria-pressed={collectionSaved} onClick={()=>setSaveNotice(saving.onSaveCollection(source,current,detail.title||current.title,detail.tracks)?t`Collection saved to your library.`:t`Could not save this collection. Check library limits.`)}>{collectionSaved?<FiCheck aria-hidden/>:<FiPlus aria-hidden/>}{collectionSaved?t`Saved to library`:t`Save collection to library`}</button>}
+              {current.type !== 'track' && <button type="button" className="tsugi-read-action tsugi-save-track" disabled={collectionSaved} aria-pressed={collectionSaved} onClick={()=>setSaveNotice(saving.onSaveCollection(source,current,detail.title||current.title,detail.tracks)?t`Collection saved to your library.`:t`Could not save this collection. Check storage and library limits.`)}>{collectionSaved?<FiCheck aria-hidden/>:<FiPlus aria-hidden/>}{collectionSaved?t`Saved to library`:t`Save collection to library`}</button>}
             </div>}
           </div>
         </header>
@@ -137,7 +138,7 @@ export function MusicCollection({
                 <span className="tsugi-hub-remote-album" title={track.album}>{track.album||current.title}</span><span className="tsugi-hub-source"><span>{source.manifest.name}</span></span>
                 <span className="tsugi-track-duration">{typeof track.duration==='number'?Math.floor(track.duration/60)+':'+String(Math.floor(track.duration%60)).padStart(2,'0'):'—'}</span>
               </button>
-              <button type="button" className="tsugi-icon-action tsugi-save-track" aria-label={t`Save track to library`} aria-pressed={saving.isTrackSaved(source,track)} title={saving.isTrackSaved(source,track)?t`Remove from saved tracks`:t`Save track to library`} onClick={()=>setSaveNotice(saving.onToggleTrack(source,track)?t`Saved tracks updated.`:t`Could not update saved tracks. Check library limits.`)}>{saving.isTrackSaved(source,track)?<FiCheck aria-hidden/>:<FiPlus aria-hidden/>}</button>
+              <button type="button" className="tsugi-icon-action tsugi-save-track" aria-label={t`Save track to library`} aria-pressed={saving.isTrackSaved(source,track)} title={saving.isTrackSaved(source,track)?t`Remove from saved tracks`:t`Save track to library`} onClick={()=>setSaveNotice(saving.onToggleTrack(source,track)?t`Saved tracks updated.`:t`Could not update saved tracks. Check storage and library limits.`)}>{saving.isTrackSaved(source,track)?<FiCheck aria-hidden/>:<FiPlus aria-hidden/>}</button>
               </div>
             ))}
             </div>

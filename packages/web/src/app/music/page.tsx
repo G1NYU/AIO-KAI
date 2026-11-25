@@ -198,9 +198,16 @@ export function MusicPage({
     storeRecentPlays(recent, rememberSources);
   }, [recent, rememberSources]);
 
-  React.useEffect(() => {
-    saveMusicLibrary(playlists);
-  }, [playlists]);
+  function persistLibrary(next: typeof playlists): boolean {
+    if (!saveMusicLibrary(next)) {
+      setSaveNotice(t`Could not write the library. Check available storage or library limits.`);
+      setLibraryError(t`Could not write the library. Check available storage or library limits.`);
+      return false;
+    }
+    setLibraryError('');
+    setPlaylists(next);
+    return true;
+  }
 
   React.useEffect(() => {
     saveAudioProfile(audioProfile);
@@ -567,15 +574,15 @@ export function MusicPage({
   function saveTracksInLibrary(sourceId: string, tracks: EclipseTrack[]): boolean {
     const next = saveMusicTracks(playlists, SAVED_PLAYLIST_ID, t`Saved tracks`, tracks, sourceId);
     if (!next) { setSaveNotice(t`Library limit reached or invalid track metadata. No changes were made.`); return false; }
-    setPlaylists(next);
+    if (!persistLibrary(next)) return false;
     setSaveNotice(t`Saved to your library.`);
     return true;
   }
   function toggleTrackInLibrary(sourceId: string, track: EclipseTrack): boolean {
     if (isSavedMusicTrack(favorites, track, sourceId)) {
-      setPlaylists(current => current.map(list => list.id !== SAVED_PLAYLIST_ID ? list : {
+      if (!persistLibrary(playlists.map(list => list.id !== SAVED_PLAYLIST_ID ? list : {
         ...list, tracks: list.tracks.filter(entry => entry.id !== track.id || entry.sourceId !== sourceId),
-      }));
+      }))) return false;
       setSaveNotice(t`Removed from saved tracks.`);
       return true;
     }
@@ -585,7 +592,7 @@ export function MusicPage({
     if (item.type === 'track') return false;
     const next = saveMusicCollection(playlists, { sourceId: source.id, id: item.id, type: item.type }, title, tracks);
     if (!next) { setSaveNotice(t`Collection exceeds library limits or contains invalid tracks. No changes were made.`); return false; }
-    setPlaylists(next);
+    if (!persistLibrary(next)) return false;
     setSaveNotice(t`Collection saved to your library.`);
     return true;
   }
@@ -833,7 +840,7 @@ export function MusicPage({
         {tab === 'library' && (
           <>
             {libraryError && <p role="alert" className="mb-6 text-sm text-amber-200">{libraryError}</p>}
-            <MusicLibrary playlists={playlists} onChange={setPlaylists} recent={recent} localRequest={localLibraryRequest}
+            <MusicLibrary playlists={playlists} onChange={persistLibrary} recent={recent} localRequest={localLibraryRequest}
               sources={connections.map(source=>({id:source.id,name:source.manifest.name}))}
               onManageSources={()=>setSettingsOpen(true)} onDiscover={()=>setTab('discover')} onSearch={()=>setTab('search')}
               onPlaySavedCollection={(entries)=>{

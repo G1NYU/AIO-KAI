@@ -68,12 +68,18 @@ export function readMusicLibrary(): MusicPlaylist[] {
   });
 }
 
-export function saveMusicLibrary(playlists: MusicPlaylist[]): void {
-  storage.set(KEY, playlists.slice(0, MAX_LISTS).map(list => ({
-    id: clean(list.id, 120), name: clean(list.name, 80),
-    tracks: list.tracks.slice(0, MAX_TRACKS).map(t => savedTrack(t, t.sourceId)),
-    collection: collectionIdentity(list.collection),
-  })));
+export function saveMusicLibrary(playlists: MusicPlaylist[]): boolean {
+  if (playlists.length > MAX_LISTS || playlists.some(list => list.tracks.length > MAX_TRACKS)) return false;
+  try {
+    localStorage.setItem(KEY, JSON.stringify(playlists.map(list => ({
+      id: clean(list.id, 120), name: clean(list.name, 80),
+      tracks: list.tracks.map(t => savedTrack(t, t.sourceId)),
+      collection: collectionIdentity(list.collection),
+    }))));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function createMusicPlaylist(name: string): MusicPlaylist {

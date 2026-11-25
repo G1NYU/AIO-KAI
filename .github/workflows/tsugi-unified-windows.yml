@@ -357,7 +357,7 @@ jobs:
           Never share an API key, signed download URL or account credential.
           Third-party reading extensions execute with your account permissions:
           install only trusted publishers. Signatures are not independently verified.
-          This is a development ZIP, not a public release or installer.
+          This is a portable preview ZIP, not an installer.
           Physical Windows desktop and real-source acceptance testing are pending.
           '@ | Set-Content -Path stage/README-TEST.txt -Encoding utf8
           # Record the exact checkout, rather than asking testers to infer it
@@ -395,3 +395,62 @@ jobs:
           retention-days: 7
           path: Tsugi-windows-x64-test.zip
           if-no-files-found: error
+
+  publish-preview:
+    needs: [package]
+    if: github.ref == 'refs/heads/feature/tsugi-read-runtime' && github.event_name == 'push' && contains(github.event.head_commit.message, '[release tsugi]') && contains(github.event.head_commit.message, '[package tsugi]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: Tsugi-Windows-x64-test
+          path: release
+      - name: Verify package identity and publish preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=v0.1.0-preview.1
+          cd release
+          mv Tsugi-windows-x64-test.zip Tsugi-windows-x64.zip
+          python - <<'PY'
+          import json, os, zipfile
+          with zipfile.ZipFile("Tsugi-windows-x64.zip") as archive:
+              info = json.loads(archive.read("BUILD-INFO.json").decode("utf-8-sig"))
+              assert info["commit"] == os.environ["GITHUB_SHA"]
+              assert info["run_id"] == os.environ["GITHUB_RUN_ID"]
+              assert "current/Tsugi.exe" in archive.namelist()
+              assert "LICENSE" in archive.namelist()
+              assert archive.testzip() is None
+          PY
+          sha256sum Tsugi-windows-x64.zip > SHA256SUMS.txt
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to overwrite it."
+            exit 1
+          fi
+          cat > notes.md <<EOF
+          First public Windows x64 portable preview of Tsugi.
+
+          - Movies & TV through the AIOStreams / Stremio addon and Jellyfin-compatible ecosystem.
+          - Music, local library, saved albums and collections, native YouTube Music, Eclipse sources and fullscreen visualizers.
+          - Mihon-compatible reading repositories, local EPUB/PDF and the Vault download workspace.
+
+          Download **Tsugi-windows-x64.zip**, extract the entire archive and run \`current/Tsugi.exe\`. Keep the companion files and \`.portable\` marker. This is a portable preview, not an installer; Windows may warn about the unsigned executable. The reading runtime is fetched and verified on first setup. Back up existing portable data before replacing files.
+
+          Automated validation and package checks passed. Live provider compatibility, hardware-specific performance and physical-machine acceptance remain subject to testing. Native YouTube Music cold-start latency is unchanged.
+
+          Corresponding Tsugi source: https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_SHA}
+          Third-party notices and source references: https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/packages/desktop/THIRD-PARTY.md
+          Validation: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          License: AGPL-3.0; bundled components retain their respective licenses. See included notices and source archives.
+          EOF
+          gh release create "$tag" Tsugi-windows-x64.zip SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Tsugi v0.1.0 — Windows preview" --notes-file notes.md --draft --prerelease
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort > actual-assets.txt
+          printf '%s\n' SHA256SUMS.txt Tsugi-windows-x64.zip | sort > expected-assets.txt
+          diff -u expected-assets.txt actual-assets.txt
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url,isDraft,isPrerelease,tagName

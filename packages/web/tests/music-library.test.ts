@@ -63,6 +63,10 @@ describe('independent Tsugi playlists', () => {
     expect(saveMusicCollection([],identity,'Album',Array(1001).fill(tracks[0]))).toBeNull();
     expect(saveMusicTracks([],'saved','Saved tracks',Array.from({length:1001},(_,i)=>({...tracks[0],id:String(i)})),sourceId)).toBeNull();
   });
+  it('reports a blocked storage write without pretending the library was saved', () => {
+    vi.stubGlobal('localStorage', { setItem: () => { throw new Error('quota'); }, getItem: () => null });
+    expect(saveMusicLibrary([createMusicPlaylist('Test')])).toBe(false);
+  });
   it('exports and imports Tsugi playlists without stream URLs', () => {
     const list = addToMusicPlaylist(createMusicPlaylist('Test'),
       savedTrack({id:'s',title:'Song',artist:'Singer'}));
