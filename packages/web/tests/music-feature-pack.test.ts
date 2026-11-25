@@ -3,7 +3,7 @@ import { fetchTrendingRecordings, parseTrendingRecordings } from '../src/lib/mus
 import { DEFAULT_PLAYER_THEME, isPlayerTheme, PLAYER_PALETTES, PLAYER_ACCENTS, isPlayerAccent, withPlayerAccent } from '../src/lib/music/player-theme';
 import { NOCTURNE_STAGE } from '../src/lib/music/nocturne-stage';
 import { JUNCTION_STAGE } from '../src/lib/music/junction-stage';
-import { expandedArtwork } from '../src/lib/music/artwork';
+import { artworkCandidates, expandedArtwork } from '../src/lib/music/artwork';
 import { parseYouTubeMusicResults } from '../src/lib/music/youtube-music';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -107,6 +107,15 @@ describe('Independent accents and expanded album artwork', () => {
     expect(expandedArtwork('https://lh3.googleusercontent.com/album=w120-h60')).toBe('https://lh3.googleusercontent.com/album=w1024-h512');
     expect(expandedArtwork('https://lh3.googleusercontent.com/album=s200-c')).toBe('https://lh3.googleusercontent.com/album=s1024-c');
     for (const url of ['https://lh3.googleusercontent.com/album=w1200-h1200', 'https://lh3.googleusercontent.com/album=w120-h120?sig=test', 'https://lh3.googleusercontent.com.example.test/album=w120-h120', 'blob:local', 'https://i.ytimg.com/vi/abcdefghijk/default.jpg']) expect(expandedArtwork(url)).toBe(url);
+  });
+  it('tries an intermediate exact-image size before the small thumbnail', () => {
+    const source = 'https://lh3.googleusercontent.com/album=w120-h120';
+    expect(artworkCandidates(source)).toEqual([
+      'https://lh3.googleusercontent.com/album=w1024-h1024',
+      'https://lh3.googleusercontent.com/album=w544-h544', source,
+    ]);
+    expect(artworkCandidates('blob:local')).toEqual(['blob:local']);
+    expect(artworkCandidates('https://lh3.googleusercontent.com/album=w120-h120?sig=test')).toEqual(['https://lh3.googleusercontent.com/album=w120-h120?sig=test']);
   });
   it('selects the largest declared YouTube Music thumbnail, not the last one', () => {
     const large = 'https://lh3.googleusercontent.com/art=w544-h544';

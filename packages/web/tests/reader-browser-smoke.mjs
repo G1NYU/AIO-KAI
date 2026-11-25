@@ -437,10 +437,25 @@ try {
   await music.getByRole('button', { name: 'Expand player', exact: true }).click();
   const expanded = music.getByRole('dialog', { name: 'Now playing', exact: true });
   await expanded.waitFor();
-  await expanded.locator('img[src*="tsugi-fixture=w120-h120"]').waitFor();
-  await page.waitForFunction(() => [...document.querySelectorAll('.tsugi-player-dialog img')].some(img => img.src.includes('tsugi-fixture=w120-h120') && img.complete && img.naturalWidth > 0));
+  await expanded.locator('img[src*="tsugi-fixture=w544-h544"]').waitFor();
+  await page.waitForFunction(() => [...document.querySelectorAll('.tsugi-player-dialog img')].some(img => img.src.includes('tsugi-fixture=w544-h544') && img.complete && img.naturalWidth > 0));
   assert.ok(artworkRequests.some(url => url.endsWith('=w1024-h1024')), 'expanded player requests a larger original');
-  await capture('08-expanded-player');
+  for (const layout of ['default', 'junction', 'nocturne']) {
+    await expanded.getByRole('button', { name: 'Player settings', exact: true }).click();
+    const settings = expanded.getByRole('dialog', { name: 'Player settings' });
+    await settings.getByRole('combobox', { name: 'Player layout' }).selectOption(layout);
+    await settings.getByRole('button', { name: 'Close', exact: true }).click();
+    const stage = expanded.locator('[data-layout="' + layout + '"]');
+    await stage.waitFor();
+    assert.equal(await expanded.getByRole('button', { name: 'Minimise player', exact: true }).count(), 1);
+    assert.equal(await expanded.getByRole('button', { name: 'Player settings', exact: true }).count(), 1);
+    assert.equal(await stage.getByRole('button', { name: 'Next track', exact: true }).count(), 1);
+    assert.equal(await stage.getByRole('button', { name: 'Previous track', exact: true }).count(), 1);
+    const columns = await stage.evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').length);
+    assert.equal(columns, layout === 'default' ? 1 : 2);
+    assert.equal(await stage.locator('.tsugi-nocturne-backdrop').count(), layout === 'nocturne' ? 1 : 0);
+    await capture('08-expanded-' + layout);
+  }
   await expanded.getByRole('button', { name: 'Minimise player', exact: true }).click();
   await music.getByRole('button', { name: 'Read', exact: true }).click();
   await rail.waitFor();

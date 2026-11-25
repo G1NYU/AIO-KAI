@@ -1,14 +1,14 @@
 import React from 'react';
-import { expandedArtwork } from '@/lib/music/artwork';
+import { artworkCandidates } from '@/lib/music/artwork';
 
 /** Only the expanded stage requests larger images; lists and mini player
- * continue using their small originals. Failure falls back to original once. */
+ * continue using their small originals. Failure retries the same image at a smaller size. */
 export function MusicArtwork({ source, className }: { source: string; className: string }) {
   return <ArtworkImage key={source} source={source} className={className} />;
 }
 function ArtworkImage({ source, className }: { source: string; className: string }) {
-  const preferred = expandedArtwork(source);
-  const [failed, setFailed] = React.useState(false);
-  return <img src={failed ? source : preferred} alt="" draggable={false} referrerPolicy="no-referrer"
-    className={className} onError={() => { if (preferred !== source) setFailed(true); }} />;
+  const candidates = artworkCandidates(source);
+  const [attempt, setAttempt] = React.useState(0);
+  return <img src={candidates[Math.min(attempt, candidates.length - 1)]} alt="" draggable={false} referrerPolicy="no-referrer"
+    className={className} onError={() => setAttempt(value => Math.min(value + 1, candidates.length - 1))} />;
 }

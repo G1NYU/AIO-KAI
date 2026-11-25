@@ -12,10 +12,11 @@ import { fetchTrackLyrics, lyricAt, type TrackLyrics } from '@/lib/music/lyrics'
 
 /** A responsive Tsugi composition; imported Studio templates use their own renderer. */
 export function JunctionPlayer({
-  p, palette,
+  p, palette, layout,
 }: {
   p: MusicPlayerProps;
   palette: PlayerPalette;
+  layout: 'default' | 'junction' | 'nocturne';
 }) {
   const song = p.track;
   const [queueOpen, setQueueOpen] = React.useState(false);
@@ -43,12 +44,11 @@ export function JunctionPlayer({
   const next = p.queue[p.index + 1];
   const lyricIndex = lyrics ? lyricAt(lyrics.synced, p.position) : -1;
   return (
-    <div data-ui="tsugi-junction"
-      className="grid w-full flex-1 items-center gap-[5vw] py-10 lg:grid-cols-[minmax(0,.96fr)_minmax(0,1.04fr)]">
-      <section className="mx-auto flex w-full max-w-[min(42vw,70vh)] flex-col justify-center max-lg:max-w-[min(78vw,65vh)]">
+    <div data-ui="tsugi-junction" data-layout={layout}
+      className="tsugi-native-stage grid w-full flex-1 items-center">
+      {layout === 'nocturne' && song.artworkURL && <div className="tsugi-nocturne-backdrop" aria-hidden="true"><MusicArtwork source={song.artworkURL} className="size-full object-cover" /></div>}
+      <section className="tsugi-stage-artwork mx-auto flex w-full min-w-0 flex-col justify-center">
         <div className="relative isolate">
-          <div className="tsugi-junction-art-glow pointer-events-none absolute inset-10 -z-10"
-            style={{ background: palette.accent }} />
           {song.artworkURL
             ? <MusicArtwork source={song.artworkURL} className="tsugi-junction-art aspect-square w-full object-cover" />
             : <span className="tsugi-junction-art flex aspect-square items-center justify-center"
@@ -65,7 +65,7 @@ export function JunctionPlayer({
         </div>
       </section>
 
-      <section className="tsugi-junction-content relative flex min-w-0 flex-col justify-center gap-7 lg:pr-[3vw]">
+      <section className="tsugi-junction-content relative flex min-w-0 flex-col justify-center">
         <header className="min-w-0">
           <p className="tsugi-eyebrow"><Trans>Now playing</Trans></p>
           <h1 className="tsugi-track-title mt-5 break-words text-[clamp(2.2rem,4.5vw,4.8rem)] font-semibold leading-[1.07] tracking-[-.055em]">
@@ -75,7 +75,7 @@ export function JunctionPlayer({
           <p className="mt-1 truncate text-sm" style={{color:palette.muted}}>{song.album ?? p.sourceName}</p>
         </header>
 
-        <div className="min-h-12" style={{color:palette.muted}}>
+        <div className="tsugi-stage-lyrics" style={{color:palette.muted}}>
           {!lyricsOpen ? (
             <button type="button" className="text-left text-sm hover:underline"
               onClick={() => setLyricsOpen(true)}>
@@ -84,13 +84,15 @@ export function JunctionPlayer({
           ) : lyricsBusy ? <p className="text-sm"><Trans>Loading lyrics…</Trans></p>
             : lyricsError ? <p role="status" className="text-sm">{lyricsError}</p>
             : lyrics?.synced.length ? (
-              <div className="space-y-2" aria-label={t`Lyrics`}>
-                {lyrics.synced.slice(Math.max(0,lyricIndex),Math.max(0,lyricIndex)+2).map((line,at) =>
-                  <p key={line.at} className={at === 0 ? 'truncate text-lg font-medium' : 'truncate text-sm opacity-60'}>
+              <div className="tsugi-stage-lyric-lines space-y-2" aria-label={t`Lyrics`}>
+                {lyrics.synced.slice(Math.max(0,lyricIndex),Math.max(0,lyricIndex)+(layout === 'nocturne' ? 5 : 2)).map((line,at) =>
+                  <button key={line.at + ':' + at} type="button" onClick={() => p.onSeek(line.at)}
+                    aria-current={lyricIndex >= 0 && at === 0 ? 'true' : undefined}
+                    className={at === 0 ? 'block text-start text-lg font-medium' : 'block text-start text-sm opacity-60'}>
                     {line.text}
-                  </p>)}
+                  </button>)}
               </div>
-            ) : lyrics?.plain.length ? <p className="line-clamp-2 text-sm">{lyrics.plain.join(' ')}</p>
+            ) : lyrics?.plain.length ? <div className="tsugi-stage-plain-lyrics text-sm">{lyrics.plain.map((line,at) => <p key={at}>{line}</p>)}</div>
             : <p className="text-sm"><Trans>No matching lyrics found.</Trans></p>}
         </div>
 
@@ -99,8 +101,7 @@ export function JunctionPlayer({
           <Transport p={p} palette={palette} large />
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4"
-          style={{borderColor:palette.border}}>
+        <div className="tsugi-stage-actions flex flex-wrap items-center justify-between gap-3 pt-4">
           <div className="flex items-center gap-1">
             <button type="button" className="tsugi-control flex size-11 items-center justify-center"
               aria-pressed={p.isFavorite} aria-label={t`Favorite`}

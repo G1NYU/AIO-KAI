@@ -16,7 +16,6 @@ import {
   BiHistory,
   BiHomeAlt2,
   BiGridAlt,
-  BiSliderAlt,
   BiListUl,
   BiCog,
   BiSearch,
@@ -235,7 +234,6 @@ export function WebLayout() {
     ...(desktopArea ? mediaDestinations(desktopArea).filter(({ id }) => id !== 'video').map(({ id, label, open }) => ({
       id, name: label, iconType: id === 'music' ? TsugiMusicIcon : TsugiReadIcon, isCurrent: false, onClick: open,
     })) : []),
-    ...(desktopArea ? [{ id: 'app-settings', name: t({ id: 'App settings', message: 'App settings' }), iconType: BiSliderAlt, isCurrent: false, onClick: desktopArea.openSettings }] : []),
     {
       id: 'discover',
       name: t`Discover`,

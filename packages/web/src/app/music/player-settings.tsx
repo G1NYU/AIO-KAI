@@ -53,12 +53,12 @@ export function PlayerSettings({
             className="size-4" style={{accentColor:'var(--tsugi-accent)'}} />
         </label>
 
-        <label className="mb-9 flex items-center justify-between gap-4 text-sm">
+        {stage === 'imported' && <label className="mb-9 flex items-center justify-between gap-4 text-sm">
           <Trans>Fit Studio layout inside window</Trans>
           <input type="checkbox" checked={studioContained}
             onChange={(event) => onStudioContained(event.target.checked)}
             className="size-4" style={{accentColor:'var(--tsugi-accent)'}} />
-        </label>
+        </label>}
 
         <label className="mb-8 block text-sm">
           <span className="mb-2 block text-[--tsugi-muted]"><Trans>Layout</Trans></span>
@@ -70,6 +70,9 @@ export function PlayerSettings({
             <option value="nocturne">{t`Nocturne`}</option>
             {importedName && <option value="imported">{importedName}</option>}
           </select>
+          <span className="mt-2 block text-xs leading-5 text-[--tsugi-muted]">
+            {stage === 'default' ? <Trans>Centered artwork and compact listening controls.</Trans> : stage === 'junction' ? <Trans>Wide split workspace for artwork, lyrics and queue.</Trans> : stage === 'nocturne' ? <Trans>Cinematic album backdrop and a low-profile listening console.</Trans> : <Trans>Custom imported Studio composition.</Trans>}
+          </span>
         </label>
 
         <div className="mb-8 border-t border-[--tsugi-line] pt-8"><GlobalAppearanceSettings /></div>

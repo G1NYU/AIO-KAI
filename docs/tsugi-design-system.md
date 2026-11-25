@@ -50,3 +50,7 @@ Launcher refinement: the final annotated screenshot places the brush mark and Ts
 ### Bundled signature
 
 User confirmed the Amanojaku face is theirs. Render the exact Tsugi lettering from the supplied face as a bundled 432x285 transparent monochrome brand artwork (not an installable font), tinted by the active palette. Preserve accessible wordmark text. This supersedes the earlier local-font fallback design; launcher and navigation/auth wordmarks no longer require a system font. Body text is unchanged. Verify image decoding and launcher layout in the browser test.
+
+### Finishing pass: listening and shared separators
+
+Static two-row square pixel rules replace named horizontal workspace/collection separators, not interactive borders or reader pages. Selected accents tint active navigation and reading progress. Built-in players now use distinct native compositions: Default centered portrait, Junction split listening workspace, Nocturne cinematic artwork backdrop with low console; all share existing transport, queue and lyrics. Only imported layouts use Studio renderer. No new ambient dot fields. Intermediate exact-source 544px artwork retry before original thumbnail. Remove duplicate App settings movie rail entry; movie Settings > Theme retains global appearance controls. Brush icon, migration, history, updates, categories, batch import and further features remain subsequent work.

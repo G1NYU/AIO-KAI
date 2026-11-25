@@ -8,7 +8,6 @@ import { parsePlayerTemplate } from '@/lib/music/player-template';
 import { readPlayerStage, savePlayerStage, type PlayerStageId } from '@/lib/music/player-layout';
 import { EclipseStudioStage } from './studio-player';
 import { JunctionPlayer } from './junction-player';
-import { NOCTURNE_STAGE } from '@/lib/music/nocturne-stage';
 import { PlayerSettings } from './player-settings';
 import { DotSeeker } from './wave-seeker';
 import { VolumeControl } from './volume-control';
@@ -128,8 +127,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
   const [showHeader, setShowHeader] = React.useState(() =>
     storage.get<boolean>('tsugi-player-header-visible-v1') === true
   );
-  const template = stageId === 'nocturne' ? NOCTURNE_STAGE
-    : stageId === 'imported' ? importedTemplate : null;
+  const template = stageId === 'imported' ? importedTemplate : null;
 
   React.useEffect(() => {
     notifyEclipseAppearance();
@@ -239,9 +237,9 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
       </section>}
       {p.expanded && (
         <section role="dialog" aria-modal="true" aria-label={t`Now playing`}
-          className="tsugi-player-dialog fixed inset-0 z-50 overflow-y-auto"
+          data-stage={stageId} className="tsugi-player-dialog fixed inset-0 z-50 overflow-y-auto"
           style={{backgroundColor:palette.canvas}}>
-          <div aria-hidden className="tsugi-player-ambient" />
+          {stageId === 'imported' && <div aria-hidden className="tsugi-player-ambient" />}
           <div className="flex min-h-dvh w-full flex-col px-[3vw] pb-10 pt-14">
             <header className="tsugi-player-hud relative z-40 flex min-h-12 items-center justify-between gap-6">
               <button type="button" className={buttonClass}
@@ -272,7 +270,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                   </p>
                 )}
               </div>
-            ) : <JunctionPlayer p={p} palette={palette} />}
+            ) : <JunctionPlayer key={stageId} p={p} palette={palette} layout={stageId === 'imported' ? 'default' : stageId} />}
           </div>
           {settingsOpen && (
             <PlayerSettings onClose={() => setSettingsOpen(false)}
