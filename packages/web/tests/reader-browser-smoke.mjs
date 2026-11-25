@@ -176,6 +176,8 @@ try {
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).waitFor();
   const onboarding = page.locator('[data-ui="tsugi-onboarding"]');
   await onboarding.waitFor({ state: 'visible' });
+  assert.equal(await onboarding.evaluate(node => getComputedStyle(node).borderRadius), '14px');
+  assert.equal(await onboarding.locator('.tsugi-global-swatch').first().evaluate(node => getComputedStyle(node).borderRadius), '6px');
   await onboarding.getByRole('button', { name: 'Mocha', exact: true }).click();
   await onboarding.getByRole('button', { name: 'Blue', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'mocha' && document.documentElement.dataset.tsugiAccent === 'blue');
@@ -575,6 +577,13 @@ try {
   for (const layout of ['default', 'junction', 'nocturne']) {
     await expanded.getByRole('button', { name: 'Player settings', exact: true }).click();
     const settings = expanded.getByRole('dialog', { name: 'Player settings' });
+    const headerToggle = settings.getByRole('checkbox', { name: 'Show player header' });
+    assert.equal(await headerToggle.evaluate(node => getComputedStyle(node).borderRadius), '5px');
+    const headerWasChecked = await headerToggle.isChecked();
+    await headerToggle.click();
+    assert.equal(await headerToggle.isChecked(), !headerWasChecked);
+    await headerToggle.click();
+    assert.equal(await headerToggle.isChecked(), headerWasChecked);
     await settings.getByRole('combobox', { name: 'Player layout' }).selectOption(layout);
     await settings.getByRole('button', { name: 'Close', exact: true }).click();
     const stage = expanded.locator('[data-layout="' + layout + '"]');

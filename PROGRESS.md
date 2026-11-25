@@ -544,3 +544,8 @@ Migration commit 1be0b4c passed Unified Windows validation (45558491536) and the
 - Added Rust guard tests and web job-construction tests. Native compile, UI interaction, restart persistence and actual file transfer verification are pending. Next: CI, isolated Readest engine and ebook library, authorized provider download and import; no public release.
 
 - Native Vault run 45568240554: native Windows and TypeScript passed; lint rejected the path concatenation as unlocalized text. Changed it to a path-segment join without changing the actual generated path. Revalidation pending.
+
+### Shared soft geometry and Vault identity (2026-11-25)
+- Native Vault run 45568555539 still failed the localization rule on the fixed filesystem path literal; Windows native compile passed. Scoped the lint exception to that protocol/path construction line, not the user-facing error messages.
+- Replaced desktop native square checkboxes with accessible 18px controls with 5px corners, theme-aware checked/indeterminate states, visible keyboard focus, disabled treatment and forced-color native fallback. Shared theme swatches, settings sheet inner corners, reader actions and search controls now use existing small/control/panel radii. Rail geometry and pixel separators remain unchanged. Replaced the Vault archive-box glyph with a shared cloud/safe-dial outline inspired by the user's reference.
+- Added browser assertions for onboarding panel/swatch corners and real player checkbox toggling. Physical Windows acceptance and combined CI pending. Ebook implementation from previous turn did not reach branch; next implement in smaller verified commits, then authorized provider downloads and final package.

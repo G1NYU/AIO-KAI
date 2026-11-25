@@ -2475,3 +2475,51 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-onboarding-title p,.tsugi-onboarding-footer p { color:var(--tsugi-muted); font-size:13px; margin-top:6px; }
 .tsugi-onboarding-footer { display:flex; flex-direction:column; gap:16px; }
 .tsugi-onboarding-actions { display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; }
+
+/* Shared soft geometry: keep structural rails and intentional pixel rules flat.
+   Native checkboxes retain their semantics, keyboard and form behavior. */
+:root[data-host='desktop'] input[type='checkbox'] {
+  appearance:none; -webkit-appearance:none; box-sizing:border-box;
+  display:inline-grid; place-content:center; vertical-align:middle;
+  width:18px; height:18px; min-width:18px; flex:none; padding:0;
+  border:1px solid var(--tsugi-muted); border-radius:5px;
+  background:var(--tsugi-surface); color:var(--tsugi-on-accent);
+  cursor:pointer;
+}
+:root[data-host='desktop'] input[type='checkbox']::before {
+  content:''; width:5px; height:9px; box-sizing:border-box;
+  border:solid currentColor; border-width:0 2px 2px 0;
+  transform:translateY(-1px) rotate(45deg) scale(0);
+}
+:root[data-host='desktop'] input[type='checkbox']:checked,
+:root[data-host='desktop'] input[type='checkbox']:indeterminate {
+  background:var(--tsugi-accent); border-color:var(--tsugi-accent);
+}
+:root[data-host='desktop'] input[type='checkbox']:checked::before {
+  transform:translateY(-1px) rotate(45deg) scale(1);
+}
+:root[data-host='desktop'] input[type='checkbox']:indeterminate::before {
+  width:9px; height:0; border-width:0 0 2px; transform:none;
+}
+:root[data-host='desktop'] input[type='checkbox']:focus-visible {
+  outline:2px solid var(--tsugi-focus); outline-offset:3px;
+}
+:root[data-host='desktop'] input[type='checkbox']:disabled { opacity:.45; cursor:not-allowed; }
+:root[data-host='desktop'] .tsugi-vault-form input[type='checkbox'] { width:18px!important; padding:0; }
+:root[data-host='desktop'] :is(.tsugi-global-swatch,.tsugi-global-swatch i) {
+  border-radius:var(--tsugi-radius-small);
+}
+:root[data-host='desktop'] :is(.tsugi-read-root,.tsugi-chapter-toolbar) .tsugi-read-action,
+:root[data-host='desktop'] .tsugi-read-root .tsugi-read-input,
+:root[data-host='desktop'] .tsugi-settings-sheet :is(select,input:not([type='checkbox'],[type='range'],[type='file'],[type='hidden'])),
+:root[data-host='desktop'] .tsugi-search-track-line > .tsugi-icon-action {
+  border-radius:var(--tsugi-radius-control);
+}
+:root[data-host='desktop'] .tsugi-settings-sheet {
+  border-start-start-radius:var(--tsugi-radius-panel);
+  border-end-start-radius:var(--tsugi-radius-panel);
+}
+@media (forced-colors:active) {
+  :root[data-host='desktop'] input[type='checkbox'] { appearance:auto; -webkit-appearance:auto; }
+  :root[data-host='desktop'] input[type='checkbox']::before { display:none; }
+}
