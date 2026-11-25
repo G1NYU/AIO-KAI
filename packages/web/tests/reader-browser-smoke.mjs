@@ -313,11 +313,20 @@ try {
   await musicSettings.waitFor();
   const drawer = await musicSettings.boundingBox();
   const backdrop = await music.locator('.tsugi-source-backdrop').boundingBox();
-  // The app permanently reserves a scrollbar gutter: compare to the usable
-  // viewport, not the nominal Playwright viewport including the scrollbar.
-  const usableWidth = await page.evaluate(() => document.documentElement.clientWidth);
-  assert.ok(Math.abs(drawer.x + drawer.width - usableWidth) < 2, 'music sources drawer is flush to the usable window edge: ' + JSON.stringify({ drawer, usableWidth }));
-  assert.ok(Math.abs(backdrop.width - usableWidth) < 2 && Math.abs(backdrop.x) < 2, 'music sources backdrop covers the usable viewport: ' + JSON.stringify({ backdrop, usableWidth }));
+  // Measure the fixed-position containing block independently of the drawer.
+  // Chromium can report the nominal clientWidth despite a reserved scrollbar.
+  const fixedViewport = await page.evaluate(() => {
+    const probe = document.createElement('div');
+    Object.assign(probe.style, { position: 'fixed', inset: '0', visibility: 'hidden', pointerEvents: 'none' });
+    document.body.appendChild(probe);
+    const { x, y, width, height, right } = probe.getBoundingClientRect();
+    probe.remove();
+    return { x, y, width, height, right, nominal: window.innerWidth };
+  });
+  const geometry = JSON.stringify({ drawer, backdrop, fixedViewport });
+  assert.ok(fixedViewport.nominal - fixedViewport.right >= -1 && fixedViewport.nominal - fixedViewport.right <= 9, 'fixed viewport excludes at most the 8px scrollbar: ' + geometry);
+  assert.ok(Math.abs(drawer.x + drawer.width - fixedViewport.right) < 2, 'music sources drawer is flush to the fixed viewport edge: ' + geometry);
+  assert.ok(['x', 'y', 'width', 'height'].every(key => Math.abs(backdrop[key] - fixedViewport[key]) < 2), 'music sources backdrop covers the fixed viewport: ' + geometry);
   assert.ok((await music.locator('.tsugi-music-workspace').boundingBox()).width > 2400, 'wide desktop music workspace uses the canvas');
   await capture('10-wide-music-sources');
   await page.setViewportSize({ width: 1440, height: 900 });
