@@ -20,6 +20,8 @@ const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'en-GB' });
   page.setDefaultTimeout(30_000);
+  // These previews use deliberately synthetic media artwork and mocked provider metadata.
+  // They verify layout and interaction, not live-server artwork quality or native Windows rendering.
   const screenshotDir = process.env.TSUGI_DESIGN_SCREENSHOTS;
   if (screenshotDir) await mkdir(screenshotDir, { recursive: true });
   const capture = async (name) => { if (screenshotDir) await page.screenshot({ path: join(screenshotDir, name + '.png'), animations: 'disabled' }); };
