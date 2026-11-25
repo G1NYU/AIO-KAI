@@ -65,11 +65,17 @@ try {
           emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs,vault_rate_mib:state.vaultRate??0,aria2_available:true,aria2_enabled:state.aria2Enabled??false});return;
         }
         if (message.type === 'youtube-music-request') {
-          const data = message.operation === 'search' ? { musicResponsiveListItemRenderer: {
+          const fixturePlaylist = { musicTwoRowItemRenderer: {
+            title: { runs: [{ text: 'Fixture playlist' }] },
+            navigationEndpoint: { browseEndpoint: { browseId: 'VLfixtureplaylist' } },
+            thumbnailRenderer: { musicThumbnailRenderer: { thumbnail: { thumbnails: [{ url: 'https://lh3.googleusercontent.com/tsugi-fixture=w120-h120', width: 120, height: 120 }] } } },
+          } };
+          const fixtureTrack = { musicResponsiveListItemRenderer: {
             playlistItemData: { videoId: 'abcdefghijk' },
             flexColumns: [{ musicResponsiveListItemFlexColumnRenderer: { text: { runs: [{ text: 'Native fixture track' }] } } }],
             thumbnail: { musicThumbnailRenderer: { thumbnail: { thumbnails: [{ url: 'https://lh3.googleusercontent.com/tsugi-fixture=w120-h120', width: 120, height: 120 }] } } },
-          } } : message.operation === 'home' ? { musicCarouselShelfRenderer: {
+          } };
+          const data = message.operation === 'search' ? [fixtureTrack, fixturePlaylist] : message.operation === 'browse' ? fixtureTrack : message.operation === 'home' ? { musicCarouselShelfRenderer: {
             header: { musicCarouselShelfBasicHeaderRenderer: { title: { runs: [{ text: 'Fixture recommendations' }] } } },
             contents: [{ musicResponsiveListItemRenderer: {
               playlistItemData: { videoId: 'abcdefghijk' },
@@ -299,7 +305,12 @@ try {
   await field.focus();
   assert.equal(await field.evaluate((node) => getComputedStyle(node).outlineColor), 'rgb(213, 213, 220)');
   assert.equal(await field.evaluate((node) => getComputedStyle(node).borderRadius), '8px');
-  assert.equal(await entry.locator('[data-ui="auth-card"]').evaluate((node) => getComputedStyle(node).borderRadius), '0px');
+  assert.equal(await entry.locator('[data-ui="auth-card"]').evaluate((node) => getComputedStyle(node).borderRadius), '14px');
+  assert.equal(await entry.locator('[data-ui="auth-card"]').evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(19, 20, 23)');
+  const entryAtmosphere = entry.locator('.tsugi-atmosphere[data-placement="entry"]');
+  assert.equal(await entryAtmosphere.getAttribute('aria-hidden'), 'true');
+  assert.equal(await entryAtmosphere.evaluate(node => getComputedStyle(node).pointerEvents), 'none');
+  assert.ok((await entryAtmosphere.locator('.tsugi-brand-wordmark').boundingBox()).width > 240);
   assert.equal(await entry.getByRole('button', { name: 'Connect', exact: true }).evaluate((node) => getComputedStyle(node).borderRadius), '8px');
   assert.equal(await entry.evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(16, 18, 20)');
   const brand = await entry.locator('.tsugi-auth-brand').boundingBox();
@@ -322,7 +333,7 @@ try {
   assert.equal(await field.evaluate((node) => getComputedStyle(node).outlineColor), 'rgb(213, 213, 220)');
   await mediaNav.getByRole('button', { name: 'All media', exact: true }).click();
   await landing.waitFor();
-  console.log('PASS: shared movie entry canvas, centered brand, restrained corner radii and palette-independent field focus.');
+  console.log('PASS: atmospheric movie entry, matte panel, aligned foreground brand and palette-independent field focus.');
   await page.getByRole('button', { name: 'App settings', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'carbon' && document.documentElement.style.getPropertyValue('--background') === document.documentElement.style.getPropertyValue('--tsugi-canvas'));
@@ -502,6 +513,11 @@ try {
   await music.getByRole('button', { name: 'Library', exact: true }).click();
   await music.getByRole('button', { name: /Local music/ }).waitFor();
   await music.getByRole('textbox', { name: 'Find tracks', exact: true }).waitFor();
+  assert.equal(await music.locator('.tsugi-atmosphere[data-placement="library"]').count(), 1);
+  const musicLibraryGlyph = await music.getByRole('navigation', { name: 'Music sections' }).getByRole('button', { name: 'Library', exact: true }).locator('svg path').first().getAttribute('d');
+  const readerGlyph = await music.getByRole('button', { name: 'Read', exact: true }).locator('svg path').first().getAttribute('d');
+  assert.notEqual(musicLibraryGlyph, readerGlyph, 'music library and reading category use distinct glyphs');
+  await capture('06-music-library-empty');
   const sampleRate = 8000, samples = sampleRate * 45;
   const wav = Buffer.alloc(44 + samples * 2);
   wav.write('RIFF', 0); wav.writeUInt32LE(wav.length - 8, 4);
@@ -577,6 +593,17 @@ try {
   await music.getByRole('navigation', { name: 'Music sections' }).getByRole('button', { name: 'Search', exact: true }).click();
   await music.getByRole('textbox', { name: 'Search music', exact: true }).fill('Native fixture track');
   await music.getByRole('button', { name: 'Search', exact: true }).last().click();
+  await music.getByRole('button', { name: /Fixture playlist/ }).click();
+  const detail = page.getByRole('dialog', { name: 'Music collection', exact: true });
+  await detail.getByRole('heading', { name: 'Fixture playlist', exact: true }).waitFor();
+  await detail.getByRole('button', { name: 'Play all', exact: true }).waitFor();
+  assert.equal(await detail.locator('.tsugi-atmosphere[data-placement="collection"] img').count(), 1);
+  assert.equal(await detail.locator('.tsugi-atmosphere').evaluate(node => getComputedStyle(node).pointerEvents), 'none');
+  const trackBounds = await detail.getByRole('region', { name: 'Collection tracks' }).boundingBox();
+  assert.ok(trackBounds.width < 1100 && trackBounds.width > 600);
+  await capture('11-music-collection-atmosphere');
+  await detail.getByRole('button', { name: 'Back to music', exact: true }).click();
+  await detail.waitFor({ state: 'detached' });
   await music.getByRole('button',{name:'Send track to Vault',exact:true}).click();
   const selectedVaultQueue=vault.locator('[data-ui="tsugi-native-vault-queue"]');
   await selectedVaultQueue.getByRole('combobox',{name:'Download source'}).waitFor();

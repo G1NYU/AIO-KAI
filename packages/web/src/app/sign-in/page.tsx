@@ -12,6 +12,7 @@ import { LoadingOverlay, LoadingSpinner } from '@aiostreams/ui/loading-spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { BrandLogo } from '@/components/brand-logo';
 import { TsugiBrand } from '@/components/tsugi-brand';
+import { TsugiAtmosphere } from '@/components/tsugi-atmosphere';
 import { currentHost } from '@/lib/hosts';
 import {
   ConnectionError,
@@ -117,6 +118,7 @@ export function Screen({
         desktop ? 'tsugi-video-entry' : 'bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,0.18),transparent_60%)]'
       )}
     >
+      {desktop && <TsugiAtmosphere placement="entry" />}
       <div className={cn('w-full max-w-3xl space-y-8', desktop && 'tsugi-video-entry-content', className)}>
         <motion.div
           initial={{ opacity: 0, scale: 0.92 }}

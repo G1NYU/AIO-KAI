@@ -29,7 +29,7 @@ import {
   savedTrack, type SavedMusicTrack,
 } from '@/lib/music/library';
 import { TsugiRail } from '@/components/shell/tsugi-rail';
-import { BrushCompass, BrushSearch, BrushBook, BrushDownload } from '@/components/tsugi-icons';
+import { BrushCompass, BrushSearch, BrushMusicLibrary, BrushDownload } from '@/components/tsugi-icons';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 import type { TrendingRecording } from '@/lib/music/discovery';
@@ -716,7 +716,7 @@ export function MusicPage({
           <button type="button" aria-current={tab === 'search' ? 'page' : undefined}
             title={t`Search`} onClick={() => setTab('search')}><BrushSearch /><Trans>Search</Trans></button>
           <button type="button" aria-current={tab === 'library' ? 'page' : undefined}
-            title={t`Library`} onClick={() => setTab('library')}><BrushBook /><Trans>Library</Trans></button>
+            title={t`Library`} onClick={() => setTab('library')}><BrushMusicLibrary /><Trans>Library</Trans></button>
           <button type="button" className="tsugi-music-source-trigger" title={t`Music sources`} onClick={() => setSettingsOpen(true)}><BiPlug aria-hidden /><Trans>Music sources</Trans></button>
         </nav>
   );

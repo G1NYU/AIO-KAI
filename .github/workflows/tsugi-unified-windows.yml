@@ -222,8 +222,20 @@ jobs:
           and verifies the pinned reading runtime directly from upstream.
           Internet access is required once for this setup. No CMD is needed.
 
-          Movies & TV, Music and Read run in the same Tsugi application.
+          Movies & TV, Music, Read and Vault run in the same Tsugi application.
           Keep the .portable marker; portable data is stored beside current/.
+
+          VAULT ACCEPTANCE
+          Use Vault for direct-file downloads, batches, concurrency, and rate limits.
+          Aria2 Next is optional and not redistributed in this ZIP. Download the
+          pinned Windows x64 v3.1.2 executable from the upstream release:
+          https://github.com/AnInsomniacy/aria2-next/releases/tag/v3.1.2
+          Save it as current/vault-tools/aria2-next.exe (create the folder).
+          SHA-256: 94edc284cd84dec26a16ae9431378c5ab9e5cde8011482566483f4f0cb20c03f
+          Restart Tsugi; enable Use Aria2 Next in Vault > Providers.
+          If unavailable or incompatible, the built-in downloader remains active.
+          Test authorized music downloads and TorBox with your own account.
+          Never share an API key, signed download URL or account credential.
           Third-party reading extensions execute with your account permissions:
           install only trusted publishers. Signatures are not independently verified.
           This is a development ZIP, not a public release or installer.

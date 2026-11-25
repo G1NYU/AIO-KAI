@@ -7,6 +7,7 @@ const paths = {
   video: 'M5 5.5h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z',
   music: 'M4 14v-3a8 8 0 0 1 16 0v3M4 12h2.5a1.5 1.5 0 0 1 1.5 1.5v4A1.5 1.5 0 0 1 6.5 19H5a1 1 0 0 1-1-1ZM20 12h-2.5a1.5 1.5 0 0 0-1.5 1.5v4A1.5 1.5 0 0 0 17.5 19H19a1 1 0 0 0 1-1Z',
   book: 'M12 6C9 4 6 4 3.5 5.5v13C7 17 9.5 17.5 12 19c2.5-1.5 5-2 8.5-.5v-13C18 4 15 4 12 6Zm0 0v13M6.5 8.5l3 .5M14.5 9l3-.5',
+  musicLibrary: 'M3.5 7.5h5M3.5 12h5M3.5 16.5h5M12 17V6l8-2v11M12 17a2.5 1.8 0 1 1-5 0 2.5 1.8 0 0 1 5 0ZM20 15a2.5 1.8 0 1 1-5 0 2.5 1.8 0 0 1 5 0Z',
   home: 'M3.5 11.5 12 4l8.5 7.5M6 10v10h12V10M10 20v-6h4v6',
   compass: 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17Z',
   search: 'M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM15.5 15.5 21 21',
@@ -56,3 +57,4 @@ export function tsugiIcon(name: TsugiIconName) {
 export const BrushBook = tsugiIcon('book'), BrushCompass = tsugiIcon('compass'), BrushSearch = tsugiIcon('search'), BrushGrid = tsugiIcon('grid'), BrushSettings = tsugiIcon('settings'), BrushHistory = tsugiIcon('history'), BrushBell = tsugiIcon('bell'), BrushFolder = tsugiIcon('folder'), BrushMigrate = tsugiIcon('migrate'), BrushPlus = tsugiIcon('plus'), BrushBookmark = tsugiIcon('bookmark'), BrushBack = tsugiIcon('back'), BrushLeft = tsugiIcon('left'), BrushRight = tsugiIcon('right'), BrushDown = tsugiIcon('down'), BrushCheck = tsugiIcon('check'), BrushRefresh = tsugiIcon('refresh'), BrushList = tsugiIcon('list'), BrushPlay = tsugiIcon('play'), BrushPause = tsugiIcon('pause'), BrushPrevious = tsugiIcon('previous'), BrushNext = tsugiIcon('next'), BrushDisc = tsugiIcon('disc'), BrushPlug = tsugiIcon('plug'), BrushHeart = tsugiIcon('heart'), BrushExpand = tsugiIcon('expand'), BrushShrink = tsugiIcon('shrink'), BrushMinus = tsugiIcon('minus'), BrushClose = tsugiIcon('close'), BrushShuffle = tsugiIcon('shuffle'), BrushLyrics = tsugiIcon('lyrics'), BrushTrash = tsugiIcon('trash'), BrushFile = tsugiIcon('file'), BrushDownload = tsugiIcon('download');
 
 export const BrushRepeat = tsugiIcon('repeat'), BrushSliders = tsugiIcon('sliders'), BrushFolderPlus = tsugiIcon('folderPlus');
+export const BrushMusicLibrary = tsugiIcon('musicLibrary');

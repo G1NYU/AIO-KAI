@@ -1,5 +1,6 @@
 import { BrushDisc as FiDisc, BrushDownload as FiDownload, BrushFile as FiFilePlus, BrushList as FiList, BrushPlus as FiPlus, BrushRefresh as FiRefreshCw, BrushTrash as FiTrash2, BrushHistory as FiClock, BrushPlay as FiPlay, BrushSearch as FiSearch } from '@/components/tsugi-icons';
 import React from 'react';
+import { TsugiAtmosphere } from '@/components/tsugi-atmosphere';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { FiFolderPlus } from 'react-icons/fi';
@@ -193,7 +194,8 @@ export function MusicLibrary({
           <ol className="tsugi-collection-tracks">
             {visibleRecent ? recentRows.map(entry => trackRow(entry.track, entry.sourceId + ':' + entry.track.id, () => onPlayRecent(entry))) : rows.map((track, index) => trackRow(track, track.id + ':' + index, () => localView ? onPlayLocal(track) : onPlay(track), !localView, localView && folder.busy && folderTracks.some(item => item.id === track.id)))}
           </ol>
-        </> : <div className="tsugi-collection-empty">
+        </> : <div className="tsugi-collection-empty tsugi-library-empty-atmosphere">
+          <TsugiAtmosphere placement="library" />
           <FiDisc aria-hidden />
           <h3>{filter.trim() ? t`No matching tracks` : localView ? t`Add your music` : visibleRecent ? t`No recent tracks` : t`This playlist is empty`}</h3>
           <p>{filter.trim() ? t`Try a different title or artist.` : localView ? t`Open individual audio files or connect a music folder to browse your collection.` : visibleRecent ? t`Tracks you play from music sources will appear here.` : t`Save tracks from search or add the currently playing track.`}</p>

@@ -12,6 +12,7 @@ import { providerFor } from '@/lib/music/providers';
 import type { TrendingRecording } from '@/lib/music/discovery';
 import { MusicCharts } from './charts';
 import { MusicArtwork } from './music-artwork';
+import { TsugiAtmosphere } from '@/components/tsugi-atmosphere';
 import type { RecentMusicPlay } from '@/lib/music/history';
 
 export type PlayCollection = (source: MusicConnection, songs: EclipseTrack[], at: number) => void;
@@ -76,38 +77,40 @@ export function MusicCollection({
   if (!current) return null;
   return (
     <section role="dialog" aria-modal="true" aria-label={t`Music collection`}
-      className="tsugi-player-dialog fixed inset-0 z-40 overflow-y-auto">
-      <div className="min-h-screen w-full px-6 pb-32 pt-14 sm:px-[3vw]">
+      className="tsugi-player-dialog tsugi-music-detail fixed inset-0 z-40 overflow-y-auto">
+      <div className="tsugi-music-detail-canvas min-h-screen w-full px-6 pb-32 pt-14 sm:px-[3vw]">
+        <TsugiAtmosphere key={current.id} placement="collection" artwork={current.artworkURL} />
         <button type="button" onClick={nested ? () => setNested(null) : onClose}
-          className="mb-9 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white/65 hover:bg-white/10">
+          className="tsugi-music-detail-back mb-9 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white/65 hover:bg-white/10">
           <BiArrowBack aria-hidden /> <Trans>Back to music</Trans>
         </button>
-        <header className="mb-9 flex flex-wrap items-end gap-7">
+        <header className="tsugi-music-detail-hero mb-9 flex flex-wrap items-end gap-7">
           <div className="w-44 sm:w-56"><Cover src={current.artworkURL} /></div>
           <div className="min-w-0 flex-1">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-violet-200/70">
+            <p className="tsugi-music-detail-kicker mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-violet-200/70">
               {current.type}
             </p>
             <h1 className="text-3xl font-semibold sm:text-5xl">{detail?.title ?? current.title}</h1>
             <p className="mt-3 text-white/50">{detail?.artist ?? current.artist ?? source.manifest.name}</p>
             {detail?.description && <p className="mt-3 max-w-2xl text-sm text-white/45">{detail.description}</p>}
+            {detail && detail.tracks.length > 0 && <p className="tsugi-music-detail-count mt-3 text-sm">{detail.tracks.length} <Trans>tracks</Trans></p>}
+            {detail && detail.tracks.length > 0 && <button type="button" onClick={() => { onPlay(source, detail.tracks, 0); onClose(); }}
+              className="tsugi-music-detail-play mt-5 inline-flex items-center gap-2 rounded-full bg-violet-200 px-5 py-2.5 font-semibold text-[#171420]">
+              <BiPlay aria-hidden /> <Trans>Play all</Trans>
+            </button>}
           </div>
         </header>
         {loading && <p role="status" className="text-sm text-white/50"><Trans>Loading music…</Trans></p>}
         {error && <p role="alert" className="text-sm text-amber-200">{error}</p>}
         {detail && detail.tracks.length > 0 && (
-          <section aria-label={t`Collection tracks`} className="space-y-2">
+          <section aria-label={t`Collection tracks`} className="tsugi-music-detail-tracks space-y-2">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold"><Trans>Tracks</Trans></h2>
-              <button type="button" onClick={() => { onPlay(source, detail.tracks, 0); onClose(); }}
-                className="inline-flex items-center gap-2 rounded-full bg-violet-200 px-5 py-2.5 font-semibold text-[#171420]">
-                <BiPlay aria-hidden /> <Trans>Play all</Trans>
-              </button>
             </div>
             {detail.tracks.map((track, at) => (
               <button key={track.id + ':' + at} type="button"
                 onClick={() => { onPlay(source, detail.tracks, at); onClose(); }}
-                className="flex w-full items-center gap-4 border-b border-white/[0.08] px-4 py-3 text-left transition-colors hover:bg-white/[0.04]">
+                className="tsugi-music-detail-track flex w-full items-center gap-4 border-b border-white/[0.08] px-4 py-3 text-left transition-colors hover:bg-white/[0.04]">
                 <span className="w-6 text-right text-xs text-white/35">{at + 1}</span>
                 <Cover src={track.artworkURL} size="small" />
                 <span className="min-w-0 flex-1">
@@ -119,7 +122,7 @@ export function MusicCollection({
           </section>
         )}
         {detail && detail.albums.length > 0 && (
-          <section className="mt-12">
+          <section className="tsugi-music-detail-albums mt-12">
             <h2 className="mb-4 text-xl font-semibold"><Trans>Albums</Trans></h2>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {detail.albums.map((album) => (
