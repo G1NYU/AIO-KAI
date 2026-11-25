@@ -195,7 +195,7 @@ export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|n
         <section className="tsugi-dashboard-panel"><h3><Trans>Connected services</Trans></h3>
           <div className="tsugi-dashboard-service"><span><Trans>Direct files</Trans></span><small>{ready?<Trans>Ready</Trans>:<Trans>Waiting</Trans>}</small></div>
           <div className="tsugi-dashboard-service"><span><Trans>YouTube engine</Trans></span><small>{appBridge()?.youtubeMusic?<Trans>Available</Trans>:<Trans>Unavailable</Trans>}</small></div>
-          <div className="tsugi-dashboard-service"><span>Aria2 Next</span><small>{engineAvailable?<Trans>Ready</Trans>:<Trans>Fallback</Trans>}</small></div>
+          <div className="tsugi-dashboard-service"><span><Trans>Aria2 Next</Trans></span><small>{engineAvailable?<Trans>Ready</Trans>:<Trans>Fallback</Trans>}</small></div>
           {supportsNativeTorBox()&&<button type="button" className="tsugi-dashboard-service" onClick={()=>setDestination('torbox')}><span>TorBox</span><small>{torboxConnected?<Trans>Connected</Trans>:<Trans>Connect</Trans>}</small></button>}
         </section>
       </aside>
