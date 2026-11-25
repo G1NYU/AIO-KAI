@@ -2547,3 +2547,29 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-track-permission { display:flex; align-items:center; gap:10px; margin-block:14px; }
 .tsugi-track-download [aria-pressed='true'] { border-color:var(--tsugi-accent); }
 .tsugi-track-download > section { padding-top:12px; }
+
+/* Vault follows the shared Read/Music geometry, not Rayburst's component kit. */
+.tsugi-vault-manager { display:grid; gap:14px; }
+.tsugi-vault-overview { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border-block:1px solid var(--tsugi-line); }
+.tsugi-vault-overview > div { display:grid; gap:6px; padding:14px 16px; min-width:0; }
+.tsugi-vault-overview > div+div { border-inline-start:1px solid var(--tsugi-line); }
+.tsugi-vault-overview span { color:var(--tsugi-muted); font-size:12px; }
+.tsugi-vault-overview strong { font-size:clamp(18px,2vw,27px); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.tsugi-vault-intake { max-width:100%; margin-block:0; padding:16px; border:1px solid var(--tsugi-line); border-radius:var(--tsugi-radius-control); }
+.tsugi-vault-intake .tsugi-vault-actions { margin-bottom:0; }
+.tsugi-vault-intake textarea { resize:vertical; width:100%; border:1px solid var(--tsugi-line); border-radius:var(--tsugi-radius-control); padding:12px; background:var(--tsugi-wash); color:var(--tsugi-ink); }
+.tsugi-vault-queue-tools,.tsugi-vault-tabs { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.tsugi-vault-queue-tools label { display:flex; align-items:center; gap:10px; color:var(--tsugi-muted); font-size:13px; margin-inline-end:auto; }
+.tsugi-vault-tabs button { display:flex; align-items:center; gap:8px; }
+.tsugi-vault-tabs button span { font-size:11px; color:var(--tsugi-muted); }
+.tsugi-vault-tabs button[aria-pressed='true'],.tsugi-vault-intake button[aria-pressed='true'] { border-color:var(--tsugi-accent); background:var(--tsugi-wash); }
+.tsugi-vault-task { align-items:center; padding:14px 0; border-bottom:1px solid var(--tsugi-line); }
+.tsugi-vault-task-main { display:flex; align-items:flex-start; gap:14px; flex:1; min-width:0; }
+.tsugi-vault-task-main > svg,.tsugi-vault-empty > svg { width:28px; height:28px; flex:none; color:var(--tsugi-muted); }
+.tsugi-vault-task-text { flex:1; min-width:0; overflow-wrap:anywhere; }
+.tsugi-vault-task-text p { font-size:12px; color:var(--tsugi-muted); margin-block:5px; }
+.tsugi-vault-task-text progress { display:block; width:min(520px,100%); height:5px; accent-color:var(--tsugi-accent); margin-block:9px; }
+.tsugi-vault-task-state[data-state='downloading'] { color:var(--tsugi-accent); }
+.tsugi-vault-task .tsugi-vault-actions { margin:0; justify-content:flex-end; }
+.tsugi-vault-empty { display:flex; align-items:center; gap:12px; padding:24px 0; color:var(--tsugi-muted); }
+@media(max-width:760px) { .tsugi-vault-overview { grid-template-columns:repeat(2,minmax(0,1fr)); } .tsugi-vault-task { flex-wrap:wrap; } .tsugi-vault-task-main { flex-basis:100%; } }

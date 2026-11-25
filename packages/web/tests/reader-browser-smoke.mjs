@@ -53,6 +53,7 @@ try {
           emit({type:'torbox-result',request:message.request,data:{connected:authenticated,items:[]},error:message.operation==='connect'&&!authenticated?'auth':null});
           return;
         }
+        if (message.type === 'download-config') {state.vaultConcurrent=message.concurrent;return;}
         if (message.type === 'download-list') {
           emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs});return;
         }
@@ -585,6 +586,15 @@ try {
   await queueTrack.click();
   await selectedVaultQueue.getByText('Native fixture track - abcdefghijk.m4a',{exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>window.__readerFixture.vaultRequests[0].jobs[0].files[0].url),'https://www.youtube.com/watch?v=abcdefghijk');
+  await selectedVaultQueue.getByRole('button',{name:'Batch links',exact:true}).click();
+  await selectedVaultQueue.getByLabel('Download links (one per line)').fill('https://example.org/first.epub\nhttps://example.org/second.mp3\nhttps://youtu.be/abcdefghijk');
+  await selectedVaultQueue.getByRole('checkbox',{name:/I have permission/}).check();
+  await selectedVaultQueue.getByRole('button',{name:'Add batch to queue',exact:true}).click();
+  await selectedVaultQueue.getByText('second.mp3',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>window.__readerFixture.vaultRequests[1].jobs.length),3);
+  await selectedVaultQueue.getByLabel('Simultaneous local downloads').selectOption('4');
+  await page.waitForFunction(()=>window.__readerFixture.vaultConcurrent===4);
+  console.log('PASS: Vault accepts mixed independent batch jobs and configures shared native concurrency.');
   await vault.locator('[data-ui="tsugi-desktop-rail"]').getByRole('button',{name:'Music',exact:true}).click();
   await music.locator('[data-ui="music-track-row"]').filter({ hasText: 'Native fixture track' }).click();
   await page.waitForFunction(() => window.__readerFixture.nativeMessages.some(m => m.type === 'music-audio-load'));

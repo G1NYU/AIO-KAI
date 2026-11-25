@@ -39,3 +39,17 @@ export function detectVaultSource(input:string):'youtube'|'file' {
     return ['youtube.com','www.youtube.com','music.youtube.com','youtu.be'].includes(url.hostname)?'youtube':'file';
   } catch { return 'file'; }
 }
+
+export const MAX_VAULT_BATCH = 20;
+/** Validate the entire batch before handing any job to the persistent queue. */
+export function vaultBatch(input: string, makeId: () => string): HostJob[] {
+  const links = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (!links.length || links.length > MAX_VAULT_BATCH) throw new Error('batch-size');
+  const unique = new Map<string, HostJob>();
+  for (const link of links) {
+    const id = makeId();
+    const job = detectVaultSource(link) === 'youtube' ? youtubeVaultJob(link, id) : vaultJob(link, id);
+    unique.set(job.files[0].url, unique.get(job.files[0].url) || job);
+  }
+  return [...unique.values()];
+}

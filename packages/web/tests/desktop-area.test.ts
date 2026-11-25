@@ -154,3 +154,24 @@ describe('Vault source detection',()=>{
     expect(detectVaultSource('https://youtube.com.example.org/watch?v=abcdefghijk')).toBe('file');
   });
 });
+
+import { vaultBatch } from '../src/app/vault/native-job';
+import { vaultEta, reconcileVaultRows } from '../src/app/vault/queue-model';
+describe('Vault multi-download intake and progress',()=>{
+  it('validates a mixed batch and deduplicates canonical track URLs',()=>{
+    let n=0;const id=()=>`vault-test-${++n}`;
+    const jobs=vaultBatch('https://example.org/book.epub\nhttps://youtu.be/abcdefghijk\nhttps://www.youtube.com/watch?v=abcdefghijk&list=radio\nhttps://example.org/audio.mp3',id);
+    expect(jobs.map(job=>job.files[0].url)).toEqual(['https://example.org/book.epub','https://www.youtube.com/watch?v=abcdefghijk','https://example.org/audio.mp3']);
+    expect(new Set(jobs.map(job=>job.id)).size).toBe(3);
+    expect(()=>vaultBatch('https://example.org/book.epub\ninvalid',id)).toThrow();
+    expect(()=>vaultBatch(Array(21).fill('https://example.org/book.epub').join('\n'),id)).toThrow();
+  });
+  it('does not fabricate ETA and retains stable row identity and live speed',()=>{
+    expect(vaultEta(10,100,10)).toBe(9);
+    expect(vaultEta(10,null,10)).toBeNull();
+    expect(vaultEta(10,100,0)).toBeNull();
+    const row={id:'vault-fixture',state:'downloading' as const,bytes:10,total:100,error:null,speed:10};
+    expect(reconcileVaultRows([row],[row])[0]).toBe(row);
+    expect(reconcileVaultRows([row],[{...row,state:'paused'}])[0].speed).toBe(0);
+  });
+});

@@ -5,7 +5,6 @@ import { TsugiRail } from '@/components/shell/tsugi-rail';
 import { LandscapeSpotlight } from '@/components/landscape-spotlight';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { saveVaultFile,vaultPicker,vaultTarget } from './transfer';
-import { TorBoxPanel } from './torbox-panel';
 import { NativeVaultQueue } from './native-queue';
 
 export function VaultPage({track=null}:{track?:{id:string;title:string}|null}){
@@ -33,12 +32,13 @@ export function VaultPage({track=null}:{track?:{id:string;title:string}|null}){
   }
   return <main className="tsugi-vault-root" data-page="vault">
     <TsugiRail area="vault" disabled={busy}/>
-    <LandscapeSpotlight title={t`Vault`} eyebrow={t`Your media collection`} description={t`Books, music and downloads, in one place.`} actionLabel={t`Save a file`} onAction={()=>document.querySelector('[data-ui="tsugi-native-vault-queue"] input[type="url"]')?.scrollIntoView({block:'center'})} disabled={busy}/>
+    <LandscapeSpotlight title={t`Vault`} eyebrow={t`Your media collection`} description={t`Books, music and downloads, in one place.`} actionLabel={t`Save a file`} onAction={()=>document.querySelector('[data-ui="tsugi-native-vault-queue"] .tsugi-vault-intake')?.scrollIntoView({block:'center'})} disabled={busy}/>
     <section className="tsugi-vault-actions">
       {actions?.openBooks&&<button className="tsugi-read-action" onClick={actions.openBooks} disabled={busy}><Trans>Local books</Trans></button>}
       <button className="tsugi-read-action" onClick={actions?.openLocalMusic} disabled={busy}><Trans>Local music</Trans></button>
       <button className="tsugi-read-action" onClick={actions?.openVideoDownloads} disabled={busy}><Trans>Video downloads</Trans></button>
     </section>
+    <NativeVaultQueue track={track}/>
     <details className="tsugi-vault-advanced"><summary><Trans>Save a direct file to a custom location</Trans></summary>
     <h2><Trans>Download a book or audio file</Trans></h2>
     <p><Trans>Use a direct HTTPS file link you have permission to download. PDF, EPUB and common audio formats, up to 256 MiB. The host must allow direct browser access.</Trans></p>
@@ -56,8 +56,6 @@ export function VaultPage({track=null}:{track?:{id:string;title:string}|null}){
     {saved.length===0?<p><Trans>No completed transfers yet.</Trans></p>:saved.map((file,i)=><div className="tsugi-vault-file-row" key={i}><span>{file.name}</span><span>{(file.bytes/1048576).toFixed(1)} MiB</span></div>)}
     <div className="tsugi-pixel-rule" style={{height:4,marginBlock:24}} aria-hidden="true"/>
     </details>
-    <NativeVaultQueue track={track}/>
-    <div className="tsugi-pixel-rule" style={{height:4,marginBlock:24}} aria-hidden="true"/>
-    <TorBoxPanel/>
+
   </main>;
 }
