@@ -60,6 +60,16 @@ pub(crate) struct Transfer {
 
 impl Transfer {
     pub(crate) fn start(value: &str) -> Result<Self, &'static str> {
+        Self::start_with(value, "bestaudio[protocol=https]", Duration::from_secs(25))
+    }
+
+    // An explicit authorized Vault export, distinct from the playback format.
+    // No muxing, authentication cookies, plugins, or post-processors.
+    pub(crate) fn start_export(value: &str) -> Result<Self, &'static str> {
+        Self::start_with(value, "bestaudio[ext=m4a][protocol=https]", Duration::from_secs(120))
+    }
+
+    fn start_with(value: &str, format: &str, timeout: Duration) -> Result<Self, &'static str> {
         if !is_target(value) {
             return Err("Invalid YouTube Music track.");
         }
@@ -92,7 +102,7 @@ impl Transfer {
                 "--fragment-retries",
                 "0",
                 "--format",
-                "bestaudio[protocol=https]",
+                format,
                 "--no-js-runtimes",
                 "--js-runtimes",
             ])
@@ -109,7 +119,7 @@ impl Transfer {
             child,
             stdout: Some(std::thread::spawn(move || read_bounded(stdout, MAX_AUDIO))),
             stderr: Some(std::thread::spawn(move || read_bounded(stderr, 256 * 1024))),
-            deadline: Instant::now() + Duration::from_secs(25),
+            deadline: Instant::now() + timeout,
         })
     }
 

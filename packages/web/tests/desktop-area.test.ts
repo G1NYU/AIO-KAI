@@ -121,3 +121,14 @@ describe('Local book file and progress guards', () => {
     expect(validBookProgress('pdf', 1, NaN)).toBeNull();
   });
 });
+
+import { youtubeVaultTrack, youtubeVaultJob } from '../src/app/vault/native-job';
+describe('Authorized YouTube Vault export',()=>{
+  it('normalizes single public track links and discards shared URL parameters',()=>{
+    expect(youtubeVaultTrack('https://music.youtube.com/watch?v=abcdefghijk&si=fixture')).toBe('abcdefghijk');
+    expect(youtubeVaultTrack('https://youtu.be/abcdefghijk')).toBe('abcdefghijk');
+    expect(youtubeVaultJob('https://www.youtube.com/watch?v=abcdefghijk','vault-test').files).toEqual([{url:'https://www.youtube.com/watch?v=abcdefghijk',path:'Vault/vault-test/abcdefghijk.m4a',kind:'vault'}]);
+    for(const bad of ['https://youtube.example/watch?v=abcdefghijk','https://youtube.com/playlist?list=abc','https://youtu.be/abc','https://user:pass@youtube.com/watch?v=abcdefghijk','https://youtube.com:8080/watch?v=abcdefghijk'])
+      expect(()=>youtubeVaultTrack(bad)).toThrow();
+  });
+});

@@ -16,6 +16,7 @@ use ureq::ResponseExt;
 
 use crate::bridge::{DownloadJob, DownloadStatus, FileKind, Outbound};
 use crate::playback::{is_header_name, is_header_value};
+use crate::music_resolver;
 
 const PROGRESS_EVERY: Duration = Duration::from_millis(500);
 /// No timeout bounds a stalled read on its own, so each request ends after
@@ -527,15 +528,16 @@ fn check(spec: &DownloadJob) -> Result<(), String> {
         }
         let file = &spec.files[0];
         let url = url::Url::parse(&file.url).map_err(|_| "invalid Vault URL")?;
+        let music = music_resolver::is_target(&file.url);
         if url.scheme() != "https" || url.host_str().is_none() || !url.username().is_empty()
-            || url.password().is_some() || url.query().is_some() || url.fragment().is_some()
+            || url.password().is_some() || (!music && url.query().is_some()) || url.fragment().is_some()
             || !file.headers.is_empty() {
             return Err("Vault requires a public direct HTTPS file URL without credentials or query parameters".into());
         }
         let path = place(Path::new("."), &file.path)?;
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
         let expected = Path::new("Vault").join(&spec.id);
-        if !VAULT_EXTENSIONS.contains(&ext.as_str()) || Path::new(&file.path).parent() != Some(expected.as_path())
+        if !VAULT_EXTENSIONS.contains(&ext.as_str()) || (music && ext != "m4a") || Path::new(&file.path).parent() != Some(expected.as_path())
             || path.file_name().and_then(|n| n.to_str()) != Some(spec.title.as_str()) {
             return Err("invalid Vault file path".into());
         }
@@ -633,7 +635,9 @@ fn work(
                     });
                 }
             };
-            let result = if file.kind == FileKind::Vault {
+            let result = if file.kind == FileKind::Vault && music_resolver::is_target(&file.url) {
+                fetch_vault_music(&file.url, &path, &stop, report)
+            } else if file.kind == FileKind::Vault {
                 fetch_vault(&agent, &file.url, &path, &stop, report)
             } else {
                 fetch(&agent, &file.url, &file.headers, &path, &stop, report)
@@ -829,6 +833,48 @@ fn vault_mime_allowed(ext: &str, content_type: &str) -> bool {
 // Vault transfers are intentionally stricter than the legacy video downloader.
 // Resume restarts an incomplete transfer, avoiding unsafe byte-range stitching
 // when a public source changes its contents between requests.
+// Uses the same bounded yt-dlp transport as playback, but asks for M4A only.
+// All file IO stays in the persistent Vault worker; no player state changes.
+fn fetch_vault_music(
+    url: &str, path: &Path, stop: &AtomicBool,
+    report: impl Fn(u64, Option<u64>),
+) -> Result<(), Failure> {
+    let error = |message: &str| Failure::Error(message.to_owned());
+    if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
+    if path.exists() { return Err(error("A file already exists at the Vault destination")); }
+    report(0, None);
+    let mut transfer = music_resolver::Transfer::start_export(url).map_err(error)?;
+    let bytes = loop {
+        if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
+        if let Some(bytes) = transfer.poll().map_err(error)? { break bytes; }
+        thread::sleep(Duration::from_millis(100));
+    };
+    // ISO BMFF file signature; never label a WebM or an error response M4A.
+    if bytes.get(4..8) != Some(b"ftyp") || bytes.len() < 16 {
+        return Err(error("YouTube did not return a supported M4A file"));
+    }
+    let parent = path.parent().ok_or_else(|| error("Invalid Vault destination"))?;
+    fs::create_dir_all(parent).map_err(|_| error("Could not create Vault folder"))?;
+    let part = part_of(path);
+    let result = (|| {
+        let mut file = OpenOptions::new().create_new(true).write(true).open(&part)
+            .map_err(|_| error("Could not open Vault temporary file"))?;
+        for chunk in bytes.chunks(128 * 1024) {
+            if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
+            file.write_all(chunk).map_err(|_| error("Could not write Vault music file"))?;
+        }
+        file.sync_all().map_err(|_| error("Could not finish Vault music file"))?;
+        drop(file);
+        if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
+        if path.exists() { return Err(error("A file already exists at the Vault destination")); }
+        fs::rename(&part, path).map_err(|_| error("Could not finalize Vault music file"))?;
+        report(bytes.len() as u64, Some(bytes.len() as u64));
+        Ok(())
+    })();
+    if result.is_err() { let _ = fs::remove_file(&part); }
+    result
+}
+
 fn fetch_vault(
     agent: &ureq::Agent,
     url: &str,
@@ -913,6 +959,18 @@ mod vault_tests {
         let mut legacy = spec(good, path);
         legacy.files[0].kind = FileKind::Video;
         assert!(check(&legacy).is_err());
+    }
+    #[test]
+    fn accepts_only_exact_youtube_targets_with_m4a_paths() {
+        let mut music = spec("https://www.youtube.com/watch?v=abcdefghijk", "Vault/vault-test/abcdefghijk.m4a");
+        music.title = "abcdefghijk.m4a".into();
+        assert!(check(&music).is_ok());
+        music.files[0].url.push_str("&list=other");
+        assert!(check(&music).is_err());
+        music.files[0].url = "https://www.youtube.com/watch?v=abcdefghijk".into();
+        music.files[0].path = "Vault/vault-test/book.epub".into();
+        music.title = "book.epub".into();
+        assert!(check(&music).is_err());
     }
     #[test]
     fn validates_vault_mime_types() {
