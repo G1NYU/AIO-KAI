@@ -61,6 +61,7 @@ export function MusicPage({
   const lastVaultAudio = React.useRef<File | null>(null);
   const [store, setStore] = React.useState<EclipseStoreEntry[]>([]);
   const [storeError, setStoreError] = React.useState('');
+  const [storeLoading, setStoreLoading] = React.useState(true);
   const [manifestInput, setManifestInput] = React.useState('');
   const [connections, setConnections] = React.useState<MusicConnection[]>(readMusicSources);
   const [rememberSources, setRememberSources] = React.useState(remembersMusicSources);
@@ -96,6 +97,8 @@ export function MusicPage({
   playbackAllowedRef.current = playbackAllowed;
   const LOCAL_SOURCE = 'tsugi-local';
   const [settingsOpen, setSettingsOpen] = React.useState(() => readMusicSources().length === 0);
+  const [sourcePane, setSourcePane] = React.useState<'connected' | 'store'>('connected');
+  const [storeRevision, setStoreRevision] = React.useState(0);
   React.useEffect(() => { if (libraryRequest) { setTab('library'); setSettingsOpen(false);setLocalLibraryRequest(v=>v+1); } }, [libraryRequest]);
 
   const [recent, setRecent] = React.useState<RecentMusicPlay[]>(readRecentPlays);
@@ -243,6 +246,7 @@ export function MusicPage({
   React.useEffect(() => {
     if (!settingsOpen || !visible) return;
     settingsCloseRef.current?.focus();
+    setSourcePane('connected');
     const dismiss = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setSettingsOpen(false);
     };
@@ -270,11 +274,18 @@ export function MusicPage({
 
   React.useEffect(() => {
     const controller = new AbortController();
-    loadStore(controller.signal).then(setStore).catch((error: unknown) => {
+    setStoreError('');
+    setStoreLoading(true);
+    loadStore(controller.signal).then(items => {
+      if (!controller.signal.aborted) setStore(items);
+    }).catch((error: unknown) => {
       if (!controller.signal.aborted) setStoreError((error as Error).message);
+    }).finally(() => {
+      if (!controller.signal.aborted) setStoreLoading(false);
     });
-    return () => { controller.abort(); generation.current++; };
-  }, []);
+    return () => { controller.abort(); };
+  }, [storeRevision]);
+  React.useEffect(() => () => { generation.current++; }, []);
 
   async function connect(event: React.FormEvent) {
     event.preventDefault();
@@ -923,129 +934,69 @@ export function MusicPage({
                 <FiX aria-hidden className="text-xl" />
               </button>
             </div>
-            {connections.length > 0 && (
-              <label className="mb-7 block text-xs text-[--tsugi-muted]">
-                <Trans>Active music source</Trans>
-                <select aria-label={t`Active music source`} value={selectedId}
-                  onChange={(event) => switchSource(event.target.value)}
-                  className="tsugi-menu-select mt-3 block w-full">
-                  {connections.map((connection) => (
-                    <option key={connection.id} value={connection.id}>{connection.manifest.name}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-        <section aria-labelledby="music-source-heading" 
-          className="mb-12 space-y-4">
-          <h2 id="music-source-heading" className="text-2xl font-semibold">
-            <Trans>Connect a music source</Trans>
-          </h2>
-          <p className="max-w-3xl text-sm leading-6 text-[--muted]">
-            <Trans>Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device.</Trans>
-          </p>
-          {supportsYouTubeMusic() && !connections.some(source => source.id === YOUTUBE_MUSIC_ID) && (
-            <button type="button" className="tsugi-library-action" onClick={connectYouTubeMusic}>
-              <FiPlus aria-hidden /> <Trans>Connect YouTube Music</Trans>
-            </button>
-          )}
-          <form onSubmit={connect} className="flex flex-col gap-3 sm:flex-row">
-            <input
-              aria-label={t`Eclipse addon manifest URL`}
-              type="url" required autoComplete="off" spellCheck={false}
-              value={manifestInput} onChange={(e) => setManifestInput(e.target.value)}
-              placeholder="https://example.com/manifest.json"
-              className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm placeholder:text-[--muted] focus-visible:outline focus-visible:outline-2"
-            />
-            <button type="submit" disabled={connecting} className="rounded-xl px-6 py-3 text-sm font-semibold disabled:opacity-50" style={{background:'var(--tsugi-accent)',color:'var(--tsugi-canvas)'}}>
-              {connecting ? <Trans>Connecting…</Trans> : <Trans>Connect</Trans>}
-            </button>
-          </form>
-          {connectError && <p role="alert" className="text-sm text-red-300">{connectError}</p>}
-          <label className="flex items-start gap-3 text-xs text-[--muted]">
-            <input type="checkbox" checked={rememberSources}
-              onChange={(event) => setRememberSources(event.target.checked)}
-              className="mt-0.5 accent-violet-300" />
-            <span><Trans>Remember my music sources on this device (stored locally without encryption).</Trans></span>
-          </label>
-          {connections.length > 0 && (
-            <div className="flex flex-wrap gap-2" aria-label={t`Connected music sources`}>
-              {connections.map((source) => (
-                <div key={source.id} className="flex items-center gap-2 text-sm">
-                  <button type="button" onClick={() => switchSource(source.id)}
-                    aria-pressed={selectedId === source.id}
-                    className={selectedId === source.id
-                      ? 'border-b border-[--tsugi-accent] px-2 py-2 font-semibold text-[--tsugi-ink]'
-                      : 'px-2 py-2 text-[--tsugi-muted] hover:text-white'}>
-                    {source.manifest.name}
-                  </button>
-                  <button type="button" onClick={() => removeSource(source.id)}
-                    aria-label={t`Remove music source`}
-                    className="px-2 py-2 text-[--muted] hover:text-red-300">×</button>
-                </div>
-              ))}
+            <div role="group" aria-label={t`Music source views`} className="tsugi-source-tabs">
+              <button type="button" aria-pressed={sourcePane === 'connected'} onClick={() => setSourcePane('connected')}><Trans>Installed sources</Trans> <span>{connections.length}</span></button>
+              <button type="button" aria-pressed={sourcePane === 'store'} onClick={() => setSourcePane('store')}><Trans>Addon store</Trans></button>
             </div>
-          )}
-          {activeAddon && <p role="status" className="text-sm text-green-200">
-            <Trans>Connected to {connectedName}</Trans>
-          </p>}
-        </section>
-
-
-        <section aria-labelledby="music-store-heading" 
-          className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <h2 id="music-store-heading" className="text-2xl font-semibold">
-              <Trans>Eclipse community addon store</Trans>
-            </h2>
-            <a href="https://eclipsemusic.app/web/addon-store" target="_blank" rel="noopener noreferrer"
-              className="text-sm text-violet-200 underline underline-offset-4">
-              <Trans>Open official store</Trans>
-            </a>
-          </div>
-          {storeError && <p role="alert" className="text-sm text-amber-200">
-            <Trans>Could not load the addon registry: {storeError}</Trans>
-          </p>}
-          {store.length === 0 && !storeError &&
-            <p className="text-sm text-[--muted]"><Trans>Loading community addons…</Trans></p>}
-          <div className="border-t border-white/10 py-5 text-sm">
-            <h3 className="font-semibold"><Trans>DebridVault library</Trans></h3>
-            <p className="mt-2 max-w-2xl text-white/55">
-              <Trans>Manage your personal Real-Debrid or TorBox music library in DebridVault. This website is not itself an Eclipse addon manifest.</Trans>
-            </p>
-            <a href="https://debridvault.elfhosted.com/settings" target="_blank" rel="noopener noreferrer"
-              className="mt-3 inline-block text-violet-200 underline underline-offset-4">
-              <Trans>Configure DebridVault</Trans>
-            </a>
-          </div>
-          <div className="tsugi-source-store-grid grid gap-5">
-            {store.map((addon) => (
-              <article key={addon.id} className="flex flex-col gap-3 border-b border-white/10 py-5">
-                <div className="flex items-center gap-3">
-                  {addon.icon
-                    ? <img src={addon.icon} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-12 rounded-xl object-contain" />
-                    : <BiDisc aria-hidden className="text-3xl text-violet-200" />}
-                  <div className="min-w-0">
-                    <h3 className="break-words font-semibold">{addon.name}</h3>
-                    <p className="text-xs text-[--muted]">{addon.author ?? t`Community`}</p>
-                  </div>
+            {sourcePane === 'connected' ? <>
+              <section aria-label={t`Connected music sources`} className="tsugi-source-section">
+                <h3><Trans>Your sources</Trans></h3>
+                {connections.length === 0 && <p className="text-sm text-[--tsugi-muted]"><Trans>No sources connected yet.</Trans></p>}
+                <div className="tsugi-source-connected">
+                  {connections.map(source => <div key={source.id} className="tsugi-source-row" data-active={selectedId === source.id}>
+                    <BiPlug aria-hidden />
+                    <button type="button" className="min-w-0 flex-1 text-start" onClick={() => switchSource(source.id)} aria-pressed={selectedId === source.id}>
+                      <strong className="block truncate">{source.manifest.name}</strong>
+                      <small>{selectedId === source.id ? t`Active source` : t`Connected`}</small>
+                    </button>
+                    <button type="button" className="tsugi-icon-action" onClick={() => removeSource(source.id)} aria-label={t`Remove music source`}><FiX aria-hidden /></button>
+                  </div>)}
                 </div>
-                <p className="flex-1 text-sm leading-6 text-[--muted]">{addon.description}</p>
-                {addon.manifestUrl ? (
-                  <button type="button" onClick={() => setManifestInput(addon.manifestUrl!)}
-                    className="self-start rounded-lg border border-white/15 px-4 py-2 text-sm hover:bg-white/[0.08]">
-                    <Trans>Use manifest</Trans>
-                  </button>
-                ) : addon.setupUrl ? (
-                  <a href={addon.setupUrl} target="_blank" rel="noopener noreferrer"
-                    className="self-start rounded-lg border border-white/15 px-4 py-2 text-sm hover:bg-white/[0.08]">
-                    <Trans>Set up addon</Trans>
-                  </a>
-                ) : null}
-              </article>
-            ))}
-          </div>
-        </section>
-
+                {activeAddon && <p role="status" className="text-sm text-[--tsugi-muted]"><Trans>Connected to {connectedName}</Trans></p>}
+              </section>
+              <section aria-labelledby="music-source-heading" className="tsugi-source-section">
+                <h3 id="music-source-heading"><Trans>Connect a music source</Trans></h3>
+                <p className="text-sm text-[--tsugi-muted]"><Trans>Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device.</Trans></p>
+                {supportsYouTubeMusic() && !connections.some(source => source.id === YOUTUBE_MUSIC_ID) && <button type="button" className="tsugi-library-action" onClick={connectYouTubeMusic}><FiPlus aria-hidden /> <Trans>Connect YouTube Music</Trans></button>}
+                <form onSubmit={connect} className="tsugi-source-form">
+                  <input aria-label={t`Eclipse addon manifest URL`} type="url" required autoComplete="off" spellCheck={false}
+                    value={manifestInput} onChange={e => setManifestInput(e.target.value)} placeholder="https://example.com/manifest.json" />
+                  <button type="submit" disabled={connecting} className="tsugi-library-action" style={{background:'var(--tsugi-accent)',color:'var(--tsugi-on-accent)'}}>{connecting ? <Trans>Connecting…</Trans> : <Trans>Connect</Trans>}</button>
+                </form>
+                {connectError && <p role="alert" className="text-sm text-red-300">{connectError}</p>}
+                <label className="flex items-start gap-3 text-xs text-[--tsugi-muted]">
+                  <input type="checkbox" checked={rememberSources} onChange={event => setRememberSources(event.target.checked)} className="mt-0.5" />
+                  <span><Trans>Remember my music sources on this device (stored locally without encryption).</Trans></span>
+                </label>
+              </section>
+            </> : <section aria-labelledby="music-store-heading" className="tsugi-source-section">
+              <div className="flex items-center justify-between gap-4">
+                <h3 id="music-store-heading"><Trans>Eclipse community addon store</Trans></h3>
+                <a href="https://eclipsemusic.app/web/addon-store" target="_blank" rel="noopener noreferrer" className="text-sm text-[--tsugi-accent] underline"><Trans>Open official store</Trans></a>
+              </div>
+              {storeError && <div role="alert" className="tsugi-source-store-error">
+                <p className="text-sm"><Trans>Could not load the addon registry: {storeError}</Trans></p>
+                <button type="button" className="tsugi-library-action" onClick={() => setStoreRevision(value => value + 1)}><Trans>Retry</Trans></button>
+              </div>}
+              {storeLoading && <p role="status" className="text-sm text-[--tsugi-muted]"><Trans>Loading community addons…</Trans></p>}
+              {!storeLoading && !storeError && store.length === 0 && <p className="text-sm text-[--tsugi-muted]"><Trans>No community addons found.</Trans></p>}
+              <div className="tsugi-source-addon">
+                <h4 className="font-semibold"><Trans>DebridVault library</Trans></h4>
+                <p className="text-sm text-[--tsugi-muted]"><Trans>Manage your personal Real-Debrid or TorBox music library in DebridVault. This website is not itself an Eclipse addon manifest.</Trans></p>
+                <a href="https://debridvault.elfhosted.com/settings" target="_blank" rel="noopener noreferrer" className="text-sm text-[--tsugi-accent] underline"><Trans>Configure DebridVault</Trans></a>
+              </div>
+              <div className="tsugi-source-store-grid grid gap-3">
+                {store.map(addon => <article key={addon.id} className="tsugi-source-addon">
+                  <div className="flex items-center gap-3">
+                    {addon.icon ? <img src={addon.icon} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-10 rounded-lg object-contain" /> : <BiDisc aria-hidden className="text-3xl text-[--tsugi-muted]" />}
+                    <div className="min-w-0"><h4 className="break-words font-semibold">{addon.name}</h4><p className="text-xs text-[--tsugi-muted]">{addon.author ?? t`Community`}</p></div>
+                  </div>
+                  <p className="text-sm text-[--tsugi-muted]">{addon.description}</p>
+                  {addon.manifestUrl ? <button type="button" onClick={() => { setManifestInput(addon.manifestUrl!); setSourcePane('connected'); }} className="tsugi-library-action self-start"><Trans>Use manifest</Trans></button>
+                    : addon.setupUrl ? <a href={addon.setupUrl} target="_blank" rel="noopener noreferrer" className="tsugi-library-action self-start"><Trans>Set up addon</Trans></a> : null}
+                </article>)}
+              </div>
+            </section>}
           </aside>
         </div>
       )}

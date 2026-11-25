@@ -1,4 +1,4 @@
-import { BrushHeart as FiHeart, BrushList as FiList, BrushLyrics as FiMessageSquare, BrushClose as FiX, BrushDisc as BiDisc } from '@/components/tsugi-icons';
+import { BrushHeart as FiHeart, BrushList as FiList, BrushLyrics as FiMessageSquare, BrushDisc as BiDisc } from '@/components/tsugi-icons';
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
@@ -6,7 +6,7 @@ import { Trans } from '@lingui/react/macro';
 import { VolumeControl } from './volume-control';
 import { MusicArtwork } from './music-artwork';
 import { PixelMatrix, type MatrixMode } from './pixel-matrix';
-import { QueueControls, ClearUpcoming } from './queue-controls';
+import { PlaybackQueue } from './playback-queue';
 
 import type { MusicPlayerProps } from './player';
 import { Timeline, Transport } from './player';
@@ -128,38 +128,15 @@ export function JunctionPlayer({
           <VolumeControl value={p.volume} onChange={p.onVolume} />
         </div>
 
-        {queueOpen && (
-          <section aria-label={t`Up next`} className="tsugi-junction-secondary overflow-hidden py-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold"><Trans>Up next</Trans></h2><ClearUpcoming p={p}/>
-              <button type="button" aria-label={t`Close queue`}
-                className="tsugi-control flex size-8 items-center justify-center"
-                onClick={() => setQueueOpen(false)}><FiX aria-hidden /></button>
-            </div>
-            <ol className="max-h-52 space-y-1 overflow-y-auto">
-              {p.queue.map((item,index) => (
-                <li key={item.id + ':' + index}>
-                  <button type="button" onClick={() => p.onQueue(index)}
-                    aria-current={index === p.index ? 'true' : undefined}
-                    className="flex w-full items-center gap-3 py-2 text-left text-xs hover:bg-white/[0.04]"
-                    style={{color:index === p.index ? palette.accent : palette.foreground}}>
-                    <span className="w-5 shrink-0 text-right tabular-nums opacity-60">{index + 1}</span>
-                    <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                    <span className="max-w-[35%] truncate opacity-50">{item.artist}</span>
-                  </button>
-                  <QueueControls p={p} at={index}/>
-                </li>
-              ))}
-            </ol>
-          </section>
-        )}
-
         {(p.loading || p.error) && (
           <p role={p.error ? 'alert' : 'status'} className="text-sm text-amber-200">
             {p.error || <Trans>Resolving audio…</Trans>}
           </p>
         )}
       </section>
+      {queueOpen && <section className="tsugi-stage-queue" aria-label={t`Playback queue`}>
+        <PlaybackQueue p={p} onClose={() => setQueueOpen(false)} />
+      </section>}
     </div>
   );
 }

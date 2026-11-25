@@ -11,7 +11,7 @@ import { readPlayerStage, savePlayerStage, type PlayerStageId } from '@/lib/musi
 import { EclipseStudioStage } from './studio-player';
 import { JunctionPlayer } from './junction-player';
 import { MusicArtwork } from './music-artwork';
-import { QueueControls, ClearUpcoming } from './queue-controls';
+import { PlaybackQueue } from './playback-queue';
 import { PlayerSettings } from './player-settings';
 import type { MatrixMode } from './pixel-matrix';
 import { DotSeeker } from './wave-seeker';
@@ -229,15 +229,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                 <FiList aria-hidden /><span className="tsugi-mini-queue-count">{p.queue.length}</span>
               </summary>
               <div className="tsugi-mini-queue-panel">
-                <div className="tsugi-queue-heading"><h2><Trans>Playback queue</Trans></h2><ClearUpcoming p={p}/></div>
-                <ol>{p.queue.map((item, at) => <li key={item.id + ':' + at}>
-                  <button type="button" aria-current={at === p.index ? 'true' : undefined} disabled={p.loading}
-                    onClick={event => { p.onQueue(at); event.currentTarget.closest('details')?.removeAttribute('open'); }}>
-                    <span className="tsugi-mini-queue-number">{at + 1}</span>
-                    <span className="min-w-0"><strong className="block truncate">{item.title}</strong><small className="block truncate">{item.artist}</small></span>
-                  </button>
-                  <QueueControls p={p} at={at}/>
-                </li>)}</ol>
+                <PlaybackQueue p={p} onSelect={event => event.currentTarget.closest('details')?.removeAttribute('open')} />
               </div>
             </details>
             <div className="tsugi-mini-volume">

@@ -37,6 +37,11 @@ export function applyGlobalAppearance(root = document.documentElement) {
     '--tsugi-ink': a.foreground, '--tsugi-muted': a.muted, '--tsugi-accent': a.accent,
     '--tsugi-line': border, '--tsugi-wash': 'color-mix(in srgb, ' + a.foreground + ' 7%, ' + a.canvas + ')',
     '--tsugi-glass': a.panel,
+    '--tsugi-row': a.surface,
+    '--tsugi-row-alt': 'color-mix(in srgb, ' + a.surface + ' 95%, ' + a.foreground + ')',
+    '--tsugi-row-hover': 'color-mix(in srgb, ' + a.surface + ' 90%, ' + a.foreground + ')',
+    '--tsugi-row-active': 'color-mix(in srgb, ' + a.surface + ' 86%, ' + a.accent + ')',
+    '--tsugi-raised': a.panel,
   };
   for (const [key, value] of Object.entries(vars)) root.style.setProperty(key, value);
 }

@@ -512,6 +512,11 @@ try {
   assert.ok(Math.abs(drawer.x + drawer.width - fixedViewport.right) < 2, 'music sources drawer is flush to the fixed viewport edge: ' + geometry);
   assert.ok(['x', 'y', 'width', 'height'].every(key => Math.abs(backdrop[key] - fixedViewport[key]) < 2), 'music sources backdrop covers the fixed viewport: ' + geometry);
   assert.ok((await music.locator('.tsugi-music-workspace').boundingBox()).width > 2400, 'wide desktop music workspace uses the canvas');
+  await musicSettings.getByRole('button', { name: 'Addon store', exact: true }).click();
+  await musicSettings.getByRole('heading', { name: 'Eclipse community addon store', exact: true }).waitFor();
+  await capture('10-addon-store');
+  await musicSettings.getByRole('button', { name: /Installed sources/ }).click();
+  await musicSettings.getByRole('heading', { name: 'Connect a music source', exact: true }).waitFor();
   await capture('10-wide-music-sources');
   await page.setViewportSize({ width: 1440, height: 900 });
   if (await musicSettings.isVisible()) await musicSettings.getByRole('button', { name: 'Close', exact: true }).click();
@@ -708,6 +713,8 @@ try {
   const miniQueue = music.locator('[data-ui="mini-queue"]');
   await miniQueue.locator('summary').click();
   await miniQueue.locator('button[aria-current="true"]').filter({ hasText: 'Native fixture track' }).waitFor();
+  assert.ok(await miniQueue.locator('.tsugi-queue-art').count() >= 1);
+  await capture('08-mini-queue');
   await miniQueue.locator('summary').click();
   assert.equal(await miniQueue.getAttribute('open'), null);
   const miniSave = music.getByRole('button', { name: 'Save playing track', exact: true });
@@ -757,6 +764,17 @@ try {
     assert.ok(geometry.art >= 440, 'native stage displays a large cover');
     await stage.locator('canvas[data-ui="tsugi-pixel-matrix"]').waitFor();
     assert.equal(await stage.locator('.tsugi-nocturne-backdrop').count(), layout === 'nocturne' ? 1 : 0);
+    if (layout === 'nocturne') {
+      await stage.getByRole('button', { name: 'Queue', exact: true }).click();
+      await stage.getByRole('region', { name: 'Playback queue', exact: true }).waitFor();
+      await capture('08-expanded-queue');
+      await stage.getByRole('button', { name: 'Close queue', exact: true }).click();
+      await page.setViewportSize({ width: 2560, height: 1440 });
+      const wide = await stage.evaluate(node => ({ art: node.querySelector('.tsugi-junction-art').getBoundingClientRect().width, viewport: innerWidth }));
+      assert.ok(wide.art >= 850, 'wide native stage scales artwork beyond old cap');
+      await capture('08-expanded-nocturne-wide');
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
     await capture('08-expanded-' + layout);
   }
   await expanded.getByRole('button', { name: 'Player settings', exact: true }).click();
