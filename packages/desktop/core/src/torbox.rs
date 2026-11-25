@@ -19,6 +19,9 @@ fn link(value: &str) -> Result<String, &'static str> {
     Ok(url.into())
 }
 fn request(agent: &ureq::Agent, key: &str, submit: Option<&str>) -> Reply {
+    request_at(agent, BASE, key, submit)
+}
+fn request_at(agent: &ureq::Agent, base: &str, key: &str, submit: Option<&str>) -> Reply {
     let auth = format!("Bearer {key}");
     let response = if let Some(value) = submit {
         let url = link(value)?;
@@ -27,12 +30,12 @@ fn request(agent: &ureq::Agent, key: &str, submit: Option<&str>) -> Reply {
         const BOUNDARY: &str = "tsugi-form-7e2bd92fa44";
         if url.contains(BOUNDARY) { return Err("link"); }
         let body = format!("--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"link\"\r\n\r\n{url}\r\n--{BOUNDARY}--\r\n");
-        agent.post(format!("{BASE}createwebdownload"))
+        agent.post(format!("{base}createwebdownload"))
             .header("Authorization", &auth).header("Accept", "application/json")
             .header("Content-Type", format!("multipart/form-data; boundary={BOUNDARY}"))
             .send(body)
     } else {
-        agent.get(format!("{BASE}mylist?limit=100&files=false"))
+        agent.get(format!("{base}mylist?limit=100&files=false"))
             .header("Authorization", &auth).header("Accept", "application/json").call()
     };
     let response = response.map_err(|e| match e {
@@ -100,6 +103,42 @@ impl Worker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn test_agent() -> ureq::Agent {
+        ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(12))).max_redirects(0).build().into()
+    }
+    #[test]
+    fn native_http_list_and_multipart_submission() {
+        let (base, server) = crate::test_http::response(200, "application/json", br#"{"success":true,"data":[{"id":42,"name":"fixture","download_finished":true,"download_state":"completed","private":"do not return"}]}"#.to_vec());
+        let result = request_at(&test_agent(), &base, "fixture-key", None).unwrap();
+        let sent = server.join().unwrap();
+        assert!(sent.starts_with("GET /mylist?limit=100&files=false "));
+        assert!(sent.to_ascii_lowercase().contains("authorization: bearer fixture-key"));
+        assert_eq!(result["items"][0]["id"], 42);
+        assert_eq!(result["items"][0]["finished"], true);
+        assert!(result["items"][0].get("private").is_none());
+        let (base, server) = crate::test_http::response(200, "application/json", br#"{"success":true,"data":{"id":43}}"#.to_vec());
+        assert!(request_at(&test_agent(), &base, "fixture-key", Some("https://example.org/book.epub")).is_ok());
+        let sent = server.join().unwrap();
+        assert!(sent.starts_with("POST /createwebdownload "));
+        assert!(sent.to_ascii_lowercase().contains("content-type: multipart/form-data; boundary="));
+        assert!(sent.contains("name=\"link\"\r\n\r\nhttps://example.org/book.epub\r\n"));
+    }
+    #[test]
+    fn native_http_error_classification() {
+        for (status, expected) in [(403,"auth"),(429,"rate"),(500,"request")] {
+            let (base, server) = crate::test_http::response(status, "application/json", b"{}".to_vec());
+            assert_eq!(request_at(&test_agent(),&base,"fixture-key",None),Err(expected));
+            server.join().unwrap();
+        }
+    }
+    #[test]
+    #[ignore = "Requires live TorBox network access; uses deliberately invalid authentication, never creates a job"]
+    fn live_torbox_rejects_invalid_authentication() {
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_global(Some(Duration::from_secs(25))).max_redirects(0).build().into();
+        assert_eq!(request(&agent,"tsugi-invalid-public-probe",None),Err("auth"),
+            "Expected real TorBox authentication rejection, not a mock or a transport failure");
+    }
     #[test]
     fn rejects_unsafe_links_and_keys() {
         assert!(key_valid("fixture-key"));

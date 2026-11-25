@@ -1021,6 +1021,53 @@ mod vault_tests {
         fs::remove_dir_all(dir).unwrap();
     }
     #[test]
+    fn native_direct_transfer_writes_real_bytes_and_rejects_html() {
+        let dir = std::env::temp_dir().join(format!("tsugi-vault-http-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("fixture.pdf");
+        let bytes = b"%PDF-1.4\nTsugi original transfer fixture\n%%EOF\n".to_vec();
+        let (url, server) = crate::test_http::response(200, "application/pdf", bytes.clone());
+        let stop = AtomicBool::new(false);
+        let transferred = std::cell::Cell::new(0);
+        assert!(fetch_vault(&agent(),&url,&path,&stop,|n,_|transferred.set(n)).is_ok());
+        assert_eq!(fs::read(&path).unwrap(),bytes);
+        assert_eq!(transferred.get(),bytes.len() as u64);
+        assert!(!part_of(&path).exists());
+        server.join().unwrap();
+        let bad = dir.join("bad.pdf");
+        let (url, server) = crate::test_http::response(200,"text/html",b"<html>not a book</html>".to_vec());
+        assert!(fetch_vault(&agent(),&url,&bad,&stop,|_,_|{}).is_err());
+        assert!(!bad.exists()&&!part_of(&bad).exists());
+        server.join().unwrap();
+        fs::remove_dir_all(dir).unwrap();
+    }
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "Requires real YouTube access and pinned music-tools next to the test executable"]
+    fn live_youtube_export_writes_m4a() {
+        // Big Buck Bunny (c) 2008 Blender Foundation, CC BY 3.0.
+        // https://peach.blender.org/about/ -- original public licensed test fixture.
+        let dir = std::env::temp_dir().join(format!("tsugi-live-music-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("big-buck-bunny.m4a");
+        let stop = AtomicBool::new(false);
+        let result = fetch_vault_music("https://www.youtube.com/watch?v=YE7VzlLtp-4",&path,&stop,|_,_|{});
+        let checked = match result {
+            Ok(()) => {
+                let data = fs::read(&path).unwrap();
+                assert!(data.len()>1024);
+                assert_eq!(data.get(4..8),Some(&b"ftyp"[..]));
+                assert!(!part_of(&path).exists());
+                println!("Live M4A export wrote {} bytes", data.len());
+                Ok(())
+            },
+            Err(Failure::Error(e)) => Err(e),
+            Err(Failure::Stopped) => Err("Unexpected cancellation".into()),
+        };
+        fs::remove_dir_all(dir).unwrap();
+        checked.unwrap();
+    }
+    #[test]
     fn validates_vault_mime_types() {
         assert!(vault_mime_allowed("epub", "application/epub+zip"));
         assert!(vault_mime_allowed("mp3", "audio/mpeg; charset=binary"));

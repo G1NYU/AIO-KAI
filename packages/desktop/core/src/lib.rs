@@ -19,3 +19,6 @@ pub mod thumbnails;
 pub mod upscale;
 pub mod youtube;
 pub mod torbox;
+
+#[cfg(test)]
+pub(crate) mod test_http;

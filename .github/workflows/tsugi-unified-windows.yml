@@ -103,6 +103,25 @@ jobs:
       - name: Check native desktop and core without packaging
         working-directory: packages/desktop
         run: cargo check --locked --workspace
+      - name: Run native core tests without packaging
+        working-directory: packages/desktop
+        run: cargo test --locked -p aiostreams-desktop-core --lib
+      - name: Live TorBox authentication rejection probe (no account or submission)
+        if: contains(github.event.head_commit.message, '[live vault smoke]')
+        working-directory: packages/desktop
+        continue-on-error: true
+        run: cargo test --locked -p aiostreams-desktop-core --lib live_torbox_rejects_invalid_authentication -- --ignored --nocapture
+      - name: Live authorized YouTube M4A export probe (no packaging)
+        if: contains(github.event.head_commit.message, '[live vault smoke]')
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          ./packages/desktop/scripts/fetch-music-tools.ps1 -Destination packages/desktop/target/debug/deps/music-tools
+          Push-Location packages/desktop
+          try {
+            cargo test --locked -p aiostreams-desktop-core --lib live_youtube_export_writes_m4a -- --ignored --nocapture
+            if ($LASTEXITCODE -ne 0) { throw 'Live YouTube export failed' }
+          } finally { Pop-Location }
 
   windows-x64:
     if: github.ref == 'refs/heads/feature/tsugi-read-runtime' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package tsugi]')))

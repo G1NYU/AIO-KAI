@@ -258,6 +258,19 @@ try {
   await vault.waitFor();
   assert.equal(await vault.locator('[data-ui="tsugi-desktop-rail"] [aria-current="page"]').getAttribute('aria-label'), 'Vault');
   assert.equal(await vault.locator('.tsugi-landscape-fallback').count(), 1);
+  const glyphs=await vault.locator('[data-ui="tsugi-desktop-rail"] button[aria-label]').evaluateAll(nodes=>nodes.flatMap(node=>{
+    if(!['Movies & TV','Music','Read','Vault','App settings'].includes(node.getAttribute('aria-label')))return [];
+    const svg=node.querySelector('svg');if(!svg)return [];
+    const b=svg.getBBox();
+    return [{label:node.getAttribute('aria-label'),width:b.width,height:b.height,stroke:svg.getAttribute('stroke-width'),fill:svg.getAttribute('fill')}];
+  }));
+  assert.equal(glyphs.length,5);
+  for(const label of ['Vault','App settings']){
+    const glyph=glyphs.find(g=>g.label===label);
+    assert.equal(glyph.stroke,'1.7');
+    assert.equal(glyph.fill,'none');
+    assert.ok(glyph.width<=18.1&&glyph.height<=17.5&&glyph.width>=13&&glyph.height>=13,label+' must match existing compact outline proportions');
+  }
   await vault.getByText('Nekos API', { exact: true }).waitFor();
   // React StrictMode intentionally remounts effects in development, so an
   // aborted metadata request can be observed twice. Preserve the image fallback ordering.
