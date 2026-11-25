@@ -2864,7 +2864,7 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-music-hub .tsugi-library-detail-head { padding:8px 0 20px; border:0; }
 .tsugi-music-hub .tsugi-library-detail-head > .tsugi-library-cover { width:clamp(110px,13vw,200px); }
 .tsugi-music-hub .tsugi-library-detail-head h2 { font-size:clamp(28px,3.2vw,44px); }
-.tsugi-music-hub .tsugi-collection-tracks { border:1px solid var(--tsugi-line); border-top:0; background:var(--tsugi-surface); padding:0; margin-top:0; border-radius:0 0 var(--tsugi-radius-control) var(--tsugi-radius-control); }
+.tsugi-music-hub .tsugi-collection-tracks { border:1px solid var(--tsugi-line); border-top:0; background:var(--tsugi-surface); padding:0 5px 5px; margin-top:0; border-radius:0 0 var(--tsugi-radius-control) var(--tsugi-radius-control); }
 .tsugi-music-hub .tsugi-hub-columns { display:grid; grid-template-columns:26px minmax(0,1.7fr) minmax(0,1fr) minmax(65px,.6fr) 52px 30px; gap:10px; padding:12px 15px; background:var(--tsugi-surface); border:1px solid var(--tsugi-line); border-bottom:0; border-radius:var(--tsugi-radius-control) var(--tsugi-radius-control) 0 0; font-size:10px; text-transform:uppercase; letter-spacing:.06em; }
 .tsugi-music-hub .tsugi-collection-row { border:0; border-radius:var(--tsugi-radius-control); }
 .tsugi-music-hub .tsugi-collection-row[data-active='true'] { background:var(--tsugi-wash); }
