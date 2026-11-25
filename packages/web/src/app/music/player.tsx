@@ -7,7 +7,7 @@ import { BrushDownload, BrushSettings } from '@/components/tsugi-icons';
 import { TrackDownload } from './track-download';
 import type { EclipseTrack } from '@/lib/music/eclipse';
 import { parsePlayerTemplate } from '@/lib/music/player-template';
-import { readPlayerStage, savePlayerStage, type PlayerStageId } from '@/lib/music/player-layout';
+import { readPlayerStage, savePlayerStage, readMatrixMode, saveMatrixMode, type PlayerStageId } from '@/lib/music/player-layout';
 import { EclipseStudioStage } from './studio-player';
 import { JunctionPlayer } from './junction-player';
 import { MusicArtwork } from './music-artwork';
@@ -141,10 +141,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
   const [showHeader, setShowHeader] = React.useState(() =>
     storage.get<boolean>('tsugi-player-header-visible-v1') === true
   );
-  const [matrixMode, setMatrixMode] = React.useState<MatrixMode>(() => {
-    const saved = storage.get<MatrixMode>('tsugi-matrix-mode-v1');
-    return saved === 'off' || saved === 'minimal' || saved === 'immersive' || saved === 'wave' ? saved : 'immersive';
-  });
+  const [matrixMode, setMatrixMode] = React.useState<MatrixMode>(readMatrixMode);
   const template = stageId === 'imported' ? importedTemplate : null;
   const matrixActive = p.expanded && stageId !== 'imported' && matrixMode !== 'off';
   const onMatrixActive = p.onMatrixActive;
@@ -159,8 +156,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
       setStageId(saved.id);
       setImportedJson(saved.imported);
       setImportedTemplate(saved.template);
-      const mode = storage.get<MatrixMode>('tsugi-matrix-mode-v1');
-      setMatrixMode(mode === 'off' || mode === 'minimal' || mode === 'wave' ? mode : 'immersive');
+      setMatrixMode(readMatrixMode());
     };
     window.addEventListener('tsugi-player-preferences-change', sync);
     return () => window.removeEventListener('tsugi-player-preferences-change', sync);
@@ -312,7 +308,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
               audioProfile={p.audioProfile} onAudioProfile={p.onAudioProfile}
               eqEnabled={p.eqEnabled} eqAvailable={p.eqAvailable}
               onEqEnabled={p.onEqEnabled} eqError={p.eqError}
-              matrixMode={matrixMode} onMatrixMode={(value) => { setMatrixMode(value); storage.set('tsugi-matrix-mode-v1', value); }}
+              matrixMode={matrixMode} onMatrixMode={(value) => { setMatrixMode(value); saveMatrixMode(value); }}
               showHeader={showHeader}
               studioContained={studioContained}
               onStudioContained={(value) => {

@@ -4,7 +4,7 @@ import { Trans } from '@lingui/react/macro';
 import { themeVariables } from '@aiostreams/ui/utils/palette';
 import { PLAYER_PALETTES, readPlayerTheme, savePlayerTheme, isPlayerTheme, type PlayerThemeId, PLAYER_ACCENTS, readPlayerAccent, savePlayerAccent, withPlayerAccent, type PlayerPalette, type PlayerAccentId } from '@/lib/music/player-theme';
 import { applyEclipseAppearance, deriveEclipseAppearance } from '@/lib/music/eclipse-appearance';
-import { readPlayerStage, savePlayerStage, type PlayerStageId } from '@/lib/music/player-layout';
+import { readPlayerStage, savePlayerStage, readMatrixMode, saveMatrixMode, type PlayerStageId } from '@/lib/music/player-layout';
 import type { MatrixMode } from '@/app/music/pixel-matrix';
 import { notifyEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import { storage } from '@/lib/storage';
@@ -101,7 +101,7 @@ export function GlobalAppearanceSettings() {
 export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:boolean;onClose():void;hasReadSection?:boolean}) {
   const [startup,setStartup] = React.useState(readStartupArea);
   const [layout,setLayout] = React.useState(() => readPlayerStage().id);
-  const [matrix,setMatrix] = React.useState<MatrixMode>(() => storage.get<MatrixMode>('tsugi-matrix-mode-v1') ?? 'immersive');
+  const [matrix,setMatrix] = React.useState<MatrixMode>(readMatrixMode);
   const bridge = appBridge();
   const dialog = React.useRef<HTMLDialogElement>(null);
   React.useEffect(() => {
@@ -109,7 +109,7 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
     if (!node) return;
     if (open && !node.open) {
       setLayout(readPlayerStage().id);
-      setMatrix(storage.get<MatrixMode>('tsugi-matrix-mode-v1') ?? 'immersive');
+      setMatrix(readMatrixMode());
       node.showModal();
     }
     else if (!open && node.open) node.close();
@@ -153,7 +153,7 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
       <label><Trans>Default visualizer</Trans>
         <select className="tsugi-menu-select w-full" value={matrix} onChange={event => {
           const value = event.target.value as MatrixMode;
-          storage.set('tsugi-matrix-mode-v1',value);
+          saveMatrixMode(value);
           setMatrix(value);
           window.dispatchEvent(new Event('tsugi-player-preferences-change'));
         }}>

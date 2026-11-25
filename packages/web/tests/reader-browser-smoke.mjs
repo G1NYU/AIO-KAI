@@ -223,6 +223,7 @@ try {
   assert.equal(await onboarding.isVisible(), false, 'onboarding does not reopen after completion');
   await landing.getByRole('button', { name: 'App settings', exact: true }).click();
   const bootSettings = page.getByRole('dialog');
+  assert.equal(await bootSettings.getByLabel('Default visualizer').inputValue(),'wave');
   const startup = bootSettings.getByLabel('Open on startup');
   await startup.selectOption('music');
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('tsugi-startup-area-v1'))), 'music');
@@ -663,9 +664,15 @@ try {
   await assertCanvasColumns(detail.locator('.tsugi-hub-collection'), '.tsugi-dashboard-left,.tsugi-dashboard-right');
   assert.equal(await detail.locator('.tsugi-hub-remote-columns').getByText('Source',{exact:true}).count(),1);
   const trackGrid=detail.locator('.tsugi-music-detail-track-grid');
+  const assertTrackSeam = async () => {
+    const gap = await trackGrid.evaluate(node => ({ header: node.previousElementSibling.getBoundingClientRect().bottom, row: node.firstElementChild.getBoundingClientRect().top }));
+    assert.ok(Math.abs(gap.row-gap.header)<=1,'collection header and first row meet: '+JSON.stringify(gap));
+  };
+  await assertTrackSeam();
   assert.equal(await trackGrid.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),1);
   await page.setViewportSize({width:800,height:900});
   assert.equal(await trackGrid.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),1);
+  await assertTrackSeam();
   await page.setViewportSize({width:1440,height:900});
   await detail.getByRole('textbox',{name:'Find collection tracks'}).fill('Collection track 12');
   assert.equal(await detail.locator('.tsugi-music-detail-track').count(),1);
@@ -796,6 +803,7 @@ try {
   await music.getByRole('button', { name: 'Expand player', exact: true }).click();
   const expanded = music.getByRole('dialog', { name: 'Now playing', exact: true });
   await expanded.waitFor();
+  await expanded.locator('canvas[data-mode="wave"]').waitFor();
   await expanded.locator('img[src*="tsugi-fixture=w544-h544"]').waitFor();
   await page.waitForFunction(() => [...document.querySelectorAll('.tsugi-player-dialog img')].some(img => img.src.includes('tsugi-fixture=w544-h544') && img.complete && img.naturalWidth === 544 && img.naturalHeight === 544));
   assert.ok(artworkRequests.some(url => url.endsWith('=w1024-h1024')), 'expanded player requests a larger original');

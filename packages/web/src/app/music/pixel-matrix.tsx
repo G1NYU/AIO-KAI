@@ -1,6 +1,7 @@
 import React from 'react';
 
-export type MatrixMode = 'off' | 'minimal' | 'immersive' | 'wave';
+import type { MatrixMode } from '@/lib/music/player-layout';
+export type { MatrixMode } from '@/lib/music/player-layout';
 
 /** Local PCM waveform or a time history of measured native RMS levels.
  * The native envelope is not a fabricated spectrum or reconstructed PCM.

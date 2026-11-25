@@ -2864,7 +2864,7 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-music-hub .tsugi-library-detail-head { padding:8px 0 20px; border:0; }
 .tsugi-music-hub .tsugi-library-detail-head > .tsugi-library-cover { width:clamp(110px,13vw,200px); }
 .tsugi-music-hub .tsugi-library-detail-head h2 { font-size:clamp(28px,3.2vw,44px); }
-.tsugi-music-hub .tsugi-collection-tracks { border:1px solid var(--tsugi-line); border-top:0; background:var(--tsugi-surface); padding:5px; border-radius:0 0 var(--tsugi-radius-control) var(--tsugi-radius-control); }
+.tsugi-music-hub .tsugi-collection-tracks { border:1px solid var(--tsugi-line); border-top:0; background:var(--tsugi-surface); padding:0; margin-top:0; border-radius:0 0 var(--tsugi-radius-control) var(--tsugi-radius-control); }
 .tsugi-music-hub .tsugi-hub-columns { display:grid; grid-template-columns:26px minmax(0,1.7fr) minmax(0,1fr) minmax(65px,.6fr) 52px 30px; gap:10px; padding:12px 15px; background:var(--tsugi-surface); border:1px solid var(--tsugi-line); border-bottom:0; border-radius:var(--tsugi-radius-control) var(--tsugi-radius-control) 0 0; font-size:10px; text-transform:uppercase; letter-spacing:.06em; }
 .tsugi-music-hub .tsugi-collection-row { border:0; border-radius:var(--tsugi-radius-control); }
 .tsugi-music-hub .tsugi-collection-row[data-active='true'] { background:var(--tsugi-wash); }
@@ -2878,7 +2878,7 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-dashboard-current { padding:10px; color:var(--tsugi-ink); background:var(--tsugi-wash); font-size:13px; overflow-wrap:anywhere; }
 .tsugi-hub-collection .tsugi-music-detail-hero { align-items:flex-end; gap:24px; }
 .tsugi-hub-collection .tsugi-music-detail-hero > div:first-child { width:clamp(110px,15vw,200px); flex:none; }
-.tsugi-hub-collection .tsugi-music-detail-track-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:0; padding:5px; border:1px solid var(--tsugi-line); border-top:0; background:var(--tsugi-surface); border-radius:0 0 var(--tsugi-radius-control) var(--tsugi-radius-control); }
+.tsugi-hub-collection .tsugi-music-detail-track-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:0; padding:0; border:1px solid var(--tsugi-line); border-top:0; background:var(--tsugi-surface); border-radius:0 0 var(--tsugi-radius-control) var(--tsugi-radius-control); }
 .tsugi-hub-collection .tsugi-music-detail-track,.tsugi-hub-remote-columns { display:grid; grid-template-columns:26px minmax(0,1.7fr) minmax(0,1fr) minmax(64px,.6fr) 52px; align-items:center; gap:10px; padding:10px 12px; border:0; }
 .tsugi-hub-collection .tsugi-music-detail-track:hover { background:var(--tsugi-wash); border-radius:var(--tsugi-radius-control); }
 .tsugi-hub-remote-columns { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--tsugi-muted); background:var(--tsugi-surface); border:1px solid var(--tsugi-line); border-bottom:0; border-radius:var(--tsugi-radius-control) var(--tsugi-radius-control) 0 0; }
@@ -2986,3 +2986,8 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   .tsugi-hub-collection .tsugi-remote-track-play { grid-template-columns:22px minmax(0,1fr) 48px; }
   .tsugi-hub-collection .tsugi-hub-remote-columns { grid-template-columns:22px minmax(0,1fr) 48px 30px; }
 }
+
+/* Keep the table header and tonal rows contiguous without clipping focus rings. */
+.tsugi-hub-collection .tsugi-music-detail-tracks > .tsugi-hub-remote-columns { margin-block-end:0; }
+.tsugi-hub-collection .tsugi-music-detail-tracks > .tsugi-music-detail-track-grid { margin-block:0; }
+.tsugi-music-detail-track-grid > :last-child,.tsugi-collection-tracks > :last-child { border-bottom-left-radius:calc(var(--tsugi-radius-control) - 1px); border-bottom-right-radius:calc(var(--tsugi-radius-control) - 1px); }

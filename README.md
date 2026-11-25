@@ -1,13 +1,13 @@
 <p align="center"><img src="branding/readme/hero.svg" width="100%" alt="Tsugi — What comes next. Your media, your sources, one workspace."></p>
 
 <p align="center">
-  <a href="https://github.com/G1NYU/TSUGI/actions/runs/45651068740/artifacts/15040987030"><strong>Download Windows x64</strong></a> &nbsp;·&nbsp;
+  <a href="https://github.com/G1NYU/TSUGI/releases"><strong>Download Windows x64</strong></a> &nbsp;·&nbsp;
   <a href="https://github.com/G1NYU/TSUGI/tree/feature/tsugi-read-runtime">Source</a> &nbsp;·&nbsp;
   <a href="https://github.com/G1NYU/TSUGI/issues">Issues</a> &nbsp;·&nbsp;
   <a href="LICENSE">AGPL-3.0</a>
 </p>
 
-<p align="center"><sub>INDEPENDENT OPEN SOURCE · WINDOWS DEVELOPMENT PREVIEW · BY GIINYU</sub></p>
+<p align="center"><sub>INDEPENDENT OPEN SOURCE · WINDOWS x64 · BY GIINYU</sub></p>
 
 ## 次 / 継ぎ — what comes next
 
@@ -127,16 +127,15 @@ Import completed books into Read or open downloaded audio in Music. Files remain
 
 ## Get Tsugi
 
-**Latest successful Windows x64 development build:** [portable ZIP](https://github.com/G1NYU/TSUGI/actions/runs/45651068740/artifacts/15040987030) · [validation and packaging](https://github.com/G1NYU/TSUGI/actions/runs/45651068740) · source `ac6e175`.
+**Windows x64:** visit [GitHub Releases](https://github.com/G1NYU/TSUGI/releases) and choose the latest published version. Each release includes a portable ZIP, a SHA-256 checksum, validation links and matching source references.
 
-1. Download the `Tsugi-Windows-x64-test` artifact (GitHub login may be required).
+1. Download `Tsugi-windows-x64.zip` from the release assets.
 2. Extract the entire ZIP into a writable folder, including its `.portable` marker.
 3. Run `current/Tsugi.exe`, keeping companion files alongside it.
 4. Choose a palette and accent, then enter your AIOStreams/Jellyfin server address. The other spaces can be configured independently.
 
-Portable development preview, **not an installer or stable release**. Artifacts expire; use the [Windows build workflow](https://github.com/G1NYU/TSUGI/actions/workflows/tsugi-unified-windows.yml) to locate a newer successful packaging run. Source-only runs do not contain the executable. Back up portable application data before replacing files.
+This is a portable application, not an installer. Windows may warn about the unsigned executable. Back up portable application data before replacing files. [Development builds](https://github.com/G1NYU/TSUGI/actions/workflows/tsugi-unified-windows.yml) are available separately; their artifacts expire.
 
-[Actual browser-rendered fixture previews](https://github.com/G1NYU/TSUGI/actions/runs/45651068740/artifacts/15041215985) are separate from the original SVG illustrations.
 
 ## Architecture / development
 
@@ -175,7 +174,7 @@ With credit to [AIOStreams](https://github.com/Viren070/AIOStreams), [Stremio](h
 
 Tsugi's source is licensed under the **[GNU AGPL-3.0](LICENSE)**, inherited from AIOStreams. It is the Affero variant of GPLv3, not a permissive license or plain GPLv3. You may run, study, modify and redistribute the covered program under its terms. When conveying covered modifications or binaries, retain notices, license the covered work as required and make the complete Corresponding Source available in a permitted manner. Section 13 also requires a modified version that supports remote network interaction to prominently offer its Corresponding Source to users interacting with it remotely. See the [complete license text](https://www.gnu.org/licenses/agpl-3.0.html) for the precise conditions and definitions.
 
-Source for the distributed Tsugi application and build scripts is available at the [matching build commit](https://github.com/G1NYU/TSUGI/tree/ac6e175ddfa0fa4fd9e15164ec0ec1c0d78a40b1). Separately distributed or incorporated components retain their own licenses and notices: the patched libmpv/FFmpeg playback build is GPL-3.0, Aria2 Next is a separate GPLv2 sidecar with accompanying source, and standalone FFmpeg tools have their own LGPL configuration. Other components are covered by their respective licenses. See [third-party notices and corresponding source references](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/packages/desktop/THIRD-PARTY.md), packaged license files and source archives.
+Source for the distributed Tsugi application and build scripts is available at the [matching tag and source references in each release](https://github.com/G1NYU/TSUGI/releases). Separately distributed or incorporated components retain their own licenses and notices: the patched libmpv/FFmpeg playback build is GPL-3.0, Aria2 Next is a separate GPLv2 sidecar with accompanying source, and standalone FFmpeg tools have their own LGPL configuration. Other components are covered by their respective licenses. See [third-party notices and corresponding source references](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/packages/desktop/THIRD-PARTY.md), packaged license files and source archives.
 
 The program is provided without warranty, as set out in the license. Tsugi does not host or supply copyrighted media, subscriptions or bundled content sources. Use only sources you are authorized to access and comply with applicable terms and law.
 

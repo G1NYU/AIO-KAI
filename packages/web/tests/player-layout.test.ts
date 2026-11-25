@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readPlayerStage, savePlayerStage } from '../src/lib/music/player-layout';
+import { readPlayerStage, savePlayerStage, readMatrixMode, saveMatrixMode } from '../src/lib/music/player-layout';
 
 const values = new Map<string, string>();
 beforeEach(() => {
@@ -18,6 +18,18 @@ const file = {
   layers: [{ id: 'song', kind: 'songTitle', visible: true,
     transform: { x: 0.5, y: 0.5, width: 0.45, height: 0.1 } }],
 };
+
+describe('Tsugi visualizer preferences', () => {
+  it('defaults to Dot Wave and preserves every explicit mode', () => {
+    expect(readMatrixMode()).toBe('wave');
+    for (const mode of ['off','minimal','immersive','wave'] as const) {
+      saveMatrixMode(mode);
+      expect(readMatrixMode()).toBe(mode);
+    }
+    values.set('tsugi-matrix-mode-v1', JSON.stringify('invalid'));
+    expect(readMatrixMode()).toBe('wave');
+  });
+});
 
 describe('Tsugi Studio player persistence', () => {
   it('restores a previously imported Studio player and its selection', () => {

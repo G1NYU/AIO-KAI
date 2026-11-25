@@ -357,7 +357,7 @@ jobs:
           Never share an API key, signed download URL or account credential.
           Third-party reading extensions execute with your account permissions:
           install only trusted publishers. Signatures are not independently verified.
-          This is a portable preview ZIP, not an installer.
+          This is a portable release ZIP, not an installer.
           Physical Windows desktop and real-source acceptance testing are pending.
           '@ | Set-Content -Path stage/README-TEST.txt -Encoding utf8
           # Record the exact checkout, rather than asking testers to infer it
@@ -396,7 +396,7 @@ jobs:
           path: Tsugi-windows-x64-test.zip
           if-no-files-found: error
 
-  publish-preview:
+  publish-release:
     needs: [package]
     if: github.ref == 'refs/heads/feature/tsugi-read-runtime' && github.event_name == 'push' && contains(github.event.head_commit.message, '[release tsugi]') && contains(github.event.head_commit.message, '[package tsugi]')
     runs-on: ubuntu-24.04
@@ -408,13 +408,13 @@ jobs:
         with:
           name: Tsugi-Windows-x64-test
           path: release
-      - name: Verify package identity and publish preview
+      - name: Verify package identity and publish release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          tag=v0.1.0-preview.2
+          tag=v0.1.0
           cd release
           mv Tsugi-windows-x64-test.zip Tsugi-windows-x64.zip
           python - <<'PY'
@@ -433,13 +433,13 @@ jobs:
             exit 1
           fi
           cat > notes.md <<EOF
-          Second public Windows x64 portable preview of Tsugi. Fixes horizontal overflow when expanding Vault transfer settings; controls and bandwidth chart now fit the inspector at desktop and narrow widths. Reader setup now explicitly explains Mihon, Komikku and compatible Tachiyomi fork repository support.
+          First official Windows x64 release of Tsugi. Includes the Vault overflow and reader setup improvements from Preview 2, contiguous album track tables, and Dot Wave as the default visualizer for new settings. Existing explicit visualizer preferences are preserved.
 
           - Movies & TV through the AIOStreams / Stremio addon and Jellyfin-compatible ecosystem.
           - Music, local library, saved albums and collections, native YouTube Music, Eclipse sources and fullscreen visualizers.
           - Mihon-compatible reading repositories, local EPUB/PDF and the Vault download workspace.
 
-          Download **Tsugi-windows-x64.zip**, extract the entire archive and run \`current/Tsugi.exe\`. Keep the companion files and \`.portable\` marker. This is a portable preview, not an installer; Windows may warn about the unsigned executable. The reading runtime is fetched and verified on first setup. Back up existing portable data before replacing files.
+          Download **Tsugi-windows-x64.zip**, extract the entire archive and run \`current/Tsugi.exe\`. Keep the companion files and \`.portable\` marker. This is a portable release, not an installer; Windows may warn about the unsigned executable. The reading runtime is fetched and verified on first setup. Back up existing portable data before replacing files.
 
           Automated validation and package checks passed. Live provider compatibility, hardware-specific performance and physical-machine acceptance remain subject to testing. Native YouTube Music cold-start latency is unchanged.
 
@@ -448,9 +448,9 @@ jobs:
           Validation: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           License: AGPL-3.0; bundled components retain their respective licenses. See included notices and source archives.
           EOF
-          gh release create "$tag" Tsugi-windows-x64.zip SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Tsugi v0.1.0 — Windows Preview 2" --notes-file notes.md --draft --prerelease
+          gh release create "$tag" Tsugi-windows-x64.zip SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Tsugi v0.1.0 — Windows" --notes-file notes.md --draft
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort > actual-assets.txt
           printf '%s\n' SHA256SUMS.txt Tsugi-windows-x64.zip | sort > expected-assets.txt
           diff -u expected-assets.txt actual-assets.txt
-          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url,isDraft,isPrerelease,tagName

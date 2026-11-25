@@ -29,3 +29,11 @@ export function savePlayerStage(id: PlayerStageId, imported: unknown): void {
   if (!valid.includes(id)) return;
   storage.set(KEY, { id, imported: imported ?? null } satisfies StoredStage);
 }
+
+export type MatrixMode = 'off' | 'minimal' | 'immersive' | 'wave';
+const MATRIX_KEY = 'tsugi-matrix-mode-v1';
+export function readMatrixMode(): MatrixMode {
+  const value = storage.get<unknown>(MATRIX_KEY);
+  return value === 'off' || value === 'minimal' || value === 'immersive' || value === 'wave' ? value : 'wave';
+}
+export function saveMatrixMode(value: MatrixMode): void { storage.set(MATRIX_KEY, value); }
