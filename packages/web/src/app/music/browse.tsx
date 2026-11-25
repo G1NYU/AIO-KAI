@@ -25,7 +25,7 @@ type Shelf = {
 function Cover({ src, size = 'full' }: { src?: string; size?: 'full' | 'small' }) {
   const box = size === 'small' ? 'size-11' : 'aspect-square w-full';
   return src
-    ? <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer"
+    ? <MusicArtwork source={src} target={size === 'small' ? 160 : 384} loading="lazy"
         className={box + ' tsugi-discovery-cover shrink-0 object-cover'} />
     : <span className={box + ' tsugi-discovery-cover tsugi-discovery-placeholder flex shrink-0 items-center justify-center'}>
         <BiDisc aria-hidden className="text-3xl" />

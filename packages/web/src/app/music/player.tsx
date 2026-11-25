@@ -10,6 +10,7 @@ import { parsePlayerTemplate } from '@/lib/music/player-template';
 import { readPlayerStage, savePlayerStage, type PlayerStageId } from '@/lib/music/player-layout';
 import { EclipseStudioStage } from './studio-player';
 import { JunctionPlayer } from './junction-player';
+import { MusicArtwork } from './music-artwork';
 import { QueueControls, ClearUpcoming } from './queue-controls';
 import { PlayerSettings } from './player-settings';
 import { DotSeeker } from './wave-seeker';
@@ -72,7 +73,7 @@ export function musicTime(value: number): string {
 function Artwork({ track, large = false }: { track: EclipseTrack; large?: boolean }) {
   const size = large ? 'aspect-square w-full max-w-[440px] rounded-2xl' : 'size-12 shrink-0 rounded-xl';
   return track.artworkURL
-    ? <img src={track.artworkURL} alt="" referrerPolicy="no-referrer"
+    ? <MusicArtwork source={track.artworkURL} target={large ? 1024 : 160}
         className={`${size} border border-white/10 bg-white/[0.05] object-cover`} />
     : <span className={`${size} flex items-center justify-center border border-white/10 bg-[#211d30]`}>
         <BiDisc aria-hidden className={large ? 'text-8xl text-violet-200' : 'text-3xl text-violet-200'} />

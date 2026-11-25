@@ -17,6 +17,7 @@ import { nativeYouTubeTarget, nextNativeYouTubeTarget } from '@/lib/music/youtub
 import { supportsYouTubeMusic } from '@/lib/hosts/shell/youtube-music';
 import { appBridge, type ShellMessage } from '@/lib/hosts/shell/bridge';
 import { MusicPlayer, type RepeatMode } from './player';
+import { MusicArtwork } from './music-artwork';
 import { moveUpcoming, removeUpcoming, clearUpcoming } from '@/lib/music/queue';
 import { MusicLibrary } from './library';
 import { useRememberedMusicFolder } from './use-remembered-folder';
@@ -851,7 +852,7 @@ export function MusicPage({
                       onClick={() => setSelectedCollection(item)}
                       className="tsugi-search-collection shrink-0 text-left">
                       {item.artworkURL
-                        ? <img src={item.artworkURL} alt="" loading="lazy" referrerPolicy="no-referrer"
+                        ? <MusicArtwork source={item.artworkURL} target={384} loading="lazy"
                             className="aspect-square w-full rounded-xl object-cover" />
                         : <span className="tsugi-discovery-placeholder flex aspect-square items-center justify-center rounded-xl">
                             <BiDisc aria-hidden className="text-4xl" />
@@ -870,7 +871,7 @@ export function MusicPage({
                   <button type="button" onClick={() => activeSource && void play(track, at, activeSource)}
                     data-ui="music-track-row" className="flex min-w-0 flex-1 items-center gap-4 px-4 py-3 text-start focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
                     {track.artworkURL
-                      ? <img src={track.artworkURL} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-12 rounded-lg object-cover" />
+                      ? <MusicArtwork source={track.artworkURL} target={160} loading="lazy" className="size-12 shrink-0 rounded-lg object-cover" />
                       : <BiDisc aria-hidden className="text-2xl text-violet-200" />}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{track.title}</span>

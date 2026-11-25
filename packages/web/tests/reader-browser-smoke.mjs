@@ -190,7 +190,10 @@ try {
     artworkRequests.push(route.request().url());
     // Simulate a CDN refusing the larger variant. The original must still display.
     if (route.request().url().endsWith('=w1024-h1024')) await route.fulfill({ status:404 });
-    else await route.fulfill({ status:200, contentType:'image/png', body:image });
+    else {
+      const size = Number(/=w(\d+)-h\d+$/.exec(route.request().url())?.[1] || 120);
+      await route.fulfill({ status:200, contentType:'image/svg+xml', body:`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><rect width="100%" height="100%" fill="#40516d"/></svg>` });
+    }
   });
   const coverQueries = [];
   await page.route('https://api.jikan.moe/v4/manga?*', async route => {
@@ -727,7 +730,7 @@ try {
   const expanded = music.getByRole('dialog', { name: 'Now playing', exact: true });
   await expanded.waitFor();
   await expanded.locator('img[src*="tsugi-fixture=w544-h544"]').waitFor();
-  await page.waitForFunction(() => [...document.querySelectorAll('.tsugi-player-dialog img')].some(img => img.src.includes('tsugi-fixture=w544-h544') && img.complete && img.naturalWidth > 0));
+  await page.waitForFunction(() => [...document.querySelectorAll('.tsugi-player-dialog img')].some(img => img.src.includes('tsugi-fixture=w544-h544') && img.complete && img.naturalWidth === 544 && img.naturalHeight === 544));
   assert.ok(artworkRequests.some(url => url.endsWith('=w1024-h1024')), 'expanded player requests a larger original');
   for (const layout of ['default', 'junction', 'nocturne']) {
     await expanded.getByRole('button', { name: 'Player settings', exact: true }).click();

@@ -3,7 +3,7 @@ import { fetchTrendingRecordings, parseTrendingRecordings } from '../src/lib/mus
 import { DEFAULT_PLAYER_THEME, isPlayerTheme, PLAYER_PALETTES, PLAYER_ACCENTS, isPlayerAccent, withPlayerAccent } from '../src/lib/music/player-theme';
 import { NOCTURNE_STAGE } from '../src/lib/music/nocturne-stage';
 import { JUNCTION_STAGE } from '../src/lib/music/junction-stage';
-import { artworkCandidates, expandedArtwork } from '../src/lib/music/artwork';
+import { artworkCandidates, expandedArtwork, artworkAcceptable, ArtworkChoiceCache } from '../src/lib/music/artwork';
 import { nativeYouTubeTarget, nextNativeYouTubeTarget, parseYouTubeMusicResults } from '../src/lib/music/youtube-music';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -116,6 +116,30 @@ describe('Independent accents and expanded album artwork', () => {
     ]);
     expect(artworkCandidates('blob:local')).toEqual(['blob:local']);
     expect(artworkCandidates('https://lh3.googleusercontent.com/album=w120-h120?sig=test')).toEqual(['https://lh3.googleusercontent.com/album=w120-h120?sig=test']);
+  });
+  it('uses same-video variants and rejects tiny successful placeholder responses', () => {
+    const original = 'https://i.ytimg.com/vi/abcdefghijk/default.jpg';
+    const variants = artworkCandidates(original);
+    expect(variants[0]).toBe('https://i.ytimg.com/vi/abcdefghijk/maxresdefault.jpg');
+    expect(variants.at(-1)).toBe(original);
+    expect(artworkCandidates(original+'?sig=private')).toEqual([original+'?sig=private']);
+    expect(artworkAcceptable(variants[0],original,120,90,1024)).toBe(false);
+    expect(artworkAcceptable(variants[0],original,1280,720,1024)).toBe(true);
+    expect(artworkAcceptable(original,original,120,90,1024)).toBe(true);
+  });
+  it('caches variant choice by resolution, expires it and bounds memory', () => {
+    const cache = new ArtworkChoiceCache(2,100);
+    const source = 'https://lh3.googleusercontent.com/album=w120-h120';
+    const large = expandedArtwork(source);
+    cache.remember(source,1024,large,0);
+    expect(cache.get(source,1024,10)).toBe(large);
+    expect(cache.get(source,384,10)).toBeUndefined();
+    cache.remember(source,384,expandedArtwork(source,384),10);
+    cache.remember(source,160,expandedArtwork(source,160),10);
+    expect(cache.get(source,1024,11)).toBeUndefined();
+    expect(cache.get(source,384,110)).toBeUndefined();
+    cache.remember('blob:local',1024,'blob:local',0);
+    expect(cache.get('blob:local',1024,1)).toBeUndefined();
   });
   it('selects the largest declared YouTube Music thumbnail, not the last one', () => {
     const large = 'https://lh3.googleusercontent.com/art=w544-h544';
