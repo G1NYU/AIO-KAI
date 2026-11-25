@@ -42,6 +42,8 @@ export function MusicPage({
   playbackAllowed,
   reading,
   libraryRequest = 0,
+  vaultAudio = null,
+  onVaultAudioImported,
 }: {
   openVideo(): void;
   openWelcome(): void;
@@ -49,7 +51,10 @@ export function MusicPage({
   playbackAllowed: boolean;
   reading: boolean;
   libraryRequest?: number;
+  vaultAudio?: File | null;
+  onVaultAudioImported?: () => void;
 }) {
+  const lastVaultAudio = React.useRef<File | null>(null);
   const [store, setStore] = React.useState<EclipseStoreEntry[]>([]);
   const [storeError, setStoreError] = React.useState('');
   const [manifestInput, setManifestInput] = React.useState('');
@@ -386,7 +391,7 @@ export function MusicPage({
     void play(songs[at], at, source, true);
   };
 
-  function importLocalFiles(files: File[]) {
+  const importLocalFiles = React.useCallback((files: File[]) => {
     const supported = files.filter(file =>
       /^audio\//.test(file.type) || /\.(mp3|m4a|flac|wav|ogg)$/i.test(file.name))
       .slice(0, Math.max(0, 250 - localURLs.current.size));
@@ -406,7 +411,14 @@ export function MusicPage({
     } else {
       setLibraryError(t`No supported audio files were selected.`);
     }
-  }
+  }, []);
+  React.useEffect(() => {
+    if (!vaultAudio) { lastVaultAudio.current = null; return; }
+    if (lastVaultAudio.current === vaultAudio) return;
+    lastVaultAudio.current = vaultAudio;
+    importLocalFiles([vaultAudio]);
+    onVaultAudioImported?.();
+  }, [vaultAudio, importLocalFiles, onVaultAudioImported]);
 
   function releaseFolderURL() {
     if (folderURL.current) URL.revokeObjectURL(folderURL.current);

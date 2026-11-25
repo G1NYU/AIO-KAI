@@ -159,13 +159,16 @@ function Standalone() {
   const [musicLibraryRequest, setMusicLibraryRequest] = React.useState(0);
   const openMusic = React.useCallback(() => setArea('music'), []);
   const openLocalMusic = React.useCallback(() => { setMusicLibraryRequest(value => value + 1); setArea('music'); }, []);
+  const [vaultAudio, setVaultAudio] = React.useState<File | null>(null);
+  const openLocalAudio = React.useCallback((file: File) => { setVaultAudio(file); setMusicLibraryRequest(value => value + 1); setArea('music'); }, []);
+  const clearVaultAudio = React.useCallback(() => setVaultAudio(null), []);
   const openVault = React.useCallback(() => setArea('vault'), []);
   const openVideo = React.useCallback(() => { setReadVisited(false); setArea('video'); }, []);
   const openWelcome = React.useCallback(() => setArea('welcome'), []);
   const openVideoDownloads = React.useCallback(() => { openVideo(); navigate(to.downloads); }, [openVideo]);
   const areaActions = React.useMemo(
-    () => ({ openWelcome, openMusic, openVideo, openSettings, openVault, openLocalMusic, openVideoDownloads, openRead: reading || books ? openRead : undefined, openBooks: books ? openBooks : undefined, openManga: reading ? openManga : undefined }),
-    [openWelcome, openMusic, openVideo, openSettings, openVault, openLocalMusic, openVideoDownloads, openRead, reading, books, openBooks, openManga]
+    () => ({ openWelcome, openMusic, openVideo, openSettings, openVault, openLocalMusic, openLocalAudio, openVideoDownloads, openRead: reading || books ? openRead : undefined, openBooks: books ? openBooks : undefined, openManga: reading ? openManga : undefined }),
+    [openWelcome, openMusic, openVideo, openSettings, openVault, openLocalMusic, openLocalAudio, openVideoDownloads, openRead, reading, books, openBooks, openManga]
   );
   // Who's watching, asked across the saved servers.
   const [picking, setPicking] = React.useState(() => {
@@ -319,6 +322,8 @@ function Standalone() {
             playbackAllowed={allowsMusicPlayback(area)}
             reading={area === 'read' || area === 'vault'}
             libraryRequest={musicLibraryRequest}
+            vaultAudio={vaultAudio}
+            onVaultAudioImported={clearVaultAudio}
             openVideo={openVideo}
             openWelcome={openWelcome}
           />

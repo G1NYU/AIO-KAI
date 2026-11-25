@@ -13,6 +13,7 @@ export type DesktopAreaActions = {
   openManga?: () => void;
   openVault?: () => void;
   openLocalMusic?: () => void;
+  openLocalAudio?: (file: File) => void;
   openVideoDownloads?: () => void;
 };
 

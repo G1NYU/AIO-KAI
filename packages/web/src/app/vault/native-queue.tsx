@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
 import { appBridge } from '@/lib/hosts/shell/bridge';
 import { shellDownloads } from '@/lib/hosts/shell/downloads';
 import type { HostEvent } from '@/lib/downloads/types';
 import { vaultJob, youtubeVaultJob } from './native-job';
+import { importBook } from '@/app/read/book-library';
+import { useDesktopArea } from '@/lib/desktop-area';
+import { readCompletedVaultFile } from './completed-file';
 
 type Row = Extract<HostEvent, {type:'state'}>['jobs'][number];
 function status(row: Row) {
@@ -18,6 +21,10 @@ function status(row: Row) {
 }
 
 export function NativeVaultQueue() {
+  const actions=useDesktopArea();
+  const activeImport=useRef<AbortController|null>(null);
+  const [importing,setImporting]=useState('');
+  useEffect(()=>()=>activeImport.current?.abort(),[]);
   const supported = appBridge()?.platform === 'windows';
   const [ready,setReady] = useState(false);
   const [input,setInput] = useState('');
@@ -57,6 +64,18 @@ export function NativeVaultQueue() {
       setPending(id);shellDownloads.add([job]);
     } catch { setPending('');setError(mode==='youtube'?t`Enter a single valid YouTube Music track link.`:t`Enter a supported direct HTTPS file URL without query parameters or fragments.`); }
   }
+  async function openCompleted(row:Row) {
+    if(activeImport.current||row.state!=='done'||!row.vault_title)return;
+    const controller=new AbortController();activeImport.current=controller;setImporting(row.id);setError('');
+    try {
+      const file=await readCompletedVaultFile(row.id,row.vault_title,controller.signal);
+      controller.signal.throwIfAborted();
+      if(/\.(pdf|epub)$/i.test(file.name)){
+        await importBook(file,row.id);controller.signal.throwIfAborted();actions?.openBooks?.();
+      }else actions?.openLocalAudio?.(file);
+    }catch{if(!controller.signal.aborted)setError(t`Could not import the completed file. It may have been moved, removed or exceeded 128 MiB.`);}
+    finally{activeImport.current=null;setImporting('');}
+  }
   return <section data-ui="tsugi-native-vault-queue">
     <h2><Trans>Persistent local downloads</Trans></h2>
     <p><Trans>Public direct book and audio links can be queued in the desktop download folder. The queue survives app restarts. Incomplete transfers restart when resumed; each file is limited to 256 MiB.</Trans></p>
@@ -74,6 +93,7 @@ export function NativeVaultQueue() {
       {folder&&<p><Trans>Download folder:</Trans> {folder}</p>}
       {!ready&&<p role="status"><Trans>Waiting for the desktop download manager.</Trans></p>}
       {pending&&<p role="status"><Trans>Adding download…</Trans></p>}
+      {importing&&<p role="status"><Trans>Importing completed file…</Trans></p>}
       {error&&<p role="alert">{error}</p>}
       {ready&&rows.length===0&&<p><Trans>No persistent Vault downloads yet.</Trans></p>}
       {rows.map(row=><div className="tsugi-vault-file-row" key={row.id}>
@@ -88,6 +108,7 @@ export function NativeVaultQueue() {
           {row.state==='failed'&&<button className="tsugi-read-action" onClick={()=>shellDownloads.control(row.id,'retry')}><Trans>Retry</Trans></button>}
           {row.state!=='done'&&<button className="tsugi-read-action" onClick={()=>shellDownloads.remove(row.id,true)}><Trans>Cancel</Trans></button>}
           {row.state==='done'&&<button className="tsugi-read-action" onClick={()=>shellDownloads.remove(row.id,false)}><Trans>Remove from list</Trans></button>}
+          {row.state==='done'&&row.vault_title&&<button className="tsugi-read-action" disabled={!!importing||(/\.(epub|pdf)$/i.test(row.vault_title)?!actions?.openBooks:!actions?.openLocalAudio)} onClick={()=>void openCompleted(row)}>{/\.(epub|pdf)$/i.test(row.vault_title)?<Trans>Import into Books</Trans>:<Trans>Open in Music</Trans>}</button>}
           {row.state==='done'&&shellDownloads.folder?.open&&<button className="tsugi-read-action" onClick={()=>shellDownloads.folder?.open?.(row.id)}><Trans>Show in folder</Trans></button>}
         </div>
       </div>)}

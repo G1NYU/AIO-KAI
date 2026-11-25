@@ -11,6 +11,7 @@ export type BookEntry = {
   fraction?: number;
   lastReadAt?: number;
   cover?: Blob;
+  vaultJobId?: string;
 };
 
 export const MAX_BOOK_BYTES = 128 * 1024 * 1024;

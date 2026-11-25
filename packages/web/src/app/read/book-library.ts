@@ -43,13 +43,17 @@ export async function listBooks(): Promise<BookEntry[]> {
   return rows.sort((a, b) => b.addedAt - a.addedAt);
 }
 
-export async function importBook(file: File): Promise<BookEntry> {
+export async function importBook(file: File, vaultJobId?: string): Promise<BookEntry> {
   const format = await bookFormat(file);
+  if (vaultJobId) {
+    const existing=(await listBooks()).find(book=>book.vaultJobId===vaultJobId);
+    if(existing)return existing;
+  }
   const db = await database();
   const id = Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join('');
   const entry: BookEntry = {
     id, name: file.name, title: file.name.replace(/\.(epub|pdf)$/i, ''),
-    format, size: file.size, addedAt: Date.now(),
+    format, size: file.size, addedAt: Date.now(), vaultJobId,
   };
   const tx = db.transaction(['books', 'files'], 'readwrite');
   const complete = finished(tx);

@@ -580,3 +580,6 @@ Migration commit 1be0b4c passed Unified Windows validation (45558491536) and the
 
 ### Completed Vault file access (2026-11-25)
 - CI 45573987775 passed 96 regression tests, Windows compilation and actual isolated EPUB/PDF browser acceptance, including PDF resume and script blocking. Added a bounded completed-job file accessor and native custom-protocol route with a required fetch header; no arbitrary file path input, no navigation use and no video playback authorization. Folder chooser/open bridge wired. Next attach explicit book/audio import UI; native compile and actual Windows transfer acceptance pending.
+
+### Vault library handoff (2026-11-25)
+- Completed Vault job UI now explicitly imports books into persistent IndexedDB (duplicate job guard) or opens audio in the existing Music session library, using the bounded same-origin native file route. The on-disk queue survives restart, and the audio file can be re-opened from Vault or a remembered music folder. Added a Local books shortcut and cancel-on-unmount for the file fetch. CI and physical Windows transfer verification pending. Next: music track-list shortcut, authorized ebook provider access and final package.
