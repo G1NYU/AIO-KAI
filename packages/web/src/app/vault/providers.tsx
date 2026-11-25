@@ -13,11 +13,11 @@ export function VaultProviders({engineAvailable}:{engineAvailable?:boolean}) {
       <span>{bridge?.platform==='windows'?<Trans>Desktop queue available</Trans>:<Trans>Unavailable</Trans>}</span>
     </div>
     <div className="tsugi-vault-file-row">
-      <div><strong><Trans>YouTube Music</Trans></strong><p><Trans>Native resolver for authorized individual track exports. Provider access is checked during a transfer.</Trans></p></div>
+      <div><strong><Trans>YouTube Music</Trans></strong><p><Trans>yt-dlp resolves authorized individual tracks. Tsugi sends eligible audio streams to its managed transfer engine.</Trans></p></div>
       <span>{bridge?.youtubeMusic===true?<Trans>Desktop resolver advertised</Trans>:<Trans>Resolver not advertised</Trans>}</span>
     </div>
     {engineAvailable!==undefined&&<div className="tsugi-vault-file-row">
-      <div><strong><Trans>Aria2 Next</Trans></strong><p><Trans>Tsugi automatically manages the transfer engine. Eligible direct files use segmented transfers; incompatible files use the built-in engine.</Trans></p></div>
+      <div><strong><Trans>Aria2 Next</Trans></strong><p><Trans>Tsugi automatically manages direct files and eligible resolved audio. Validated ranges support segmented downloads; incompatible streams use the built-in transfer path.</Trans></p></div>
       <span>{engineAvailable?<Trans>Managed engine ready</Trans>:<Trans>Built-in fallback active</Trans>}</span>
     </div>}
     <div className="tsugi-pixel-rule" aria-hidden="true"/>

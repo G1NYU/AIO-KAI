@@ -193,7 +193,7 @@ pub fn transfer_media(binary:&Path,watch:&str,media_url:&str,headers:Vec<(String
     }
 }
 fn transfer_inner(binary:&Path,url:&str,source:Source,path:&Path,stop:&Arc<AtomicBool>,rate_mib:u32,
-    report:impl Fn(u64,Option<u64)>)->Result<Outcome>{
+    report:impl Fn(u64,Option<u64>))->Result<Outcome>{
     if stop.load(Ordering::Relaxed){return Ok(Outcome::Stopped);}
     let parent=path.parent().ok_or("Vault destination missing")?;
     fs::create_dir_all(parent).map_err(|_|"Vault destination unavailable")?;

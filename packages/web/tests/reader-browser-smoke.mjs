@@ -622,11 +622,11 @@ try {
   assert.equal(await page.evaluate(()=>window.__readerFixture.vaultRequests[1].jobs.length),3);
   await selectedVaultQueue.getByLabel('Simultaneous local downloads').selectOption('4');
   await page.waitForFunction(()=>window.__readerFixture.vaultConcurrent===4);
-  await selectedVaultQueue.getByLabel('Direct-file speed limit (MiB/s)').selectOption('2');
+  await selectedVaultQueue.getByLabel('Local transfer speed limit (MiB/s)').selectOption('2');
   await page.waitForFunction(()=>window.__readerFixture.vaultRate===2);
   await selectedVaultQueue.getByRole('button',{name:'Refresh local downloads',exact:true}).click();
-  assert.equal(await selectedVaultQueue.getByLabel('Direct-file speed limit (MiB/s)').inputValue(),'2');
-  await selectedVaultQueue.getByLabel('Direct-file speed limit (MiB/s)').selectOption('0');
+  assert.equal(await selectedVaultQueue.getByLabel('Local transfer speed limit (MiB/s)').inputValue(),'2');
+  await selectedVaultQueue.getByLabel('Local transfer speed limit (MiB/s)').selectOption('0');
   await page.waitForFunction(()=>window.__readerFixture.vaultRate===0);
   console.log('PASS: Vault accepts mixed independent batch jobs and configures shared native concurrency.');
   await selectedVaultQueue.getByRole('button',{name:'Providers',exact:true}).click();
