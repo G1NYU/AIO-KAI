@@ -27,6 +27,7 @@ export function saveAudioProfile(profile: AudioProfile): void {
 export type LocalEqualizer = {
   context: AudioContext;
   element: HTMLAudioElement;
+  analyser: AnalyserNode;
   filters: [BiquadFilterNode, BiquadFilterNode, BiquadFilterNode];
 };
 
@@ -44,8 +45,12 @@ export function createLocalEqualizer(element: HTMLAudioElement): LocalEqualizer 
     source.connect(low);
     low.connect(mid);
     mid.connect(high);
-    high.connect(context.destination);
-    return { context, element, filters:[low,mid,high] };
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = .82;
+    high.connect(analyser);
+    analyser.connect(context.destination);
+    return { context, element, analyser, filters:[low,mid,high] };
   } catch (reason) {
     void context.close();
     throw reason;

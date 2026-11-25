@@ -5,6 +5,7 @@ import { Trans } from '@lingui/react/macro';
 
 import { VolumeControl } from './volume-control';
 import { MusicArtwork } from './music-artwork';
+import { PixelMatrix, type MatrixMode } from './pixel-matrix';
 import { QueueControls, ClearUpcoming } from './queue-controls';
 
 import type { MusicPlayerProps } from './player';
@@ -14,11 +15,12 @@ import { fetchTrackLyrics, lyricAt, type TrackLyrics } from '@/lib/music/lyrics'
 
 /** A responsive Tsugi composition; imported Studio templates use their own renderer. */
 export function JunctionPlayer({
-  p, palette, layout,
+  p, palette, layout, matrixMode,
 }: {
   p: MusicPlayerProps;
   palette: PlayerPalette;
   layout: 'default' | 'junction' | 'nocturne';
+  matrixMode: MatrixMode;
 }) {
   const song = p.track;
   const [queueOpen, setQueueOpen] = React.useState(false);
@@ -49,6 +51,7 @@ export function JunctionPlayer({
     <div data-ui="tsugi-junction" data-layout={layout}
       className="tsugi-native-stage grid w-full flex-1 items-center">
       {layout === 'nocturne' && song.artworkURL && <div className="tsugi-nocturne-backdrop" aria-hidden="true"><MusicArtwork source={song.artworkURL} className="size-full object-cover" /></div>}
+      {matrixMode !== 'off' && <PixelMatrix mode={matrixMode} accent={palette.accent} paused={p.paused || p.loading} analyser={p.analyser} />}
       <section className="tsugi-stage-artwork mx-auto flex w-full min-w-0 flex-col justify-center">
         <div className="relative isolate">
           {song.artworkURL
@@ -70,6 +73,7 @@ export function JunctionPlayer({
       <section className="tsugi-junction-content relative flex min-w-0 flex-col justify-center">
         <header className="min-w-0">
           <p className="tsugi-eyebrow"><Trans>Now playing</Trans></p>
+          {matrixMode !== 'off' && <p className="tsugi-matrix-label">{p.analyser ? <Trans>Audio-reactive matrix</Trans> : <Trans>Ambient matrix</Trans>}</p>}
           <h1 className="tsugi-track-title mt-5 break-words text-[clamp(2.2rem,4.5vw,4.8rem)] font-semibold leading-[1.07] tracking-[-.055em]">
             {song.title}
           </h1>

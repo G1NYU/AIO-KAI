@@ -13,6 +13,7 @@ import { JunctionPlayer } from './junction-player';
 import { MusicArtwork } from './music-artwork';
 import { QueueControls, ClearUpcoming } from './queue-controls';
 import { PlayerSettings } from './player-settings';
+import type { MatrixMode } from './pixel-matrix';
 import { DotSeeker } from './wave-seeker';
 import { VolumeControl } from './volume-control';
 import { storage } from '@/lib/storage';
@@ -42,6 +43,7 @@ export type MusicPlayerProps = {
   eqEnabled: boolean;
   eqAvailable: boolean;
   eqError: string;
+  analyser?: AnalyserNode | null;
   isFavorite: boolean;
   canFavorite: boolean;
   canDownload?: boolean;
@@ -74,9 +76,9 @@ function Artwork({ track, large = false }: { track: EclipseTrack; large?: boolea
   const size = large ? 'aspect-square w-full max-w-[440px] rounded-2xl' : 'size-12 shrink-0 rounded-xl';
   return track.artworkURL
     ? <MusicArtwork source={track.artworkURL} target={large ? 1024 : 160}
-        className={`${size} border border-white/10 bg-white/[0.05] object-cover`} />
-    : <span className={`${size} flex items-center justify-center border border-white/10 bg-[#211d30]`}>
-        <BiDisc aria-hidden className={large ? 'text-8xl text-violet-200' : 'text-3xl text-violet-200'} />
+        className={`${size} border border-[--tsugi-line] bg-[--tsugi-surface] object-cover`} />
+    : <span className={`${size} flex items-center justify-center border border-[--tsugi-line] bg-[--tsugi-surface] text-[--tsugi-muted]`}>
+        <BiDisc aria-hidden className={large ? 'text-8xl' : 'text-3xl'} />
       </span>;
 }
 
@@ -136,6 +138,10 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
   const [showHeader, setShowHeader] = React.useState(() =>
     storage.get<boolean>('tsugi-player-header-visible-v1') === true
   );
+  const [matrixMode, setMatrixMode] = React.useState<MatrixMode>(() => {
+    const saved = storage.get<MatrixMode>('tsugi-matrix-mode-v1');
+    return saved === 'off' || saved === 'minimal' || saved === 'immersive' ? saved : 'immersive';
+  });
   const template = stageId === 'imported' ? importedTemplate : null;
 
   React.useEffect(() => {
@@ -252,7 +258,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
           data-stage={stageId} className="tsugi-player-dialog fixed inset-0 z-50 overflow-y-auto"
           style={{backgroundColor:palette.canvas}}>
           {stageId === 'imported' && <div aria-hidden className="tsugi-player-ambient" />}
-          <div className="flex min-h-dvh w-full flex-col px-[3vw] pb-10 pt-14">
+          <div className="tsugi-player-shell flex min-h-dvh w-full flex-col px-[3vw] pb-10 pt-14">
             <header className="tsugi-player-hud relative z-40 flex min-h-12 items-center justify-between gap-6">
               <button type="button" className={buttonClass}
                 aria-label={t`Minimise player`} onClick={() => p.onExpanded(false)}>
@@ -283,7 +289,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                   </p>
                 )}
               </div>
-            ) : <JunctionPlayer key={stageId} p={p} palette={palette} layout={stageId === 'imported' ? 'default' : stageId} />}
+            ) : <JunctionPlayer key={stageId} p={p} palette={palette} matrixMode={matrixMode} layout={stageId === 'imported' ? 'default' : stageId} />}
           </div>
           {settingsOpen && (
             <PlayerSettings onClose={() => setSettingsOpen(false)}
@@ -292,6 +298,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
               audioProfile={p.audioProfile} onAudioProfile={p.onAudioProfile}
               eqEnabled={p.eqEnabled} eqAvailable={p.eqAvailable}
               onEqEnabled={p.onEqEnabled} eqError={p.eqError}
+              matrixMode={matrixMode} onMatrixMode={(value) => { setMatrixMode(value); storage.set('tsugi-matrix-mode-v1', value); }}
               showHeader={showHeader}
               studioContained={studioContained}
               onStudioContained={(value) => {

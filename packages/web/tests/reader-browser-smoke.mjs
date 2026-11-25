@@ -751,10 +751,18 @@ try {
     assert.equal(await stage.getByRole('button', { name: 'Next track', exact: true }).count(), 1);
     assert.equal(await stage.getByRole('button', { name: 'Previous track', exact: true }).count(), 1);
     const columns = await stage.evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').length);
-    assert.equal(columns, layout === 'default' ? 1 : 2);
+    assert.equal(columns, 2);
+    const geometry = await stage.evaluate(node => ({ width: node.getBoundingClientRect().width, art: node.querySelector('.tsugi-junction-art').getBoundingClientRect().width, viewport: innerWidth }));
+    assert.ok(geometry.width >= geometry.viewport * .96, 'native stage fills the viewport');
+    assert.ok(geometry.art >= 440, 'native stage displays a large cover');
+    await stage.locator('canvas[data-ui="tsugi-pixel-matrix"]').waitFor();
     assert.equal(await stage.locator('.tsugi-nocturne-backdrop').count(), layout === 'nocturne' ? 1 : 0);
     await capture('08-expanded-' + layout);
   }
+  await expanded.getByRole('button', { name: 'Player settings', exact: true }).click();
+  await expanded.getByRole('combobox', { name: 'Pixel matrix' }).selectOption('off');
+  await expanded.getByRole('dialog', { name: 'Player settings' }).getByRole('button', { name: 'Close', exact: true }).click();
+  assert.equal(await expanded.locator('canvas[data-ui="tsugi-pixel-matrix"]').count(), 0);
   await expanded.getByRole('button', { name: 'Minimise player', exact: true }).click();
   await music.getByRole('button', { name: 'Read', exact: true }).click();
   await rail.waitFor();

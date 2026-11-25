@@ -2,19 +2,22 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { FiX } from 'react-icons/fi';
+import type { MatrixMode } from './pixel-matrix';
 import type { PlayerStageId } from '@/lib/music/player-layout';
 import { AUDIO_PROFILES, type AudioProfile } from '@/lib/music/audio-profiles';
 import { GlobalAppearanceSettings } from '@/components/shell/global-settings';
 
 export function PlayerSettings({
   onClose, stage, onStage, importedName,
-  showHeader, onShowHeader, studioContained, onStudioContained, onImport,
+  showHeader, onShowHeader, studioContained, onStudioContained, onImport, matrixMode, onMatrixMode,
   audioProfile, onAudioProfile, eqEnabled, eqAvailable, onEqEnabled, eqError,
 }: {
   onClose(): void;
   stage: PlayerStageId;
   onStage(value: PlayerStageId): void;
   importedName?: string;
+  matrixMode: MatrixMode;
+  onMatrixMode(value: MatrixMode): void;
   showHeader: boolean;
   onShowHeader(value: boolean): void;
   studioContained: boolean;
@@ -71,10 +74,19 @@ export function PlayerSettings({
             {importedName && <option value="imported">{importedName}</option>}
           </select>
           <span className="mt-2 block text-xs leading-5 text-[--tsugi-muted]">
-            {stage === 'default' ? <Trans>Centered artwork and compact listening controls.</Trans> : stage === 'junction' ? <Trans>Wide split workspace for artwork, lyrics and queue.</Trans> : stage === 'nocturne' ? <Trans>Cinematic album backdrop and a low-profile listening console.</Trans> : <Trans>Custom imported Studio composition.</Trans>}
+            {stage === 'default' ? <Trans>Large artwork and full-window listening controls.</Trans> : stage === 'junction' ? <Trans>Wide split workspace for artwork, lyrics and queue.</Trans> : stage === 'nocturne' ? <Trans>Full-bleed album backdrop, large cover and cinematic listening console.</Trans> : <Trans>Custom imported Studio composition.</Trans>}
           </span>
         </label>
 
+        {stage !== 'imported' && <label className="mb-8 block text-sm">
+          <span className="mb-2 block text-[--tsugi-muted]"><Trans>Pixel matrix</Trans></span>
+          <select aria-label={t`Pixel matrix`} className="tsugi-menu-select w-full" value={matrixMode} onChange={event => onMatrixMode(event.target.value as MatrixMode)}>
+            <option value="immersive">{t`Immersive`}</option>
+            <option value="minimal">{t`Minimal`}</option>
+            <option value="off">{t`Off`}</option>
+          </select>
+          <span className="mt-2 block text-xs leading-5 text-[--tsugi-muted]"><Trans>Audio-reactive for local audio with an active equalizer graph; ambient for other sources. Reduced motion is respected.</Trans></span>
+        </label>}
         <div className="mb-8 border-t border-[--tsugi-line] pt-8"><GlobalAppearanceSettings /></div>
 
         <section className="mb-9 border-t border-[--tsugi-line] pt-8" aria-label={t`Audio profiles`}>

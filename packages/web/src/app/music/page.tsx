@@ -115,6 +115,7 @@ export function MusicPage({
   const [eqEnabled, setEqEnabled] = React.useState(false);
   const [eqError, setEqError] = React.useState('');
   const eqGraph = React.useRef<LocalEqualizer | null>(null);
+  const [matrixAnalyser, setMatrixAnalyser] = React.useState<AnalyserNode | null>(null);
   const [expanded, setExpanded] = React.useState(false);
   const [shuffle, setShuffle] = React.useState(false);
   const [repeat, setRepeat] = React.useState<RepeatMode>('off');
@@ -196,6 +197,8 @@ export function MusicPage({
     const active = eqGraph.current;
     if (active && (active.element !== element || playingSourceId !== LOCAL_SOURCE)) {
       active.filters.forEach(filter => filter.disconnect());
+      active.analyser.disconnect();
+      setMatrixAnalyser(null);
       void active.context.close();
       eqGraph.current = null;
     }
@@ -206,6 +209,7 @@ export function MusicPage({
     }
     try {
       if (!eqGraph.current) eqGraph.current = createLocalEqualizer(element);
+      setMatrixAnalyser(eqGraph.current.analyser);
       setLocalEqualizer(eqGraph.current, audioProfile, true);
       void eqGraph.current.context.resume();
       setEqError('');
@@ -219,6 +223,7 @@ export function MusicPage({
     return () => {
       if (eqGraph.current) {
         eqGraph.current.filters.forEach(filter => filter.disconnect());
+        eqGraph.current.analyser.disconnect();
         void eqGraph.current.context.close();
         eqGraph.current = null;
       }
@@ -1056,6 +1061,7 @@ export function MusicPage({
         queue, index: queueIndex, paused, loading: resolving, error: playError,
         position, duration, volume, quality, expanded, shuffle, repeat,
         audioProfile, eqEnabled, eqAvailable: playingSourceId === LOCAL_SOURCE, eqError,
+        analyser: playingSourceId === LOCAL_SOURCE ? matrixAnalyser : null,
         isFavorite: !!playing && !!playlists.find(list => list.id === SAVED_PLAYLIST_ID)
           ?.tracks.some(track => track.id === playing.id && track.sourceId === playingSourceId),
         canFavorite: playingSourceId !== LOCAL_SOURCE,
