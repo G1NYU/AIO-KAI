@@ -15,6 +15,7 @@ export function DesktopLandingPage({ openVideo, openMusic, openRead }: {
     ...(openRead ? [{ id: 'read' as const, label: t({ id: 'Read', message: 'Read' }), open: openRead }] : []),
   ];
   return <main data-page="desktop-landing" className="tsugi-landing tsugi-index">
+    <div className="tsugi-index-pattern" aria-hidden="true" />
     <header className="tsugi-index-header">
       {desktopArea && <button type="button" className="tsugi-category-link" onClick={desktopArea.openSettings}><FiSettings aria-hidden /><Trans id="App settings">App settings</Trans></button>}
     </header>
