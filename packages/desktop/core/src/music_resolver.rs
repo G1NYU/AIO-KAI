@@ -1,6 +1,7 @@
 //! Windows music transport: yt-dlp owns the media request. No URL handoff.
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, atomic::{AtomicU64, Ordering}};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -38,6 +39,20 @@ fn read_bounded(reader: impl Read, limit: u64) -> Result<Vec<u8>, &'static str> 
     Ok(bytes)
 }
 
+fn read_audio(reader: impl Read, limit: u64, received: &AtomicU64) -> Result<Vec<u8>, &'static str> {
+    let mut reader = reader.take(limit + 1);
+    let mut bytes = Vec::new();
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let n = reader.read(&mut buffer).map_err(|_| "Could not read the music transfer output.")?;
+        if n == 0 { break; }
+        if bytes.len() as u64 + n as u64 > limit { return Err("Music transfer exceeded its size limit."); }
+        bytes.extend_from_slice(&buffer[..n]);
+        received.store(bytes.len() as u64, Ordering::Relaxed);
+    }
+    Ok(bytes)
+}
+
 fn classify_error(stderr: &[u8]) -> &'static str {
     let error = String::from_utf8_lossy(stderr).to_ascii_lowercase();
     if error.contains("sign in") || error.contains("not a bot") {
@@ -56,6 +71,7 @@ pub(crate) struct Transfer {
     stdout: Option<Output>,
     stderr: Option<Output>,
     deadline: Instant,
+    received: Arc<AtomicU64>,
 }
 
 impl Transfer {
@@ -115,13 +131,19 @@ impl Transfer {
             .map_err(|_| "Could not start the bundled music transport.")?;
         let stdout = child.stdout.take().expect("piped stdout");
         let stderr = child.stderr.take().expect("piped stderr");
+        let received = Arc::new(AtomicU64::new(0));
+        let counter = received.clone();
         Ok(Self {
             child,
-            stdout: Some(std::thread::spawn(move || read_bounded(stdout, MAX_AUDIO))),
+            stdout: Some(std::thread::spawn(move || read_audio(stdout, MAX_AUDIO, &counter))),
             stderr: Some(std::thread::spawn(move || read_bounded(stderr, 256 * 1024))),
             deadline: Instant::now() + timeout,
+            received,
         })
     }
+
+    /// Bytes actually read from the media pipe; total is unknown until completion.
+    pub(crate) fn received_bytes(&self) -> u64 { self.received.load(Ordering::Relaxed) }
 
     /// Poll without blocking the command worker. Discard incomplete transfers.
     pub(crate) fn poll(&mut self) -> Result<Option<Vec<u8>>, &'static str> {
@@ -196,6 +218,15 @@ mod tests {
         assert!(read_bounded(&b"abcd"[..], 3).is_err());
     }
 
+    #[test]
+    fn audio_progress_counts_only_bounded_bytes() {
+        let count = AtomicU64::new(0);
+        assert_eq!(read_audio(&b"abcdef"[..], 6, &count), Ok(b"abcdef".to_vec()));
+        assert_eq!(count.load(Ordering::Relaxed), 6);
+        count.store(0, Ordering::Relaxed);
+        assert!(read_audio(&b"abcdef"[..], 5, &count).is_err());
+        assert!(count.load(Ordering::Relaxed) <= 5);
+    }
     #[test]
     fn errors_never_include_raw_provider_output() {
         assert_eq!(

@@ -263,7 +263,7 @@ impl Queue {
                 Ok(Event::Progress { id, bytes, total }) => {
                     if let Some(job) = self.jobs.iter_mut().find(|j| j.spec.id == id) {
                         job.bytes = bytes;
-                        job.total = total.or(job.total);
+                        job.total = if bytes == 0 { total } else { total.or(job.total) };
                     }
                 }
                 Ok(Event::Finished { id, result }) => self.finished(&id, result),
@@ -346,7 +346,7 @@ impl Queue {
     }
 
     fn finished(&mut self, id: &str, result: Result<(), Failure>) {
-        self.running.remove(id);
+        let cancelled = self.running.remove(id).is_some_and(|stop| stop.load(Ordering::Relaxed));
         self.speeds.remove(id);
         if let Some(job) = self.removing.remove(id) {
             self.delete_files(&job);
@@ -361,6 +361,7 @@ impl Queue {
                 }
                 // Paused or removed, which the command already recorded.
                 Err(Failure::Stopped) => {}
+                Err(Failure::Error(_)) if cancelled && matches!(job.state, State::Paused | State::Queued) => {}
                 Err(Failure::Error(e)) => {
                     log::warn!("download failed id={id}: {e}");
                     job.state = State::Failed;
@@ -393,9 +394,13 @@ impl Queue {
                 self.events.clone(),
                 self.agent.clone(),
             );
-            let _ = thread::Builder::new()
+            if thread::Builder::new()
                 .name("download".into())
-                .spawn(move || work(spec, folder, agent, stop, events));
+                .spawn(move || work(spec, folder, agent, stop, events)).is_err() {
+                self.running.remove(&job.spec.id);
+                job.state = State::Failed;
+                job.error = Some("Could not start download worker".into());
+            }
         }
         self.save();
         self.share();
@@ -872,9 +877,12 @@ fn fetch_vault_music(
     if path.exists() { return Err(error("A file already exists at the Vault destination")); }
     report(0, None);
     let mut transfer = music_resolver::Transfer::start_export(url).map_err(error)?;
+    let mut reported = 0;
     let bytes = loop {
         if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
         if let Some(bytes) = transfer.poll().map_err(error)? { break bytes; }
+        let received = transfer.received_bytes();
+        if received != reported { report(received, None); reported = received; }
         thread::sleep(Duration::from_millis(100));
     };
     // ISO BMFF file signature; never label a WebM or an error response M4A.
