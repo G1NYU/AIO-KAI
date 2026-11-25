@@ -47,7 +47,7 @@ Live YouTube Music playback across reading and music on Windows still requires p
 
 ## Read
 
-A native reading interface backed by a Tsugi-managed [Suwayomi Server](https://github.com/Suwayomi/Suwayomi-Server) runtime.
+A shared Manga and Books workspace. The manga interface is backed by a Tsugi-managed [Suwayomi Server](https://github.com/Suwayomi/Suwayomi-Server) runtime.
 
 - Manga and manhwa library, installed sources, extension repositories and global source search.
 - User-supplied Mihon-compatible extension repositories, searchable and filterable extension catalogue, explicit installation.
@@ -58,9 +58,23 @@ A native reading interface backed by a Tsugi-managed [Suwayomi Server](https://g
 
 Extension compatibility varies by source. Repositories and extensions are not bundled, and cover availability depends on the source.
 
+### Local books
+
+- Import EPUB and PDF files into a persistent offline collection, independent of the manga engine setup.
+- EPUB pagination or continuous scrolling, font size, paper themes and table of contents; PDF page navigation.
+- Resume from saved EPUB CFI or PDF page; embedded raster EPUB covers and PDF first-page thumbnails are extracted on opening.
+- Uses the pinned [Readest Foliate fork](https://github.com/readest/foliate-js) and PDF.js in a separate rendering origin. Book scripts are disabled. Real EPUB/PDF rendering and PDF resume passed browser acceptance; the latest cover and native file-import changes are under validation.
+
 ## Vault
 
-A dedicated workspace for authorized book and audio downloads. The current development branch includes direct HTTPS transfers with size/type guards and an independent TorBox cloud destination (session-only API key, explicit submission, refreshable account list). Live TorBox and Windows file-saving acceptance are pending. Persistent local jobs, completed-file import, authorized music exports and ebook providers are not yet shipped.
+A dedicated workspace for authorized book and audio downloads. Development source includes:
+
+- Persistent native direct HTTPS queue with pause, retry, cancellation, progress and file-size/type limits. Incomplete local transfers restart when resumed.
+- Authorized individual YouTube Music M4A exports using bundled yt-dlp. Search rows can prefill Vault; each submission requires explicit permission.
+- Import completed local books into Read and open downloaded audio in the Music session library. Files stay in the native download folder.
+- TorBox cloud destination with session-only API key, explicit web-download submission and refreshable account list.
+
+Live provider exports, real Windows transfers and TorBox authentication still require acceptance. Direct Z-Library account integration is not included: a supported authenticated API has not been verified. Authorized EPUB/PDF files obtained separately can be imported locally or via a supported direct link.
 
 ## One workspace
 
@@ -75,7 +89,7 @@ The current development package is a **portable Windows x64 ZIP**, not an instal
 - Open `current/Tsugi.exe` directly. Keep the rest of the extracted files beside it.
 - On first launch, choose your palette and accent, or skip and personalize later in App settings.
 - For Movies & TV, enter your media server address. For Music, connect a supported source or open local audio.
-- On the first visit to Read, choose **Set up reading**. Tsugi downloads and verifies the pinned upstream reading runtime. Then open **Settings / Browse / Sources / Extension repositories** to add a trusted repository, and use **Extensions** to install a source.
+- In Read, choose Books to import local EPUB/PDF files without manga setup. For Manga, choose **Set up reading**. Tsugi downloads and verifies the pinned upstream reading runtime. Then open **Settings / Browse / Sources / Extension repositories** to add a trusted repository, and use **Extensions** to install a source.
 
 No separate Java installation, command prompt or manual reader launcher is required for normal use. Internet access is required for reading setup and remote media. Portable application data is stored alongside the extracted application; keep that folder when upgrading or back it up before replacing it.
 
@@ -89,8 +103,8 @@ No separate Java installation, command prompt or manual reader launcher is requi
 | Interface | React, TypeScript, shared CSS tokens |
 | Video | AIOStreams, Jellyfin API, mpv |
 | Music | Eclipse-compatible providers, yt-dlp, Deno |
-| Reading | Suwayomi, authenticated local native bridge |
-| Vault | Direct HTTPS transfers, TorBox WebDL API |
+| Reading | Suwayomi, pinned Readest/Foliate, PDF.js, isolated local rendering origin |
+| Vault | Persistent Rust queue, yt-dlp audio exports, TorBox WebDL API |
 | Validation | Vitest, Playwright, Cargo and GitHub Actions |
 
 The active source branch contains the unified app and the Windows packaging workflow. Node.js 24+, pnpm 11+ and the Rust toolchain are used by the build.
@@ -103,6 +117,7 @@ pnpm install --frozen-lockfile
 pnpm -F @aiostreams/core build
 pnpm -F @aiostreams/web typecheck
 pnpm -F @aiostreams/web lint
+pnpm -F @aiostreams/web prepare:ebooks
 ```
 
 For native staging, dependency pins and the complete packaging procedure, see the [Windows workflow](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/.github/workflows/tsugi-unified-windows.yml). Reading runtime integration and security acceptance are documented in the [runtime notes](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/docs/tsugi-read-runtime.md). Development history is tracked in [PROGRESS.md](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/PROGRESS.md).
@@ -113,14 +128,15 @@ The [most recent successful Windows package](https://github.com/G1NYU/TSUGI/acti
 
 | Roadmap | Status |
 | :--- | :--- |
-| Shared media rail, pixel separators, global palette and contrast-safe poster badges | Implemented; physical Windows acceptance pending |
-| Automatic Kitsu/Nekos artwork and first-boot personalization | Source implemented; CI pending |
-| Manga collection management, history, update queue, migration and batch add | Implemented; runtime validation checkpoint passed |
-| Local Vault file transfers and TorBox cloud destination | Source implemented; live acceptance pending |
-| Readest/Foliate EPUB/PDF engine, local library and progress | Source implemented; rendering and persistence acceptance pending |
-| Authorized YouTube music downloads, ebook-provider integration and persistent native Vault queue | Planned |
-| Completed download import into Read and Music | Planned |
-| Unified Windows candidate and updated release documentation | Pending successful validation |
+| Shared media rail, badge contrast, soft controls and first-boot personalization | Validated in browser; physical Windows acceptance pending |
+| Kitsu/Nekos hero fallback | Browser fixture validated |
+| Manga collection, history, update queue, migration and batch add | Browser acceptance passed |
+| Readest/Foliate EPUB/PDF rendering and persistent PDF resume | CI 45573987775 passed |
+| Embedded book covers and native Vault import | Implemented; combined validation pending |
+| Persistent native Vault jobs and authorized YouTube M4A exports | Source implemented; live transfers pending |
+| TorBox cloud destination | Mock API tests passed; live account pending |
+| Direct Z-Library account integration | Blocked: supported authentication contract unverified |
+| Unified Windows package | Candidate pending combined CI |
 
 Physical Windows UI, live music playback, tracker authorization and source compatibility still require acceptance. Refract and MangaBaka integrations are not currently shipped.
 
@@ -128,7 +144,7 @@ Physical Windows UI, live music playback, tracker authorization and source compa
 
 Tsugi is maintained by [giinyu](https://github.com/G1NYU) as an independent fork of [Viren070/AIOStreams](https://github.com/Viren070/AIOStreams). It is not an official AIOStreams, Suwayomi, Mihon, Jellyfin or YouTube application.
 
-The project builds on the work of [AIOStreams](https://github.com/Viren070/AIOStreams), [Suwayomi](https://github.com/Suwayomi/Suwayomi-Server), [Jellyfin](https://jellyfin.org/), [mpv](https://mpv.io/), [FFmpeg](https://ffmpeg.org/), [libass](https://github.com/libass/libass), [yt-dlp](https://github.com/yt-dlp/yt-dlp), [Deno](https://github.com/denoland/deno) and the Eclipse music ecosystem. The reading experience draws inspiration from [Mihon](https://github.com/mihonapp/mihon) and [Seanime](https://github.com/5rahim/seanime).
+The project builds on the work of [AIOStreams](https://github.com/Viren070/AIOStreams), [Suwayomi](https://github.com/Suwayomi/Suwayomi-Server), [Jellyfin](https://jellyfin.org/), [mpv](https://mpv.io/), [FFmpeg](https://ffmpeg.org/), [libass](https://github.com/libass/libass), [yt-dlp](https://github.com/yt-dlp/yt-dlp), [Deno](https://github.com/denoland/deno) and the Eclipse music ecosystem. Local ebook rendering uses [Readest](https://github.com/readest/readest), the [Readest Foliate fork](https://github.com/readest/foliate-js) and [PDF.js](https://github.com/mozilla/pdf.js). The manga reading experience draws inspiration from [Mihon](https://github.com/mihonapp/mihon) and [Seanime](https://github.com/5rahim/seanime).
 
 The upstream project's full credits, history and documentation remain available in [AIOStreams](https://github.com/Viren070/AIOStreams). See the [desktop third-party notices](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/packages/desktop/THIRD-PARTY.md) for packaged components and their individual licenses. Tsugi source is provided under the [GNU Affero General Public License v3.0](LICENSE).
 

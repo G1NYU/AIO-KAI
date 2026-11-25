@@ -46,6 +46,8 @@ try {
   for (const file of ['pdf.mjs', 'pdf.worker.mjs', 'cmaps', 'standard_fonts'])
     cpSync(join(source, 'vendor', 'pdfjs', file), join(prepared, 'vendor', 'pdfjs', file), { recursive: true });
   cpSync(join(root, 'ebook-frame', 'PDFJS-LICENSE'), join(prepared, 'vendor', 'pdfjs', 'LICENSE'));
+  cpSync(join(root, 'ebook-frame', 'ZIP-LICENSE'), join(prepared, 'vendor', 'ZIP-LICENSE'));
+  cpSync(join(root, 'ebook-frame', 'FFLATE-LICENSE'), join(prepared, 'vendor', 'FFLATE-LICENSE'));
 
   // Chromium does not need Foliate's script-enabled WebKit iframe workaround.
   patch('paginator.js', "'allow-same-origin allow-scripts'", "'allow-same-origin'");

@@ -586,3 +586,5 @@ Migration commit 1be0b4c passed Unified Windows validation (45558491536) and the
 
 ### Music source → Vault selection (2026-11-25)
 - Native YouTube Music search rows now expose Send track to Vault. It pre-fills the canonical track link/title but requires explicit permission and Queue local download. Sanitized filename retains track title and ID; direct link paste still works. Added native folder chooser and mocked browser completed-file import (book dedupe/audio session), plus title guard assertion. Native transfer and live provider acceptance pending. Cover extraction and direct imports included in combined source. No packaging request yet.
+
+- Run 45574806055 Windows check failed with E0277 because a Rc<Downloads> was captured in the Send+Sync WebView protocol callback. Added Clone to Downloads (Sender + Arc<Mutex<Shared>>) and capture a clone of the manager itself, retaining the original Rc at the UI boundary. No change to queue lifecycle. Updated README and third-party notices, added exact upstream zip.js/fflate license texts to the isolated renderer packaging. Web validation result pending at staging.

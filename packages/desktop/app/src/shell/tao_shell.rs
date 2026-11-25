@@ -258,7 +258,7 @@ pub fn run(app: App) {
         .with_devtools(args.devtools)
         .with_initialization_script(bridge)
         .with_custom_protocol("aiostreams".into(), {
-            let vault_downloads = downloads.clone();
+            let vault_downloads = downloads.as_ref().clone();
             #[cfg(windows)]
             let reading = reading.clone();
             move |_, req: Request<Vec<u8>>| {

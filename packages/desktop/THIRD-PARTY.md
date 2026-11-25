@@ -39,3 +39,5 @@ carries the MPVKit patches too, so it is licensed under the GPL-3.0. Each of tho
 licence text is in `lib/aiostreams-desktop/licenses`.
 
 - **Reading runtime (Windows development ZIP):** the first-run launcher fetches the pinned Suwayomi Server v2.4.2373 and Azul Zulu JRE directly from the official upstream bundle. The archive is verified before extraction; the ZIP itself does not redistribute those binaries. See `read-tools/SOURCE.txt` after preparation.
+
+- **Local ebook rendering (Tsugi Windows development package):** [Readest/Foliate](https://github.com/readest/foliate-js) at `de8c86324b51c231bbbdfa9faf18e84175f563cc` (MIT), with local security patches applied by `packages/web/scripts/prepare-ebook-engine.mjs`. The upstream bundled PDF.js 4.7.76 (Apache-2.0), zip.js 2.7.52 (BSD-3-Clause), fflate 0.8.2 (MIT), CMaps and standard fonts retain their respective license files under `web/tsugi-books/engine`. Source preparation and modifications are documented in the build script. No upstream install scripts are executed.

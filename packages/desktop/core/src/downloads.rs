@@ -122,6 +122,7 @@ struct Placed {
     vault: Option<PathBuf>,
 }
 
+#[derive(Clone)]
 pub struct Downloads {
     events: Sender<Event>,
     shared: Arc<Mutex<Shared>>,
