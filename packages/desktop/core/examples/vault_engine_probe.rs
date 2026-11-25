@@ -208,6 +208,14 @@ mod windows {
             let target=dir.join("audio.m4a");
             let media=format!("{}{name}.m4a?sig=fixture-private",url.as_str());
             let headers=vec![("user-agent".into(),"Tsugi fixture".into())];
+            if !validated{
+                let outcome=transfer_media(&binary,watch,&media,headers,&target,Arc::new(AtomicBool::new(false)),2,|_,_|{},true);
+                if outcome!=Outcome::Fallback||target.exists()||dir.join(".tsugi-aria2").exists(){
+                    return Err("Unvalidated audio must fall back without creating a partial");
+                }
+                println!("PASS: unvalidated audio delegated to the compatible resolver");
+                continue;
+            }
             let stop=Arc::new(AtomicBool::new(false));
             let signal=stop.clone();
             let first=transfer_media(&binary,watch,&media,headers.clone(),&target,stop,2,move|bytes,_|{

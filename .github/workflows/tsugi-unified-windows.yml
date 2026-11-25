@@ -172,7 +172,33 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Live YouTube export failed' }
           } finally { Pop-Location }
 
+  media-tools:
+    if: github.ref == 'refs/heads/feature/tsugi-read-runtime' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package tsugi]')))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: FFmpeg/FFmpeg
+          ref: 38b88335f99e76ed89ff3c93f877fdefce736c13
+          path: upstream-ffmpeg
+          persist-credentials: false
+      - name: Install cross compiler
+        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
+      - name: Build and archive corresponding FFmpeg source
+        run: |
+          bash packages/desktop/scripts/build-media-tools.sh upstream-ffmpeg "$RUNNER_TEMP/tsugi-media-tools"
+          rm -rf "$RUNNER_TEMP/tsugi-media-tools/build"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tsugi-media-tools
+          path: ${{ runner.temp }}/tsugi-media-tools/
+          if-no-files-found: error
+          retention-days: 7
+
   windows-x64:
+    needs: media-tools
     if: github.ref == 'refs/heads/feature/tsugi-read-runtime' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package tsugi]')))
     runs-on: windows-latest
     timeout-minutes: 75
@@ -190,6 +216,26 @@ jobs:
       - name: Test native music and reading core
         working-directory: packages/desktop
         run: cargo test --locked -p aiostreams-desktop-core --lib
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v5
+        with:
+          name: tsugi-media-tools
+          path: media-tools
+      - name: Exercise native media validation with the actual bundled tools
+        run: |
+          Push-Location packages/desktop
+          try {
+            $messages = cargo test --locked -p aiostreams-desktop-core --lib --no-run --message-format=json
+            if ($LASTEXITCODE -ne 0) { throw 'Native test compilation failed' }
+            $test = $messages | ForEach-Object { try { $_ | ConvertFrom-Json -ErrorAction Stop } catch {} } |
+              Where-Object { $_.reason -eq 'compiler-artifact' -and $_.profile.test -and $_.executable -and $_.target.name -eq 'aiostreams_desktop_core' } |
+              Select-Object -Last 1
+            if (-not $test -or -not (Test-Path -LiteralPath $test.executable -PathType Leaf)) { throw 'Native test executable missing' }
+          } finally { Pop-Location }
+          python tools/vault-evaluation/media_tools_probe.py media-tools "$($test.executable)"
+          if ($LASTEXITCODE -ne 0) { throw 'Native FFmpeg fixture failed' }
       - name: Build Windows desktop application
         working-directory: packages/desktop
         run: cargo build --locked --release
@@ -205,6 +251,7 @@ jobs:
           Copy-Item packages/desktop/THIRD-PARTY.md $current
           ./packages/desktop/scripts/fetch-music-tools.ps1 -Destination "$current/music-tools"
           ./packages/desktop/scripts/fetch-vault-tools.ps1 -Destination "$current/vault-tools"
+          Copy-Item -LiteralPath media-tools -Destination "$current/media-tools" -Recurse
           $launcher = New-Item -ItemType Directory -Force "$current/read-launcher"
           & "$env:JAVA_HOME_21_X64/bin/javac.exe" --release 21 -d $launcher packages/desktop/scripts/read-runtime/TsugiReadLauncher.java
           if ($LASTEXITCODE -ne 0) { throw 'Reading launcher compilation failed' }
@@ -253,6 +300,17 @@ jobs:
           foreach ($file in @('SOURCE.txt','source/COPYING','source/AUTHORS')) {
             if (-not (Test-Path -LiteralPath (Join-Path $tools $file) -PathType Leaf)) { throw "Missing engine notice: $file" }
           }
+      - name: Verify assembled FFmpeg tools
+        run: |
+          $exe = (Resolve-Path stage/current/Tsugi.exe).Path
+          $probe = Start-Process -FilePath $exe -ArgumentList '--check-media-tools' -Wait -PassThru
+          if ($probe.ExitCode -ne 0) { throw 'Packaged Tsugi cannot verify FFmpeg tools' }
+          $tools = (Resolve-Path stage/current/media-tools).Path
+          foreach ($line in Get-Content (Join-Path $tools 'SHA256SUMS')) {
+            $hash,$name = $line -split '  ',2
+            if ($name -notin @('ffmpeg.exe','ffprobe.exe','source/ffmpeg-8.1.2-source.tar.gz')) { throw 'Unexpected media checksum path' }
+            if ((Get-FileHash -LiteralPath (Join-Path $tools $name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) { throw 'Media package checksum mismatch' }
+          }
       - name: Exercise native EXE reading preparation against assembled assets
         run: |
           $root = (Resolve-Path stage).Path
@@ -289,7 +347,10 @@ jobs:
           Use Vault for direct-file downloads, batches, concurrency, and rate limits.
           Aria2 Next v3.1.2 is bundled and automatically used for eligible
           direct-file transfers. No setup or engine toggle is required.
-          Incompatible sources use the built-in downloader.
+          Incompatible sources use the built-in downloader or yt-dlp for music.
+          Bundled FFmpeg and FFprobe validate downloaded M4A before publication.
+          Original audio is retained; additional conversion formats are not enabled.
+          FFmpeg source and notices are included under current/media-tools/source/.
           The engine's corresponding source and notices are included under
           current/vault-tools/source/.
           Test authorized music downloads and TorBox with your own account.
@@ -317,6 +378,9 @@ jobs:
             $names = @($archive.Entries | ForEach-Object FullName)
             foreach ($required in @('current/vault-tools/aria2-next.exe', 'current/vault-tools/SOURCE.txt', 'current/vault-tools/source/COPYING', 'current/vault-tools/source/AUTHORS', 'current/vault-tools/source/SOURCE.sha256', 'current/vault-tools/source/aria2-next-3.1.2-source.tar.gz')) {
               if ($required -notin $names) { throw "Managed Vault artifact missing $required" }
+            }
+            foreach ($required in @('current/media-tools/ffmpeg.exe','current/media-tools/ffprobe.exe','current/media-tools/SHA256SUMS','current/media-tools/SOURCE.txt','current/media-tools/source/ffmpeg-8.1.2-source.tar.gz','current/media-tools/source/build-media-tools.sh','current/media-tools/source/COPYING.LGPLv2.1','current/media-tools/source/LICENSE.md','current/media-tools/source/config.mak')) {
+              if ($required -notin $names) { throw "Media artifact missing $required" }
             }
             foreach ($required in @('.portable', 'current/Tsugi.exe', 'current/music-tools/yt-dlp.exe', 'current/music-tools/deno.exe', 'current/read-launcher/TsugiReadLauncher.class', 'current/read-launcher/fetch-read-tools.ps1', 'current/web/index.html', 'LICENSE', 'README-TEST.txt', 'BUILD-INFO.json')) {
               if ($required -notin $names) { throw "Unified artifact missing $required" }

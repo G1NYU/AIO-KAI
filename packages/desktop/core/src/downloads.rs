@@ -905,14 +905,18 @@ fn fetch_vault_music(
     #[cfg(windows)]
     if let Some(binary)=crate::vault_engine::installed_binary(){
         report(0,None);
-        let mut resolver=music_resolver::Transfer::start_resolve(url).map_err(error)?;
-        let metadata=loop{
-            if stop.load(Ordering::Relaxed){return Err(Failure::Stopped);}
-            if let Some(bytes)=resolver.poll().map_err(|m|error(&format!("YouTube extraction: {m}")))?{break bytes;}
-            thread::sleep(Duration::from_millis(100));
-        };
-        drop(resolver);
-        if let Ok(media)=music_resolver::parse_resolved(&metadata){
+        let metadata=if let Ok(mut resolver)=music_resolver::Transfer::start_resolve(url){
+            loop{
+                if stop.load(Ordering::Relaxed){return Err(Failure::Stopped);}
+                match resolver.poll(){
+                    Ok(Some(bytes))=>break Some(bytes),
+                    Ok(None)=>thread::sleep(Duration::from_millis(100)),
+                    Err(message) if message.contains("sign-in")||message.contains("HTTP 403")||message.contains("HTTP 429")=>return Err(error(&format!("YouTube extraction: {message}"))),
+                    Err(_)=>break None,
+                }
+            }
+        }else{None};
+        if let Some(media)=metadata.as_deref().and_then(|bytes|music_resolver::parse_resolved(bytes).ok()){
             let part=part_of(path);
             // An engine output is validated before it is visible in the library.
             match crate::vault_engine::transfer_media(&binary,url,&media.url,media.headers,&part,stop.clone(),rate_mib,&report,false){
@@ -943,10 +947,21 @@ fn finalize_media_part(part:&Path,path:&Path,stop:&AtomicBool,report:impl Fn(u64
     file.read_exact(&mut header).map_err(|_|error("Media transfer: incomplete audio header"))?;
     if &header[4..8]!=b"ftyp"{return Err(error("Media transfer: output is not M4A"));}
     drop(file);
+    validate_music_output(part,stop)?;
     if stop.load(Ordering::Relaxed){return Err(Failure::Stopped);}
     if path.exists(){return Err(error("A file already exists at the Vault destination"));}
     fs::rename(part,path).map_err(|_|error("Media transfer: could not finalize audio"))?;
     report(size,Some(size));
+    Ok(())
+}
+
+// Older development/test installations without media tools retain the signature
+// check. A packaged installation with a damaged toolset fails explicitly.
+#[cfg(windows)]
+fn validate_music_output(path:&Path,stop:&AtomicBool)->Result<(),Failure>{
+    if let Err(message)=crate::media_tools::validate_installed(path,stop){
+        return if stop.load(Ordering::Relaxed){Err(Failure::Stopped)}else{Err(Failure::Error(message.to_owned()))};
+    }
     Ok(())
 }
 
@@ -984,6 +999,8 @@ fn fetch_vault_music_native(
         }
         file.sync_all().map_err(|_| error("Could not finish Vault music file"))?;
         drop(file);
+        #[cfg(windows)]
+        validate_music_output(&part,stop)?;
         if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
         if path.exists() { return Err(error("A file already exists at the Vault destination")); }
         fs::rename(&part, path).map_err(|_| error("Could not finalize Vault music file"))?;

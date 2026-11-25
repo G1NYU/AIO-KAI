@@ -180,7 +180,7 @@ pub fn transfer_media(binary:&Path,watch:&str,media_url:&str,headers:Vec<(String
     if !crate::music_resolver::is_target(watch)||!verify_binary(binary)||path.exists(){return Outcome::Fallback;}
     let Ok(source)=Source::probe_media(media_url,headers,fixture)else{cleanup(path);return Outcome::Fallback;};
     let resumable=source.segmented();
-    if !resumable{cleanup(path);}
+    if !resumable{cleanup(path);return Outcome::Fallback;}
     // ETags are scoped to a representation, not globally unique. A rotated
     // signed URL must restart instead of stitching unrelated responses.
     let key=format!("{watch}#source={}",hex(&Sha256::digest(media_url.as_bytes())));

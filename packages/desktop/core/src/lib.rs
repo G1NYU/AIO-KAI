@@ -22,6 +22,8 @@ pub mod torbox;
 pub mod vault_gateway;
 #[cfg(windows)]
 pub mod vault_engine;
+#[cfg(windows)]
+pub mod media_tools;
 
 #[cfg(test)]
 pub(crate) mod test_http;

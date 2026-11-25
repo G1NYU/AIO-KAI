@@ -212,12 +212,13 @@ def main():
                 assert hashlib.sha256((native_root / "output" / "one.bin").read_bytes()).hexdigest() == DIGEST
                 assert hashlib.sha256((native_root / "output" / "gateway.bin").read_bytes()).hexdigest() == DIGEST
                 assert hashlib.sha256((native_root / "runtime" / "restored.bin").read_bytes()).hexdigest() == DIGEST
-                for name in ("media", "single"):
-                    assert hashlib.sha256((native_root / name / "audio.m4a").read_bytes()).hexdigest() == AUDIO_DIGEST
+                assert hashlib.sha256((native_root / "media" / "audio.m4a").read_bytes()).hexdigest() == AUDIO_DIGEST
+                assert not (native_root / "single" / "audio.m4a").exists()
+                assert not (native_root / "single" / ".tsugi-aria2").exists()
                 with LOCK:
                     single_ranges = [row for row in REQUESTS if row[1].startswith("/single.m4a") and row[0] == "GET"]
-                assert single_ranges and all(row[2] == 0 and row[3] in (0, len(AUDIO) - 1) for row in single_ranges), "Unvalidated stream requested an offset or partial body"
-                print("PASS: Rust adapter, validated gateway, runtime recovery and both audio output SHA-256 hashes")
+                assert len(single_ranges) == 1 and single_ranges[0][2:4] == (0, 0), "Unvalidated stream must only be probed before fallback"
+                print("PASS: Rust adapter, validated gateway, runtime recovery, audio SHA-256 and unvalidated fallback")
         finally:
             engine.stop()
             server.shutdown()

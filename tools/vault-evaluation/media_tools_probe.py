@@ -2,6 +2,7 @@
 import hashlib
 import json
 import math
+import os
 import pathlib
 import struct
 import subprocess
@@ -44,6 +45,10 @@ def main():
         assert inspect(m4a, "aac")["format"]["tags"]["title"] == "Tsugi fixture"
         convert("-i", m4a, "-map", "0:a:0", "-c:a", "copy", remux)
         inspect(remux, "aac")
+        if len(sys.argv) > 2:
+            test_exe = pathlib.Path(sys.argv[2]).resolve(strict=True)
+            env = {**os.environ, "TSUGI_MEDIA_TOOLS": str(tools), "TSUGI_MEDIA_FIXTURE": str(m4a)}
+            subprocess.run([str(test_exe), "bundled_media_validates_audio", "--ignored", "--nocapture"], env=env, check=True, timeout=90)
         convert("-i", source, "-c:a", "flac", flac)
         inspect(flac, "flac")
         convert("-i", flac, "-c:a", "pcm_s16le", recovered)

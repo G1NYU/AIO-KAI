@@ -280,6 +280,10 @@ fn bridge_script(reading: bool, reading_setup: bool) -> String {
 
 fn main() {
     #[cfg(windows)]
+    if std::env::args().any(|arg| arg == "--check-media-tools") {
+        std::process::exit(if aiostreams_desktop_core::media_tools::installed_ready() { 0 } else { 2 });
+    }
+    #[cfg(windows)]
     if std::env::args().any(|arg| arg == "--check-vault-engine") {
         std::process::exit(if aiostreams_desktop_core::vault_engine::installed_binary().is_some() { 0 } else { 2 });
     }
