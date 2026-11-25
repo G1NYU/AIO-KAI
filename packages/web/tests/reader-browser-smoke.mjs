@@ -361,7 +361,7 @@ try {
   assert.equal(readRailGeometry.width, 80);
   assert.equal(readRailGeometry.border, '0px');
   assert.ok(readRailGeometry.font.startsWith('Inter'));
-  assert.equal(readRailGeometry.separator, 2);
+  assert.equal(readRailGeometry.separator, 0, 'decorative dotted separators are removed');
   assert.equal(await page.locator('html').getAttribute('data-tsugi-accent'), 'amber');
   await rail.getByRole('button', { name: 'App settings', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).waitFor();
