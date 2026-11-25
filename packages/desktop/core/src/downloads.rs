@@ -1000,6 +1000,27 @@ mod vault_tests {
         assert!(check(&music).is_err());
     }
     #[test]
+    fn completed_vault_file_access_rejects_other_jobs_and_paths() {
+        let dir = std::env::temp_dir().join(format!(
+            "tsugi-vault-import-{}-{}", std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("fixture.pdf");
+        fs::write(&path, b"%PDF-fixture").unwrap();
+        let (events, _receiver) = mpsc::channel();
+        let mut jobs = HashMap::new();
+        jobs.insert("vault-done".into(), Placed { done: true, vault: Some(path.clone()), ..Default::default() });
+        jobs.insert("vault-pending".into(), Placed { done: false, vault: Some(path.clone()), ..Default::default() });
+        jobs.insert("video-done".into(), Placed { done: true, video: Some(path.clone()), ..Default::default() });
+        let downloads = Downloads { events, shared: Arc::new(Mutex::new(Shared { folder: dir.clone(), jobs })) };
+        assert_eq!(downloads.vault_file("vault-done"), Some(("application/pdf", b"%PDF-fixture".to_vec())));
+        for id in ["vault-pending", "video-done", "vault-unknown", "vault-../fixture.pdf"] {
+            assert!(downloads.vault_file(id).is_none());
+        }
+        fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
     fn validates_vault_mime_types() {
         assert!(vault_mime_allowed("epub", "application/epub+zip"));
         assert!(vault_mime_allowed("mp3", "audio/mpeg; charset=binary"));

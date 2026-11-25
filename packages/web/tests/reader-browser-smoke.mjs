@@ -553,6 +553,18 @@ try {
   await music.getByRole('navigation', { name: 'Music sections' }).getByRole('button', { name: 'Search', exact: true }).click();
   await music.getByRole('textbox', { name: 'Search music', exact: true }).fill('Native fixture track');
   await music.getByRole('button', { name: 'Search', exact: true }).last().click();
+  await music.getByRole('button',{name:'Send track to Vault',exact:true}).click();
+  const selectedVaultQueue=vault.locator('[data-ui="tsugi-native-vault-queue"]');
+  await selectedVaultQueue.getByRole('combobox',{name:'Download source'}).waitFor();
+  assert.equal(await selectedVaultQueue.getByRole('combobox',{name:'Download source'}).inputValue(),'youtube');
+  assert.equal(await selectedVaultQueue.getByRole('textbox',{name:'YouTube Music track link'}).inputValue(),'https://www.youtube.com/watch?v=abcdefghijk');
+  const queueTrack=selectedVaultQueue.getByRole('button',{name:'Queue local download'});
+  assert.equal(await queueTrack.isEnabled(),false,'permission is required before export');
+  await selectedVaultQueue.getByRole('checkbox',{name:/I have permission/}).check();
+  await queueTrack.click();
+  await selectedVaultQueue.getByText('Native fixture track - abcdefghijk.m4a',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>window.__readerFixture.vaultRequests[0].jobs[0].files[0].url),'https://www.youtube.com/watch?v=abcdefghijk');
+  await vault.locator('[data-ui="tsugi-desktop-rail"]').getByRole('button',{name:'Music',exact:true}).click();
   await music.locator('[data-ui="music-track-row"]').filter({ hasText: 'Native fixture track' }).click();
   await page.waitForFunction(() => window.__readerFixture.nativeMessages.some(m => m.type === 'music-audio-load'));
   const nativeRequest = await page.evaluate(() => window.__readerFixture.nativeRequest);
