@@ -9,6 +9,8 @@ on:
       - 'packages/web/package.json'
       - 'packages/web/rsbuild.config.ts'
       - 'packages/web/tests/**'
+      - 'packages/web/scripts/**'
+      - 'packages/web/ebook-frame/**'
       - 'packages/desktop/app/**'
       - 'packages/desktop/core/**'
       - 'packages/desktop/Cargo.lock'
@@ -39,6 +41,8 @@ jobs:
       - run: pnpm -F @aiostreams/core build
       - run: pnpm -F @aiostreams/web typecheck
       - run: pnpm -F @aiostreams/web lint
+      - name: Verify pinned ebook engine preparation
+        run: pnpm -F @aiostreams/web prepare:ebooks
       - name: Desktop navigation and music regression tests
         run: pnpm exec vitest run packages/web/tests/reader-utils.test.ts packages/web/tests/desktop-area.test.ts packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts packages/web/tests/player-template.test.ts packages/web/tests/player-layout.test.ts packages/web/tests/music-feature-pack.test.ts packages/web/tests/music-lyrics.test.ts packages/web/tests/music-history.test.ts packages/web/tests/eclipse-appearance.test.ts packages/web/tests/music-library.test.ts packages/web/tests/audio-profiles.test.ts
       - name: Browser interaction smoke (no desktop packaging)
