@@ -315,6 +315,9 @@ pub enum Inbound {
     DownloadConfig {
         concurrent: u32,
     },
+    VaultRate {
+        mib: u32,
+    },
 }
 
 static REFUSED: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
@@ -568,6 +571,7 @@ pub enum Outbound {
     },
     DownloadState {
         folder: String,
+        vault_rate_mib: u32,
         jobs: Vec<DownloadStatus>,
     },
     /// The running download's video; `speed` in bytes a second.

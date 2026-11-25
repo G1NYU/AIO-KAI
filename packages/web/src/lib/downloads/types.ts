@@ -61,6 +61,7 @@ export type HostEvent =
   | {
       type: 'state';
       folder: string;
+      vault_rate_mib?: number;
       jobs: {
         id: string;
         state: 'queued' | 'downloading' | 'paused' | 'failed' | 'done';

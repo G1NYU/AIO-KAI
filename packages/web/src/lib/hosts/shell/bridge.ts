@@ -186,6 +186,7 @@ export type ShellMessage =
   | {
       type: 'download-state';
       folder: string;
+      vault_rate_mib?: number;
       jobs: Extract<HostEvent, { type: 'state' }>['jobs'];
     }
   | {

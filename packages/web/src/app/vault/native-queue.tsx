@@ -48,6 +48,7 @@ export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|n
   const [batch,setBatch] = useState(false);
   const [filter,setFilter] = useState<Filter>('all');
   const [concurrent,setConcurrent] = useSetting(settings.downloads.concurrent);
+  const [rate,setRate] = useState<number|undefined>();
   const [wifiOnly] = useSetting(settings.downloads.wifiOnly);
   const pendingCount=pending.length;
   useEffect(()=>{
@@ -55,7 +56,7 @@ export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|n
     const stop = shellDownloads.subscribe(event=>{
       if(event.type==='state') {
         setRows(old=>reconcileVaultRows(old,event.jobs.filter(job=>job.id.startsWith('vault-') && typeof job.vault_title==='string')));
-        setFolder(event.folder);setReady(true);
+        setFolder(event.folder);setRate(event.vault_rate_mib);setReady(true);
       } else if(event.id.startsWith('vault-')) setRows(old=>old.map(row=>row.id===event.id?{...row,bytes:event.bytes,total:event.total,speed:row.state==='downloading'?event.speed:0}:row));
     });
     shellDownloads.list();
@@ -126,6 +127,7 @@ export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|n
       <div className="tsugi-vault-queue-tools"><label><Trans>Simultaneous local downloads</Trans><select className="tsugi-read-input" value={Math.min(4,Math.max(1,concurrent))} onChange={event=>{const value=Number(event.target.value);setConcurrent(value);shellDownloads.configure({concurrent:value,wifiOnly});}}>{[1,2,3,4].map(n=><option key={n} value={n}>{n}</option>)}</select></label>
       <button type="button" className="tsugi-read-action" disabled={!active.length&&!queued.length} onClick={()=>rows.filter(row=>row.state==='queued'||row.state==='downloading').forEach(row=>shellDownloads.control(row.id,'pause'))}><BrushPause aria-hidden/><Trans>Pause all</Trans></button>
       <button type="button" className="tsugi-read-action" disabled={!rows.some(row=>row.state==='paused')} onClick={()=>rows.filter(row=>row.state==='paused').forEach(row=>shellDownloads.control(row.id,'resume'))}><BrushPlay aria-hidden/><Trans>Resume all</Trans></button></div>
+      {rate!==undefined&&<div className="tsugi-vault-queue-tools"><label><Trans>Direct-file speed limit (MiB/s)</Trans><select className="tsugi-read-input" value={rate} onChange={event=>appBridge()?.send({type:'vault-rate',mib:Number(event.target.value)})}><option value={0}><Trans>Unlimited</Trans></option>{[1,2,4,8,16].map(n=><option value={n} key={n}>{n}</option>)}</select></label><p><Trans>Per direct-file transfer, applied when a job starts or resumes. Music exports, cloud and video downloads are unaffected.</Trans></p></div>}
       {folder&&<p className="tsugi-vault-saved-path"><Trans>Download folder:</Trans> {folder}</p>}
       <nav className="tsugi-vault-tabs" aria-label={t`Download views`}>{tabs.map(tab=><button type="button" key={tab.id} className="tsugi-read-action" aria-pressed={filter===tab.id} onClick={()=>setFilter(tab.id)}>{tab.label}{tab.count!==undefined&&<span>{tab.count}</span>}</button>)}</nav>
       <div className="tsugi-pixel-rule" aria-hidden="true"/>

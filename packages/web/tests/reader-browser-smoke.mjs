@@ -54,13 +54,14 @@ try {
           return;
         }
         if (message.type === 'download-config') {state.vaultConcurrent=message.concurrent;return;}
+        if (message.type === 'vault-rate') {state.vaultRate=message.mib;emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs,vault_rate_mib:state.vaultRate});return;}
         if (message.type === 'download-list') {
-          emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs});return;
+          emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs,vault_rate_mib:state.vaultRate??0});return;
         }
         if (message.type === 'download-add') {
           state.vaultRequests.push(message);
           for(const job of message.jobs)state.vaultJobs.push({id:job.id,state:'queued',bytes:0,total:null,error:null,vault_title:job.title});
-          emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs});return;
+          emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs,vault_rate_mib:state.vaultRate??0});return;
         }
         if (message.type === 'youtube-music-request') {
           const data = message.operation === 'search' ? { musicResponsiveListItemRenderer: {
@@ -594,6 +595,12 @@ try {
   assert.equal(await page.evaluate(()=>window.__readerFixture.vaultRequests[1].jobs.length),3);
   await selectedVaultQueue.getByLabel('Simultaneous local downloads').selectOption('4');
   await page.waitForFunction(()=>window.__readerFixture.vaultConcurrent===4);
+  await selectedVaultQueue.getByLabel('Direct-file speed limit (MiB/s)').selectOption('2');
+  await page.waitForFunction(()=>window.__readerFixture.vaultRate===2);
+  await selectedVaultQueue.getByRole('button',{name:'Refresh local downloads',exact:true}).click();
+  assert.equal(await selectedVaultQueue.getByLabel('Direct-file speed limit (MiB/s)').inputValue(),'2');
+  await selectedVaultQueue.getByLabel('Direct-file speed limit (MiB/s)').selectOption('0');
+  await page.waitForFunction(()=>window.__readerFixture.vaultRate===0);
   console.log('PASS: Vault accepts mixed independent batch jobs and configures shared native concurrency.');
   await selectedVaultQueue.getByRole('button',{name:'Providers',exact:true}).click();
   const providers=selectedVaultQueue.locator('[data-ui="tsugi-vault-providers"]');

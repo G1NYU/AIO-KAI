@@ -32,6 +32,12 @@ const EXTENSIONS: &[&str] = &[
 ];
 const VAULT_EXTENSIONS: &[&str] = &["pdf", "epub", "mp3", "flac", "m4a", "wav", "ogg", "opus", "aac"];
 const VAULT_LIMIT: u64 = 256 * 1024 * 1024;
+const MIB: u64 = 1024 * 1024;
+const VAULT_RATES: &[u32] = &[0, 1, 2, 4, 8, 16];
+
+fn vault_rate(value: u32) -> u32 {
+    if VAULT_RATES.contains(&value) { value } else { 0 }
+}
 const RESERVED: &[&str] = &[
     "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
     "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
@@ -75,6 +81,8 @@ struct Job {
 struct Saved {
     folder: Option<PathBuf>,
     concurrent: Option<u32>,
+    #[serde(default)]
+    vault_rate_mib: u32,
     jobs: Vec<Job>,
 }
 
@@ -87,6 +95,7 @@ pub enum Command {
     List,
     SetFolder(PathBuf),
     SetConcurrent(u32),
+    SetVaultRate(u32),
 }
 
 enum Failure {
@@ -144,6 +153,7 @@ impl Downloads {
         let mut queue = Queue {
             folder: saved.folder.unwrap_or(default_folder),
             concurrent: saved.concurrent.unwrap_or(2).clamp(1, MAX_CONCURRENT),
+            vault_rate_mib: vault_rate(saved.vault_rate_mib),
             jobs: saved.jobs,
             running: HashMap::new(),
             removing: HashMap::new(),
@@ -242,6 +252,7 @@ struct Speed {
 struct Queue {
     folder: PathBuf,
     concurrent: u32,
+    vault_rate_mib: u32,
     jobs: Vec<Job>,
     running: HashMap<String, Arc<AtomicBool>>,
     /// Removed while running: its files go once its thread lets go of them.
@@ -330,6 +341,7 @@ impl Queue {
                 self.folder = folder;
             }
             Command::SetConcurrent(n) => self.concurrent = n.clamp(1, MAX_CONCURRENT),
+            Command::SetVaultRate(n) => { if VAULT_RATES.contains(&n) { self.vault_rate_mib = n; } },
         }
         self.changed();
     }
@@ -394,9 +406,10 @@ impl Queue {
                 self.events.clone(),
                 self.agent.clone(),
             );
+            let vault_rate_mib = self.vault_rate_mib;
             if thread::Builder::new()
                 .name("download".into())
-                .spawn(move || work(spec, folder, agent, stop, events)).is_err() {
+                .spawn(move || work(spec, folder, agent, stop, events, vault_rate_mib)).is_err() {
                 self.running.remove(&job.spec.id);
                 job.state = State::Failed;
                 job.error = Some("Could not start download worker".into());
@@ -406,6 +419,7 @@ impl Queue {
         self.share();
         (self.emit)(Outbound::DownloadState {
             folder: self.folder.to_string_lossy().into_owned(),
+            vault_rate_mib: self.vault_rate_mib,
             jobs: self
                 .jobs
                 .iter()
@@ -463,6 +477,7 @@ impl Queue {
         let saved = Saved {
             folder: Some(self.folder.clone()),
             concurrent: Some(self.concurrent),
+            vault_rate_mib: self.vault_rate_mib,
             jobs: self.jobs.clone(),
         };
         let Ok(bytes) = serde_json::to_vec(&saved) else {
@@ -646,6 +661,7 @@ fn work(
     agent: ureq::Agent,
     stop: Arc<AtomicBool>,
     events: Sender<Event>,
+    vault_rate_mib: u32,
 ) {
     let result = (|| {
         for text in &spec.texts {
@@ -671,7 +687,7 @@ fn work(
             let result = if file.kind == FileKind::Vault && music_resolver::is_target(&file.url) {
                 fetch_vault_music(&file.url, &path, &stop, report)
             } else if file.kind == FileKind::Vault {
-                fetch_vault(&agent, &file.url, &path, &stop, report)
+                fetch_vault(&agent, &file.url, &path, &stop, report, vault_rate_mib)
             } else {
                 fetch(&agent, &file.url, &file.headers, &path, &stop, report)
             };
@@ -946,12 +962,27 @@ fn discard_vault_partial(path: &Path) {
     let _ = fs::remove_file(part_of(path));
 }
 
+// Pace each chunk against time actually spent receiving it. Waiting checks the
+// queue's cancellation flag frequently; no credit accumulates after a stall.
+fn pace_vault_chunk(started: Instant, bytes: usize, rate_mib: u32, stop: &AtomicBool) -> Result<(), Failure> {
+    if rate_mib == 0 { return Ok(()); }
+    let expected = Duration::from_secs_f64(bytes as f64 / (u64::from(rate_mib) * MIB) as f64);
+    while let Some(left) = expected.checked_sub(started.elapsed()) {
+        if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
+        if left.is_zero() { break; }
+        thread::sleep(left.min(Duration::from_millis(25)));
+    }
+    if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
+    Ok(())
+}
+
 fn fetch_vault(
     agent: &ureq::Agent,
     url: &str,
     path: &Path,
     stop: &AtomicBool,
     report: impl Fn(u64, Option<u64>),
+    rate_mib: u32,
 ) -> Result<(), Failure> {
     let error = |message: &str| Failure::Error(message.to_owned());
     if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
@@ -973,7 +1004,16 @@ fn fetch_vault(
     if let Some((saved, offset)) = &resume {
         request = request.header("Range", format!("bytes={offset}-")).header("If-Range", &saved.etag);
     }
-    let response = match request.config().max_redirects(0).build().call() {
+    // ureq 3.4 measures the whole request, including deliberate pacing. Give
+    // capped jobs the extra bounded time needed to receive the largest file.
+    // Unlimited jobs retain the previous timeout.
+    let mut config = request.config().max_redirects(0);
+    if rate_mib != 0 {
+        let pacing_budget = Duration::from_secs(VAULT_LIMIT.div_ceil(u64::from(rate_mib) * MIB));
+        config = config.timeout_global(Some(REQUEST_LIMIT + pacing_budget))
+            .timeout_recv_response(Some(Duration::from_secs(20)));
+    }
+    let response = match config.build().call() {
         Ok(response) => response,
         Err(ureq::Error::StatusCode(416)) if resume.is_some() => {
             discard_vault_partial(path);
@@ -1037,6 +1077,7 @@ fn fetch_vault(
         report(bytes, total);
         loop {
             if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
+            let started = Instant::now();
             let n = reader.read(&mut buffer).map_err(|_| error("Vault transfer was interrupted"))?;
             if n == 0 { break; }
             bytes += n as u64;
@@ -1044,6 +1085,7 @@ fn fetch_vault(
                 discard = true;
                 return Err(error("Vault transfer exceeded the expected size"));
             }
+            pace_vault_chunk(started, n, rate_mib, stop)?;
             file.write_all(&buffer[..n]).map_err(|_| error("Could not write Vault file"))?;
             report(bytes, total);
         }
@@ -1149,7 +1191,7 @@ mod vault_tests {
             jobs.push(Job { spec, folder: dir.clone(), state: State::Queued, bytes: 0, total: None, error: None });
         }
         let mut queue = Queue {
-            folder: dir.clone(), concurrent: 2, jobs, running: HashMap::new(),
+            folder: dir.clone(), concurrent: 2, vault_rate_mib: 0, jobs, running: HashMap::new(),
             removing: HashMap::new(), speeds: HashMap::new(), events,
             emit: Box::new(|_| {}), state_file: dir.join("queue.json"),
             shared: Arc::new(Mutex::new(Shared::default())), agent: agent(),
@@ -1213,7 +1255,7 @@ mod vault_tests {
             let (url, server) = crate::test_http::response_with_headers(status,"application/pdf",body,headers,||{});
             fs::write(part_of(&path),&payload[..offset]).unwrap();
             fs::write(vault_checkpoint_path(&path),serde_json::to_vec(&VaultCheckpoint {url:url.clone(),etag:etag.into(),total:payload.len() as u64}).unwrap()).unwrap();
-            assert_eq!(fetch_vault(&agent(),&url,&path,&stop,|_,_|{}).is_ok(),success);
+            assert_eq!(fetch_vault(&agent(),&url,&path,&stop,|_,_|{},0).is_ok(),success);
             let sent = server.join().unwrap().to_ascii_lowercase();
             assert!(sent.contains("range: bytes=10-"));
             assert!(sent.contains("if-range: \"fixture-v1\""));
@@ -1232,7 +1274,7 @@ mod vault_tests {
         let payload = vec![b'X';512*1024];
         let (url, server) = crate::test_http::response_with_headers(200,"application/pdf",payload.clone(),"ETag: \"pause-v1\"\r\n".into(),||{});
         let stop = AtomicBool::new(false);
-        assert!(matches!(fetch_vault(&agent(),&url,&path,&stop,|bytes,_|{if bytes>0 {stop.store(true,Ordering::Relaxed);}}),Err(Failure::Stopped)));
+        assert!(matches!(fetch_vault(&agent(),&url,&path,&stop,|bytes,_|{if bytes>0 {stop.store(true,Ordering::Relaxed);}},0),Err(Failure::Stopped)));
         let (_, offset) = read_vault_checkpoint(&path,&url).unwrap();
         assert!(offset>0 && offset<payload.len() as u64);
         assert_eq!(fs::read(part_of(&path)).unwrap(),payload[..offset as usize]);
@@ -1252,14 +1294,14 @@ mod vault_tests {
         let (url, server) = crate::test_http::response(200, "application/pdf", bytes.clone());
         let stop = AtomicBool::new(false);
         let transferred = std::cell::Cell::new(0);
-        assert!(fetch_vault(&agent(),&url,&path,&stop,|n,_|transferred.set(n)).is_ok());
+        assert!(fetch_vault(&agent(),&url,&path,&stop,|n,_|transferred.set(n),0).is_ok());
         assert_eq!(fs::read(&path).unwrap(),bytes);
         assert_eq!(transferred.get(),bytes.len() as u64);
         assert!(!part_of(&path).exists());
         server.join().unwrap();
         let bad = dir.join("bad.pdf");
         let (url, server) = crate::test_http::response(200,"text/html",b"<html>not a book</html>".to_vec());
-        assert!(fetch_vault(&agent(),&url,&bad,&stop,|_,_|{}).is_err());
+        assert!(fetch_vault(&agent(),&url,&bad,&stop,|_,_|{},0).is_err());
         assert!(!bad.exists()&&!part_of(&bad).exists());
         server.join().unwrap();
         fs::remove_dir_all(dir).unwrap();
@@ -1289,6 +1331,26 @@ mod vault_tests {
         };
         fs::remove_dir_all(dir).unwrap();
         checked.unwrap();
+    }
+    #[test]
+    fn native_direct_transfer_obeys_rate_and_preserves_bytes() {
+        let dir = std::env::temp_dir().join(format!("tsugi-vault-rate-{}-{}", std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("rate.pdf");
+        let payload = vec![42u8; 512 * 1024];
+        let (url, server) = crate::test_http::response(200, "application/pdf", payload.clone());
+        let started = Instant::now();
+        assert!(fetch_vault(&agent(), &url, &path, &AtomicBool::new(false), |_,_|{}, 1).is_ok());
+        assert!(started.elapsed() >= Duration::from_millis(480), "rate cap did not pace the actual transfer");
+        assert_eq!(fs::read(&path).unwrap(), payload);
+        server.join().unwrap();
+        let saved: Saved = serde_json::from_str(r#"{"jobs":[]}"#).unwrap();
+        assert_eq!(saved.vault_rate_mib, 0);
+        assert_eq!(vault_rate(3), 0);
+        let stopped = AtomicBool::new(true);
+        assert!(matches!(pace_vault_chunk(Instant::now(), 1024, 1, &stopped), Err(Failure::Stopped)));
+        fs::remove_dir_all(dir).unwrap();
     }
     #[test]
     fn validates_vault_mime_types() {
