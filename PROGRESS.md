@@ -526,3 +526,5 @@ Migration commit 1be0b4c passed Unified Windows validation (45558491536) and the
 - Prior package run 45565586608 on 79fcf06 completed successfully; Windows x64 test artifact 14999897845. Physical Windows acceptance remains outstanding.
 - User approved the exact hero patch and further pushes in this chat. Kitsu safe-rated wide covers first, Nekos scenic fallback, bundled SVG always present. Shared persistent local-only opt-out, bounded network/image timeouts, host allowlist for Kitsu and aspect ratio checks. No new dependencies or playback changes.
 - Local standalone TypeScript and fixture checks passed on the prepared patch; full application CI and live provider behavior pending. Next: Readest-inspired local EPUB/PDF reader, then native authorized book/audio downloads and import into Read/Music, then gated unified Windows package.
+
+- Updated browser regression fixture for default-on artwork: synthetic safe Kitsu response, failing Kitsu CDN image, valid wide Nekos fallback, local-only preference and re-enable. Replaces obsolete opt-in assertion. CI pending on combined source and fixture.

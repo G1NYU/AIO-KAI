@@ -144,6 +144,20 @@ try {
   });
   // Deny unrelated external requests; the test uses only original fixtures.
   await page.route('**/*', (route) => route.request().url().startsWith(origin + '/') ? route.fallback() : route.abort());
+  const heroRequests = [];
+  const wideArt = '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="600"><rect width="1600" height="600" fill="#37495b"/></svg>';
+  await page.route('https://kitsu.io/api/edge/manga?*', async route => {
+    heroRequests.push('kitsu');
+    await route.fulfill({ json: { data: [{ attributes: { adult: false, ageRating: 'PG', coverImage: { large: 'https://media.kitsu.io/manga/cover_images/1/large.jpg' } } }] }, headers: { 'access-control-allow-origin': '*' } });
+  });
+  await page.route('https://media.kitsu.io/manga/cover_images/1/large.jpg', async route => {
+    heroRequests.push('kitsu-image');
+    await route.fulfill({ status: 404 });
+  });
+  await page.route('https://api.nekosapi.com/v4/images/random/file?*', async route => {
+    heroRequests.push('nekos');
+    await route.fulfill({ contentType: 'image/svg+xml', body: wideArt });
+  });
   const artworkRequests = [];
   await page.route('https://lh3.googleusercontent.com/tsugi-fixture=*', async route => {
     artworkRequests.push(route.request().url());
@@ -207,7 +221,16 @@ try {
   await vault.waitFor();
   assert.equal(await vault.locator('[data-ui="tsugi-desktop-rail"] [aria-current="page"]').getAttribute('aria-label'), 'Vault');
   assert.equal(await vault.locator('.tsugi-landscape-fallback').count(), 1);
-  assert.equal(await vault.locator('.tsugi-spotlight-backdrop img').count(), 0, 'external art is opt-in');
+  await vault.getByText('Nekos API', { exact: true }).waitFor();
+  assert.deepEqual(heroRequests, ['kitsu', 'kitsu-image', 'nekos'], 'automatic Kitsu request falls back to Nekos on image failure');
+  assert.equal(await vault.locator('.tsugi-spotlight-backdrop img').evaluate(img => img.naturalWidth), 1600);
+  await vault.getByRole('button', { name: 'Use local artwork' }).click();
+  await vault.getByRole('button', { name: 'Enable external illustration' }).waitFor();
+  assert.equal(await vault.locator('.tsugi-spotlight-backdrop img').count(), 0);
+  assert.equal(await page.evaluate(() => localStorage.getItem('tsugi.landscape.local-only')), 'true');
+  await vault.getByRole('button', { name: 'Enable external illustration' }).click();
+  await vault.getByText('Nekos API', { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => localStorage.getItem('tsugi.landscape.local-only')), 'false');
   await capture('01-vault');
   await vault.getByRole('button', { name: 'All media', exact: true }).click();
   await landing.waitFor();
