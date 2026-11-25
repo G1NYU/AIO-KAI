@@ -75,7 +75,7 @@ export function GlobalAppearanceSettings() {
   }
   return <section className="tsugi-global-appearance">
     <h3><Trans id="Appearance">Appearance</Trans></h3>
-    <p><Trans id="One palette for Movies & TV, Music and Read.">One palette for Movies &amp; TV, Music and Read.</Trans></p>
+    <p><Trans>One palette for Movies &amp; TV, Music, Read and Vault.</Trans></p>
     <div className="tsugi-global-palettes">{(Object.keys(PLAYER_PALETTES) as PlayerThemeId[]).map((id) => {
       const p = PLAYER_PALETTES[id];
       const label = id === 'sumi' ? t({ id: "Default", message: "Default" }) : id === 'mocha' ? t({ id: "Mocha", message: "Mocha" }) : id === 'matte' ? t({ id: "Matte black", message: "Matte black" }) : id === 'aio-dark' ? t({ id: "Ink", message: "Ink" }) : id === 'nightfall' ? t({ id: "Nightfall", message: "Nightfall" }) : t({ id: "Carbon", message: "Carbon" });

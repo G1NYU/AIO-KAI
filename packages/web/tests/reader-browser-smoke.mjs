@@ -174,7 +174,24 @@ try {
   await page.goto(origin, { waitUntil: 'domcontentloaded' });
   const landing = page.locator('[data-page="desktop-landing"]');
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).waitFor();
-  await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'sumi');
+  const onboarding = page.locator('[data-ui="tsugi-onboarding"]');
+  await onboarding.waitFor({ state: 'visible' });
+  await onboarding.getByRole('button', { name: 'Mocha', exact: true }).click();
+  await onboarding.getByRole('button', { name: 'Blue', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'mocha' && document.documentElement.dataset.tsugiAccent === 'blue');
+  await capture('00-first-boot-appearance');
+  await onboarding.getByRole('button', { name: 'Enter Tsugi' }).click();
+  await onboarding.waitFor({ state: 'hidden' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await landing.getByRole('button', { name: 'Movies & TV', exact: true }).waitFor();
+  await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'mocha' && document.documentElement.dataset.tsugiAccent === 'blue');
+  assert.equal(await onboarding.isVisible(), false, 'onboarding does not reopen after completion');
+  await landing.getByRole('button', { name: 'App settings', exact: true }).click();
+  const bootSettings = page.getByRole('dialog');
+  await bootSettings.getByRole('button', { name: 'Default', exact: true }).click();
+  await bootSettings.getByRole('button', { name: 'Silver', exact: true }).click();
+  await bootSettings.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'sumi' && document.documentElement.dataset.tsugiAccent === 'silver');
   assert.deepEqual(await landing.locator('.tsugi-index-link').allTextContents(), ['Movies & TV', 'Music', 'Read', 'Vault']);
   assert.equal(await landing.locator('.tsugi-index-link svg').count(), 4);
   assert.equal(await landing.locator('.tsugi-index-kanji').count(), 0);
@@ -222,7 +239,11 @@ try {
   assert.equal(await vault.locator('[data-ui="tsugi-desktop-rail"] [aria-current="page"]').getAttribute('aria-label'), 'Vault');
   assert.equal(await vault.locator('.tsugi-landscape-fallback').count(), 1);
   await vault.getByText('Nekos API', { exact: true }).waitFor();
-  assert.deepEqual(heroRequests, ['kitsu', 'kitsu-image', 'nekos'], 'automatic Kitsu request falls back to Nekos on image failure');
+  // React StrictMode intentionally remounts effects in development, so an
+  // aborted metadata request can be observed twice. Preserve the image fallback ordering.
+  assert.ok(heroRequests.filter(value => value === 'kitsu').length >= 1 && heroRequests.filter(value => value === 'kitsu').length <= 2);
+  assert.deepEqual(heroRequests.filter(value => value !== 'kitsu'), ['kitsu-image', 'nekos'], 'automatic Kitsu request falls back to Nekos on image failure');
+  assert.ok(heroRequests.indexOf('kitsu') < heroRequests.indexOf('kitsu-image'));
   assert.equal(await vault.locator('.tsugi-spotlight-backdrop img').evaluate(img => img.naturalWidth), 1600);
   await vault.getByRole('button', { name: 'Use local artwork' }).click();
   await vault.getByRole('button', { name: 'Enable external illustration' }).waitFor();

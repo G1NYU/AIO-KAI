@@ -3,6 +3,7 @@ import { Trans } from '@lingui/react/macro';
 import { FiSettings } from 'react-icons/fi';
 import { TsugiBrand, TsugiMediaIcon } from '@/components/tsugi-brand';
 import { useDesktopArea } from '@/lib/desktop-area';
+import { FirstBootAppearance } from './first-boot-appearance';
 
 /** Direct media destinations, independent of server configuration. */
 export function DesktopLandingPage({ openVideo, openMusic, openRead, openVault }: {
@@ -16,6 +17,7 @@ export function DesktopLandingPage({ openVideo, openMusic, openRead, openVault }
     ...(openVault ? [{ id: 'vault' as const, label: t({ id: 'Vault', message: 'Vault' }), open: openVault }] : []),
   ];
   return <main data-page="desktop-landing" className="tsugi-landing tsugi-index">
+    {openVault && <FirstBootAppearance />}
     <header className="tsugi-index-header">
       {desktopArea && <button type="button" className="tsugi-category-link" onClick={desktopArea.openSettings}><FiSettings aria-hidden /><Trans id="App settings">App settings</Trans></button>}
     </header>

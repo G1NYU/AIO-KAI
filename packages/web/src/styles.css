@@ -2467,3 +2467,11 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-queue-controls button:disabled { opacity:.28; cursor:default; }
 .tsugi-queue-clear { font-size:11px; padding:5px 7px; border-radius:5px; color:inherit; }
 .tsugi-queue-clear:hover:not(:disabled) { background:#ffffff16; }
+
+/* First launch uses the same live appearance settings as every media workspace. */
+:root[data-host='desktop'] .tsugi-onboarding { width:min(680px,94vw); max-height:88vh; padding:clamp(20px,3vw,36px); }
+.tsugi-onboarding-title { display:flex; gap:18px; align-items:center; }
+.tsugi-onboarding-title > svg { width:52px; height:52px; flex:none; }
+.tsugi-onboarding-title p,.tsugi-onboarding-footer p { color:var(--tsugi-muted); font-size:13px; margin-top:6px; }
+.tsugi-onboarding-footer { display:flex; flex-direction:column; gap:16px; }
+.tsugi-onboarding-actions { display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; }

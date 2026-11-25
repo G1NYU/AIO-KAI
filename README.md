@@ -5,7 +5,7 @@
 <h1 align="center">Tsugi <sub>次</sub></h1>
 
 <p align="center">
-  Movies, television, music and manga in one desktop application.
+  Movies, television, music, reading and a personal download vault.
 </p>
 
 <p align="center">
@@ -17,7 +17,7 @@
 
 <br>
 
-Tsugi (次, *next*) is an independent, open-source desktop media project built on AIOStreams. It brings video, music and reading into a shared workspace while retaining the strengths of the individual media engines. Switch between your library, albums and chapters without managing separate applications or separate appearance settings.
+Tsugi (次, *next*) is an independent, open-source desktop media project built on AIOStreams. It brings video, music, reading and downloads into a shared workspace while retaining the strengths of the individual media engines. Switch between your library, albums and chapters without managing separate applications or separate appearance settings.
 
 **Development preview · Windows x64.** The unified application is being developed on [`feature/tsugi-read-runtime`](https://github.com/G1NYU/TSUGI/tree/feature/tsugi-read-runtime). The default branch remains the upstream baseline with project documentation. There is no stable Tsugi release yet.
 
@@ -58,9 +58,13 @@ A native reading interface backed by a Tsugi-managed [Suwayomi Server](https://g
 
 Extension compatibility varies by source. Repositories and extensions are not bundled, and cover availability depends on the source.
 
+## Vault
+
+A dedicated workspace for authorized book and audio downloads. The current development branch includes direct HTTPS transfers with size/type guards and an independent TorBox cloud destination (session-only API key, explicit submission, refreshable account list). Live TorBox and Windows file-saving acceptance are pending. Persistent local jobs, completed-file import, authorized music exports and ebook providers are not yet shipped.
+
 ## One workspace
 
-Movies & TV, Music and Read share a palette, typography, category navigation and app appearance settings. Media-specific preferences stay within their respective sections. The reader can keep its current chapter open during a visit to Music; video playback remains exclusive with music to avoid competing audio.
+Movies & TV, Music, Read and Vault share a palette, typography, category navigation and app appearance settings. First launch offers live theme and accent personalization; existing choices are preserved and App settings remains available afterwards. Read and Vault use automatic Kitsu/Nekos artwork with a persistent local-only preference. Media-specific preferences stay within their respective sections. The reader can keep its current chapter open during a visit to Music; video playback remains exclusive with music to avoid competing audio.
 
 ## Getting started
 
@@ -69,6 +73,7 @@ The current development package is a **portable Windows x64 ZIP**, not an instal
 - Open [Unified Tsugi Windows Build](https://github.com/G1NYU/TSUGI/actions/workflows/tsugi-unified-windows.yml) and select a successful **packaging** run with the `Tsugi-Windows-x64-test` artifact. Source-only validation runs do not contain the executable package.
 - Download the artifact and extract the complete ZIP (including the `.portable` marker) into a writable folder.
 - Open `current/Tsugi.exe` directly. Keep the rest of the extracted files beside it.
+- On first launch, choose your palette and accent, or skip and personalize later in App settings.
 - For Movies & TV, enter your media server address. For Music, connect a supported source or open local audio.
 - On the first visit to Read, choose **Set up reading**. Tsugi downloads and verifies the pinned upstream reading runtime. Then open **Settings / Browse / Sources / Extension repositories** to add a trusted repository, and use **Extensions** to install a source.
 
@@ -85,6 +90,7 @@ No separate Java installation, command prompt or manual reader launcher is requi
 | Video | AIOStreams, Jellyfin API, mpv |
 | Music | Eclipse-compatible providers, yt-dlp, Deno |
 | Reading | Suwayomi, authenticated local native bridge |
+| Vault | Direct HTTPS transfers, TorBox WebDL API |
 | Validation | Vitest, Playwright, Cargo and GitHub Actions |
 
 The active source branch contains the unified app and the Windows packaging workflow. Node.js 24+, pnpm 11+ and the Rust toolchain are used by the build.
@@ -103,9 +109,20 @@ For native staging, dependency pins and the complete packaging procedure, see th
 
 ### Current status
 
-The [latest validated implementation checkpoint](https://github.com/G1NYU/TSUGI/actions/runs/45446115121) passed Windows compilation, TypeScript, lint, 74 regression tests and browser interaction smoke, including continuous local audio during reading and simulated native audio transitions.
+The [most recent successful Windows package](https://github.com/G1NYU/TSUGI/actions/runs/45565586608) is from commit `79fcf06`. Later source changes are under validation; the package does not contain them.
 
-Remaining acceptance work includes the physical Windows interface, actual YouTube Music playback during reading, tracker account authorization and sync, source-specific extension compatibility and the next unified package. Refract and MangaBaka integrations are not currently shipped.
+| Roadmap | Status |
+| :--- | :--- |
+| Shared media rail, pixel separators, global palette and contrast-safe poster badges | Implemented; physical Windows acceptance pending |
+| Automatic Kitsu/Nekos artwork and first-boot personalization | Source implemented; CI pending |
+| Manga collection management, history, update queue, migration and batch add | Implemented; runtime validation checkpoint passed |
+| Local Vault file transfers and TorBox cloud destination | Source implemented; live acceptance pending |
+| Readest-inspired isolated EPUB/PDF engine, local library and progress | Planned; rendering isolation required |
+| Authorized YouTube music downloads, ebook-provider integration and persistent native Vault queue | Planned |
+| Completed download import into Read and Music | Planned |
+| Unified Windows candidate and updated release documentation | Pending successful validation |
+
+Physical Windows UI, live music playback, tracker authorization and source compatibility still require acceptance. Refract and MangaBaka integrations are not currently shipped.
 
 ## Credits & license
 
