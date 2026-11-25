@@ -2,6 +2,7 @@ import type { HostEvent } from '@/lib/downloads/types';
 type Row = Extract<HostEvent,{type:'state'}>['jobs'][number] & {speed?:number};
 export function vaultTransferRate(speed:number):string {
   if(!Number.isFinite(speed)||speed<=0)return '—';
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- international binary transfer rate unit symbols
   return speed>=1048576?[(speed/1048576).toFixed(1),'MiB/s'].join(' '):[(speed/1024).toFixed(1),'KiB/s'].join(' ');
 }
 export function vaultEta(bytes:number,total:number|null,speed:number):number|null {

@@ -526,6 +526,7 @@ impl Queue {
             }
             let _ = fs::remove_file(&path);
             let _ = fs::remove_file(part_of(&path));
+            if job.spec.files.iter().any(|f| f.kind == FileKind::Vault) { let _ = fs::remove_file(vault_checkpoint_path(&path)); }
             // Empty folders up to the downloads folder go too.
             let mut dir = path.parent();
             while let Some(d) = dir {
@@ -902,6 +903,41 @@ fn fetch_vault_music(
     result
 }
 
+#[derive(Serialize, Deserialize)]
+struct VaultCheckpoint {
+    url: String,
+    etag: String,
+    total: u64,
+}
+
+fn vault_checkpoint_path(path: &Path) -> PathBuf {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(".part.resume.json");
+    path.with_file_name(name)
+}
+
+fn strong_etag(value: &str) -> bool {
+    value.len() >= 2 && value.len() <= 512 && value.starts_with('"') &&
+        value.ends_with('"') && value.as_bytes()[1..value.len()-1].iter()
+            .all(|&b| b == 0x21 || (0x23..=0x7e).contains(&b))
+}
+
+fn read_vault_checkpoint(path: &Path, url: &str) -> Option<(VaultCheckpoint, u64)> {
+    let meta = fs::symlink_metadata(vault_checkpoint_path(path)).ok()?;
+    if !meta.file_type().is_file() || meta.len() > 16 * 1024 { return None; }
+    let checkpoint: VaultCheckpoint = serde_json::from_slice(&fs::read(vault_checkpoint_path(path)).ok()?).ok()?;
+    let partial = fs::symlink_metadata(part_of(path)).ok()?;
+    let bytes = partial.len();
+    if !partial.file_type().is_file() || checkpoint.url != url || !strong_etag(&checkpoint.etag) ||
+        checkpoint.total > VAULT_LIMIT || bytes == 0 || bytes >= checkpoint.total { return None; }
+    Some((checkpoint, bytes))
+}
+
+fn discard_vault_partial(path: &Path) {
+    let _ = fs::remove_file(vault_checkpoint_path(path));
+    let _ = fs::remove_file(part_of(path));
+}
+
 fn fetch_vault(
     agent: &ureq::Agent,
     url: &str,
@@ -911,39 +947,93 @@ fn fetch_vault(
 ) -> Result<(), Failure> {
     let error = |message: &str| Failure::Error(message.to_owned());
     if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
-    if path.exists() {
-        return Err(error("A file already exists at the Vault destination"));
-    }
+    if path.exists() { return Err(error("A file already exists at the Vault destination")); }
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
-    let response = agent.get(url).header("Accept-Encoding", "identity")
-        .config().max_redirects(0).build().call()
-        .map_err(|_| error("Vault file request failed"))?;
-    if response.status() != 200 {
-        return Err(error("Vault requires a direct file response without redirects"));
-    }
-    let content_type = response.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("");
-    if !vault_mime_allowed(&ext, content_type) { return Err(error("Unexpected Vault file type")); }
-    if response.headers().get("content-encoding").and_then(|v| v.to_str().ok()).is_some_and(|v| !v.eq_ignore_ascii_case("identity")) {
-        return Err(error("Compressed transfer encoding is not supported in Vault"));
-    }
-    let total = total_of(&response, 0);
-    if total.is_some_and(|size| size == 0 || size > VAULT_LIMIT) { return Err(error("Vault file exceeds its size limit or is empty")); }
     let parent = path.parent().ok_or_else(|| error("Invalid Vault destination"))?;
     fs::create_dir_all(parent).map_err(|_| error("Could not create Vault folder"))?;
     let part = part_of(path);
+    let checkpoint_path = vault_checkpoint_path(path);
+    // Reject nonregular staging paths rather than following symlinks or devices.
+    for candidate in [&part, &checkpoint_path] {
+        if fs::symlink_metadata(candidate).is_ok_and(|m| !m.file_type().is_file()) {
+            return Err(error("Invalid Vault temporary file"));
+        }
+    }
+    let resume = read_vault_checkpoint(path, url);
+    if resume.is_none() { discard_vault_partial(path); }
+    let mut request = agent.get(url).header("Accept-Encoding", "identity");
+    if let Some((saved, offset)) = &resume {
+        request = request.header("Range", format!("bytes={offset}-")).header("If-Range", &saved.etag);
+    }
+    let response = match request.config().max_redirects(0).build().call() {
+        Ok(response) => response,
+        Err(ureq::Error::StatusCode(416)) if resume.is_some() => {
+            discard_vault_partial(path);
+            return Err(error("Vault resume range was rejected; retry to restart the file"));
+        },
+        Err(_) => return Err(error("Vault file request failed")),
+    };
+    let header = |name: &str| response.headers().get(name).and_then(|v| v.to_str().ok());
+    if !vault_mime_allowed(&ext, header("content-type").unwrap_or("")) {
+        discard_vault_partial(path);
+        return Err(error("Unexpected Vault file type"));
+    }
+    if header("content-encoding").is_some_and(|v| !v.eq_ignore_ascii_case("identity")) {
+        discard_vault_partial(path);
+        return Err(error("Compressed transfer encoding is not supported in Vault"));
+    }
+    let (offset, total, etag) = if response.status() == 206 {
+        let valid = resume.as_ref().filter(|(saved, offset)| {
+            let expected = format!("bytes {}-{}/{}", offset, saved.total - 1, saved.total);
+            header("content-range") == Some(expected.as_str()) &&
+                header("etag") == Some(saved.etag.as_str()) &&
+                header("content-length").is_none_or(|length| length.parse::<u64>().ok() == Some(saved.total - offset))
+        });
+        let Some((saved, offset)) = valid else {
+            discard_vault_partial(path);
+            return Err(error("Vault resume response did not match the saved file; retry to restart"));
+        };
+        (*offset, Some(saved.total), Some(saved.etag.clone()))
+    } else if response.status() == 200 && header("content-range").is_none() {
+        // Server ignored Range or representation changed: safely restart at zero.
+        discard_vault_partial(path);
+        let total = header("content-length").and_then(|value| value.parse::<u64>().ok());
+        let etag = header("etag").filter(|value| strong_etag(value)).map(str::to_owned);
+        (0, total, etag)
+    } else {
+        discard_vault_partial(path);
+        return Err(error("Vault requires a direct file response without redirects"));
+    };
+    if total.is_some_and(|size| size == 0 || size > VAULT_LIMIT) {
+        discard_vault_partial(path);
+        return Err(error("Vault file exceeds its size limit or is empty"));
+    }
+    let mut resumable = offset > 0;
+    let mut discard = false;
     let result = (|| {
-        let mut file = OpenOptions::new().create(true).write(true).truncate(true).open(&part)
+        let mut file = OpenOptions::new().create(true).write(true).append(offset > 0).truncate(offset == 0).open(&part)
             .map_err(|_| error("Could not open Vault temporary file"))?;
+        if offset == 0 {
+            if let (Some(total), Some(etag)) = (total, etag) {
+                let checkpoint = VaultCheckpoint { url: url.to_owned(), etag, total };
+                if let Ok(bytes) = serde_json::to_vec(&checkpoint) {
+                    // Written before any body bytes; corrupt/incomplete metadata
+                    // after a crash is treated as non-resumable.
+                    resumable = fs::write(&checkpoint_path, bytes).is_ok();
+                }
+            }
+        }
         let mut reader = response.into_body().into_reader();
         let mut buffer = vec![0u8; 128 * 1024];
-        let mut bytes = 0u64;
-        report(0, total);
+        let mut bytes = offset;
+        report(bytes, total);
         loop {
             if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
             let n = reader.read(&mut buffer).map_err(|_| error("Vault transfer was interrupted"))?;
             if n == 0 { break; }
             bytes += n as u64;
             if bytes > VAULT_LIMIT || total.is_some_and(|size| bytes > size) {
+                discard = true;
                 return Err(error("Vault transfer exceeded the expected size"));
             }
             file.write_all(&buffer[..n]).map_err(|_| error("Could not write Vault file"))?;
@@ -953,11 +1043,14 @@ fn fetch_vault(
         if bytes == 0 || total.is_some_and(|size| size != bytes) { return Err(error("Vault transfer was incomplete")); }
         file.sync_all().map_err(|_| error("Could not finish Vault file"))?;
         drop(file);
-        if path.exists() { return Err(error("A file already exists at the Vault destination")); }
+        if path.exists() { discard = true; return Err(error("A file already exists at the Vault destination")); }
         fs::rename(&part, path).map_err(|_| error("Could not finalize Vault file"))?;
+        let _ = fs::remove_file(&checkpoint_path);
         Ok(())
     })();
-    if result.is_err() { let _ = fs::remove_file(&part); }
+    if result.is_err() && (!resumable || discard || read_vault_checkpoint(path, url).is_none()) {
+        discard_vault_partial(path);
+    }
     result
 }
 
@@ -1093,6 +1186,53 @@ mod vault_tests {
             assert!(!part_of(&file).exists());
         }
         for server in servers { server.join().unwrap(); }
+        fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn native_vault_resume_validates_range_and_representation() {
+        let dir = std::env::temp_dir().join(format!("tsugi-vault-resume-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        fs::create_dir_all(&dir).unwrap();
+        let stop = AtomicBool::new(false);
+        let payload = b"%PDF-1.4\nTsugi original fixture\n%%EOF\n";
+        let offset = 10;
+        let etag = "\"fixture-v1\"";
+        for (status, headers, body, success) in [
+            (206, format!("ETag: {etag}\r\nContent-Range: bytes {offset}-{}/{}\r\n",payload.len()-1,payload.len()), payload[offset..].to_vec(), true),
+            (206, format!("ETag: \"changed\"\r\nContent-Range: bytes {offset}-{}/{}\r\n",payload.len()-1,payload.len()), payload[offset..].to_vec(), false),
+            (200, "ETag: \"new\"\r\n".into(), payload.to_vec(), true),
+        ] {
+            let path = dir.join("fixture.pdf");
+            let (url, server) = crate::test_http::response_with_headers(status,"application/pdf",body,headers,||{});
+            fs::write(part_of(&path),&payload[..offset]).unwrap();
+            fs::write(vault_checkpoint_path(&path),serde_json::to_vec(&VaultCheckpoint {url:url.clone(),etag:etag.into(),total:payload.len() as u64}).unwrap()).unwrap();
+            assert_eq!(fetch_vault(&agent(),&url,&path,&stop,|_,_|{}).is_ok(),success);
+            let sent = server.join().unwrap().to_ascii_lowercase();
+            assert!(sent.contains("range: bytes=10-"));
+            assert!(sent.contains("if-range: \"fixture-v1\""));
+            assert_eq!(path.exists(),success);
+            if success { assert_eq!(fs::read(&path).unwrap(),payload); fs::remove_file(&path).unwrap(); }
+            assert!(!part_of(&path).exists());
+            assert!(!vault_checkpoint_path(&path).exists());
+        }
+        fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn native_vault_pause_keeps_only_validated_partial_bytes() {
+        let dir = std::env::temp_dir().join(format!("tsugi-vault-pause-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("fixture.pdf");
+        let payload = vec![b'X';512*1024];
+        let (url, server) = crate::test_http::response_with_headers(200,"application/pdf",payload.clone(),"ETag: \"pause-v1\"\r\n".into(),||{});
+        let stop = AtomicBool::new(false);
+        assert!(matches!(fetch_vault(&agent(),&url,&path,&stop,|bytes,_|{if bytes>0 {stop.store(true,Ordering::Relaxed);}}),Err(Failure::Stopped)));
+        let (_, offset) = read_vault_checkpoint(&path,&url).unwrap();
+        assert!(offset>0 && offset<payload.len() as u64);
+        assert_eq!(fs::read(part_of(&path)).unwrap(),payload[..offset as usize]);
+        assert!(!path.exists());
+        // The sender can observe a closed socket after the intentional pause.
+        let _ = server.join();
+        discard_vault_partial(&path);
+        assert!(!part_of(&path).exists()&&!vault_checkpoint_path(&path).exists());
         fs::remove_dir_all(dir).unwrap();
     }
     #[test]

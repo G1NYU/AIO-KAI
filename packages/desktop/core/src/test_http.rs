@@ -6,6 +6,10 @@ pub(crate) fn response(status: u16, mime: &'static str, body: Vec<u8>) -> (Strin
 }
 
 pub(crate) fn response_after(status: u16, mime: &'static str, body: Vec<u8>, before_write: impl FnOnce() + Send + 'static) -> (String, thread::JoinHandle<String>) {
+    response_with_headers(status, mime, body, String::new(), before_write)
+}
+
+pub(crate) fn response_with_headers(status: u16, mime: &'static str, body: Vec<u8>, extra: String, before_write: impl FnOnce() + Send + 'static) -> (String, thread::JoinHandle<String>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     let worker = thread::spawn(move || {
@@ -38,7 +42,7 @@ pub(crate) fn response_after(status: u16, mime: &'static str, body: Vec<u8>, bef
         reader.read_exact(&mut input).unwrap();
         drop(reader);
         before_write();
-        write!(stream, "HTTP/1.1 {status} Fixture\r\nContent-Type: {mime}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).unwrap();
+        write!(stream, "HTTP/1.1 {status} Fixture\r\nContent-Type: {mime}\r\nContent-Length: {}\r\n{extra}Connection: close\r\n\r\n", body.len()).unwrap();
         stream.write_all(&body).unwrap();
         headers + "\r\n" + &String::from_utf8_lossy(&input)
     });
