@@ -2,7 +2,7 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { BiDisc, BiSearch } from 'react-icons/bi';
-import { FiMenu, FiSearch, FiX, FiPlus, FiPlay, FiPause, FiSkipBack, FiSkipForward } from 'react-icons/fi';
+import { FiSettings, FiX, FiPlus, FiPlay, FiPause, FiSkipBack, FiSkipForward } from 'react-icons/fi';
 import {
   loadAddon, loadStore, manifestUrlFor,
   type EclipseCatalogItem, type EclipseStoreEntry, type EclipseTrack,
@@ -691,6 +691,18 @@ export function MusicPage({
     }
   };
 
+  const musicNavigation = (
+    <nav className="tsugi-music-navigation flex items-center"
+          aria-label={t`Music sections`}>
+          <button type="button" aria-current={tab === 'discover' ? 'page' : undefined}
+            onClick={() => setTab('discover')}><Trans>Discover</Trans></button>
+          <button type="button" aria-current={tab === 'search' ? 'page' : undefined}
+            onClick={() => setTab('search')}><Trans>Search</Trans></button>
+          <button type="button" aria-current={tab === 'library' ? 'page' : undefined}
+            onClick={() => setTab('library')}><Trans>Library</Trans></button>
+        </nav>
+  );
+
   return (
     <>
     {reading && playing && <div className="tsugi-reading-music" data-ui="reading-music-controls">
@@ -703,31 +715,18 @@ export function MusicPage({
       className="tsugi-music-root min-h-screen px-6 pb-36 pt-14 sm:px-[3vw]">
       <div className="w-full">
         <header className="tsugi-music-top mb-10 flex items-center justify-between gap-6">
-          <MediaNavigation area="music" tools={<>
-
-            <button type="button" className="tsugi-icon-action" onClick={() => setTab('search')}
-              aria-label={t`Search music`}>
-              <FiSearch aria-hidden className="text-xl" />
-            </button>
+          <MediaNavigation area="music" tools={
             <button type="button" className="tsugi-icon-action" onClick={() => setSettingsOpen(true)}
               aria-label={t`Music settings`}>
-              <FiMenu aria-hidden className="text-xl" />
+              <FiSettings aria-hidden className="text-xl" />
             </button>
-          </>} />
+          } />
         </header>
 
-        <div className="tsugi-music-section-header">
-          {tab !== 'library' && <h1><Trans>Music</Trans></h1>}
-        <nav className="tsugi-music-navigation flex items-center"
-          aria-label={t`Music sections`}>
-          <button type="button" aria-current={tab === 'discover' ? 'page' : undefined}
-            onClick={() => setTab('discover')}><Trans>Discover</Trans></button>
-          <button type="button" aria-current={tab === 'search' ? 'page' : undefined}
-            onClick={() => setTab('search')}><Trans>Search</Trans></button>
-          <button type="button" aria-current={tab === 'library' ? 'page' : undefined}
-            onClick={() => setTab('library')}><Trans>Library</Trans></button>
-        </nav>
-        </div>
+        {tab !== 'library' && <div className="tsugi-music-section-header">
+          <h1 id="music-workspace-heading">{tab === 'search' ? <Trans>Search music</Trans> : <Trans>Discover</Trans>}</h1>
+          {musicNavigation}
+        </div>}
 
         {tab === 'discover' && <MusicDiscover source={activeSource} onPlay={playCollection}
           onFind={(song) => { void findChartTrack(song); }}
@@ -743,7 +742,7 @@ export function MusicPage({
         {tab === 'library' && (
           <>
             {libraryError && <p role="alert" className="mb-6 text-sm text-amber-200">{libraryError}</p>}
-            <MusicLibrary playlists={playlists} onChange={setPlaylists} recent={recent}
+            <MusicLibrary navigation={musicNavigation} playlists={playlists} onChange={setPlaylists} recent={recent}
               activeTrackId={playing?.id} onPlayRecent={(entry) => {
                 const source = connections.find(item => item.id === entry.sourceId);
                 if (!source) { setLibraryError(t`Connect the original music source to play this track.`); return; }
@@ -764,9 +763,16 @@ export function MusicPage({
           </>
         )}
 
+        {tab === 'search' && !activeAddon && <section className="tsugi-music-search tsugi-hub-empty">
+          <h2><Trans>Connect a music source</Trans></h2>
+          <p><Trans>Connect a source to search for artists, albums and tracks, or play your local music.</Trans></p>
+          <div className="tsugi-empty-actions">
+            <button type="button" className="tsugi-read-action tsugi-empty-primary" onClick={() => setSettingsOpen(true)}><Trans>Music settings</Trans></button>
+            <button type="button" className="tsugi-read-action" onClick={() => setTab('library')}><Trans>Open library</Trans></button>
+          </div>
+        </section>}
         {tab === 'search' && activeAddon && (
-          <section aria-labelledby="music-search-heading" className="mb-10 space-y-4">
-            <h2 id="music-search-heading" className="text-2xl font-semibold"><Trans>Search music</Trans></h2>
+          <section aria-labelledby="music-workspace-heading" className="tsugi-music-search mb-10 space-y-4">
             <form onSubmit={search} className="flex flex-col gap-3 sm:flex-row">
               <input aria-label={t`Search music`} value={query} onChange={(e) => setQuery(e.target.value)}
                 placeholder={t`Artist, album or track`}
@@ -798,6 +804,7 @@ export function MusicPage({
                 </div>
               </section>
             )}
+            {tracks.length > 0 && <div className="tsugi-search-results-heading"><h2><Trans>Tracks</Trans> <span>{tracks.length}</span></h2><span>{connectedName}</span></div>}
             <ul className="tsugi-search-track-list">
               {tracks.map((track, at) => (
                 <li key={track.id} className="tsugi-search-track-line" data-active={playing?.id === track.id && playingSourceId === activeSource?.id ? 'true' : 'false'}>

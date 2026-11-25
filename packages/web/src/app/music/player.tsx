@@ -196,7 +196,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
             <Artwork track={track} />
             <span className="min-w-0 flex-1">
               <span className="tsugi-mini-title block truncate font-semibold">{track.title}</span>
-              <span className="tsugi-mini-artist block truncate">{track.artist}</span>
+              {track.artist && <span className="tsugi-mini-artist block truncate">{track.artist}</span>}
               {(p.sourceName || p.quality) && <span className="tsugi-mini-meta block truncate">{[p.sourceName, p.quality].filter(Boolean).join(' · ')}</span>}
             </span>
           </button>

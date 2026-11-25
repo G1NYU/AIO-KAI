@@ -1961,3 +1961,35 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   .tsugi-collection-columns > :nth-child(2),.tsugi-collection-album { display:none; }
   .tsugi-collection-play { grid-template-columns:36px minmax(0,1fr) 64px 26px; gap:8px; }
 }
+
+/* Screenshot QA: one music workspace heading, stable navigation, reachable reading actions. */
+:root[data-host='desktop'] .tsugi-media-icon { color:var(--tsugi-ink); }
+:root[data-host='desktop'] .tsugi-music-section-header,.tsugi-collection-header { align-items:center; }
+:root[data-host='desktop'] .tsugi-collection-header .tsugi-music-navigation { margin:0; border:0; gap:4px; }
+:root[data-host='desktop'] .tsugi-collection-header .tsugi-music-navigation button { min-height:42px; padding:9px 16px; }
+:root[data-host='desktop'] .tsugi-collection-header .tsugi-collection-actions { margin-inline-start:auto; }
+.tsugi-music-search { max-width:1440px; }
+.tsugi-search-results-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 12px; border-bottom:1px solid var(--tsugi-line); }
+.tsugi-search-results-heading h2 { font-size:15px; font-weight:650; }
+.tsugi-search-results-heading h2 span,.tsugi-search-results-heading > span { color:var(--tsugi-muted); font-size:13px; font-weight:400; }
+.tsugi-music-search .tsugi-search-track-list { margin-top:0; }
+.tsugi-search-track-line > .tsugi-icon-action { display:flex; align-items:center; justify-content:center; }
+.tsugi-mini-player .tsugi-mini-track > :is(img,span:first-child) { border-radius:4px; background:var(--tsugi-wash); }
+.tsugi-mini-player .tsugi-mini-track > span:first-child svg { color:var(--tsugi-muted); }
+.tsugi-mini-player .tsugi-mini-transport .tsugi-play-toggle { width:48px; height:48px; }
+.tsugi-mini-player .tsugi-mini-transport .tsugi-control { width:44px; height:44px; }
+.tsugi-series-layout .tsugi-series-actions { margin:18px 0 14px; }
+@media(min-width:1200px) {
+  .tsugi-series-layout .tsugi-manga-detail { gap:14px; max-height:none; position:static; overflow:visible; }
+  .tsugi-series-layout .tsugi-manga-detail > .tsugi-manga-cover { width:min(100%,184px); }
+  .tsugi-series-layout .tsugi-manga-detail h2 { font-size:clamp(23px,1.9vw,31px); }
+  .tsugi-series-layout .tsugi-series-actions { display:grid; grid-template-columns:1fr; gap:7px; }
+  .tsugi-series-layout .tsugi-series-actions > button { min-height:40px; }
+}
+@media(max-width:760px) {
+  .tsugi-collection-columns { padding-inline-end:12px; }
+  .tsugi-collection-columns > :first-child { grid-column:auto; }
+  .tsugi-collection-columns { grid-template-columns:minmax(0,1fr) 64px 26px; }
+  .tsugi-collection-row:not(:has(> .tsugi-icon-action)) { padding-inline-end:0; }
+  .tsugi-collection-header .tsugi-collection-actions { margin-inline-start:0; }
+}

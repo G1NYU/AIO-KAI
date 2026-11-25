@@ -13,8 +13,9 @@ import {
 
 export function MusicLibrary({
   playlists, onChange, onPlay, playing, localTracks, onImportLocal, onPlayLocal,
-  folder, folderTracks, onChooseFolder, onRescanFolder, onForgetFolder, recent, onPlayRecent, activeTrackId,
+  folder, folderTracks, onChooseFolder, onRescanFolder, onForgetFolder, recent, onPlayRecent, activeTrackId, navigation,
 }: {
+  navigation?: React.ReactNode;
   playlists: MusicPlaylist[];
   recent: RecentMusicPlay[];
   activeTrackId?: string;
@@ -138,6 +139,7 @@ export function MusicLibrary({
   return <section data-ui="tsugi-library" className="tsugi-library tsugi-collection">
     <header className="tsugi-collection-header">
       <h1><Trans>Library</Trans></h1>
+      {navigation}
       <div className="tsugi-collection-actions">
         <button type="button" className="tsugi-collection-primary" onClick={() => localInputRef.current?.click()}><FiFolderPlus aria-hidden /><Trans>Open local audio</Trans></button>
         <button type="button" className="tsugi-read-action" onClick={() => inputRef.current?.click()} disabled={busy}><FiFilePlus aria-hidden /><Trans>Import playlist</Trans></button>

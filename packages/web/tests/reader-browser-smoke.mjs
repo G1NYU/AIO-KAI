@@ -208,6 +208,9 @@ try {
   const artColumn = await page.locator('.tsugi-series-layout .tsugi-manga-detail').boundingBox();
   const chapterColumn = await page.locator('.tsugi-series-chapters').boundingBox();
   assert.ok(artColumn.x + artColumn.width < chapterColumn.x, 'manga metadata and chapters occupy distinct columns');
+  const readPrimary = await page.getByRole('button', { name: /Start or resume reading/ }).boundingBox();
+  const trackingAction = await page.getByRole('button', { name: 'Tracking', exact: true }).boundingBox();
+  assert.ok(readPrimary.y + readPrimary.height < 900 && trackingAction.y + trackingAction.height < 900, 'primary reading and tracking controls fit above the fold');
   await capture('04-reading-details');
   await page.getByRole('button', { name: 'Bookmark chapter', exact: true }).first().click();
   await page.getByRole('button', { name: 'Remove bookmark', exact: true }).first().waitFor();
@@ -276,6 +279,8 @@ try {
   await music.getByRole('textbox', { name: 'Find tracks', exact: true }).fill('Tsugi audio fixture');
   await music.getByRole('button', { name: /Tsugi audio fixture/ }).click();
   await page.waitForFunction(() => { const audio = document.querySelector('[data-ui="tsugi-audio-engine"]'); return audio && !audio.paused && audio.currentTime > 0.1; });
+  assert.equal(await music.getByRole('heading', { name: 'Library', exact: true }).count(), 1);
+  assert.equal(await music.getByRole('navigation', { name: 'Music sections', exact: true }).count(), 1);
   await capture('06-music-library');
   const timeBefore = await page.locator('[data-ui="tsugi-audio-engine"]').evaluate((audio) => audio.currentTime);
   await music.getByRole('button', { name: 'Read', exact: true }).click();
@@ -346,6 +351,8 @@ try {
   }, { saved: changedSaved === 'true' });
   await miniSave.click();
   await music.locator('[aria-label="Save playing track"][aria-pressed="' + wasSaved + '"]').waitFor();
+  assert.equal(await music.getByRole('heading', { name: 'Search music', exact: true }).count(), 1);
+  await music.locator('.tsugi-search-results-heading').waitFor();
   await capture('08-mini-player');
   await music.getByRole('button', { name: 'Expand player', exact: true }).click();
   const expanded = music.getByRole('dialog', { name: 'Now playing', exact: true });

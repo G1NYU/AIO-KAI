@@ -264,15 +264,15 @@ export function ReadPage({ visible }: {
           <h2 className="text-3xl font-semibold tracking-tight">{details.manga.title}</h2>
           {details.manga.author && <p className="mt-2 text-[--tsugi-muted]">{details.manga.author}</p>}
           {details.manga.genre?.length ? <div className="my-3 flex flex-wrap gap-2 text-xs text-[--tsugi-muted]">{details.manga.genre.map((genre) => <span className="tsugi-manga-genre" key={genre}>{genre}</span>)}</div> : null}
-          {details.manga.description && <div className="mt-4 max-w-3xl text-sm leading-relaxed">
-            <p className="whitespace-pre-wrap">{expandedSynopsis ? cleanSynopsis(details.manga.description) : cleanSynopsis(details.manga.description).slice(0, 650) + (cleanSynopsis(details.manga.description).length > 650 ? '…' : '')}</p>
-            {cleanSynopsis(details.manga.description).length > 650 && <button className="tsugi-library-action mt-2" onClick={() => setExpandedSynopsis(!expandedSynopsis)}>{expandedSynopsis ? t({ id: "Show less", message: "Show less" }) : t({ id: "Read more", message: "Read more" })}</button>}
-          </div>}
-          <div className="tsugi-series-actions my-5 flex flex-wrap gap-3">
+          <div className="tsugi-series-actions flex flex-wrap gap-3">
             <button className="tsugi-read-action" disabled={busy} onClick={() => void run(async () => { const inLibrary = !details.manga.inLibrary; await readRequest({ kind: 'set-library', id: Number(details.manga.id), inLibrary }); setDetails({ ...details, manga: { ...details.manga, inLibrary } }); })}>{details.manga.inLibrary ? t({ id: "Remove from library", message: "Remove from library" }) : t({ id: "Add to library", message: "Add to library" })}</button>
             {details.chapters.length > 0 && <button className="tsugi-read-action tsugi-series-primary" disabled={busy} onClick={() => void run(() => openChapter(firstChapter(details.chapters)!))}><FiBookOpen aria-hidden /><Trans id="Start or resume reading">Start or resume reading</Trans></button>}
             <button className="tsugi-read-action" aria-expanded={trackingOpen} disabled={busy} onClick={() => setTrackingOpen(!trackingOpen)}><Trans id="Tracking">Tracking</Trans></button>
           </div>
+          {details.manga.description && <div className="mt-4 max-w-3xl text-sm leading-relaxed">
+            <p className="whitespace-pre-wrap">{expandedSynopsis ? cleanSynopsis(details.manga.description) : cleanSynopsis(details.manga.description).slice(0, 650) + (cleanSynopsis(details.manga.description).length > 650 ? '…' : '')}</p>
+            {cleanSynopsis(details.manga.description).length > 650 && <button className="tsugi-library-action mt-2" onClick={() => setExpandedSynopsis(!expandedSynopsis)}>{expandedSynopsis ? t({ id: "Show less", message: "Show less" }) : t({ id: "Read more", message: "Read more" })}</button>}
+          </div>}
         </div>
       </aside>
       <div className="tsugi-series-chapters">
