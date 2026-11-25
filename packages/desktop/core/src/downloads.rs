@@ -850,14 +850,14 @@ fn fetch_vault_music(
         thread::sleep(Duration::from_millis(100));
     };
     // ISO BMFF file signature; never label a WebM or an error response M4A.
-    if bytes.get(4..8) != Some(b"ftyp") || bytes.len() < 16 {
+    if bytes.get(4..8) != Some(&b"ftyp"[..]) || bytes.len() < 16 {
         return Err(error("YouTube did not return a supported M4A file"));
     }
     let parent = path.parent().ok_or_else(|| error("Invalid Vault destination"))?;
     fs::create_dir_all(parent).map_err(|_| error("Could not create Vault folder"))?;
     let part = part_of(path);
     let result = (|| {
-        let mut file = OpenOptions::new().create_new(true).write(true).open(&part)
+        let mut file = OpenOptions::new().create(true).truncate(true).write(true).open(&part)
             .map_err(|_| error("Could not open Vault temporary file"))?;
         for chunk in bytes.chunks(128 * 1024) {
             if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }

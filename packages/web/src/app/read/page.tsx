@@ -329,7 +329,7 @@ export function ReadPage({ visible }: {
   return <main data-page="read" className="tsugi-read-root tsugi-read-workspace">
     <TsugiRail area="read" disabled={busy} className="tsugi-reading-rail" mediaClassName="tsugi-read-media-header">
       <nav className="tsugi-rail-local" aria-label={t({ id: "Reading sections", message: "Reading sections" })}>
-        {desktopArea?.openBooks && <><span className="tsugi-reading-rail-label"><Trans>Read</Trans></span><button type="button" disabled={busy} onClick={desktopArea.openBooks} aria-label={t`Books`} title={t`Books`}><FiBookOpen aria-hidden/><Trans>Books</Trans></button><div className="tsugi-pixel-rule" aria-hidden="true"/></>}
+        {desktopArea?.openBooks && <><span className="tsugi-reading-rail-label"><Trans id="Read">Read</Trans></span><button type="button" disabled={busy} onClick={desktopArea.openBooks} aria-label={t({ id: "Books", message: "Books" })} title={t({ id: "Books", message: "Books" })}><FiBookOpen aria-hidden/><Trans id="Books">Books</Trans></button><div className="tsugi-pixel-rule" aria-hidden="true"/></>}
         <span className="tsugi-reading-rail-label"><Trans id="Collection">Collection</Trans></span>
         {tabs.map(({ id, label, Icon }) => <button key={id} aria-label={label} title={label} aria-current={tab === id ? 'page' : undefined} disabled={busy} onClick={() => switchTab(id)}><Icon aria-hidden />{label}</button>)}
         <div className="tsugi-pixel-rule" aria-hidden="true" />
@@ -650,7 +650,7 @@ export function ReadSetupPage({ openWelcome, onReady, openBooks }: { openWelcome
       {error && <p role="alert" className="tsugi-read-error">{error}</p>}
       <div className="flex flex-wrap gap-3">
         <button className="tsugi-read-action" disabled={busy} onClick={() => void setup()}>{busy ? t({ id: "Preparing…", message: "Preparing…" }) : error ? t({ id: "Retry setup", message: "Retry setup" }) : t({ id: "Set up reading", message: "Set up reading" })}</button>
-        {openBooks && <button className="tsugi-read-action" disabled={busy} onClick={openBooks}><Trans>Open local books</Trans></button>}
+        {openBooks && <button className="tsugi-read-action" disabled={busy} onClick={openBooks}><Trans id="Open local books">Open local books</Trans></button>}
         <button className="tsugi-read-action" disabled={busy} onClick={openWelcome}><Trans id="Back to all media">Back to all media</Trans></button>
       </div>
     </section>

@@ -24,7 +24,7 @@ export function youtubeVaultTrack(input: string): string {
 export function youtubeVaultJob(input: string, id: string): HostJob {
   const track = youtubeVaultTrack(input);
   if (!/^vault-[a-zA-Z0-9_-]{1,58}$/.test(id)) throw new Error('Invalid Vault job.');
-  const name = track + '.m4a';
+  const name = [track, 'm4a'].join('.');
   // eslint-disable-next-line lingui/no-unlocalized-strings -- provider URL and native path identifiers
   return { id, title: name, versionId: id, files: [{url: 'https://www.youtube.com/watch?v=' + track, path: ['Vault', id, name].join('/'), kind: 'vault'}], texts: [] };
 }
