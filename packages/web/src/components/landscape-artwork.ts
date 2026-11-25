@@ -27,7 +27,7 @@ export function kitsuLandscapes(payload: unknown): LandscapeArtwork[] {
           !['media.kitsu.io', 'media.kitsu.app'].includes(parsed.hostname)) continue;
       urls.add(parsed.href);
     } catch { continue; }
-    if (urls.size >= 2) break;
+    if (urls.size >= 8) break;
   }
   return Array.from(urls, url => ({ url, provider: 'kitsu' }));
 }

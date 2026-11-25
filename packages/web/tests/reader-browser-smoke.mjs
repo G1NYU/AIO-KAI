@@ -105,7 +105,7 @@ try {
         let data;
         let error = null;
         switch (a.kind) {
-          case 'library': data = nodes([manga, { id: '2', title: 'ZZ Missing Fixture', author: 'Tsugi', inLibrary: true, unreadCount: 0 }, ...[replacement, batchTitle].filter(item => item.inLibrary)]); break;
+          case 'library': data = nodes([state.heroFeatured ? {...manga,lastReadChapter:{...chapters[0],lastReadAt:200}} : manga, { id: '2', title: 'ZZ Missing Fixture', author: 'Tsugi', inLibrary: true, unreadCount: 0, ...(state.heroFeatured?{lastReadChapter:{...chapters[0],id:21,lastReadAt:100}}:{}) }, ...[replacement, batchTitle].filter(item => item.inLibrary)]); break;
           case 'set-library': {
             const target = [manga, replacement, batchTitle].find(item => Number(item.id) === a.id);
             if (!target) throw new Error('Unknown saved title');
@@ -178,11 +178,15 @@ try {
   const wideArt = '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="600"><rect width="1600" height="600" fill="#37495b"/></svg>';
   await page.route('https://kitsu.io/api/edge/manga?*', async route => {
     heroRequests.push('kitsu');
-    await route.fulfill({ json: { data: [{ attributes: { adult: false, ageRating: 'PG', coverImage: { large: 'https://media.kitsu.io/manga/cover_images/1/large.jpg' } } }] }, headers: { 'access-control-allow-origin': '*' } });
+    await route.fulfill({ json: { data: [1,2].map(id=>({ attributes: { adult: false, ageRating: 'PG', coverImage: { large: 'https://media.kitsu.io/manga/cover_images/'+id+'/large.jpg' } } })) }, headers: { 'access-control-allow-origin': '*' } });
   });
   await page.route('https://media.kitsu.io/manga/cover_images/1/large.jpg', async route => {
     heroRequests.push('kitsu-image');
     await route.fulfill({ status: 404 });
+  });
+  await page.route('https://media.kitsu.io/manga/cover_images/2/large.jpg', async route => {
+    heroRequests.push('kitsu-image-2');
+    await route.fulfill({ contentType: 'image/svg+xml', body: wideArt });
   });
   await page.route('https://api.nekosapi.com/v4/images/random/file?*', async route => {
     heroRequests.push('nekos');
@@ -399,7 +403,26 @@ try {
   assert.equal(await page.locator('[data-page="read"]').evaluate(node => getComputedStyle(node).fontFamily), dialogFont);
   await page.locator('.tsugi-library-grid-heading').waitFor();
   assert.equal(await page.locator('.tsugi-library-grid-heading > span').textContent(), '2');
+  const hero = page.locator('[data-ui="landscape-spotlight"]');
+  await hero.getByRole('button',{name:'Next illustration',exact:true}).waitFor();
+  await hero.locator('img[src*="/cover_images/2/"]').waitFor();
+  await hero.getByRole('button',{name:'Next illustration',exact:true}).click();
+  await hero.getByText('Nekos API',{exact:true}).waitFor();
+  assert.ok(heroRequests.includes('kitsu-image')&&heroRequests.includes('kitsu-image-2')&&heroRequests.includes('nekos'));
   await capture('03-reading-library');
+  const remoteCount=heroRequests.length;
+  await page.evaluate(()=>window.__readerFixture.heroFeatured=true);
+  await page.getByRole('button',{name:'Refresh library',exact:true}).click();
+  await hero.getByRole('heading',{name:'Tsugi Original Fixture',exact:true}).waitFor();
+  await hero.locator('.tsugi-spotlight-source-cover img[data-cover-origin="source"]').waitFor();
+  assert.equal(await hero.getAttribute('data-artwork-mode'),'featured');
+  await hero.getByRole('button',{name:'Next featured title',exact:true}).click();
+  await hero.getByRole('heading',{name:'ZZ Missing Fixture',exact:true}).waitFor();
+  assert.equal(await hero.locator('.tsugi-spotlight-backdrop img').count(),0,'missing featured cover uses local illustration');
+  assert.equal(heroRequests.length,remoteCount,'no unrelated external art requested for featured manga');
+  await page.evaluate(()=>window.__readerFixture.heroFeatured=false);
+  await page.getByRole('button',{name:'Refresh library',exact:true}).click();
+  await hero.getByRole('heading',{name:'A world of stories',exact:true}).waitFor();
   assert.deepEqual(coverQueries, []);
   await rail.getByRole('button', { name: 'Categories', exact: true }).click();
   await page.getByRole('textbox', { name: 'New category', exact: true }).fill('Seinen');

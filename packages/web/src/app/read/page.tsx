@@ -64,6 +64,7 @@ export function ReadPage({ visible }: {
   const [libraryFilter, setLibraryFilter] = React.useState('');
   const [librarySort, setLibrarySort] = React.useState<'title' | 'recent'>('title');
   const [libraryView, setLibraryView] = React.useState<'all' | 'reading'>('all');
+  const [spotlightChoice,setSpotlightChoice] = React.useState<{anchor:string;id:string}|null>(null);
   const [readerPreferences, setReaderPreferences] = React.useState(readReaderPreferences);
   const [coverFallback, setCoverFallback] = React.useState(readCoverFallback);
   const content = React.useRef<HTMLDivElement>(null);
@@ -308,6 +309,8 @@ export function ReadPage({ visible }: {
   const allLibrary = library?.nodes || [];
   const recent = allLibrary.filter((manga) => manga.lastReadChapter).sort((a, b) => Number(b.lastReadChapter?.lastReadAt || 0) - Number(a.lastReadChapter?.lastReadAt || 0));
   const continuing = recent.filter((manga) => !manga.lastReadChapter?.isRead || !!manga.unreadCount);
+  const spotlightAnchor = String(continuing[0]?.id ?? '');
+  const featured = tab === 'library' ? (spotlightChoice?.anchor === spotlightAnchor ? continuing.find(manga=>String(manga.id)===spotlightChoice.id) : undefined) ?? continuing[0] : undefined;
   const categoryContains = (manga: Manga, id: number) => !!manga.categories?.nodes.some(item => item.id === id);
   const selectedCategory = categories.find(item => item.id === categoryId);
   const libraryRows = (libraryView === 'reading' ? continuing : allLibrary).filter(manga => !categoryFilter || categoryContains(manga, categoryFilter)).filter((manga) => (manga.title + ' ' + (manga.author || '')).toLowerCase().includes(libraryFilter.trim().toLowerCase())).sort((a, b) => librarySort === 'recent' ? Number(b.lastReadChapter?.lastReadAt || 0) - Number(a.lastReadChapter?.lastReadAt || 0) : a.title.localeCompare(b.title));
@@ -352,11 +355,14 @@ export function ReadPage({ visible }: {
         </form>
       </header>
     {visible && !details && !reader && (tab === 'library' || (tab === 'browse' && browseTab === 'sources')) && <LandscapeSpotlight
-      title={(tab === 'library' && continuing[0]?.title) || t({ id: 'A world of stories', message: 'A world of stories' })}
-      eyebrow={tab === 'library' && continuing[0] ? t({ id: 'Continue reading', message: 'Continue reading' }) : t({ id: 'Reading room', message: 'Reading room' })}
-      description={(tab === 'library' && continuing[0]?.lastReadChapter?.name) || t({ id: 'Find your next story or return to your collection.', message: 'Find your next story or return to your collection.' })}
-      actionLabel={tab === 'library' && continuing[0] ? t({ id: 'Resume reading', message: 'Resume reading' }) : tab === 'browse' ? t({ id: 'Search manga', message: 'Search manga' }) : t({ id: 'Explore sources', message: 'Explore sources' })}
-      onAction={() => { if (tab === 'library' && continuing[0]) void run(() => resumeManga(continuing[0])); else switchBrowse(tab === 'library' ? 'sources' : 'search'); }} disabled={busy} />}
+      title={featured?.title || t({ id: 'A world of stories', message: 'A world of stories' })}
+      eyebrow={featured ? t({ id: 'Continue reading', message: 'Continue reading' }) : t({ id: 'Reading room', message: 'Reading room' })}
+      description={featured?.lastReadChapter?.name || t({ id: 'Find your next story or return to your collection.', message: 'Find your next story or return to your collection.' })}
+      actionLabel={featured ? t({ id: 'Resume reading', message: 'Resume reading' }) : tab === 'browse' ? t({ id: 'Search manga', message: 'Search manga' }) : t({ id: 'Explore sources', message: 'Explore sources' })}
+      featuredKey={featured ? String(featured.id) : undefined}
+      featuredArtwork={featured ? <MangaCover manga={featured} /> : undefined}
+      onNextFeatured={featured && continuing.length>1 ? ()=>setSpotlightChoice({anchor:spotlightAnchor,id:String(continuing[(continuing.indexOf(featured)+1)%continuing.length].id)}) : undefined}
+      onAction={() => { if (featured) void run(() => resumeManga(featured)); else switchBrowse(tab === 'library' ? 'sources' : 'search'); }} disabled={busy} />}
     {busy && <p className="mb-4 text-sm text-[--tsugi-muted]" role="status"><Trans id="Working…">Working…</Trans></p>}
     {error && <div role="alert" className="tsugi-read-error mb-4">{error}</div>}
     {details ? <section>

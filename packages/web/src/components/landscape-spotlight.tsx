@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 
@@ -38,10 +38,22 @@ function ArtworkImage({artwork,onFailure,onReady}:{artwork:LandscapeArtwork;onFa
       setLoaded(true);onReady();
     }}/>;
 }
-function RemoteArtwork({onProvider}:{onProvider:(provider:LandscapeArtwork['provider']|null)=>void}) {
+type SpotlightProps = {
+  title:string;eyebrow:string;description:string;actionLabel:string;onAction:()=>void;disabled?:boolean;
+  featuredKey?:string;featuredArtwork?:ReactNode;onNextFeatured?:()=>void;
+};
+export function LandscapeSpotlight(props:SpotlightProps) {
+  const external = useSyncExternalStore(subscribe,externalEnabled,()=>true);
+  return <SpotlightContent key={props.featuredKey ? 'featured:'+props.featuredKey : external?'remote':'local'} {...props} external={external}/>;
+}
+function SpotlightContent({title,eyebrow,description,actionLabel,onAction,disabled=false,external,featuredKey,featuredArtwork,onNextFeatured}:SpotlightProps&{external:boolean}) {
+  const generic = !featuredKey;
   const [candidates,setCandidates] = useState<LandscapeArtwork[]>([]);
+  const [failed,setFailed] = useState<Set<string>>(()=>new Set());
   const [index,setIndex] = useState(0);
+  const [loadedUrl,setLoadedUrl] = useState('');
   useEffect(()=>{
+    if (!generic || !external) return;
     const controller = new AbortController();
     let active = true;
     const timer=window.setTimeout(()=>controller.abort(),4000);
@@ -49,21 +61,29 @@ function RemoteArtwork({onProvider}:{onProvider:(provider:LandscapeArtwork['prov
       if(active)setCandidates(result);
     }).finally(()=>window.clearTimeout(timer));
     return ()=>{active=false;controller.abort();window.clearTimeout(timer);};
+  },[generic,external]);
+  const available=candidates.filter(item=>!failed.has(item.url));
+  const artwork=available.length?available[index%available.length]:undefined;
+  const ready=!!artwork&&loadedUrl===artwork.url;
+  const provider=ready?artwork?.provider:null;
+  const advance=useCallback(()=>{
+    setLoadedUrl('');
+    setIndex(value=>value+1);
   },[]);
-  const artwork=candidates[index];
-  const fail=useCallback(()=>{onProvider(null);setIndex(current=>current===index?current+1:current);},[index,onProvider]);
-  const ready=useCallback(()=>{if(artwork)onProvider(artwork.provider);},[artwork,onProvider]);
-  return artwork?<ArtworkImage key={artwork.url} artwork={artwork} onFailure={fail} onReady={ready}/>:null;
-}
-
-type SpotlightProps = {title:string;eyebrow:string;description:string;actionLabel:string;onAction:()=>void;disabled?:boolean};
-export function LandscapeSpotlight(props:SpotlightProps) {
-  const external = useSyncExternalStore(subscribe,externalEnabled,()=>true);
-  return <SpotlightContent key={external?'remote':'local'} {...props} external={external}/>;
-}
-function SpotlightContent({title,eyebrow,description,actionLabel,onAction,disabled=false,external}:SpotlightProps&{external:boolean}) {
-  const [provider,setProvider] = useState<LandscapeArtwork['provider']|null>(null);
-  return <section className="tsugi-spotlight tsugi-landscape-spotlight" data-ui="landscape-spotlight">
+  const onFailure=useCallback(()=>{
+    if(!artwork)return;
+    setLoadedUrl('');
+    setFailed(current=>new Set([...current,artwork.url]));
+  },[artwork]);
+  const onReady=useCallback(()=>{if(artwork)setLoadedUrl(artwork.url);},[artwork]);
+  useEffect(()=>{
+    if(!generic||!external||!ready||available.length<2)return;
+    const timer=window.setInterval(()=>{
+      if(!document.hidden&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches)advance();
+    },20000);
+    return ()=>window.clearInterval(timer);
+  },[generic,external,ready,available.length,artwork,advance]);
+  return <section className="tsugi-spotlight tsugi-landscape-spotlight" data-ui="landscape-spotlight" data-artwork-mode={generic?'illustration':'featured'}>
     <div className="tsugi-spotlight-backdrop" aria-hidden="true">
       <svg viewBox="0 0 1600 600" preserveAspectRatio="xMidYMid slice" className="tsugi-landscape-fallback">
         <rect width="1600" height="600" fill="#283749"/>
@@ -73,16 +93,19 @@ function SpotlightContent({title,eyebrow,description,actionLabel,onAction,disabl
         <path d="M0 560 340 460 650 520 965 395 1250 500 1600 420V600H0Z" fill="#192b3b"/>
         <path d="M0 600 740 532 1100 545 1600 482V600Z" fill="#14212c"/>
       </svg>
-      {external&&<RemoteArtwork onProvider={setProvider}/>}
+      {!generic && <div className="tsugi-spotlight-source-cover">{featuredArtwork}</div>}
+      {generic&&external&&artwork&&<ArtworkImage key={artwork.url} artwork={artwork} onFailure={onFailure} onReady={onReady}/>}
     </div>
     <div className="tsugi-spotlight-copy">
       <p className="tsugi-feature-kicker">{eyebrow}</p><h2>{title}</h2><p>{description}</p>
       <button type="button" className="tsugi-read-action tsugi-series-primary mt-6" onClick={onAction} disabled={disabled}>{actionLabel}</button>
     </div>
-    <div className="tsugi-landscape-credit">
-      {external&&provider==='kitsu'&&<span><Trans>Kitsu</Trans></span>}
-      {external&&provider==='nekos'&&<span><Trans>Nekos API</Trans></span>}
-      {external?<button type="button" title={t`External illustrations are filtered but may be incorrectly classified.`} onClick={()=>{setProvider(null);setExternal(false);}}><Trans>Use local artwork</Trans></button>:<button type="button" onClick={()=>{setProvider(null);setExternal(true);}}><Trans>Enable external illustration</Trans></button>}
-    </div>
+    {(generic||onNextFeatured)&&<div className="tsugi-landscape-credit">
+      {generic&&external&&provider==='kitsu'&&<span><Trans>Kitsu</Trans></span>}
+      {generic&&external&&provider==='nekos'&&<span><Trans>Nekos API</Trans></span>}
+      {generic&&external&&ready&&available.length>1&&<button type="button" onClick={advance}><Trans>Next illustration</Trans></button>}
+      {generic&&(external?<button type="button" title={t`External illustrations are filtered but may be incorrectly classified.`} onClick={()=>setExternal(false)}><Trans>Use local artwork</Trans></button>:<button type="button" onClick={()=>setExternal(true)}><Trans>Enable external illustration</Trans></button>)}
+      {!generic&&onNextFeatured&&<button type="button" onClick={onNextFeatured} disabled={disabled}><Trans>Next featured title</Trans></button>}
+    </div>}
   </section>;
 }
