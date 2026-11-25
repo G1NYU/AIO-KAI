@@ -600,3 +600,5 @@ Migration commit 1be0b4c passed Unified Windows validation (45558491536) and the
 
 ### Native TorBox transport (2026-11-25)
 - Physical acceptance reported browser TorBox connection failure. Added a native bounded worker (fixed TLS endpoints, no redirects, memory-only key, sanitized error codes and result list, multipart create form per official API). Dedicated correlated IPC request/result; no provider token in outgoing results. UI migration and live account acceptance pending. No public release.
+
+- Migrated TorBox panel to the native worker, with session connection across navigation. Replaced cloud glyph with crate and settings with conventional gear, automatic YouTube URL detection (including watch+radio/playlist query parameters), and moved duplicate browser file-save form into advanced disclosure. Native/live acceptance still pending.

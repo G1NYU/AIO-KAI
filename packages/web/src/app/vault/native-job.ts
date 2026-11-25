@@ -32,3 +32,10 @@ export function youtubeVaultJob(input: string, id: string, title = ''): HostJob 
   // eslint-disable-next-line lingui/no-unlocalized-strings -- provider URL and native path identifiers
   return { id, title: name, versionId: id, files: [{url: 'https://www.youtube.com/watch?v=' + track, path: ['Vault', id, name].join('/'), kind: 'vault'}], texts: [] };
 }
+
+export function detectVaultSource(input:string):'youtube'|'file' {
+  try {
+    const url=new URL(input.trim());
+    return ['youtube.com','www.youtube.com','music.youtube.com','youtu.be'].includes(url.hostname)?'youtube':'file';
+  } catch { return 'file'; }
+}
