@@ -556,3 +556,7 @@ Migration commit 1be0b4c passed Unified Windows validation (45558491536) and the
 
 ### Pinned ebook engine preparation (2026-11-25)
 - Added deterministic build-time source preparation for Readest/Foliate revision de8c86324b51c231bbbdfa9faf18e84175f563cc with exact-match patch guards, disabled scripts in chapter frames, external asset rejection, active markup filtering and archive expansion limits. Vendored upstream PDF.js module/worker and font data retain license notices. No upstream install scripts executed. Preparation is now checked in CI and included in standalone packaging. The viewer is NOT exposed yet: origin isolation, constrained message adapter and actual book render tests are still required before enabling it. No package-lock or new pnpm dependency changes.
+
+### Isolated renderer adapter (2026-11-25)
+- CI 45571957113 successfully prepared the pinned Foliate/PDF.js engine and passed native Windows/typecheck/lint; unit suite failed at import of Lingui macros (Vitest has no macro transformer). Extracted pure file/progress guards for unit tests while leaving localized UI/storage errors separate.
+- Added static EPUB/PDF rendering frame, bounded command protocol and separate Windows custom protocol origin with CSP and restricted asset paths. Main app origin refuses ebook assets; existing native bridge origin gate remains unchanged. Actual EPUB/PDF interaction, Windows WebView worker/origin behavior and library integration still pending. No package request.

@@ -102,7 +102,7 @@ describe('Persistent Vault job',()=>{
   });
 });
 
-import { bookFormat, validBookProgress, MAX_BOOK_BYTES } from '../src/app/read/book-library';
+import { bookFormat, validBookProgress, MAX_BOOK_BYTES } from '../src/app/read/book-guards';
 describe('Local book file and progress guards', () => {
   it('checks size, extension and signature before importing', async () => {
     expect(await bookFormat(new File(['%PDF-1.7'], 'book.pdf'))).toBe('pdf');

@@ -1,0 +1,5 @@
+html,body,#stage { margin:0; width:100%; height:100%; overflow:hidden; background:#15171b; color:#e8e6df; }
+#stage { display:flex; align-items:center; justify-content:center; }
+#stage foliate-view { display:block; width:100%; height:100%; }
+#stage.pdf { overflow:auto; display:block; text-align:center; padding:12px; box-sizing:border-box; }
+#stage canvas { display:block; margin:auto; max-width:100%; height:auto; background:white; }

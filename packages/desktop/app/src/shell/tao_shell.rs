@@ -250,6 +250,7 @@ pub fn run(app: App) {
             let _ = proxy.send_event(UserEvent::Emit(receive_script(&message)));
         }))
     });
+    let ebook_web = web.clone();
     let mut context = WebContext::new(Some(data_dir.join(platform::WEB_DATA_DIR)));
     let builder = WebViewBuilder::new_with_web_context(&mut context)
         .with_bounds(page_bounds(size))
@@ -272,6 +273,10 @@ pub fn run(app: App) {
                 }
                 return Response::builder().status(404).body(Cow::Owned(Vec::new())).unwrap();
             }
+            // Ebook assets are never served from the privileged application origin.
+            if req.uri().path().starts_with("/tsugi-books/") {
+                return Response::builder().status(404).body(Cow::Owned(Vec::new())).unwrap();
+            }
             let served = serve(web.as_deref(), req.uri().path());
             Response::builder()
                 .status(served.status)
@@ -279,6 +284,25 @@ pub fn run(app: App) {
                 .body(Cow::Owned(served.body))
                 .unwrap()
             }
+        })
+        .with_custom_protocol("tsugi-books".into(), move |_, req: Request<Vec<u8>>| {
+            let path = req.uri().path();
+            let safe = path.strip_prefix("/tsugi-books/").is_some_and(|relative| {
+                !relative.is_empty() && !relative.contains(['%', '\\', ':']) &&
+                    relative.split('/').all(|part| !part.is_empty() && part != "." && part != "..") &&
+                    std::path::Path::new(relative).extension().is_some()
+            });
+            if req.method() != wry::http::Method::GET || !safe {
+                return Response::builder().status(404).body(Cow::Owned(Vec::new())).unwrap();
+            }
+            let served = serve(ebook_web.as_deref(), path);
+            Response::builder()
+                .status(served.status)
+                .header("Content-Type", served.content_type)
+                .header("X-Content-Type-Options", "nosniff")
+                .header("Cache-Control", "no-store")
+                .header("Content-Security-Policy", "default-src 'none'; script-src 'self' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' blob:; img-src 'self' blob: data:; font-src 'self' blob: data:; frame-src blob: about:; connect-src 'self' blob:; media-src blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors http://aiostreams.localhost")
+                .body(Cow::Owned(served.body)).unwrap()
         })
         .with_ipc_handler({
             let (player, proxy, app_origin) = (player.clone(), proxy.clone(), app_origin.clone());
@@ -315,7 +339,7 @@ pub fn run(app: App) {
         .with_navigation_handler({
             let app_origin = app_origin.clone();
             move |url| {
-                let allowed = allowed_navigation(&url, &app_origin);
+                let allowed = allowed_navigation(&url, &app_origin) || url == "http://tsugi-books.localhost/tsugi-books/index.html";
                 if !allowed {
                     platform::open_external(&url);
                 }
