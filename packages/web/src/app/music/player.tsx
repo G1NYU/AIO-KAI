@@ -154,6 +154,19 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
   }, [matrixActive, onMatrixActive]);
 
   React.useEffect(() => {
+    const sync = () => {
+      const saved = readPlayerStage();
+      setStageId(saved.id);
+      setImportedJson(saved.imported);
+      setImportedTemplate(saved.template);
+      const mode = storage.get<MatrixMode>('tsugi-matrix-mode-v1');
+      setMatrixMode(mode === 'off' || mode === 'minimal' || mode === 'wave' ? mode : 'immersive');
+    };
+    window.addEventListener('tsugi-player-preferences-change', sync);
+    return () => window.removeEventListener('tsugi-player-preferences-change', sync);
+  }, []);
+
+  React.useEffect(() => {
     notifyEclipseAppearance();
   }, [stageId, importedTemplate, importedJson]);
 

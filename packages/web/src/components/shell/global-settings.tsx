@@ -4,7 +4,9 @@ import { Trans } from '@lingui/react/macro';
 import { themeVariables } from '@aiostreams/ui/utils/palette';
 import { PLAYER_PALETTES, readPlayerTheme, savePlayerTheme, isPlayerTheme, type PlayerThemeId, PLAYER_ACCENTS, readPlayerAccent, savePlayerAccent, withPlayerAccent, type PlayerPalette, type PlayerAccentId } from '@/lib/music/player-theme';
 import { applyEclipseAppearance, deriveEclipseAppearance } from '@/lib/music/eclipse-appearance';
-import { readPlayerStage } from '@/lib/music/player-layout';
+import { readPlayerStage, savePlayerStage, type PlayerStageId } from '@/lib/music/player-layout';
+import type { MatrixMode } from '@/app/music/pixel-matrix';
+import { notifyEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import { storage } from '@/lib/storage';
 import { readStartupArea, saveStartupArea, type StartupArea } from '@/lib/desktop-area';
 import { appBridge } from '@/lib/hosts/shell/bridge';
@@ -98,12 +100,18 @@ export function GlobalAppearanceSettings() {
 }
 export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:boolean;onClose():void;hasReadSection?:boolean}) {
   const [startup,setStartup] = React.useState(readStartupArea);
+  const [layout,setLayout] = React.useState(() => readPlayerStage().id);
+  const [matrix,setMatrix] = React.useState<MatrixMode>(() => storage.get<MatrixMode>('tsugi-matrix-mode-v1') ?? 'immersive');
   const bridge = appBridge();
   const dialog = React.useRef<HTMLDialogElement>(null);
   React.useEffect(() => {
     const node = dialog.current;
     if (!node) return;
-    if (open && !node.open) node.showModal();
+    if (open && !node.open) {
+      setLayout(readPlayerStage().id);
+      setMatrix(storage.get<MatrixMode>('tsugi-matrix-mode-v1') ?? 'immersive');
+      node.showModal();
+    }
     else if (!open && node.open) node.close();
   }, [open]);
   return <dialog ref={dialog} className="tsugi-global-settings" onCancel={(event) => { event.preventDefault(); onClose(); }} aria-labelledby="tsugi-app-settings-title">
@@ -125,6 +133,37 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
         </select>
       </label>
       <p><Trans>Applies the next time Tsugi opens. Each media section keeps its own source, reading, playback and transfer settings.</Trans></p>
+    </section>
+    <section className="tsugi-app-general" aria-label={t`Music playback preferences`}>
+      <h3><Trans>Music playback</Trans></h3>
+      <label><Trans>Default player layout</Trans>
+        <select className="tsugi-menu-select w-full" value={layout} onChange={event => {
+          const value = event.target.value as PlayerStageId;
+          savePlayerStage(value, readPlayerStage().imported);
+          setLayout(value);
+          notifyEclipseAppearance();
+          window.dispatchEvent(new Event('tsugi-player-preferences-change'));
+        }}>
+          <option value="default">{t`Default`}</option>
+          <option value="junction">{t`Junction`}</option>
+          <option value="nocturne">{t`Nocturne`}</option>
+          {readPlayerStage().template && <option value="imported">{t`Imported Studio layout`}</option>}
+        </select>
+      </label>
+      <label><Trans>Default visualizer</Trans>
+        <select className="tsugi-menu-select w-full" value={matrix} onChange={event => {
+          const value = event.target.value as MatrixMode;
+          storage.set('tsugi-matrix-mode-v1',value);
+          setMatrix(value);
+          window.dispatchEvent(new Event('tsugi-player-preferences-change'));
+        }}>
+          <option value="immersive">{t`Immersive`}</option>
+          <option value="minimal">{t`Minimal`}</option>
+          <option value="wave">{t`Dot wave`}</option>
+          <option value="off">{t`Off`}</option>
+        </select>
+      </label>
+      <p><Trans>Choose how the expanded player opens. Imported layouts retain their own composition.</Trans></p>
     </section>
     <GlobalAppearanceSettings />
     <section className="tsugi-app-about" aria-label={t`About Tsugi`}>

@@ -41,7 +41,7 @@ A dedicated music library and player, separate from the video server connection.
 - Track, album, artist and playlist search, playback queues, shuffle and repeat.
 - Local audio files, remembered folders, saved tracks and playlists.
 - Three native full-window player layouts (Default, Junction and Nocturne), large artwork, synchronized lyrics, and a separate overlay queue with artwork and editing controls.
-- Pixel-matrix background with Immersive, Minimal and Off modes. Audio-reactive for local files with an active Web Audio equalizer graph; other playback sources use an explicitly ambient animation. Imported Eclipse Studio layouts remain supported.
+- Pixel-matrix background with distinct Immersive, Minimal, Dot wave and Off modes. The new native DSP candidate adds measured RMS telemetry and equalizer profiles for Windows YouTube Music; local files use Web Audio PCM. Other remote addon streams remain unmodified. Native effects require validation before being treated as released. Imported Eclipse Studio layouts remain supported.
 - Context-sized artwork with safe same-image fallback, bounded replay reuse and one deterministic upcoming-track prefetch on Windows. Actual provider quality and cold-start latency still require physical testing.
 - Separate installed-source management and optional community addon store.
 - Background music while browsing manga or reading a chapter, with compact playback controls and return to the same chapter when switching back from Music.

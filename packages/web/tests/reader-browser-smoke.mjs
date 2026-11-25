@@ -93,6 +93,9 @@ try {
             emit({ type: 'music-audio-state', request: message.request, status: 'playing', position: 0, duration: 180, error: null });
           } else if (message.request === state.nativeRequest && message.action === 'pause') {
             emit({ type: 'music-audio-state', request: message.request, status: message.value ? 'paused' : 'playing', position: 1, duration: 180, error: null });
+          } else if (message.request === state.nativeRequest && message.action === 'dsp') {
+            emit({ type: 'music-audio-dsp', request: message.request, error: null });
+            if ((message.value & 8) !== 0) emit({type:'music-audio-meter',request:message.request,level:.72});
           } else if (message.action === 'stop') state.nativeRequest = null;
           return;
         }
@@ -816,9 +819,26 @@ try {
   await page.setViewportSize({ width: 1440, height: 900 });
   await expanded.getByRole('button', { name: 'Player settings', exact: true }).click();
   const matrixSettings = expanded.getByRole('dialog', { name: 'Player settings' });
+  await matrixSettings.getByRole('combobox', { name: 'Pixel matrix' }).selectOption('wave');
+  const eqToggle = matrixSettings.getByRole('checkbox', { name: 'Enable equalizer' });
+  assert.equal(await eqToggle.isEnabled(),true,'native YouTube Music EQ is available');
+  await matrixSettings.getByLabel('Sound profile').selectOption('bass');
+  await eqToggle.check();
+  await page.waitForFunction(() => window.__readerFixture.nativeMessages.some(m => m.action === 'dsp' && m.value === 11));
+  await matrixSettings.getByRole('button', { name: 'Close', exact: true }).click();
+  await expanded.locator('canvas[data-mode="wave"]').waitFor();
+  await expanded.getByText('Audio-reactive dot wave',{exact:true}).waitFor();
+  await capture('08-expanded-wave');
+  await expanded.getByRole('button', { name: 'Player settings', exact: true }).click();
+  await matrixSettings.getByRole('checkbox', { name: 'Enable equalizer' }).uncheck();
   await matrixSettings.getByRole('combobox', { name: 'Pixel matrix' }).selectOption('minimal');
   await matrixSettings.getByRole('button', { name: 'Close', exact: true }).click();
-  await expanded.locator('canvas[data-ui="tsugi-pixel-matrix"]').waitFor();
+  await expanded.locator('canvas[data-ui="tsugi-pixel-matrix"][data-mode="minimal"]').waitFor();
+  const upperPixels = await expanded.locator('canvas[data-mode="minimal"]').evaluate(node => {
+    const data = node.getContext('2d').getImageData(0,0,node.width,Math.floor(node.height*.5)).data;
+    return data.some((value,index) => index % 4 === 3 && value > 0);
+  });
+  assert.equal(upperPixels,false,'minimal mode does not fill the upper canvas');
   await expanded.getByRole('button', { name: 'Player settings', exact: true }).click();
   assert.equal(await expanded.getByRole('combobox', { name: 'Pixel matrix' }).inputValue(), 'minimal');
   await expanded.getByRole('combobox', { name: 'Pixel matrix' }).selectOption('off');

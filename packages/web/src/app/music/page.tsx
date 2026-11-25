@@ -757,6 +757,8 @@ export function MusicPage({
     }
     if (message.status === 'error') {
       nativeAudio.current = null;
+      nativeMeter.current = null;
+      setNativeMeterAvailable(false);
       prefetchSent.current = null;
       setResolving(false);
       setPaused(true);
@@ -773,6 +775,8 @@ export function MusicPage({
     }
     if (message.status === 'ended') {
       nativeAudio.current = null;
+      nativeMeter.current = null;
+      setNativeMeterAvailable(false);
       next(true);
     }
   };
