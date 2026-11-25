@@ -23,20 +23,12 @@ $denoVersion = & $deno --version
 if ($LASTEXITCODE -ne 0 -or $denoVersion[0] -notmatch '^deno 2\.9\.8\b') { throw 'Unexpected Deno runtime version' }
 $denoVersion | Write-Host
 Invoke-WebRequest 'https://raw.githubusercontent.com/yt-dlp/yt-dlp/2026.11.23/LICENSE' -OutFile (Join-Path $dir 'yt-dlp-LICENSE.txt')
-# A transient connection reset previously blocked the unified staging job.
-# Retry only this license download; a persistent failure still fails packaging.
-$licensePath = Join-Path $dir 'GPL-3.0.txt'
-for ($attempt = 1; $attempt -le 3; $attempt++) {
-    try {
-        Invoke-WebRequest 'https://www.gnu.org/licenses/gpl-3.0.txt' -OutFile $licensePath -TimeoutSec 60
-        if ((Get-Item -LiteralPath $licensePath).Length -lt 10000) { throw 'GPL license download incomplete' }
-        break
-    } catch {
-        if (Test-Path -LiteralPath $licensePath) { Remove-Item -LiteralPath $licensePath -Force }
-        if ($attempt -eq 3) { throw }
-        Start-Sleep -Seconds (3 * $attempt)
-    }
-}
+# Verbatim GNU GPL v3 text, vendored from GCC COPYING3 at
+# 1b306039ac49f8ad91ca71d3de3150a3c9fa792a (blob 94a9ed024d3859793618152ea559a168bbcbb5e2).
+# Do not make packaging depend on the availability of gnu.org.
+$licenseSource = Join-Path $PSScriptRoot 'licenses/GPL-3.0.txt'
+if (-not (Test-Path -LiteralPath $licenseSource -PathType Leaf)) { throw 'Vendored GPL-3.0 license missing' }
+Copy-Item -LiteralPath $licenseSource -Destination (Join-Path $dir 'GPL-3.0.txt')
 Invoke-WebRequest 'https://raw.githubusercontent.com/yt-dlp/yt-dlp/2026.11.23/THIRD_PARTY_LICENSES.txt' -OutFile (Join-Path $dir 'yt-dlp-THIRD_PARTY_LICENSES.txt')
 Invoke-WebRequest 'https://raw.githubusercontent.com/denoland/deno/v2.9.8/LICENSE.md' -OutFile (Join-Path $dir 'deno-LICENSE.md')
 @'
