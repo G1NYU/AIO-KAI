@@ -672,6 +672,7 @@ try {
   await bookReader.locator('[data-ui="book-progress"]').getByText('100%',{exact:true}).waitFor();
   await capture('12-book-pdf');
   await bookReader.getByRole('button',{name:'Back to books',exact:true}).click();
+  await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).locator('img').waitFor();
   await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).click();
   await books.getByRole('button',{name:'Resume reading',exact:true}).click();
   await bookReader.getByRole('spinbutton',{name:'Page',exact:false}).waitFor();

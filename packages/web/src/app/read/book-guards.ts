@@ -9,6 +9,8 @@ export type BookEntry = {
   addedAt: number;
   position?: BookPosition;
   fraction?: number;
+  lastReadAt?: number;
+  cover?: Blob;
 };
 
 export const MAX_BOOK_BYTES = 128 * 1024 * 1024;
@@ -34,3 +36,10 @@ export function validBookProgress(format: BookFormat, position: unknown, fractio
   return null;
 }
 
+
+/** Only small raster thumbnails from the isolated engine can enter the library. */
+export async function validBookCover(value: unknown): Promise<boolean> {
+  if (!(value instanceof Blob) || value.type !== 'image/png' || value.size < 8 || value.size > 512 * 1024) return false;
+  const magic = new Uint8Array(await value.slice(0, 8).arrayBuffer());
+  return magic.every((byte, index) => byte === [137, 80, 78, 71, 13, 10, 26, 10][index]);
+}

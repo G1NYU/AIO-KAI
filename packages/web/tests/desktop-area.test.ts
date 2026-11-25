@@ -132,3 +132,14 @@ describe('Authorized YouTube Vault export',()=>{
       expect(()=>youtubeVaultTrack(bad)).toThrow();
   });
 });
+
+import { validBookCover } from '../src/app/read/book-guards';
+describe('Embedded book cover guard',()=>{
+  it('allows only bounded PNG blobs with a raster signature',async()=>{
+    const magic=new Uint8Array([137,80,78,71,13,10,26,10]);
+    expect(await validBookCover(new Blob([magic],{type:'image/png'}))).toBe(true);
+    expect(await validBookCover(new Blob(['<svg/>'],{type:'image/png'}))).toBe(false);
+    expect(await validBookCover(new Blob([magic],{type:'image/svg+xml'}))).toBe(false);
+    expect(await validBookCover(new Blob([new Uint8Array(512*1024+1)],{type:'image/png'}))).toBe(false);
+  });
+});

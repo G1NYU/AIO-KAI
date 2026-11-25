@@ -1,6 +1,6 @@
 import { t } from '@lingui/core/macro';
 
-import { bookFormat, validBookProgress, type BookEntry, type BookPosition } from './book-guards';
+import { bookFormat, validBookProgress, validBookCover, type BookEntry, type BookPosition } from './book-guards';
 export type { BookEntry, BookFormat, BookPosition } from './book-guards';
 export { MAX_BOOK_BYTES, validBookProgress } from './book-guards';
 
@@ -66,7 +66,8 @@ export async function getBookFile(entry: BookEntry): Promise<File> {
   return new File([stored], entry.name, { type: entry.format === 'pdf' ? 'application/pdf' : 'application/epub+zip' });
 }
 
-export async function updateBook(id: string, patch: { title?: string; position?: BookPosition; fraction?: number }): Promise<void> {
+export async function updateBook(id: string, patch: { title?: string; position?: BookPosition; fraction?: number; cover?: Blob }): Promise<void> {
+  if (patch.cover && !await validBookCover(patch.cover)) throw new Error(t`Invalid book cover.`);
   const db = await database();
   const tx = db.transaction('books', 'readwrite');
   const complete = finished(tx);
@@ -77,10 +78,11 @@ export async function updateBook(id: string, patch: { title?: string; position?:
     if (!current) { tx.abort(); return; }
     const next = { ...current };
     if (typeof patch.title === 'string' && patch.title.trim()) next.title = patch.title.slice(0, 1000);
+    if (patch.cover) next.cover = patch.cover;
     if (patch.position !== undefined || patch.fraction !== undefined) {
       const valid = validBookProgress(current.format, patch.position, patch.fraction);
       if (!valid) { tx.abort(); return; }
-      Object.assign(next, valid);
+      Object.assign(next, valid, { lastReadAt: Date.now() });
     }
     store.put(next);
   };

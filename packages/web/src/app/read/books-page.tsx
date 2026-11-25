@@ -8,6 +8,17 @@ import { useDesktopArea } from '@/lib/desktop-area';
 import { getBookFile, importBook, listBooks, removeBook, type BookEntry } from './book-library';
 import { BookReader } from './book-reader';
 
+function BookCover({ book }: { book: BookEntry }) {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    if (!book.cover) { setUrl(''); return; }
+    const objectUrl = URL.createObjectURL(book.cover);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [book.cover]);
+  return <div className="tsugi-manga-cover tsugi-book-cover">{url ? <img src={url} alt="" loading="lazy" onError={() => setUrl('')}/> : <><BrushBook aria-hidden/><span>{book.format.toUpperCase()}</span></>}</div>;
+}
+
 export function BooksPage() {
   const actions = useDesktopArea();
   const picker = useRef<HTMLInputElement>(null);
@@ -46,14 +57,11 @@ export function BooksPage() {
     catch { setError(t`Could not remove the saved copy.`); }
     finally { setBusy(false); }
   }
-  const continuing = books.find(book => book.position !== undefined && (book.fraction || 0) < 1);
+  const continuing = books.filter(book => book.position !== undefined && (book.fraction || 0) < 1).sort((a,b) => (b.lastReadAt || b.addedAt) - (a.lastReadAt || a.addedAt))[0];
   const resumePercent = Math.round((continuing?.fraction || 0) * 100);
   const rows = books.filter(book =>
     (!query.trim() || (book.title + ' ' + book.name).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())) &&
     (filter === 'all' || (book.position !== undefined && (book.fraction || 0) < 1)));
-  function cover(book: BookEntry) {
-    return <div className="tsugi-manga-cover tsugi-book-cover"><BrushBook aria-hidden/><span>{book.format.toUpperCase()}</span></div>;
-  }
   function library() { setActive(null); setDetails(null); setConfirm(false); void refresh(); }
   return <main data-page="books" className="tsugi-read-root tsugi-read-workspace">
     <TsugiRail area="read" disabled={busy} className="tsugi-reading-rail" mediaClassName="tsugi-read-media-header">
@@ -80,7 +88,7 @@ export function BooksPage() {
         {error && <p role="alert" className="tsugi-read-error">{error}</p>}
         {details ? <section>
           <button className="tsugi-read-action mb-6" onClick={library}><Trans>Back</Trans></button>
-          <div className="tsugi-manga-detail tsugi-book-detail">{cover(details)}<div>
+          <div className="tsugi-manga-detail tsugi-book-detail"><BookCover book={details}/><div>
             <h2 className="text-3xl font-semibold">{details.title}</h2><p className="text-sm text-[--tsugi-muted]">{details.format.toUpperCase()} · {(details.size/1048576).toFixed(1)} MiB</p>
             <p className="my-3">{Math.round((details.fraction || 0)*100)}%</p>
             <div className="tsugi-series-actions flex flex-wrap gap-3">
@@ -92,7 +100,7 @@ export function BooksPage() {
           <div className="tsugi-reading-list-header"><h2 className="text-xl font-medium">{filter === 'reading' ? <Trans>In progress</Trans> : <Trans>Your collection</Trans>} <span className="text-sm text-[--tsugi-muted]">({rows.length})</span></h2><div className="tsugi-reading-filters"><button className="tsugi-read-action" disabled={busy} onClick={() => picker.current?.click()}><BrushPlus aria-hidden/><Trans>Add EPUB or PDF</Trans></button><button className="tsugi-read-action" title={t`Refresh library`} aria-label={t`Refresh library`} onClick={() => void refresh()}><BrushRefresh aria-hidden/></button></div></div>
           {!books.length && !busy && <div className="tsugi-reading-empty"><BrushBook aria-hidden/><h2><Trans>Your library is empty</Trans></h2><p><Trans>Import a local EPUB or PDF to start reading.</Trans></p></div>}
           {!!books.length && !rows.length && <p className="py-6 text-[--tsugi-muted]"><Trans>No books match your filters.</Trans></p>}
-          <div className="tsugi-manga-grid">{rows.map(book => <button key={book.id} className="tsugi-manga-card" disabled={busy} onClick={() => { setDetails(book); setConfirm(false); }}>{cover(book)}<span className="tsugi-manga-title">{book.title}</span><span className="text-xs text-[--tsugi-muted]">{Math.round((book.fraction || 0)*100)}%</span><progress aria-label={t`Reading progress`} max={1} value={book.fraction || 0}/></button>)}</div>
+          <div className="tsugi-manga-grid">{rows.map(book => <button key={book.id} className="tsugi-manga-card" disabled={busy} onClick={() => { setDetails(book); setConfirm(false); }}><BookCover book={book}/><span className="tsugi-manga-title">{book.title}</span><span className="text-xs text-[--tsugi-muted]">{Math.round((book.fraction || 0)*100)}%</span><progress aria-label={t`Reading progress`} max={1} value={book.fraction || 0}/></button>)}</div>
         </section>}
       </>}
     </div>

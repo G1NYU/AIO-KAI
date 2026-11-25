@@ -54,8 +54,8 @@ export function BookReader({ entry, file, onClose }: { entry: BookEntry; file: F
   const init = useCallback(() => {
     if (sent.current) return;
     sent.current = true;
-    send('open', { file, position: entry.position, ...appearance });
-  }, [file, entry.position, appearance, send]);
+    send('open', { file, position: entry.position, hasCover: !!entry.cover, ...appearance });
+  }, [file, entry.position, entry.cover, appearance, send]);
   useEffect(() => {
     if (!origin) return;
     const receive = (event: MessageEvent) => {
@@ -71,6 +71,7 @@ export function BookReader({ entry, file, onClose }: { entry: BookEntry; file: F
         setToc(tocItems(message.toc));
         if (typeof message.pages === 'number' && Number.isSafeInteger(message.pages) && message.pages > 0 && message.pages <= 20000) setPages(message.pages);
       }
+      if (message.type === 'cover' && message.cover instanceof Blob) persist({ cover: message.cover });
       if (message.type === 'progress') {
         const progress = validBookProgress(entry.format, message.position, message.fraction);
         if (!progress) return;

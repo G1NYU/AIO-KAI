@@ -7,7 +7,7 @@ const allowedParent = location.origin === 'http://tsugi-books.localhost'
     ? 'http://127.0.0.1:' + location.port : '';
 const send = (type, data = {}) => parent.postMessage({channel:'tsugi-ebook', type, ...data}, allowedParent);
 let view, pdf, page = 1, rendering, sequence = 0, opened = false;
-let font = 18, flow = 'paginated', tone = 'dark';
+let font = 18, flow = 'paginated', tone = 'dark', wantsCover = true;
 const finite = (n,min,max,fallback) => typeof n === 'number' && Number.isFinite(n) ? Math.max(min,Math.min(max,n)) : fallback;
 const clean = value => typeof value === 'string' ? value.slice(0,1000) : '';
 function applyStyle() {
@@ -33,6 +33,24 @@ function flatten(items, depth=0, output=[]) {
   }
   return output;
 }
+// Convert embedded raster art to a bounded PNG inside the isolated renderer.
+async function thumbnail(source, width, height) {
+  if (!wantsCover || !width || !height || width*height > 24_000_000) return;
+  const scale=Math.min(1,320/width,480/height);
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(width*scale));
+  canvas.height=Math.max(1,Math.round(height*scale));
+  canvas.getContext('2d').drawImage(source,0,0,canvas.width,canvas.height);
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+  if(blob && blob.size<=512*1024){wantsCover=false;send('cover',{cover:blob});}
+}
+async function epubCover(book) {
+  if(!wantsCover)return;
+  const blob=await book.getCover?.();
+  if(!(blob instanceof Blob)||!['image/png','image/jpeg','image/webp','image/gif'].includes(blob.type)||blob.size>8*1024*1024)return;
+  const image=await createImageBitmap(blob);
+  try{await thumbnail(image,image.width,image.height);}finally{image.close();}
+}
 async function renderPDF() {
   const id = ++sequence;
   rendering?.cancel();
@@ -55,6 +73,7 @@ async function renderPDF() {
   }
   if (id!==sequence) return;
   stage.replaceChildren(canvas); stage.scrollTop=0;
+  if (page===1 && wantsCover) await thumbnail(canvas,canvas.width,canvas.height).catch(()=>{});
   send('progress',{position:page,fraction:page/pdf.numPages});
 }
 async function open(message) {
@@ -62,6 +81,7 @@ async function open(message) {
   if (opened || !(file instanceof File) || file.size<=0 || file.size>128*1024*1024) throw Error('Invalid local file');
   const bytes=new Uint8Array(await file.slice(0,5).arrayBuffer());
   opened=true;
+  wantsCover=message.hasCover!==true;
   appearance(message);
   if (/\.pdf$/i.test(file.name) && bytes.join(',')==='37,80,68,70,45') {
     const engine=await import('./engine/vendor/pdfjs/pdf.mjs');
@@ -94,6 +114,7 @@ async function open(message) {
     const raw=book.metadata?.title;
     const title=typeof raw==='string'?raw:raw&&typeof raw==='object'?Object.values(raw).find(v=>typeof v==='string'):'';
     send('opened',{title:clean(title)||file.name.replace(/\.epub$/i,''),format:'epub',toc:flatten(book.toc)});
+    void epubCover(book).catch(()=>{});
   } else throw Error('Unsupported book type');
 }
 async function handle(message) {
