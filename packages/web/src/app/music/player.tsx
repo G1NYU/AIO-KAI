@@ -1,8 +1,9 @@
+import { BrushDisc as BiDisc, BrushPause as BiPause, BrushPlay as BiPlay, BrushDown as FiChevronDown, BrushHeart as FiHeart, BrushList as FiList, BrushExpand as FiMaximize2, BrushRepeat as FiRepeat, BrushShuffle as FiShuffle, BrushPrevious as FiSkipBack, BrushNext as FiSkipForward } from '@/components/tsugi-icons';
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { BiDisc, BiPause, BiPlay } from 'react-icons/bi';
-import { FiChevronDown, FiHeart, FiList, FiMaximize2, FiMenu, FiRepeat, FiShuffle, FiSkipBack, FiSkipForward } from 'react-icons/fi';
+
+import { FiMenu } from 'react-icons/fi';
 import type { EclipseTrack } from '@/lib/music/eclipse';
 import { parsePlayerTemplate } from '@/lib/music/player-template';
 import { readPlayerStage, savePlayerStage, type PlayerStageId } from '@/lib/music/player-layout';

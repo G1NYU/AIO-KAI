@@ -241,8 +241,24 @@ try {
   await page.locator('[data-page="desktop-landing"]').getByRole('button', { name: 'Read', exact: true }).click();
   const rail = page.locator('.tsugi-reading-rail');
   const readMedia = page.locator('.tsugi-read-media-header');
+  const railGeometry = async (locator) => locator.evaluate(node => {
+    const rect = node.getBoundingClientRect();
+    const media = node.querySelector('.tsugi-rail-media');
+    const controls = [...media.querySelectorAll('button')].map(button => {
+      const r = button.getBoundingClientRect();
+      return [Math.round(r.x - rect.x), Math.round(r.y - rect.y), Math.round(r.width), Math.round(r.height)];
+    });
+    const rule = getComputedStyle(node.querySelector('.tsugi-pixel-rule'));
+    return { width: Math.round(rect.width), top: Math.round(rect.y), controls, font: getComputedStyle(node).fontFamily, border: getComputedStyle(node).borderInlineEndWidth, separator: rule.backgroundImage.split('repeating-linear-gradient').length - 1 };
+  });
+  await rail.waitFor({ state: 'visible' });
+  const readRailGeometry = await railGeometry(rail);
+  assert.equal(readRailGeometry.width, 80);
+  assert.equal(readRailGeometry.border, '0px');
+  assert.ok(readRailGeometry.font.startsWith('Inter'));
+  assert.equal(readRailGeometry.separator, 2);
   assert.equal(await page.locator('html').getAttribute('data-tsugi-accent'), 'amber');
-  await readMedia.getByRole('button', { name: 'App settings', exact: true }).click();
+  await rail.getByRole('button', { name: 'App settings', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).waitFor();
   assert.equal(await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).getAttribute('aria-pressed'), 'true');
   await page.getByRole('dialog').getByRole('button', { name: 'Mocha', exact: true }).click();
@@ -369,6 +385,8 @@ try {
   const music = page.locator('[data-page="music"]');
   await music.waitFor({ state: 'visible' });
   await page.setViewportSize({ width: 2560, height: 1440 });
+  const musicRailGeometry = await railGeometry(music.locator('[data-ui="tsugi-desktop-rail"]'));
+  assert.deepEqual(musicRailGeometry, readRailGeometry, 'Music and Read share exact media rail geometry and typography');
   const musicSettings = music.getByRole('dialog', { name: 'Music sources' });
   if (!(await musicSettings.isVisible())) await music.getByRole('button', { name: 'Music sources', exact: true }).click();
   await musicSettings.waitFor();

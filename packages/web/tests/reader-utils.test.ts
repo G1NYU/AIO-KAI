@@ -82,3 +82,16 @@ describe('collection transfer', () => {
     expect(migrationPlan([{ ...old[0] }, { ...old[0], id: 22 }], [next[0]]).read).toEqual([]);
   });
 });
+
+describe('shared Tsugi desktop identity', () => {
+  it('uses the same desktop rail in the three workspaces and one brush outline family', () => {
+    for (const path of ['app/music/page.tsx', 'app/read/page.tsx', 'components/shell/layout.tsx']) {
+      const source = readFileSync(new URL('../src/' + path, import.meta.url), 'utf8');
+      expect(source).toContain('<TsugiRail area=');
+    }
+    const brand = readFileSync(new URL('../src/components/tsugi-brand.tsx', import.meta.url), 'utf8');
+    const icon = readFileSync(new URL('../src/components/tsugi-icons.tsx', import.meta.url), 'utf8');
+    expect(brand).toContain('fillRule="evenodd"');
+    expect(icon).toContain('viewBox="0 0 24 24"');
+  });
+});

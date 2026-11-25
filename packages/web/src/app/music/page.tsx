@@ -1,8 +1,9 @@
+import { BrushDisc as BiDisc, BrushSearch as BiSearch, BrushPlug as BiPlug, BrushClose as FiX, BrushPlus as FiPlus, BrushPlay as FiPlay, BrushPause as FiPause, BrushPrevious as FiSkipBack, BrushNext as FiSkipForward } from '@/components/tsugi-icons';
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { BiDisc, BiSearch, BiPlug } from 'react-icons/bi';
-import { FiX, FiPlus, FiPlay, FiPause, FiSkipBack, FiSkipForward } from 'react-icons/fi';
+
+
 import {
   loadAddon, loadStore, manifestUrlFor,
   type EclipseCatalogItem, type EclipseStoreEntry, type EclipseTrack,
@@ -26,7 +27,8 @@ import {
   readMusicLibrary, saveMusicLibrary,
   savedTrack, type SavedMusicTrack,
 } from '@/lib/music/library';
-import { MediaNavigation } from '@/components/shell/media-navigation';
+import { TsugiRail } from '@/components/shell/tsugi-rail';
+import { BrushCompass, BrushSearch, BrushBook } from '@/components/tsugi-icons';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 import type { TrendingRecording } from '@/lib/music/discovery';
 import { makeRecentPlay, mergeRecentPlays, readRecentPlays, storeRecentPlays, type RecentMusicPlay } from '@/lib/music/history';
@@ -689,15 +691,15 @@ export function MusicPage({
   };
 
   const musicNavigation = (
-    <nav className="tsugi-music-navigation flex flex-wrap items-center"
+    <nav className="tsugi-rail-local tsugi-music-navigation"
           aria-label={t`Music sections`}>
           <button type="button" aria-current={tab === 'discover' ? 'page' : undefined}
-            onClick={() => setTab('discover')}><Trans>Discover</Trans></button>
+            title={t`Discover`} onClick={() => setTab('discover')}><BrushCompass /><Trans>Discover</Trans></button>
           <button type="button" aria-current={tab === 'search' ? 'page' : undefined}
-            onClick={() => setTab('search')}><Trans>Search</Trans></button>
+            title={t`Search`} onClick={() => setTab('search')}><BrushSearch /><Trans>Search</Trans></button>
           <button type="button" aria-current={tab === 'library' ? 'page' : undefined}
-            onClick={() => setTab('library')}><Trans>Library</Trans></button>
-          <button type="button" className="tsugi-music-source-trigger" onClick={() => setSettingsOpen(true)}><BiPlug aria-hidden /><Trans>Music sources</Trans></button>
+            title={t`Library`} onClick={() => setTab('library')}><BrushBook /><Trans>Library</Trans></button>
+          <button type="button" className="tsugi-music-source-trigger" title={t`Music sources`} onClick={() => setSettingsOpen(true)}><BiPlug aria-hidden /><Trans>Music sources</Trans></button>
         </nav>
   );
 
@@ -711,14 +713,11 @@ export function MusicPage({
     </div>}
     <main data-page="music" style={{ display: visible ? 'block' : 'none' }}
       className="tsugi-music-root min-h-screen px-6 pb-36 pt-14 sm:px-[3vw]">
+      <TsugiRail area="music">{musicNavigation}</TsugiRail>
       <div className="tsugi-music-workspace w-full">
-        <header className="tsugi-music-top mb-10 flex items-center justify-between gap-6">
-          <MediaNavigation area="music" />
-        </header>
 
         {tab !== 'library' && <div className="tsugi-music-section-header">
           <h1 id="music-workspace-heading">{tab === 'search' ? <Trans>Search music</Trans> : <Trans>Discover</Trans>}</h1>
-          {musicNavigation}
         </div>}
 
         {tab === 'discover' && <MusicDiscover source={activeSource} onPlay={playCollection}
@@ -735,7 +734,7 @@ export function MusicPage({
         {tab === 'library' && (
           <>
             {libraryError && <p role="alert" className="mb-6 text-sm text-amber-200">{libraryError}</p>}
-            <MusicLibrary navigation={musicNavigation} playlists={playlists} onChange={setPlaylists} recent={recent}
+            <MusicLibrary playlists={playlists} onChange={setPlaylists} recent={recent}
               activeTrackId={playing?.id} onPlayRecent={(entry) => {
                 const source = connections.find(item => item.id === entry.sourceId);
                 if (!source) { setLibraryError(t`Connect the original music source to play this track.`); return; }

@@ -60,3 +60,7 @@ Static two-row square pixel rules replace named horizontal workspace/collection 
 History, Chapter updates and Categories sit in the Collection rail. Compact chapter rows use existing source artwork and two-row separators. Categories use a management rail and title membership list, plus shelf filters on Library. Update progress uses the selected accent, with explicit engine status and a manual refresh action. Category deletion does not remove manga. No empty decorative panels beyond actionable empty states.
 
 Migration and Batch Add use a compact form followed by result rows and explicit review. Do not automatically remove old titles or guess ambiguous chapters. Batch import never maps tracker IDs to source IDs. Existing artwork and playback paths remain unchanged.
+
+### Unified desktop rail and identity
+
+One compact 80px rail (58px at narrow widths) in normal desktop Movies sidebar, Music and Read. The shared media group uses the same brand mark and three destination buttons, followed by a double-row pixel break and section actions. Selected icons use the active accent and a subtle surface tint. Bottom preferences use the same dimensions; legacy TV/touch and alternate movie navigation modes are retained. Use bundled Inter for application UI and the existing Amanojaku signature artwork for branding. New 24px outline family with restrained filled directional wedges, and a more pronounced tapered brush mark with internal bristle cuts. Replace named structural lines with two rows of static square pixels; preserve control outlines and progress indicators.

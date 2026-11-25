@@ -1,10 +1,11 @@
+import { BrushHeart as FiHeart, BrushList as FiList, BrushLyrics as FiMessageSquare, BrushClose as FiX, BrushDisc as BiDisc } from '@/components/tsugi-icons';
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiHeart, FiList, FiMessageSquare, FiX } from 'react-icons/fi';
+
 import { VolumeControl } from './volume-control';
 import { MusicArtwork } from './music-artwork';
-import { BiDisc } from 'react-icons/bi';
+
 import type { MusicPlayerProps } from './player';
 import { Timeline, Transport } from './player';
 import type { PlayerPalette } from '@/lib/music/player-theme';

@@ -1,9 +1,8 @@
+import { BrushDisc as FiDisc, BrushDownload as FiDownload, BrushFile as FiFilePlus, BrushList as FiList, BrushPlus as FiPlus, BrushRefresh as FiRefreshCw, BrushTrash as FiTrash2, BrushHistory as FiClock, BrushPlay as FiPlay, BrushSearch as FiSearch } from '@/components/tsugi-icons';
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import {
-  FiDisc, FiDownload, FiFilePlus, FiFolderPlus, FiList, FiPlus, FiRefreshCw, FiTrash2, FiClock, FiPlay, FiSearch,
-} from 'react-icons/fi';
+import { FiFolderPlus } from 'react-icons/fi';
 import type { RecentMusicPlay } from '@/lib/music/history';
 import type { MusicPlaylist, SavedMusicTrack } from '@/lib/music/library';
 import type { useRememberedMusicFolder } from './use-remembered-folder';

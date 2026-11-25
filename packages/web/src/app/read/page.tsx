@@ -1,8 +1,11 @@
+import { BrushBack as FiArrowLeft, BrushBook as FiBookOpen, BrushRight as FiChevronRight, BrushCompass as FiCompass, BrushGrid as FiGrid, BrushSearch as FiSearch, BrushSettings as FiSettings, BrushHistory as FiClock, BrushRefresh as FiRefreshCw, BrushBookmark as FiBookmark, BrushFolder as FiFolder, BrushBell as FiBell, BrushPlus as FiPlus, BrushCheck as FiCheck, BrushMigrate as FiRepeat } from '@/components/tsugi-icons';
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiArrowLeft, FiBookOpen, FiChevronRight, FiCompass, FiGrid, FiSearch, FiSettings, FiGlobe, FiClock, FiRefreshCw, FiBookmark, FiFolder, FiBell, FiPlus, FiCheck, FiRepeat } from 'react-icons/fi';
+import { FiGlobe } from 'react-icons/fi';
 import { MediaNavigation } from '@/components/shell/media-navigation';
+import { TsugiRail } from '@/components/shell/tsugi-rail';
+import { BrushSliders } from '@/components/tsugi-icons';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { prepareReading, readRequest, readImage } from '@/lib/hosts/shell/reading';
 import { ChapterReader } from './chapter-reader';
@@ -323,19 +326,20 @@ export function ReadPage({ visible }: {
   const settingRow = (label: string, description: string, next: SettingsPage) => <button className="tsugi-read-row" disabled={busy} onClick={() => openSettings(next)}><span><span className="block font-medium">{label}</span><span className="text-sm text-[--tsugi-muted]">{description}</span></span><FiChevronRight aria-hidden /></button>;
 
   return <main data-page="read" className="tsugi-read-root tsugi-read-workspace">
-    <header className="tsugi-read-media-header"><MediaNavigation area="read" disabled={busy} /></header>
-    <aside className="tsugi-reading-rail">
-      <nav aria-label={t({ id: "Reading sections", message: "Reading sections" })}>
+    <TsugiRail area="read" disabled={busy} className="tsugi-reading-rail" mediaClassName="tsugi-read-media-header">
+      <nav className="tsugi-rail-local" aria-label={t({ id: "Reading sections", message: "Reading sections" })}>
         <span className="tsugi-reading-rail-label"><Trans id="Collection">Collection</Trans></span>
-        {tabs.map(({ id, label, Icon }) => <button key={id} aria-label={label} aria-current={tab === id ? 'page' : undefined} disabled={busy} onClick={() => switchTab(id)}><Icon aria-hidden />{label}</button>)}
+        {tabs.map(({ id, label, Icon }) => <button key={id} aria-label={label} title={label} aria-current={tab === id ? 'page' : undefined} disabled={busy} onClick={() => switchTab(id)}><Icon aria-hidden />{label}</button>)}
+        <div className="tsugi-pixel-rule" aria-hidden="true" />
         <span className="tsugi-reading-rail-label"><Trans id="Discover">Discover</Trans></span>
-        <button aria-current={tab === 'browse' && browseTab === 'sources' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('sources')}><FiCompass aria-hidden /><Trans id="Browse">Browse</Trans></button>
-        <button aria-current={tab === 'browse' && browseTab === 'search' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('search')}><FiSearch aria-hidden /><Trans id="Global search">Global search</Trans></button>
-        <button aria-current={tab === 'browse' && browseTab === 'extensions' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('extensions')}><FiGrid aria-hidden /><Trans id="Extensions">Extensions</Trans></button>
+        <button title={t({ id: "Browse", message: "Browse" })} aria-current={tab === 'browse' && browseTab === 'sources' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('sources')}><FiCompass aria-hidden /><Trans id="Browse">Browse</Trans></button>
+        <button title={t({ id: "Global search", message: "Global search" })} aria-current={tab === 'browse' && browseTab === 'search' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('search')}><FiSearch aria-hidden /><Trans id="Global search">Global search</Trans></button>
+        <button title={t({ id: "Extensions", message: "Extensions" })} aria-current={tab === 'browse' && browseTab === 'extensions' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('extensions')}><FiGrid aria-hidden /><Trans id="Extensions">Extensions</Trans></button>
+        <div className="tsugi-pixel-rule" aria-hidden="true" />
         <span className="tsugi-reading-rail-label"><Trans id="Preferences">Preferences</Trans></span>
-        <button aria-current={tab === 'settings' ? 'page' : undefined} disabled={busy} onClick={() => switchTab('settings')}><FiSettings aria-hidden /><Trans id="Settings">Settings</Trans></button>
+        <button title={t({ id: "Settings", message: "Settings" })} aria-current={tab === 'settings' ? 'page' : undefined} disabled={busy} onClick={() => switchTab('settings')}><BrushSliders aria-hidden /><Trans id="Settings">Settings</Trans></button>
       </nav>
-    </aside>
+    </TsugiRail>
     <div className="tsugi-reading-content" ref={content}>
       <header className="tsugi-reading-header">
         <div><h1>{details ? t({ id: "Series", message: "Series" }) : tabs.find(item => item.id === tab)?.label ?? (tab === 'settings' ? t({ id: "Settings", message: "Settings" }) : browseTab === 'search' ? t({ id: "Global search", message: "Global search" }) : browseTab === 'extensions' ? t({ id: "Extensions", message: "Extensions" }) : t({ id: "Browse", message: "Browse" }))}</h1>

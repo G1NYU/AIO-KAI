@@ -34,6 +34,8 @@ import { useSession } from '@/lib/jellyfin/session';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { TsugiMusicIcon, TsugiReadIcon } from '@/components/tsugi-brand';
 import { mediaDestinations } from './media-navigation';
+import { TsugiRail } from './tsugi-rail';
+import { TsugiIcon, type TsugiIconName } from '@/components/tsugi-icons';
 import { useLiveTvShown } from '@/features/live-tv/live-tv';
 import { useCanSwitch } from '@/lib/profiles';
 import { navigate, to } from '@/lib/paths';
@@ -188,6 +190,7 @@ export function WebLayout() {
   const top = nav === 'tv-top' || nav === 'top';
   const shape = nav === 'rail' || nav === 'tv-rail' ? railShape : undefined;
   const side = nav === 'sidebar' || shape === 'docked';
+  const unifiedRail = !!desktopArea && nav === 'sidebar';
   const named =
     nav === 'tv-rail' ? railNames === 'always' : railNames !== 'never';
   React.useEffect(() => {
@@ -317,7 +320,22 @@ export function WebLayout() {
           >
             {side && (
               <AppLayoutSidebar data-ui="sidebar">
-                {nav === 'rail' ? (
+                {unifiedRail ? (
+                  <TsugiRail area="video" globalSettings={false} footer={<>
+                    <button type="button" title={settingsItem.name} aria-label={settingsItem.name} aria-current={settingsItem.isCurrent ? 'page' : undefined} onClick={settingsItem.onClick}><TsugiIcon name="settings" /></button>
+                    <SidebarAccount you={you} />
+                  </>}>
+                    <nav className="tsugi-rail-local" aria-label={t({ id: 'Video sections', message: 'Video sections' })}>
+                      {items.filter(item => !['all-media', 'music', 'read'].includes(item.id || '')).map(item => {
+                        const icons: Record<string, TsugiIconName> = { home: 'home', discover: 'compass', search: 'search', favourites: 'heart', live: 'video', calendar: 'calendar', activity: 'history', playlists: 'list', party: 'people', downloads: 'download' };
+                        const name = icons[item.id || ''];
+                        const Icon = item.iconType;
+                        return <button key={item.id} type="button" data-name={item.id} title={item.name} aria-label={item.name} aria-current={item.isCurrent ? 'page' : undefined} onClick={item.onClick}>{name ? <TsugiIcon name={name} /> : Icon ? <Icon /> : null}</button>;
+                      })}
+                    </nav>
+                    <HistoryButtons />
+                  </TsugiRail>
+                ) : nav === 'rail' ? (
                   <TouchRail
                     items={items}
                     footerItems={[settingsItem]}

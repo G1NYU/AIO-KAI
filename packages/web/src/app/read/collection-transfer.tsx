@@ -1,7 +1,8 @@
+import { BrushCheck as FiCheck, BrushSearch as FiSearch } from '@/components/tsugi-icons';
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiArrowRight, FiCheck, FiSearch } from 'react-icons/fi';
+import { FiArrowRight } from 'react-icons/fi';
 import { readRequest } from '@/lib/hosts/shell/reading';
 import type { ReadingChapter } from './reader-utils';
 import { batchTitles, migrationPlan, titleKey } from './collection-transfer-utils';

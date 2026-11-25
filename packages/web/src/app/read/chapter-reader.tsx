@@ -1,7 +1,8 @@
+import { BrushBack as FiArrowLeft, BrushLeft as FiChevronLeft, BrushRight as FiChevronRight, BrushSettings as FiSettings, BrushMinus as FiMinus, BrushPlus as FiPlus, BrushExpand as FiMaximize, BrushShrink as FiMinimize, BrushList as FiList } from '@/components/tsugi-icons';
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiArrowLeft, FiChevronLeft, FiChevronRight, FiSettings, FiMinus, FiPlus, FiMaximize, FiMinimize, FiList } from 'react-icons/fi';
+
 import { TsugiMediaIcon } from '@/components/tsugi-brand';
 import { readImage, readRequest } from '@/lib/hosts/shell/reading';
 import { readerWindow, nextPageIndex, visibleReadingPage, chapterGroups, type ReadingChapter } from './reader-utils';
