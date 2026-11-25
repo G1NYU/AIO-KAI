@@ -137,7 +137,27 @@ try {
   assert.equal(await landing.locator('.tsugi-index-pattern').count(), 0);
   assert.equal(await page.locator('html').getAttribute('class').then(value => value.includes('tsugi-desktop-boot')), true);
   assert.equal(await landing.locator('.tsugi-index-link').first().evaluate(node => getComputedStyle(node).borderRadius), '8px');
+  const assertLauncherGeometry = async () => {
+    const width = await page.evaluate(() => document.documentElement.clientWidth);
+    const height = await page.evaluate(() => window.innerHeight);
+    const brandBox = await landing.locator('.tsugi-index-wordmark').boundingBox();
+    const choices = await landing.locator('.tsugi-index-destinations').boundingBox();
+    const buttons = await landing.locator('.tsugi-index-link').evaluateAll(nodes => nodes.map(node => {
+      const { x, y, width, height } = node.getBoundingClientRect();
+      return { x, y, width, height };
+    }));
+    assert.ok(Math.abs(brandBox.x + brandBox.width / 2 - width / 2) < 3, 'launcher brand centered');
+    assert.ok(Math.abs(choices.x + choices.width / 2 - width / 2) < 3, 'launcher destinations centered');
+    assert.ok(brandBox.y + brandBox.height / 2 < height * .53, 'brand raised above the midpoint');
+    assert.ok(choices.y > brandBox.y + brandBox.height && choices.y + choices.height <= height, 'destination row below wordmark and within viewport');
+    assert.ok(buttons.every(button => Math.abs(button.y - buttons[0].y) < 2 && Math.abs(button.width - buttons[0].width) < 2), 'equal-width destinations on one baseline');
+  };
+  await assertLauncherGeometry();
   await capture('01-launcher');
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  await assertLauncherGeometry();
+  await capture('01-launcher-wide');
+  await page.setViewportSize({ width: 1440, height: 900 });
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).click();
   const entry = page.locator('.tsugi-video-entry');
   const field = entry.getByRole('textbox', { name: /Server address/ });
@@ -280,8 +300,11 @@ try {
   await musicSettings.waitFor();
   const drawer = await musicSettings.boundingBox();
   const backdrop = await music.locator('.tsugi-source-backdrop').boundingBox();
-  assert.ok(Math.abs(drawer.x + drawer.width - 2560) < 2, 'music sources drawer is flush to the window edge');
-  assert.ok(backdrop.width >= 2558 && backdrop.x < 2, 'music sources backdrop covers the entire viewport');
+  // The app permanently reserves a scrollbar gutter: compare to the usable
+  // viewport, not the nominal Playwright viewport including the scrollbar.
+  const usableWidth = await page.evaluate(() => document.documentElement.clientWidth);
+  assert.ok(Math.abs(drawer.x + drawer.width - usableWidth) < 2, 'music sources drawer is flush to the usable window edge: ' + JSON.stringify({ drawer, usableWidth }));
+  assert.ok(Math.abs(backdrop.width - usableWidth) < 2 && Math.abs(backdrop.x) < 2, 'music sources backdrop covers the usable viewport: ' + JSON.stringify({ backdrop, usableWidth }));
   assert.ok((await music.locator('.tsugi-music-workspace').boundingBox()).width > 2400, 'wide desktop music workspace uses the canvas');
   await capture('10-wide-music-sources');
   await page.setViewportSize({ width: 1440, height: 900 });

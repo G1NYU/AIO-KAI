@@ -2176,3 +2176,48 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 :root[data-host='desktop'] .tsugi-source-sheet input[type='checkbox'] { accent-color:var(--tsugi-accent); }
 :root[data-host='desktop'] .tsugi-source-sheet .text-violet-200 { color:var(--tsugi-muted); }
 :root[data-host='desktop'] :is(.tsugi-brand-wordmark,.tsugi-index .tsugi-index-wordmark) { font-weight:400; letter-spacing:0; }
+
+/* Launcher composition from the annotated Windows reference: centered
+   signature above, one balanced destination row below. No decorative layer. */
+:root[data-host='desktop'] .tsugi-index {
+  padding:clamp(36px,5vh,64px) clamp(20px,5vw,96px) clamp(32px,7vh,100px);
+}
+:root[data-host='desktop'] .tsugi-index-body {
+  display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr) auto;
+  flex:1; align-items:center; justify-items:center; gap:clamp(28px,5vh,72px);
+  width:100%; max-width:1120px; margin:0 auto; padding-block:0;
+}
+:root[data-host='desktop'] .tsugi-index-identity {
+  display:flex; flex-direction:column; align-items:center; justify-self:center;
+  text-align:center; padding-bottom:clamp(24px,7vh,96px);
+}
+:root[data-host='desktop'] .tsugi-index-signature {
+  display:flex; justify-content:center; margin-bottom:12px;
+}
+:root[data-host='desktop'] .tsugi-index-signature svg { width:clamp(52px,5vw,80px); height:clamp(52px,5vw,80px); }
+:root[data-host='desktop'] .tsugi-index .tsugi-index-wordmark {
+  font-size:clamp(4rem,8vw,8.5rem); line-height:1.12;
+}
+:root[data-host='desktop'] .tsugi-index-destinations {
+  display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr);
+  width:min(100%,960px); gap:clamp(12px,3vw,48px); border:0;
+}
+:root[data-host='desktop'] .tsugi-index-link {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:12px; padding:16px 8px; min-height:104px; margin:0;
+  text-align:center; border:0; border-radius:var(--tsugi-radius-control);
+}
+:root[data-host='desktop'] .tsugi-index-link + .tsugi-index-link { margin-top:0; }
+:root[data-host='desktop'] .tsugi-index-link .tsugi-media-icon { width:32px; height:32px; }
+:root[data-host='desktop'] .tsugi-index-copy { font-size:clamp(1rem,1.5vw,1.5rem); letter-spacing:-.025em; }
+@media(max-width:560px) {
+  :root[data-host='desktop'] .tsugi-index-destinations { gap:6px; }
+  :root[data-host='desktop'] .tsugi-index-link { min-height:86px; gap:9px; padding:12px 4px; }
+  :root[data-host='desktop'] .tsugi-index-copy { font-size:14px; }
+}
+@media(max-height:520px) {
+  :root[data-host='desktop'] .tsugi-index { padding-block:24px; }
+  :root[data-host='desktop'] .tsugi-index-body { gap:12px; }
+  :root[data-host='desktop'] .tsugi-index-identity { padding-bottom:0; }
+  :root[data-host='desktop'] .tsugi-index .tsugi-index-wordmark { font-size:clamp(2.75rem,6vw,4.5rem); }
+}
