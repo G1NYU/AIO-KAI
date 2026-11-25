@@ -427,6 +427,15 @@ impl Player {
         });
     }
 
+    pub fn prefetch_music_audio(&self, request: String, url: Option<String>) {
+        if request.len() <= 100 && url.as_ref().is_none_or(|target| crate::music_resolver::is_target(target))
+            && let Ok(audio) = self.music_audio.lock()
+            && let Some(audio) = &*audio
+        {
+            audio.send(crate::music_audio::Command::Prefetch { request, url });
+        }
+    }
+
     pub fn control_music_audio(&self, request: String, action: String, value: f64) {
         if request.len() <= 100
             && action.len() <= 10

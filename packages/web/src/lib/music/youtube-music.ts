@@ -17,6 +17,12 @@ export function nativeYouTubeTarget(id: string): string {
   if (!videoId(id)) throw new Error('Invalid YouTube Music track.');
   return 'https://www.youtube.com/watch?v=' + id;
 }
+/** Only predict a deterministic next item. Never prefetch shuffle or repeat-one. */
+export function nextNativeYouTubeTarget(queue: readonly { id: string }[], index: number, shuffle: boolean, repeat: 'off' | 'all' | 'one'): string | null {
+  if (shuffle || repeat === 'one' || index < 0 || index >= queue.length || queue.length < 2) return null;
+  const next = queue[index + 1] ?? (repeat === 'all' ? queue[0] : undefined);
+  return next && next.id !== queue[index]?.id && videoId(next.id) ? nativeYouTubeTarget(next.id) : null;
+}
 const browseId = (id: string): boolean => /^(?:MPRE|UC|VL|MPLA|OLAK5uy_)[\w-]{1,175}$/.test(id);
 
 function nodes(root: unknown, key: string, limit = 500): ObjectValue[] {

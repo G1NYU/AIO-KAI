@@ -764,6 +764,11 @@ pub fn handle(
                 });
             }
         }
+        Inbound::MusicAudioPrefetch { request, url } => {
+            if let Some(p) = player.as_ref() {
+                p.prefetch_music_audio(request, url);
+            }
+        }
         Inbound::MusicAudioControl {
             request,
             action,

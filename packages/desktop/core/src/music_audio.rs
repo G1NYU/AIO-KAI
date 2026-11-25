@@ -17,6 +17,10 @@ pub enum Command {
         url: String,
         volume: f64,
     },
+    Prefetch {
+        request: String,
+        url: Option<String>,
+    },
     Control {
         request: String,
         action: String,
@@ -340,6 +344,22 @@ impl Replay {
     }
 }
 
+// At most one speculative transfer; bounded by the same 64 MiB transport cap.
+const PREFETCH_TTL: Duration = Duration::from_secs(600);
+struct Prefetch {
+    owner: String,
+    url: String,
+    started: Instant,
+    transfer: Option<Transfer>,
+    source: Option<Arc<Source>>,
+}
+impl Prefetch {
+    fn matches(&self, url: &str, now: Instant) -> bool {
+        self.url == url && crate::music_resolver::is_target(url)
+            && now.saturating_duration_since(self.started) < PREFETCH_TTL
+    }
+}
+
 fn start_session(
     library: &Path,
     emit: &Emit,
@@ -364,7 +384,11 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
     let mut session: Option<Session> = None;
     let mut pending: Option<Pending> = None;
     let mut replay: Option<Replay> = None;
+    let mut prefetch: Option<Prefetch> = None;
     loop {
+        if prefetch.as_ref().is_some_and(|item| !item.matches(&item.url, Instant::now())) {
+            prefetch = None;
+        }
         if replay.as_ref().is_some_and(|item| !item.usable(&item.url, Instant::now())) {
             replay = None;
         }
@@ -377,6 +401,7 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                 // A fresh instance isolates queued EOF/property events from the previous track.
                 pending.take();
                 session.take();
+                let prepared = prefetch.take().filter(|item| item.matches(&url, Instant::now()));
                 if !volume.is_finite() {
                     fail(emit, &request, "Invalid native music stream.");
                     continue;
@@ -395,7 +420,18 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                     // Do not retain an unrelated buffer while receiving a new one.
                     replay = None;
                     let started = Instant::now();
-                    match Transfer::start(&url) {
+                    let mut prepared = prepared;
+                    if let Some(source) = prepared.as_mut().and_then(|item| item.source.take()) {
+                        log::info!("native music: used prefetched audio");
+                        session = start_session(library, emit, request, source, volume);
+                        if let Some(player) = &mut session { player.cache_key = Some(url); }
+                        continue;
+                    }
+                    let transfer = match prepared.and_then(|mut item| item.transfer.take()) {
+                        Some(transfer) => Ok(transfer),
+                        None => Transfer::start(&url),
+                    };
+                    match transfer {
                         Ok(transfer) => {
                             pending = Some(Pending {
                                 request,
@@ -419,13 +455,32 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                     fail(emit, &request, "Invalid native music stream.");
                 }
             }
+            Ok(Command::Prefetch { request, url }) => {
+                // A stale frontend request cannot replace another session's slot.
+                if prefetch.as_ref().is_some_and(|item| item.owner == request)
+                    && url.as_ref().is_none_or(|target| prefetch.as_ref().is_some_and(|item| item.url != *target))
+                { prefetch = None; }
+                if cfg!(windows) && let Some(url) = url
+                    && crate::music_resolver::is_target(&url)
+                    && session.as_ref().is_some_and(|player| player.request == request
+                        && player.timing_reported && player.failure.is_none()
+                        && player.cache_key.as_deref() != Some(url.as_str()))
+                    && prefetch.is_none()
+                    && let Ok(transfer) = Transfer::start(&url)
+                {
+                    prefetch = Some(Prefetch { owner: request, url, started: Instant::now(), transfer: Some(transfer), source: None });
+                }
+            }
             Ok(Command::Control {
                 request,
                 action,
                 value,
             }) => {
+                if action == "stop" && prefetch.as_ref().is_some_and(|item| item.owner == request) {
+                    prefetch = None;
+                }
                 if pending.as_ref().is_some_and(|item| item.request == request) {
-                    if action == "stop" {
+                    if action == "stop" || action == "advance" {
                         pending.take();
                     } else if action == "volume"
                         && value.is_finite()
@@ -437,7 +492,8 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                     .as_ref()
                     .is_some_and(|player| player.request == request)
                 {
-                    if action == "stop" {
+                    if action == "stop" || action == "advance" {
+                        if action == "stop" { replay = None; }
                         session.take();
                     } else if value.is_finite()
                         && let Some(player) = &session
@@ -445,6 +501,8 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                     {
                         fail(emit, &request, "Native audio control failed.");
                         session.take();
+                        replay = None;
+                        prefetch = None;
                     }
                 }
             }
@@ -452,9 +510,21 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                 pending.take();
                 session.take();
                 replay = None;
+                prefetch = None;
             }
             Err(RecvTimeoutError::Disconnected) => return,
             Err(RecvTimeoutError::Timeout) => {}
+        }
+        let speculative = prefetch.as_mut().and_then(|item| item.transfer.as_mut())
+            .and_then(|transfer| transfer.poll().transpose());
+        if let Some(result) = speculative {
+            match result.and_then(Source::from_bytes) {
+                Ok(source) => if let Some(item) = &mut prefetch {
+                    item.transfer.take();
+                    item.source = Some(source);
+                },
+                Err(_) => { prefetch = None; }
+            }
         }
         let ready = pending
             .as_mut()
@@ -483,7 +553,7 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                 player.cache_recorded = true;
             }
             if !alive {
-                if !player.finished { replay = None; }
+                if !player.finished { replay = None; prefetch = None; }
                 session.take();
             }
         }
@@ -520,6 +590,16 @@ mod tests {
         assert!(!replay.usable("https://www.youtube.com/watch?v=abcdefghijl", now));
         assert!(!replay.usable(url, now + REPLAY_TTL));
         assert!(!replay.usable("file:///test", now));
+    }
+
+    #[test]
+    fn prefetched_audio_is_exact_target_and_expires() {
+        let now = Instant::now();
+        let url = "https://www.youtube.com/watch?v=abcdefghijk";
+        let item = Prefetch { owner: "first".into(), url: url.into(), started: now, transfer: None, source: None };
+        assert!(item.matches(url, now));
+        assert!(!item.matches("https://www.youtube.com/watch?v=abcdefghijl", now));
+        assert!(!item.matches(url, now + PREFETCH_TTL));
     }
 
     #[test]

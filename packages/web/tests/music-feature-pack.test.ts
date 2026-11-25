@@ -4,7 +4,7 @@ import { DEFAULT_PLAYER_THEME, isPlayerTheme, PLAYER_PALETTES, PLAYER_ACCENTS, i
 import { NOCTURNE_STAGE } from '../src/lib/music/nocturne-stage';
 import { JUNCTION_STAGE } from '../src/lib/music/junction-stage';
 import { artworkCandidates, expandedArtwork } from '../src/lib/music/artwork';
-import { nativeYouTubeTarget, parseYouTubeMusicResults } from '../src/lib/music/youtube-music';
+import { nativeYouTubeTarget, nextNativeYouTubeTarget, parseYouTubeMusicResults } from '../src/lib/music/youtube-music';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -132,6 +132,15 @@ describe('Independent accents and expanded album artwork', () => {
 
 
 describe('Windows native playback admission', () => {
+  it('only predicts a valid deterministic next track', () => {
+    const queue = [{id:'abcdefghijk'},{id:'abcdefghijl'}];
+    expect(nextNativeYouTubeTarget(queue,0,false,'off')).toBe(nativeYouTubeTarget(queue[1].id));
+    expect(nextNativeYouTubeTarget(queue,1,false,'all')).toBe(nativeYouTubeTarget(queue[0].id));
+    expect(nextNativeYouTubeTarget(queue,1,false,'off')).toBeNull();
+    expect(nextNativeYouTubeTarget(queue,0,true,'off')).toBeNull();
+    expect(nextNativeYouTubeTarget(queue,0,false,'one')).toBeNull();
+    expect(nextNativeYouTubeTarget([{id:'abcdefghijk'},{id:'invalid'}],0,false,'off')).toBeNull();
+  });
   it('constructs only canonical public targets for the native resolver', () => {
     expect(nativeYouTubeTarget('abcdefghijk')).toBe('https://www.youtube.com/watch?v=abcdefghijk');
     for (const id of ['abc','abcdefghij/','abcdefghijk&list=x','https://example.test']) expect(()=>nativeYouTubeTarget(id)).toThrow();

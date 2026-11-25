@@ -193,6 +193,10 @@ pub enum Inbound {
         url: String,
         volume: f64,
     },
+    MusicAudioPrefetch {
+        request: String,
+        url: Option<String>,
+    },
     MusicAudioControl {
         request: String,
         action: String,

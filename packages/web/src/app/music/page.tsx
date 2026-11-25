@@ -13,7 +13,7 @@ import {
   type MusicConnection,
 } from '@/lib/music/connections';
 import { providerFor } from '@/lib/music/providers';
-import { nativeYouTubeTarget } from '@/lib/music/youtube-music';
+import { nativeYouTubeTarget, nextNativeYouTubeTarget } from '@/lib/music/youtube-music';
 import { supportsYouTubeMusic } from '@/lib/hosts/shell/youtube-music';
 import { appBridge, type ShellMessage } from '@/lib/hosts/shell/bridge';
 import { MusicPlayer, type RepeatMode } from './player';
@@ -120,6 +120,7 @@ export function MusicPage({
   const audioRef = React.useRef<HTMLAudioElement>(null);
   const playbackRequest = React.useRef(0);
   const nativeAudio = React.useRef<{ request: string; sourceId: string; track: EclipseTrack; recorded: boolean; timer?: ReturnType<typeof setTimeout> } | null>(null);
+  const prefetchSent = React.useRef<{ request: string; url: string | null } | null>(null);
   const nativeEvent = React.useRef<(message: Extract<ShellMessage, { type: 'music-audio-state' }>) => void>(() => {});
   const volumeRef = React.useRef(volume);
   volumeRef.current = volume;
@@ -130,12 +131,17 @@ export function MusicPage({
     if (current) appBridge()?.send({ type: 'music-audio-control', request: current.request, action, value });
   }
 
-  function stopNativeAudio() {
+  function stopNativeAudio(advance = false) {
     const current = nativeAudio.current;
-    if (!current) return;
-    clearTimeout(current.timer);
-    nativeAudio.current = null;
-    appBridge()?.send({ type: 'music-audio-control', request: current.request, action: 'stop', value: 0 });
+    if (current) {
+      clearTimeout(current.timer);
+      nativeAudio.current = null;
+      appBridge()?.send({ type: 'music-audio-control', request: current.request, action: advance ? 'advance' : 'stop', value: 0 });
+    }
+    if (!advance && prefetchSent.current) {
+      appBridge()?.send({ type: 'music-audio-prefetch', request: prefetchSent.current.request, url: null });
+      prefetchSent.current = null;
+    }
   }
 
   React.useEffect(() => {
@@ -147,6 +153,26 @@ export function MusicPage({
       unsubscribe?.();
     };
   }, []);
+
+  React.useEffect(() => {
+    const current = nativeAudio.current;
+    const bridge = appBridge();
+    if (!current || bridge?.platform !== 'windows' || !playbackAllowed || resolving) return;
+    const url = nextNativeYouTubeTarget(queue, queueIndex, shuffle, repeat);
+    const previous = prefetchSent.current;
+    if (previous?.request === current.request && previous.url === url) return;
+    // Wait for actual playback before opening a second transfer. A changed
+    // queue can still cancel a previous request while the player is paused.
+    if (url && (paused || position < 2)) {
+      if (previous?.request === current.request && previous.url) {
+        bridge.send({ type: 'music-audio-prefetch', request: current.request, url: null });
+        prefetchSent.current = null;
+      }
+      return;
+    }
+    prefetchSent.current = { request: current.request, url };
+    bridge.send({ type: 'music-audio-prefetch', request: current.request, url });
+  }, [queue, queueIndex, shuffle, repeat, paused, position, resolving, playbackAllowed]);
 
   React.useEffect(() => {
     saveMusicSources(rememberSources, connections);
@@ -336,7 +362,9 @@ export function MusicPage({
 
   async function play(track: EclipseTrack, at: number, source: MusicConnection, fromQueue = false) {
     const request = ++playbackRequest.current;
-    stopNativeAudio();
+    const advance = source.kind === 'youtube-music' && appBridge()?.platform === 'windows'
+      && !!appBridge()?.nativeMusicAudio && /^[\w-]{11}$/.test(track.id) && playbackAllowedRef.current;
+    stopNativeAudio(advance);
     audioRef.current?.pause();
     releaseFolderURL();
     if (!fromQueue) setQueue(tracks);
@@ -696,6 +724,7 @@ export function MusicPage({
     }
     if (message.status === 'error') {
       nativeAudio.current = null;
+      prefetchSent.current = null;
       setResolving(false);
       setPaused(true);
       setPlayError(message.error || t`Native music playback failed.`);
