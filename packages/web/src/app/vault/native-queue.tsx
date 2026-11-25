@@ -1,0 +1,92 @@
+import { useEffect, useState } from 'react';
+import { Trans } from '@lingui/react/macro';
+import { t } from '@lingui/core/macro';
+import { appBridge } from '@/lib/hosts/shell/bridge';
+import { shellDownloads } from '@/lib/hosts/shell/downloads';
+import type { HostEvent } from '@/lib/downloads/types';
+import { vaultJob } from './native-job';
+
+type Row = Extract<HostEvent, {type:'state'}>['jobs'][number];
+function status(row: Row) {
+  switch(row.state) {
+    case 'queued': return t`Queued`;
+    case 'downloading': return t`Downloading`;
+    case 'paused': return t`Paused`;
+    case 'failed': return t`Failed`;
+    case 'done': return t`Complete`;
+  }
+}
+
+export function NativeVaultQueue() {
+  const supported = appBridge()?.platform === 'windows';
+  const [ready,setReady] = useState(false);
+  const [input,setInput] = useState('');
+  const [permission,setPermission] = useState(false);
+  const [rows,setRows] = useState<Row[]>([]);
+  const [folder,setFolder] = useState('');
+  const [error,setError] = useState('');
+  const [pending,setPending] = useState('');
+  useEffect(()=>{
+    if(!supported)return;
+    const stop = shellDownloads.subscribe(event=>{
+      if(event.type==='state') {
+        setRows(event.jobs.filter(job=>job.id.startsWith('vault-') && typeof job.vault_title==='string'));
+        setFolder(event.folder);setReady(true);
+      } else if(event.id.startsWith('vault-')) setRows(old=>old.map(row=>row.id===event.id?{...row,bytes:event.bytes,total:event.total}:row));
+    });
+    shellDownloads.list();
+    return stop;
+  },[supported]);
+  useEffect(()=>{
+    if(!pending)return;
+    const row = rows.find(row=>row.id===pending);
+    if(row) { setPending('');setInput('');setPermission(false); }
+  },[rows,pending]);
+  useEffect(()=>{
+    if(!pending)return;
+    const timer=window.setTimeout(()=>{setPending('');setError(t`The desktop did not acknowledge this job. Refresh the list before retrying.`);},8000);
+    return ()=>window.clearTimeout(timer);
+  },[pending]);
+  function enqueue() {
+    if(!ready||!permission||pending)return;
+    setError('');
+    try {
+      const id = 'vault-' + Array.from(crypto.getRandomValues(new Uint8Array(16)), n=>n.toString(16).padStart(2,'0')).join('');
+      const job=vaultJob(input,id);
+      setPending(id);shellDownloads.add([job]);
+    } catch { setPending('');setError(t`Enter a supported direct HTTPS file URL without query parameters or fragments.`); }
+  }
+  return <section data-ui="tsugi-native-vault-queue">
+    <h2><Trans>Persistent local downloads</Trans></h2>
+    <p><Trans>Public direct book and audio links can be queued in the desktop download folder. The queue survives app restarts. Incomplete transfers restart when resumed; each file is limited to 256 MiB.</Trans></p>
+    {!supported?<p><Trans>Native Vault downloads require the Windows desktop application.</Trans></p>:<>
+      <form className="tsugi-vault-form" onSubmit={event=>{event.preventDefault();enqueue();}}>
+        <label><Trans>Public file URL</Trans><input type="url" required value={input} disabled={!!pending} onChange={event=>{setInput(event.target.value);setPermission(false);}}/></label>
+        <label><span><input type="checkbox" style={{width:'auto'}} checked={permission} disabled={!!pending} onChange={event=>setPermission(event.target.checked)}/> <Trans>I have permission to download this file. Its public URL will be stored in the local download queue.</Trans></span></label>
+        <div className="tsugi-vault-actions">
+          <button type="submit" className="tsugi-read-action tsugi-series-primary" disabled={!ready||!permission||!input.trim()||!!pending}><Trans>Queue local download</Trans></button>
+          <button type="button" className="tsugi-read-action" onClick={()=>shellDownloads.list()}><Trans>Refresh local downloads</Trans></button>
+        </div>
+      </form>
+      {folder&&<p><Trans>Download folder:</Trans> {folder}</p>}
+      {!ready&&<p role="status"><Trans>Waiting for the desktop download manager.</Trans></p>}
+      {pending&&<p role="status"><Trans>Adding download…</Trans></p>}
+      {error&&<p role="alert">{error}</p>}
+      {ready&&rows.length===0&&<p><Trans>No persistent Vault downloads yet.</Trans></p>}
+      {rows.map(row=><div className="tsugi-vault-file-row" key={row.id}>
+        <div><strong>{row.vault_title}</strong><p>{status(row)} · {(row.bytes/1048576).toFixed(1)} MiB</p>
+          {row.total!==null&&row.total>0&&<progress max={row.total} value={Math.min(row.bytes,row.total)}/>}
+          {row.error&&<p role="alert">{row.error}</p>}
+          {row.vault_path&&<p className="tsugi-vault-saved-path">{row.vault_path}</p>}
+        </div>
+        <div className="tsugi-vault-actions">
+          {(row.state==='queued'||row.state==='downloading')&&<button className="tsugi-read-action" onClick={()=>shellDownloads.control(row.id,'pause')}><Trans>Pause</Trans></button>}
+          {row.state==='paused'&&<button className="tsugi-read-action" onClick={()=>shellDownloads.control(row.id,'resume')}><Trans>Resume</Trans></button>}
+          {row.state==='failed'&&<button className="tsugi-read-action" onClick={()=>shellDownloads.control(row.id,'retry')}><Trans>Retry</Trans></button>}
+          {row.state!=='done'&&<button className="tsugi-read-action" onClick={()=>shellDownloads.remove(row.id,true)}><Trans>Cancel</Trans></button>}
+          {row.state==='done'&&<button className="tsugi-read-action" onClick={()=>shellDownloads.remove(row.id,false)}><Trans>Remove from list</Trans></button>}
+        </div>
+      </div>)}
+    </>}
+  </section>;
+}

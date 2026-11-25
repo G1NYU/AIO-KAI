@@ -360,6 +360,7 @@ pub enum FileKind {
     Video,
     Subtitle,
     Image,
+    Vault,
 }
 
 /// A file to fetch, at a path relative to the downloads folder.
@@ -399,6 +400,10 @@ pub struct DownloadStatus {
     /// Where a finished download's video and subtitles are, for playing it.
     pub video: Option<String>,
     pub subtitles: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vault_title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vault_path: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

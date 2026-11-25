@@ -91,3 +91,13 @@ describe('Vault TorBox cloud provider', () => {
     await expect(submitTorBox('fixture-key','https://example.org/book.epub',signal,fake)).rejects.toMatchObject({kind:'request',message:'request'});
   });
 });
+
+import { vaultJob } from '../src/app/vault/native-job';
+describe('Persistent Vault job',()=>{
+  it('separates local Vault jobs from video and rejects credential-bearing URLs',()=>{
+    const job=vaultJob('https://example.org/my%20book.epub','vault-test');
+    expect(job.files).toEqual([{url:'https://example.org/my%20book.epub',path:'Vault/vault-test/my book.epub',kind:'vault'}]);
+    expect(()=>vaultJob('https://example.org/book.epub?token=secret','vault-test')).toThrow();
+    expect(()=>vaultJob('https://example.org/book.epub','../bad')).toThrow();
+  });
+});

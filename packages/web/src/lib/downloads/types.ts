@@ -15,7 +15,7 @@ export type DownloadState =
 export interface HostFile {
   url: string;
   path: string;
-  kind: 'video' | 'subtitle' | 'image';
+  kind: 'video' | 'subtitle' | 'image' | 'vault';
   /** Sent with every request for the file, redirects included. */
   headers?: Record<string, string>;
 }
@@ -69,6 +69,8 @@ export type HostEvent =
         error: string | null;
         video?: string | null;
         subtitles?: string[];
+        vault_title?: string;
+        vault_path?: string;
       }[];
     }
   | {

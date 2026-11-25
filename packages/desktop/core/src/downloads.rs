@@ -29,6 +29,8 @@ const EXTENSIONS: &[&str] = &[
     "3gp", "srt", "vtt", "ass", "ssa", "sub", "sup", "idx", "ttml", "jpg", "jpeg", "png", "webp",
     "avif", "json",
 ];
+const VAULT_EXTENSIONS: &[&str] = &["pdf", "epub", "mp3", "flac", "m4a", "wav", "ogg", "opus", "aac"];
+const VAULT_LIMIT: u64 = 256 * 1024 * 1024;
 const RESERVED: &[&str] = &[
     "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
     "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
@@ -116,6 +118,7 @@ struct Placed {
     done: bool,
     video: Option<PathBuf>,
     subtitles: Vec<PathBuf>,
+    vault: Option<PathBuf>,
 }
 
 pub struct Downloads {
@@ -188,13 +191,8 @@ impl Downloads {
 
     pub fn job_folder(&self, id: &str) -> Option<PathBuf> {
         let shared = self.shared.lock().ok()?;
-        shared
-            .jobs
-            .get(id)?
-            .video
-            .as_ref()?
-            .parent()
-            .map(Path::to_path_buf)
+        let job = shared.jobs.get(id)?;
+        job.video.as_ref().or(job.vault.as_ref())?.parent().map(Path::to_path_buf)
     }
 }
 
@@ -396,6 +394,8 @@ impl Queue {
                             .iter()
                             .map(|p| p.to_string_lossy().into_owned())
                             .collect(),
+                        vault_title: j.spec.files.iter().any(|f| f.kind == FileKind::Vault).then(|| j.spec.title.clone()),
+                        vault_path: placed.vault.map(|p| p.to_string_lossy().into_owned()),
                     }
                 })
                 .collect(),
@@ -453,6 +453,7 @@ impl Queue {
             done: job.state == State::Done,
             video: of(FileKind::Video).next(),
             subtitles: of(FileKind::Subtitle).collect(),
+            vault: of(FileKind::Vault).next(),
         }
     }
 
@@ -520,6 +521,26 @@ fn check(spec: &DownloadJob) -> Result<(), String> {
     if !id_ok {
         return Err("bad id".into());
     }
+    if spec.files.iter().any(|f| f.kind == FileKind::Vault) {
+        if spec.files.len() != 1 || !spec.texts.is_empty() || !spec.id.starts_with("vault-") {
+            return Err("invalid Vault job".into());
+        }
+        let file = &spec.files[0];
+        let url = url::Url::parse(&file.url).map_err(|_| "invalid Vault URL")?;
+        if url.scheme() != "https" || url.host_str().is_none() || !url.username().is_empty()
+            || url.password().is_some() || url.query().is_some() || url.fragment().is_some()
+            || !file.headers.is_empty() {
+            return Err("Vault requires a public direct HTTPS file URL without credentials or query parameters".into());
+        }
+        let path = place(Path::new("."), &file.path)?;
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+        let expected = Path::new("Vault").join(&spec.id);
+        if !VAULT_EXTENSIONS.contains(&ext.as_str()) || Path::new(&file.path).parent() != Some(expected.as_path())
+            || path.file_name().and_then(|n| n.to_str()) != Some(spec.title.as_str()) {
+            return Err("invalid Vault file path".into());
+        }
+        return Ok(());
+    }
     for file in &spec.files {
         if !file.url.starts_with("http://") && !file.url.starts_with("https://") {
             return Err("only http(s) addresses".into());
@@ -529,10 +550,12 @@ fn check(spec: &DownloadJob) -> Result<(), String> {
                 return Err(format!("header {name} is not allowed"));
             }
         }
-        place(Path::new("."), &file.path)?;
+        let path = place(Path::new("."), &file.path)?;
+        if !legacy_extension(&path) { return Err("invalid video download file type".into()); }
     }
     for text in &spec.texts {
-        place(Path::new("."), &text.path)?;
+        let path = place(Path::new("."), &text.path)?;
+        if !legacy_extension(&path) { return Err("invalid video download details file type".into()); }
     }
     Ok(())
 }
@@ -566,10 +589,14 @@ fn place(folder: &Path, relative: &str) -> Result<PathBuf, String> {
         .and_then(|e| e.to_str())
         .map(str::to_ascii_lowercase)
         .unwrap_or_default();
-    if parts == 0 || !EXTENSIONS.contains(&extension.as_str()) {
+    if parts == 0 || !(EXTENSIONS.contains(&extension.as_str()) || VAULT_EXTENSIONS.contains(&extension.as_str())) {
         return Err(format!("{relative} is not a media file"));
     }
     Ok(out)
+}
+
+fn legacy_extension(path: &Path) -> bool {
+    path.extension().and_then(|e| e.to_str()).is_some_and(|ext| EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
 }
 
 fn part_of(path: &Path) -> PathBuf {
@@ -598,7 +625,7 @@ fn work(
         for file in files {
             let path = place(&folder, &file.path).map_err(Failure::Error)?;
             let report = |bytes, total| {
-                if file.kind == FileKind::Video {
+                if matches!(file.kind, FileKind::Video | FileKind::Vault) {
                     let _ = events.send(Event::Progress {
                         id: spec.id.clone(),
                         bytes,
@@ -606,9 +633,14 @@ fn work(
                     });
                 }
             };
-            match fetch(&agent, &file.url, &file.headers, &path, &stop, report) {
+            let result = if file.kind == FileKind::Vault {
+                fetch_vault(&agent, &file.url, &path, &stop, report)
+            } else {
+                fetch(&agent, &file.url, &file.headers, &path, &stop, report)
+            };
+            match result {
                 // Art or a subtitle missing never costs the video.
-                Err(Failure::Error(e)) if file.kind != FileKind::Video => {
+                Err(Failure::Error(e)) if matches!(file.kind, FileKind::Subtitle | FileKind::Image) => {
                     log::warn!("download {}: skipped {}: {e}", spec.id, file.path)
                 }
                 result => result?,
@@ -775,5 +807,117 @@ fn fetch(
             }
             thread::sleep(Duration::from_millis(200));
         }
+    }
+}
+
+fn vault_mime_allowed(ext: &str, content_type: &str) -> bool {
+    let mime = content_type.split(';').next().unwrap_or("").trim().to_ascii_lowercase();
+    mime == "application/octet-stream" || match ext {
+        "pdf" => mime == "application/pdf",
+        "epub" => mime == "application/epub+zip",
+        "mp3" => matches!(mime.as_str(), "audio/mpeg" | "audio/mp3"),
+        "flac" => matches!(mime.as_str(), "audio/flac" | "audio/x-flac"),
+        "m4a" => matches!(mime.as_str(), "audio/mp4" | "audio/x-m4a"),
+        "wav" => matches!(mime.as_str(), "audio/wav" | "audio/x-wav" | "audio/wave"),
+        "ogg" => matches!(mime.as_str(), "audio/ogg" | "application/ogg"),
+        "opus" => matches!(mime.as_str(), "audio/ogg" | "audio/opus"),
+        "aac" => mime == "audio/aac",
+        _ => false,
+    }
+}
+
+// Vault transfers are intentionally stricter than the legacy video downloader.
+// Resume restarts an incomplete transfer, avoiding unsafe byte-range stitching
+// when a public source changes its contents between requests.
+fn fetch_vault(
+    agent: &ureq::Agent,
+    url: &str,
+    path: &Path,
+    stop: &AtomicBool,
+    report: impl Fn(u64, Option<u64>),
+) -> Result<(), Failure> {
+    let error = |message: &str| Failure::Error(message.to_owned());
+    if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
+    if path.exists() {
+        return Err(error("A file already exists at the Vault destination"));
+    }
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    let response = agent.get(url).header("Accept-Encoding", "identity")
+        .config().max_redirects(0).build().call()
+        .map_err(|_| error("Vault file request failed"))?;
+    if response.status() != 200 {
+        return Err(error("Vault requires a direct file response without redirects"));
+    }
+    let content_type = response.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("");
+    if !vault_mime_allowed(&ext, content_type) { return Err(error("Unexpected Vault file type")); }
+    if response.headers().get("content-encoding").and_then(|v| v.to_str().ok()).is_some_and(|v| !v.eq_ignore_ascii_case("identity")) {
+        return Err(error("Compressed transfer encoding is not supported in Vault"));
+    }
+    let total = total_of(&response, 0);
+    if total.is_some_and(|size| size == 0 || size > VAULT_LIMIT) { return Err(error("Vault file exceeds its size limit or is empty")); }
+    let parent = path.parent().ok_or_else(|| error("Invalid Vault destination"))?;
+    fs::create_dir_all(parent).map_err(|_| error("Could not create Vault folder"))?;
+    let part = part_of(path);
+    let result = (|| {
+        let mut file = OpenOptions::new().create(true).write(true).truncate(true).open(&part)
+            .map_err(|_| error("Could not open Vault temporary file"))?;
+        let mut reader = response.into_body().into_reader();
+        let mut buffer = vec![0u8; 128 * 1024];
+        let mut bytes = 0u64;
+        report(0, total);
+        loop {
+            if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
+            let n = reader.read(&mut buffer).map_err(|_| error("Vault transfer was interrupted"))?;
+            if n == 0 { break; }
+            bytes += n as u64;
+            if bytes > VAULT_LIMIT || total.is_some_and(|size| bytes > size) {
+                return Err(error("Vault transfer exceeded the expected size"));
+            }
+            file.write_all(&buffer[..n]).map_err(|_| error("Could not write Vault file"))?;
+            report(bytes, total);
+        }
+        if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
+        if bytes == 0 || total.is_some_and(|size| size != bytes) { return Err(error("Vault transfer was incomplete")); }
+        file.sync_all().map_err(|_| error("Could not finish Vault file"))?;
+        drop(file);
+        if path.exists() { return Err(error("A file already exists at the Vault destination")); }
+        fs::rename(&part, path).map_err(|_| error("Could not finalize Vault file"))?;
+        Ok(())
+    })();
+    if result.is_err() { let _ = fs::remove_file(&part); }
+    result
+}
+
+#[cfg(test)]
+mod vault_tests {
+    use super::*;
+    use crate::bridge::DownloadFile;
+    fn spec(url: &str, path: &str) -> DownloadJob {
+        DownloadJob {
+            id: "vault-test".into(), title: "book.epub".into(),
+            files: vec![DownloadFile { url: url.into(), path: path.into(), kind: FileKind::Vault, headers: BTreeMap::new() }],
+            texts: vec![],
+        }
+    }
+    #[test]
+    fn restricts_vault_jobs_to_public_direct_urls_and_unique_folders() {
+        let good = "https://example.org/book.epub";
+        let path = "Vault/vault-test/book.epub";
+        assert!(check(&spec(good, path)).is_ok());
+        for bad in ["http://example.org/book.epub", "https://example.org/book.epub?token=secret", "https://user:secret@example.org/book.epub"] {
+            assert!(check(&spec(bad, path)).is_err());
+        }
+        for bad in ["Vault/vault-other/book.epub", "../book.epub", "Vault/vault-test/book.exe"] {
+            assert!(check(&spec(good, bad)).is_err());
+        }
+        let mut legacy = spec(good, path);
+        legacy.files[0].kind = FileKind::Video;
+        assert!(check(&legacy).is_err());
+    }
+    #[test]
+    fn validates_vault_mime_types() {
+        assert!(vault_mime_allowed("epub", "application/epub+zip"));
+        assert!(vault_mime_allowed("mp3", "audio/mpeg; charset=binary"));
+        assert!(!vault_mime_allowed("pdf", "text/html"));
     }
 }

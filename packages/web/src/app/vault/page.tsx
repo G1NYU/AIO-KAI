@@ -6,6 +6,7 @@ import { LandscapeSpotlight } from '@/components/landscape-spotlight';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { saveVaultFile,vaultPicker,vaultTarget } from './transfer';
 import { TorBoxPanel } from './torbox-panel';
+import { NativeVaultQueue } from './native-queue';
 
 export function VaultPage(){
   const actions=useDesktopArea();
@@ -51,6 +52,8 @@ export function VaultPage(){
     <div className="tsugi-pixel-rule" style={{height:4,marginBlock:24}} aria-hidden="true"/>
     <h2><Trans>Saved this session</Trans></h2>
     {saved.length===0?<p><Trans>No completed transfers yet.</Trans></p>:saved.map((file,i)=><div className="tsugi-vault-file-row" key={i}><span>{file.name}</span><span>{(file.bytes/1048576).toFixed(1)} MiB</span></div>)}
+    <div className="tsugi-pixel-rule" style={{height:4,marginBlock:24}} aria-hidden="true"/>
+    <NativeVaultQueue/>
     <div className="tsugi-pixel-rule" style={{height:4,marginBlock:24}} aria-hidden="true"/>
     <TorBoxPanel/>
   </main>;
