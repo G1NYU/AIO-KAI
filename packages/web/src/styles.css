@@ -2993,7 +2993,7 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-music-detail-track-grid > :last-child,.tsugi-collection-tracks > :last-child { border-bottom-left-radius:calc(var(--tsugi-radius-control) - 1px); border-bottom-right-radius:calc(var(--tsugi-radius-control) - 1px); }
 
 /* Featured manga uses the existing native cover cache, never an unrelated provider banner. */
-:root[data-host='desktop'] .tsugi-spotlight-source-cover { position:absolute; inset:0 0 0 auto; width:clamp(35%,58%,70%); overflow:hidden; }
+:root[data-host='desktop'] .tsugi-spotlight-source-cover { position:absolute; inset:0 0 0 auto; width:58%; overflow:hidden; }
 :root[data-host='desktop'] .tsugi-spotlight-source-cover .tsugi-manga-cover { position:relative; width:100%; height:100%; aspect-ratio:auto; border:0; border-radius:0; background:transparent; }
 :root[data-host='desktop'] .tsugi-spotlight-source-cover .tsugi-manga-cover:not(:has(img)) { visibility:hidden; }
 :root[data-host='desktop'] .tsugi-spotlight-source-cover .tsugi-manga-cover img { object-position:center 25%; }

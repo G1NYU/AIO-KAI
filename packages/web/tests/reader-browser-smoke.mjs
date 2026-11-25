@@ -186,7 +186,7 @@ try {
   });
   await page.route('https://media.kitsu.io/manga/cover_images/2/large.jpg', async route => {
     heroRequests.push('kitsu-image-2');
-    await route.fulfill({ contentType: 'image/svg+xml', body: wideArt });
+    await route.fulfill({ contentType: 'image/svg+xml', body: wideArt.replace('#37495b','#7a4563') });
   });
   await page.route('https://api.nekosapi.com/v4/images/random/file?*', async route => {
     heroRequests.push('nekos');
@@ -406,8 +406,10 @@ try {
   const hero = page.locator('[data-ui="landscape-spotlight"]');
   await hero.getByRole('button',{name:'Next illustration',exact:true}).waitFor();
   await hero.locator('img[src*="/cover_images/2/"]').waitFor();
+  await page.bringToFront();
   await hero.getByRole('button',{name:'Next illustration',exact:true}).click();
   await hero.getByText('Nekos API',{exact:true}).waitFor();
+  await hero.getByText('Kitsu',{exact:true}).waitFor({timeout:26000}); // automatic 20-second rotation
   assert.ok(heroRequests.includes('kitsu-image')&&heroRequests.includes('kitsu-image-2')&&heroRequests.includes('nekos'));
   await capture('03-reading-library');
   const remoteCount=heroRequests.length;

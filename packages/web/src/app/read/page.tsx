@@ -309,7 +309,7 @@ export function ReadPage({ visible }: {
   const allLibrary = library?.nodes || [];
   const recent = allLibrary.filter((manga) => manga.lastReadChapter).sort((a, b) => Number(b.lastReadChapter?.lastReadAt || 0) - Number(a.lastReadChapter?.lastReadAt || 0));
   const continuing = recent.filter((manga) => !manga.lastReadChapter?.isRead || !!manga.unreadCount);
-  const spotlightAnchor = String(continuing[0]?.id ?? '');
+  const spotlightAnchor = String(continuing[0]?.id ?? '') + ':' + String(continuing[0]?.lastReadChapter?.lastReadAt ?? '');
   const featured = tab === 'library' ? (spotlightChoice?.anchor === spotlightAnchor ? continuing.find(manga=>String(manga.id)===spotlightChoice.id) : undefined) ?? continuing[0] : undefined;
   const categoryContains = (manga: Manga, id: number) => !!manga.categories?.nodes.some(item => item.id === id);
   const selectedCategory = categories.find(item => item.id === categoryId);
