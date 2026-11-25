@@ -566,3 +566,5 @@ Migration commit 1be0b4c passed Unified Windows validation (45558491536) and the
 
 ### Ebook acceptance fixtures (2026-11-25)
 - Added original, locally generated two-page PDF and two-chapter EPUB fixtures to the real browser smoke test. Exercises import, PDF rendering and page navigation, re-opening and reload persistence, EPUB chapter navigation, script blocking and cross-origin/no-bridge verification. Browser mock bridge now only injects in the top frame, as desktop does. Restricted test network allowlist includes only the alternate local ebook origin. Updated workflow path filter for static reader assets. Tests not yet executed successfully; actual Windows custom-protocol behavior remains a separate acceptance requirement.
+
+- Run 45573281078: Windows check and web typecheck passed; Lingui lint rejected a computed interpolation in the Books hero. Extracted resumePercent before translation, preserving the display. Browser acceptance has not run yet.

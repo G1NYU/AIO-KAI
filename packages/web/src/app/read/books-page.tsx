@@ -47,6 +47,7 @@ export function BooksPage() {
     finally { setBusy(false); }
   }
   const continuing = books.find(book => book.position !== undefined && (book.fraction || 0) < 1);
+  const resumePercent = Math.round((continuing?.fraction || 0) * 100);
   const rows = books.filter(book =>
     (!query.trim() || (book.title + ' ' + book.name).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())) &&
     (filter === 'all' || (book.position !== undefined && (book.fraction || 0) < 1)));
@@ -74,7 +75,7 @@ export function BooksPage() {
           <div><h1><Trans>Books</Trans></h1><p className="tsugi-library-summary"><Trans>Saved titles</Trans> <strong>{books.length}</strong></p></div>
           <label className="tsugi-reading-global"><BrushSearch aria-hidden/><input value={query} onChange={event => { setQuery(event.target.value); setDetails(null); }} aria-label={t`Search books`} placeholder={t`Search books`}/></label>
         </header>
-        {!details && <LandscapeSpotlight title={continuing?.title || t`Your reading room`} eyebrow={continuing ? t`Continue reading` : t`Local books`} description={continuing ? t`${Math.round((continuing.fraction || 0) * 100)}% read` : t`Keep your own EPUB and PDF collection available offline.`} actionLabel={continuing ? t`Resume reading` : t`Import books`} onAction={() => continuing ? void open(continuing) : picker.current?.click()} disabled={busy}/>}
+        {!details && <LandscapeSpotlight title={continuing?.title || t`Your reading room`} eyebrow={continuing ? t`Continue reading` : t`Local books`} description={continuing ? t`${resumePercent}% read` : t`Keep your own EPUB and PDF collection available offline.`} actionLabel={continuing ? t`Resume reading` : t`Import books`} onAction={() => continuing ? void open(continuing) : picker.current?.click()} disabled={busy}/>}
         {busy && <p role="status"><Trans>Working with local files…</Trans></p>}
         {error && <p role="alert" className="tsugi-read-error">{error}</p>}
         {details ? <section>
