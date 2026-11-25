@@ -1,116 +1,156 @@
-<p align="center">
-  <img src="branding/tsugi-mark.svg" width="104" height="104" alt="Tsugi brush mark">
-</p>
-
-<h1 align="center">Tsugi <sub>次</sub></h1>
+<p align="center"><img src="branding/readme/hero.svg" width="100%" alt="Tsugi — What comes next. Your media, your sources, one workspace."></p>
 
 <p align="center">
-  Movies, television, music, reading and a personal download vault.
-</p>
-
-<p align="center">
-  <a href="https://github.com/G1NYU/TSUGI/actions/workflows/tsugi-unified-windows.yml">Development builds</a> &nbsp;·&nbsp;
+  <a href="https://github.com/G1NYU/TSUGI/actions/runs/45651068740/artifacts/15040987030"><strong>Download Windows x64</strong></a> &nbsp;·&nbsp;
   <a href="https://github.com/G1NYU/TSUGI/tree/feature/tsugi-read-runtime">Source</a> &nbsp;·&nbsp;
   <a href="https://github.com/G1NYU/TSUGI/issues">Issues</a> &nbsp;·&nbsp;
-  <a href="LICENSE">License</a>
+  <a href="LICENSE">AGPL-3.0</a>
 </p>
 
-<br>
+<p align="center"><sub>INDEPENDENT OPEN SOURCE · WINDOWS DEVELOPMENT PREVIEW · BY GIINYU</sub></p>
 
-Tsugi (次, *next*) is an independent, open-source desktop media project built on AIOStreams. It brings video, music, reading and downloads into a shared workspace while retaining the strengths of the individual media engines. Switch between your library, albums and chapters without managing separate applications or separate appearance settings.
+## 次 / 継ぎ — what comes next
 
-**Development preview · Windows x64.** The unified application is being developed on [`feature/tsugi-read-runtime`](https://github.com/G1NYU/TSUGI/tree/feature/tsugi-read-runtime). The default branch remains the upstream baseline with project documentation. There is no stable Tsugi release yet.
+**Tsugi** (つぎ) means *next* when written 次; 継ぎ, another spelling, evokes a join or continuation. The name joins two ideas: the next film, the next song, the next chapter — and a continuous experience across them.
 
-## Movies & TV
+Tsugi began with one purpose: **watching movies and television from the Stremio addon ecosystem through AIOStreams, with native desktop playback.** Music, manga, books and downloads extend that foundation rather than replace it.
 
-Connect an existing AIOStreams or compatible Jellyfin server and use its media catalogues from Tsugi.
+Four independent media engines. One visual identity. Your own sources.
 
-- Home, discovery, search, favourites, series and movie detail pages.
-- Native mpv playback, subtitles, audio tracks and server-provided stream versions.
-- Continue Watching, watch history and server-supported features such as watch state, live television and playlists.
-- AIOStreams source filtering, sorting and formatting remain available through the configured server.
+## Identity / design language
 
-For server configuration and hosting, refer to the [AIOStreams documentation](https://aiostreams.org/). Tsugi does not require the user to replace their existing server.
+<img src="branding/readme/identity.svg" width="100%" alt="Tsugi brush mark, display and body typography, six palette families and five accents.">
 
-## Music
+The original brush-stroke **つ** mark references the first sound of Tsugi, contrasted with a confident, tightly tracked sans-serif wordmark. The desktop uses **Segoe UI Variable Display** for headlines and **Segoe UI Variable Text** for interface copy, with Segoe UI, Inter, Helvetica Neue and Arial fallbacks. These are system typography choices, not a separately distributed custom font.
 
-A dedicated music library and player, separate from the video server connection.
+Three complementary design influences describe the direction:
 
-- Native YouTube Music provider integration using the packaged yt-dlp and Deno tools.
-- Eclipse-compatible music addon manifests and community addon discovery.
-- Track, album, artist and playlist search, playback queues, shuffle and repeat.
-- Local audio files, remembered folders, saved tracks and playlists.
-- Three native full-window player layouts (Default, Junction and Nocturne), large artwork, synchronized lyrics, and a separate overlay queue with artwork and editing controls.
-- Pixel-matrix background with distinct Immersive, Minimal, Dot wave and Off modes. The new native DSP candidate adds measured RMS telemetry and equalizer profiles for Windows YouTube Music; local files use Web Audio PCM. Other remote addon streams remain unmodified. Native effects require validation before being treated as released. Imported Eclipse Studio layouts remain supported.
-- Context-sized artwork with safe same-image fallback, bounded replay reuse and one deterministic upcoming-track prefetch on Windows. Actual provider quality and cold-start latency still require physical testing.
-- Separate installed-source management and optional community addon store.
-- Background music while browsing manga or reading a chapter, with compact playback controls and return to the same chapter when switching back from Music.
+- **Japanese minimalism and ma (間):** purposeful intervals, restraint, asymmetric balance and an organic ink gesture. Space gives the media room to breathe.
+- **[Swiss / International Typographic Style](https://www.nb.admin.ch/en/the-international-style-1950-1970):** structured grids, strong sans-serif hierarchy, aligned information and disciplined composition.
+- **Functional modernism / Bauhaus-inspired reduction:** geometry follows the control's purpose; unnecessary ornament is removed rather than added.
 
-Live YouTube Music playback across reading and music on Windows still requires physical acceptance testing. Local audio continuity and the simulated native audio protocol have passed automated browser tests.
+The result is a media-led interface: wide cinematic heroes, full-window listening stages, a compact shared rail, consistent outline iconography and restrained 6 / 8 / 10 / 14 px corner radii. Alternating tonal surfaces separate rows; the workspace canvas stays continuous instead of enclosing every region in a contrasting box.
 
-## Read
+| Palette | Canvas | Surface | Panel | Text |
+| :--- | :--- | :--- | :--- | :--- |
+| Default | `#101214` | `#171A1D` | `#202428` | `#E8E6DF` |
+| Mocha | `#11111B` | `#181825` | `#1E1E2E` | `#CDD6F4` |
+| Matte black | `#08090B` | `#101114` | `#17181D` | `#E8E8EB` |
+| Ink | `#090D10` | `#101418` | `#181E22` | `#E8EDF0` |
+| Nightfall | `#0C0B10` | `#14121A` | `#1C1923` | `#EBE8F0` |
+| Carbon | `#0B0E0F` | `#121516` | `#1B2022` | `#E0E6E8` |
 
-A shared Manga and Books workspace. The manga interface is backed by a Tsugi-managed [Suwayomi Server](https://github.com/Suwayomi/Suwayomi-Server) runtime.
+Independent accents: Silver `#D5D5DC` · Blue `#9AB8FF` · Lavender `#B4BEFE` · Amber `#E4BA87` · Rose `#E9A0A8`. Mocha uses the [Catppuccin](https://github.com/catppuccin/catppuccin) palette.
 
-- Manga and manhwa library, installed sources, extension repositories and global source search.
-- User-supplied Mihon-compatible extension repositories, searchable and filterable extension catalogue, explicit installation.
-- Manga details, chapter lists, reading progress, bookmarks and resume reading.
-- Continuous vertical scrolling, single-page and two-page layouts, reading direction, zoom and adjustable page spacing.
-- Focus mode hides interface controls for an uninterrupted reading view.
-- Initial MyAnimeList and AniList account integration, explicit series matching and manual progress sync. Live account authorization and remote sync still need verification.
+The original SVG artwork throughout this README is a deliberate project signature: scalable editorial illustrations based on the interface and actual palette tokens, not live screenshots or bundled media covers.
 
-Extension compatibility varies by source. Repositories and extensions are not bundled, and cover availability depends on the source.
+## Movies & TV / the foundation
 
-### Local books
+<img src="branding/readme/watch.svg" width="100%" alt="Illustrative video discovery with original cinematic hero and continue-watching row.">
 
-- Import EPUB and PDF files into a persistent offline collection, independent of the manga engine setup.
-- EPUB pagination or continuous scrolling, font size, paper themes and table of contents; PDF page navigation.
-- Resume from saved EPUB CFI or PDF page; embedded raster EPUB covers and PDF first-page thumbnails are extracted on opening.
-- Uses the pinned [Readest Foliate fork](https://github.com/readest/foliate-js) and PDF.js in a separate rendering origin. Book scripts are disabled. Real EPUB/PDF rendering, PDF resume, PDF thumbnails and mocked native file imports passed browser acceptance.
+Tsugi is an independent fork of [AIOStreams](https://github.com/Viren070/AIOStreams). Its primary video workflow brings **Stremio addons to a native desktop viewing experience** using AIOStreams' configured media server.
 
-## Vault
+```text
+Stremio-compatible addons (catalogue, metadata, streams, subtitles)
+                         |
+                  AIOStreams configuration
+             aggregation / sorting / filtering / formatting
+                         |
+                Jellyfin-compatible media API
+                         |
+                       Tsugi
+                 native mpv playback
+```
 
-A dedicated workspace for authorized book and audio downloads. Development source includes:
+AIOStreams aggregates the addons you configure and exposes a media-server endpoint speaking the Jellyfin API, with [AIOStreams-specific extensions](https://aiostreams.org/reference/jellyfin-extensions/). Tsugi connects to that endpoint; it does not require installing a separate Jellyfin server, nor does it directly install Stremio addons into the desktop client. An existing compatible Jellyfin server can also be connected.
 
-- Persistent native direct HTTPS queue with pause, retry, cancellation, progress and file-size/type limits. The managed Aria2 Next engine supports concurrent direct transfers; resume behavior depends on the transfer engine and server.
-- Authorized individual YouTube Music M4A exports using bundled yt-dlp. Search rows can prefill Vault; each submission requires explicit permission.
-- Import completed local books into Read and open downloaded audio in the Music session library. Files stay in the native download folder.
-- TorBox cloud destination with session-only API key, explicit web-download submission and refreshable account list.
+- Browse home, discovery, libraries, search, favourites and media detail pages.
+- Server-provided stream versions, native mpv playback, subtitles, audio tracks, continue watching and history.
+- Preserve the server's addon sorting, stream filtering and formatting. Live TV and playlists depend on server support.
+- Configure your own instance, metadata providers and authorized services in AIOStreams.
 
-Live provider exports, real Windows transfers and TorBox authentication still require acceptance. Direct Z-Library account integration is not included: a supported authenticated API has not been verified. Authorized EPUB/PDF files obtained separately can be imported locally or via a supported direct link.
+Start with the [AIOStreams setup guide](https://aiostreams.org/configuration/setup/), [Jellyfin client documentation](https://aiostreams.org/apps/jellyfin/) and [Stremio addon protocol](https://aiostreams.org/reference/addon-protocol/).
 
-## One workspace
+## Extensions, addons and APIs
 
-Movies & TV, Music, Read and Vault share a palette, typography, category navigation and app appearance settings. Lists use alternating theme-owned tonal surfaces instead of decorative dotted rules. First launch offers live theme and accent personalization; existing choices are preserved and App settings remains available afterwards. Read and Vault use automatic Kitsu/Nekos artwork with a persistent local-only preference. Media-specific preferences stay within their respective sections. The reader can keep its current chapter open during a visit to Music; video playback remains exclusive with music to avoid competing audio.
+The common principle is **bring your own sources**, not one universal plugin format. Video uses server-side Stremio addons, Music accepts Eclipse manifests, Read accepts Mihon-compatible repositories, and Vault uses explicit transfer jobs. Local files work without a remote catalogue.
 
-## Getting started
-
-The current development package is a **portable Windows x64 ZIP**, not an installer. A GitHub account may be required to download Actions artifacts.
-
-- Open [Unified Tsugi Windows Build](https://github.com/G1NYU/TSUGI/actions/workflows/tsugi-unified-windows.yml) and select a successful **packaging** run with the `Tsugi-Windows-x64-test` artifact. Source-only validation runs do not contain the executable package.
-- Download the artifact and extract the complete ZIP (including the `.portable` marker) into a writable folder.
-- Open `current/Tsugi.exe` directly. Keep the rest of the extracted files beside it.
-- On first launch, choose your palette and accent, or skip and personalize later in App settings.
-- For Movies & TV, enter your media server address. For Music, connect a supported source or open local audio.
-- In Read, choose Books to import local EPUB/PDF files without manga setup. For Manga, choose **Set up reading**. Tsugi downloads and verifies the pinned upstream reading runtime. Then open **Settings / Browse / Sources / Extension repositories** to add a trusted repository, and use **Extensions** to install a source.
-
-No separate Java installation, command prompt or manual reader launcher is required for normal use. Internet access is required for reading setup and remote media. Portable application data is stored alongside the extracted application; keep that folder when upgrading or back it up before replacing it.
-
-> **Preview status:** packaged artifacts expire, and may be older than the newest source revision. Check the build's commit before testing. Do not treat a green source-only run as a fresh Windows download.
-
-## Development
-
-| Component | Foundation |
+| Integration | Role in Tsugi |
 | :--- | :--- |
-| Desktop | Rust, native Windows shell, WebView2 |
-| Interface | React, TypeScript, shared CSS tokens |
-| Video | AIOStreams, Jellyfin API, mpv |
-| Music | Eclipse-compatible providers, yt-dlp, Deno |
-| Reading | Suwayomi, pinned Readest/Foliate, PDF.js, isolated local rendering origin |
-| Vault | Persistent Rust queue, yt-dlp audio exports, TorBox WebDL API |
-| Validation | Vitest, Playwright, Cargo and GitHub Actions |
+| [Stremio addon SDK](https://github.com/Stremio/stremio-addon-sdk) / [AIOStreams](https://aiostreams.org/) | Server-side catalogue, metadata, stream and subtitle aggregation |
+| [Jellyfin API](https://api.jellyfin.org/) | Video server connection, browsing, playback information and watch state |
+| [Eclipse Music](https://eclipsemusic.app/) | Addon manifests, search, catalogue, streams and optional community registry |
+| YouTube Music / [yt-dlp](https://github.com/yt-dlp/yt-dlp) / [Deno](https://github.com/denoland/deno) | Native music provider and audio transport; not an official public YouTube Music API |
+| [LRCLIB](https://lrclib.net/) | Optional synchronized and plain lyric lookup |
+| [Suwayomi GraphQL](https://github.com/Suwayomi/Suwayomi-Server) | Managed reading runtime, repository installation, source search and chapter access |
+| [MyAnimeList](https://myanimelist.net/apiconfig/references/api/v2) / [AniList](https://docs.anilist.co/) | Initial tracker authorization and explicit progress sync; live sync still requires acceptance |
+| [Kitsu](https://kitsu.io/) / [Nekos API](https://nekosapi.com/) | Optional reader and Vault atmospheric artwork; local-only preference available |
+| [Aria2 Next](https://github.com/AnInsomniacy/aria2-next) JSON-RPC / [TorBox API](https://api.torbox.app/) | Managed local transfers and optional cloud download submissions |
 
-The active source branch contains the unified app and the Windows packaging workflow. Node.js 24+, pnpm 11+ and the Rust toolchain are used by the build.
+## Music / a dedicated listening space
+
+<img src="branding/readme/listen.svg" width="100%" alt="Illustrative fullscreen music player with large original album art, transport and dot-wave visualization.">
+
+- Native Windows YouTube Music and Eclipse-compatible addons; discovery, track, album, artist and playlist search.
+- Local audio library, remembered folders, saved tracks, playlists, shuffle, repeat and editable queue.
+- Default, Junction and Nocturne full-window player layouts; imported Eclipse Studio layouts remain supported.
+- Context-sized artwork with same-image fallback, replay reuse and deterministic next-track prefetch.
+- Immersive, Minimal, Dot Wave and Off visualizers; local Web Audio PCM and measured native mpv level telemetry. Native RMS is a level envelope, not reconstructed PCM. Supported local/native audio profiles and EQ; other remote addon streams remain unmodified.
+- Continue listening while browsing manga or reading. Video playback remains exclusive to avoid competing audio.
+
+Cold first-track startup still waits on the existing native transfer; subsequent tracks can benefit from prefetch. Native filters passed generated-fixture validation on Windows; physical latency, real-source artwork and visualization performance remain acceptance items.
+
+## Read / Mihon-compatible repositories on Windows
+
+<img src="branding/readme/read.svg" width="100%" alt="Illustrative reading workspace with extension repositories, installed sources, manga covers and resume reading.">
+
+A particularly uncommon desktop capability is **direct in-app support for Mihon-compatible extension repository URLs**. Tsugi manages a pinned Suwayomi runtime and Java environment behind its own interface. A first-run setup fetches and verifies the runtime: no separate Java installation, external Suwayomi launcher or manually maintained scraper list is required.
+
+Add a trusted repository, install individual extensions, browse their catalogues, search across sources and read chapters. The workflow is familiar to users of [Mihon](https://github.com/mihonapp/mihon) and [Komikku](https://github.com/komikku-app/komikku).
+
+Related desktop projects sharing this ecosystem include [Suwayomi](https://github.com/Suwayomi/Suwayomi-Server), [Moku](https://github.com/moku-project/Moku), [Kagami](https://github.com/ItsMeYoshiro/kagami-manga-reader-desktop) and [Mirah](https://github.com/MirahApp/Mirah). They approach compatible extension execution differently. Tsugi combines that repository workflow with Stremio-based video, music and downloads in a single desktop shell. Community stores such as [Keiyoushi](https://github.com/keiyoushi/extensions) may be added by the user; compatibility is per extension, not universal.
+
+- Manga and manhwa library, installed sources, global search and extension catalogue.
+- Continuous vertical, single-page and two-page reading, zoom, direction, page spacing and focus mode.
+- Chapter progress, bookmarks, resume reading and initial MAL/AniList integration.
+- EPUB and PDF offline collection, pagination or continuous scrolling, text size, paper themes, contents and resume position. Pinned Readest/Foliate and PDF.js render in an isolated origin with book scripts disabled.
+
+Repositories and extensions are not bundled. Third-party extensions are executable code; only install from trusted publishers. Extension signatures are not independently verified.
+
+## Vault / collect and return to your library
+
+<img src="branding/readme/vault.svg" width="100%" alt="Illustrative Vault transfer queue, authorized source input and local or TorBox destinations.">
+
+Persistent authorized HTTPS downloads with progress, retry, pause and cancellation; managed Aria2 Next concurrent direct transfers. Individual authorized YouTube Music M4A exports use bundled yt-dlp. TorBox provides explicit cloud submissions and a session-only API key.
+
+Import completed books into Read or open downloaded audio in Music. Files remain in the native download folder. Direct Z-Library account integration is not included.
+
+## Get Tsugi
+
+**Latest successful Windows x64 development build:** [portable ZIP](https://github.com/G1NYU/TSUGI/actions/runs/45651068740/artifacts/15040987030) · [validation and packaging](https://github.com/G1NYU/TSUGI/actions/runs/45651068740) · source `ac6e175`.
+
+1. Download the `Tsugi-Windows-x64-test` artifact (GitHub login may be required).
+2. Extract the entire ZIP into a writable folder, including its `.portable` marker.
+3. Run `current/Tsugi.exe`, keeping companion files alongside it.
+4. Choose a palette and accent, then enter your AIOStreams/Jellyfin server address. The other spaces can be configured independently.
+
+Portable development preview, **not an installer or stable release**. Artifacts expire; use the [Windows build workflow](https://github.com/G1NYU/TSUGI/actions/workflows/tsugi-unified-windows.yml) to locate a newer successful packaging run. Source-only runs do not contain the executable. Back up portable application data before replacing files.
+
+[Actual browser-rendered fixture previews](https://github.com/G1NYU/TSUGI/actions/runs/45651068740/artifacts/15041215985) are separate from the original SVG illustrations.
+
+## Architecture / development
+
+| Layer | Foundation |
+| :--- | :--- |
+| Desktop | Rust, Windows WebView2 |
+| Interface | React, TypeScript, shared CSS design tokens |
+| Video | AIOStreams, Jellyfin API, mpv |
+| Music | Eclipse providers, yt-dlp, Deno, mpv, Web Audio |
+| Read | Suwayomi, Java, Readest/Foliate, PDF.js |
+| Vault | Rust queue, Aria2 Next, yt-dlp, TorBox WebDL |
+| Validation | Vitest, Playwright, Cargo, GitHub Actions |
+
+The unified app lives on [`feature/tsugi-read-runtime`](https://github.com/G1NYU/TSUGI/tree/feature/tsugi-read-runtime); main remains the upstream baseline with public documentation.
 
 ```sh
 git clone --branch feature/tsugi-read-runtime https://github.com/G1NYU/TSUGI.git
@@ -123,34 +163,22 @@ pnpm -F @aiostreams/web lint
 pnpm -F @aiostreams/web prepare:ebooks
 ```
 
-For native staging, dependency pins and the complete packaging procedure, see the [Windows workflow](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/.github/workflows/tsugi-unified-windows.yml). Reading runtime integration and security acceptance are documented in the [runtime notes](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/docs/tsugi-read-runtime.md). Development history is tracked in [PROGRESS.md](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/PROGRESS.md).
-
-### Current status
-
-The [last successful portable Windows package](https://github.com/G1NYU/TSUGI/actions/runs/45641571177) is from commit `29874f5`. [Download the consolidated candidate](https://github.com/G1NYU/TSUGI/actions/runs/45641571177/artifacts/15035792773). Web, media-tools, Windows x64 and package jobs passed. It includes the nine polish implementation milestones and narrow-window/matrix tests. A follow-up package is requested for the remaining Music/Vault sidebar background correction; use the workflow's latest successful packaging run rather than a source-only run.
-
-### Interface preview
-
-[Browse the 33 actual browser-rendered UI previews (ZIP)](https://github.com/G1NYU/TSUGI/actions/runs/45639525522/artifacts/15035545390). This test artifact expires after seven days. It contains synthetic fixture content and no real account credentials or provider artwork.
-
-| Preview file | What it demonstrates |
-| :--- | :--- |
-| `08-expanded-nocturne-wide.png` | Full-width 2560 × 1440 Nocturne layout |
-| `08-expanded-default.png` and `08-expanded-junction.png` | Native large-art compositions |
-| `08-expanded-queue.png` | Queue overlay without shrinking the player |
-| `10-wide-music-sources.png` and `10-addon-store.png` | Installed sources and separate store |
-| `06-music-library.png`, `05-reader.png`, `01-vault.png` | Shared workspace surfaces |
-
-The [ten-point roadmap](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/ROADMAP.md) tracks implementation and remaining acceptance work. Permanent real-content screenshots will follow physical Windows acceptance rather than presenting synthetic fixtures as live playback.
-
-Physical Windows UI, cold-start measurements, live artwork and music playback, tracker authorization, transfer/provider tests and source compatibility still require acceptance. Refract and MangaBaka integrations are not currently shipped.
+Node.js 24+, pnpm 11+ and Rust are required. See the [Windows packaging workflow](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/.github/workflows/tsugi-unified-windows.yml), [reading runtime notes](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/docs/tsugi-read-runtime.md), [roadmap](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/ROADMAP.md) and [development history](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/PROGRESS.md). Latest web, native and packaging checks passed. Live source compatibility, tracker authorization, provider transfers and physical performance remain acceptance items. Refract and MangaBaka are not shipped.
 
 ## Credits & license
 
-Tsugi is maintained by [giinyu](https://github.com/G1NYU) as an independent fork of [Viren070/AIOStreams](https://github.com/Viren070/AIOStreams). It is not an official AIOStreams, Suwayomi, Mihon, Jellyfin or YouTube application.
+Maintained by [giinyu](https://github.com/G1NYU) as an independent fork of [Viren070/AIOStreams](https://github.com/Viren070/AIOStreams). Not an official AIOStreams, Stremio, Jellyfin, Suwayomi, Mihon, Eclipse or YouTube application.
 
-The project builds on the work of [AIOStreams](https://github.com/Viren070/AIOStreams), [Suwayomi](https://github.com/Suwayomi/Suwayomi-Server), [Jellyfin](https://jellyfin.org/), [mpv](https://mpv.io/), [FFmpeg](https://ffmpeg.org/), [libass](https://github.com/libass/libass), [yt-dlp](https://github.com/yt-dlp/yt-dlp), [Deno](https://github.com/denoland/deno) and the Eclipse music ecosystem. Local ebook rendering uses [Readest](https://github.com/readest/readest), the [Readest Foliate fork](https://github.com/readest/foliate-js) and [PDF.js](https://github.com/mozilla/pdf.js). The manga reading experience draws inspiration from [Mihon](https://github.com/mihonapp/mihon) and [Seanime](https://github.com/5rahim/seanime).
+With credit to [AIOStreams](https://github.com/Viren070/AIOStreams), [Stremio](https://github.com/Stremio), [Jellyfin](https://jellyfin.org/), [mpv](https://mpv.io/), [FFmpeg](https://ffmpeg.org/), [libass](https://github.com/libass/libass), [yt-dlp](https://github.com/yt-dlp/yt-dlp), [Deno](https://github.com/denoland/deno), the Eclipse community, [Suwayomi](https://github.com/Suwayomi/Suwayomi-Server), [Mihon](https://github.com/mihonapp/mihon), [Seanime](https://github.com/5rahim/seanime), [Readest](https://github.com/readest/readest), [Readest/Foliate](https://github.com/readest/foliate-js), [PDF.js](https://github.com/mozilla/pdf.js), [Aria2 Next](https://github.com/AnInsomniacy/aria2-next) and the API and extension developers named above.
 
-The upstream project's full credits, history and documentation remain available in [AIOStreams](https://github.com/Viren070/AIOStreams). See the [desktop third-party notices](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/packages/desktop/THIRD-PARTY.md) for packaged components and their individual licenses. Tsugi source is provided under the [GNU Affero General Public License v3.0](LICENSE).
+### GNU Affero General Public License v3.0
 
-Tsugi does not provide a bundled media catalogue or host a content service. Use sources you are authorized to access and comply with their terms and applicable law. Third-party reading extensions execute with your account's permissions; only install extensions from publishers you trust. Extension signatures are not independently verified.
+Tsugi's source is licensed under the **[GNU AGPL-3.0](LICENSE)**, inherited from AIOStreams. It is the Affero variant of GPLv3, not a permissive license or plain GPLv3. You may run, study, modify and redistribute the covered program under its terms. When conveying covered modifications or binaries, retain notices, license the covered work as required and make the complete Corresponding Source available in a permitted manner. Section 13 also requires a modified version that supports remote network interaction to prominently offer its Corresponding Source to users interacting with it remotely. See the [complete license text](https://www.gnu.org/licenses/agpl-3.0.html) for the precise conditions and definitions.
+
+Source for the distributed Tsugi application and build scripts is available at the [matching build commit](https://github.com/G1NYU/TSUGI/tree/ac6e175ddfa0fa4fd9e15164ec0ec1c0d78a40b1). Separately distributed or incorporated components retain their own licenses and notices: the patched libmpv/FFmpeg playback build is GPL-3.0, Aria2 Next is a separate GPLv2 sidecar with accompanying source, and standalone FFmpeg tools have their own LGPL configuration. Other components are covered by their respective licenses. See [third-party notices and corresponding source references](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/packages/desktop/THIRD-PARTY.md), packaged license files and source archives.
+
+The program is provided without warranty, as set out in the license. Tsugi does not host or supply copyrighted media, subscriptions or bundled content sources. Use only sources you are authorized to access and comply with applicable terms and law.
+
+---
+
+<p align="center"><strong>Tsugi / 次</strong><br><sub>WATCH · LISTEN · READ · COLLECT &nbsp; / &nbsp; GIINYU</sub></p>
