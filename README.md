@@ -40,7 +40,10 @@ A dedicated music library and player, separate from the video server connection.
 - Eclipse-compatible music addon manifests and community addon discovery.
 - Track, album, artist and playlist search, playback queues, shuffle and repeat.
 - Local audio files, remembered folders, saved tracks and playlists.
-- Player layouts, imported Eclipse Studio layouts and local-file equalizer profiles.
+- Three native full-window player layouts (Default, Junction and Nocturne), large artwork, synchronized lyrics, and a separate overlay queue with artwork and editing controls.
+- Pixel-matrix background with Immersive, Minimal and Off modes. Audio-reactive for local files with an active Web Audio equalizer graph; other playback sources use an explicitly ambient animation. Imported Eclipse Studio layouts remain supported.
+- Context-sized artwork with safe same-image fallback, bounded replay reuse and one deterministic upcoming-track prefetch on Windows. Actual provider quality and cold-start latency still require physical testing.
+- Separate installed-source management and optional community addon store.
 - Background music while browsing manga or reading a chapter, with compact playback controls and return to the same chapter when switching back from Music.
 
 Live YouTube Music playback across reading and music on Windows still requires physical acceptance testing. Local audio continuity and the simulated native audio protocol have passed automated browser tests.
@@ -69,7 +72,7 @@ Extension compatibility varies by source. Repositories and extensions are not bu
 
 A dedicated workspace for authorized book and audio downloads. Development source includes:
 
-- Persistent native direct HTTPS queue with pause, retry, cancellation, progress and file-size/type limits. Incomplete local transfers restart when resumed.
+- Persistent native direct HTTPS queue with pause, retry, cancellation, progress and file-size/type limits. The managed Aria2 Next engine supports concurrent direct transfers; resume behavior depends on the transfer engine and server.
 - Authorized individual YouTube Music M4A exports using bundled yt-dlp. Search rows can prefill Vault; each submission requires explicit permission.
 - Import completed local books into Read and open downloaded audio in the Music session library. Files stay in the native download folder.
 - TorBox cloud destination with session-only API key, explicit web-download submission and refreshable account list.
@@ -78,7 +81,7 @@ Live provider exports, real Windows transfers and TorBox authentication still re
 
 ## One workspace
 
-Movies & TV, Music, Read and Vault share a palette, typography, category navigation and app appearance settings. First launch offers live theme and accent personalization; existing choices are preserved and App settings remains available afterwards. Read and Vault use automatic Kitsu/Nekos artwork with a persistent local-only preference. Media-specific preferences stay within their respective sections. The reader can keep its current chapter open during a visit to Music; video playback remains exclusive with music to avoid competing audio.
+Movies & TV, Music, Read and Vault share a palette, typography, category navigation and app appearance settings. Lists use alternating theme-owned tonal surfaces instead of decorative dotted rules. First launch offers live theme and accent personalization; existing choices are preserved and App settings remains available afterwards. Read and Vault use automatic Kitsu/Nekos artwork with a persistent local-only preference. Media-specific preferences stay within their respective sections. The reader can keep its current chapter open during a visit to Music; video playback remains exclusive with music to avoid competing audio.
 
 ## Getting started
 
@@ -124,21 +127,23 @@ For native staging, dependency pins and the complete packaging procedure, see th
 
 ### Current status
 
-The [most recent successful Windows package](https://github.com/G1NYU/TSUGI/actions/runs/45575216104) is from commit `264f1bc`. [Download the portable Windows x64 candidate](https://github.com/G1NYU/TSUGI/actions/runs/45575216104/artifacts/15003678114). All packaging gates passed: 97 web regression tests, browser interaction smoke, 28 native tests (4 ignored), Windows release compilation and packaged EXE reading preparation. The downloaded outer and inner ZIPs passed integrity checks; the inner archive contains the executable, music tools and ebook engine.
+The [last verified portable Windows package](https://github.com/G1NYU/TSUGI/actions/runs/45620044358) is from commit `68b75f1`. [Download that earlier portable candidate](https://github.com/G1NYU/TSUGI/actions/runs/45620044358/artifacts/15024790457). It predates the music polish described above. The newer source at [`f78a93d`](https://github.com/G1NYU/TSUGI/commit/f78a93dbe9fc2d12a676f06680b92ead4c34fad8) passed [Windows and web validation #95](https://github.com/G1NYU/TSUGI/actions/runs/45639525522), including browser interaction smoke. A consolidated package is requested for the next validation; use the workflow's latest successful packaging run rather than a source-only run.
 
-| Roadmap | Status |
+### Interface preview
+
+[Browse the 33 actual browser-rendered UI previews (ZIP)](https://github.com/G1NYU/TSUGI/actions/runs/45639525522/artifacts/15035545390). This test artifact expires after seven days. It contains synthetic fixture content and no real account credentials or provider artwork.
+
+| Preview file | What it demonstrates |
 | :--- | :--- |
-| Shared media rail, badge contrast, soft controls and first-boot personalization | Validated in browser; physical Windows acceptance pending |
-| Kitsu/Nekos hero fallback | Browser fixture validated |
-| Manga collection, history, update queue, migration and batch add | Browser acceptance passed |
-| Readest/Foliate EPUB/PDF rendering and persistent PDF resume | CI 45573987775 passed |
-| Embedded book covers and native Vault import | Browser acceptance passed; physical Windows file transfer pending |
-| Persistent native Vault jobs and authorized YouTube M4A exports | Source implemented; live transfers pending |
-| TorBox cloud destination | Mock API tests passed; live account pending |
-| Direct Z-Library account integration | Blocked: supported authentication contract unverified |
-| Unified Windows package | CI 45575216104 passed; portable candidate available |
+| `08-expanded-nocturne-wide.png` | Full-width 2560 × 1440 Nocturne layout |
+| `08-expanded-default.png` and `08-expanded-junction.png` | Native large-art compositions |
+| `08-expanded-queue.png` | Queue overlay without shrinking the player |
+| `10-wide-music-sources.png` and `10-addon-store.png` | Installed sources and separate store |
+| `06-music-library.png`, `05-reader.png`, `01-vault.png` | Shared workspace surfaces |
 
-Physical Windows UI, live music playback, tracker authorization and source compatibility still require acceptance. Refract and MangaBaka integrations are not currently shipped.
+The [ten-point roadmap](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/ROADMAP.md) tracks implementation and remaining acceptance work. Permanent real-content screenshots will follow physical Windows acceptance rather than presenting synthetic fixtures as live playback.
+
+Physical Windows UI, cold-start measurements, live artwork and music playback, tracker authorization, transfer/provider tests and source compatibility still require acceptance. Refract and MangaBaka integrations are not currently shipped.
 
 ## Credits & license
 

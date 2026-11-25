@@ -777,7 +777,23 @@ try {
     }
     await capture('08-expanded-' + layout);
   }
+  await page.setViewportSize({ width: 720, height: 900 });
+  const narrowStage = expanded.locator('[data-layout="nocturne"]');
+  const narrowGeometry = await narrowStage.evaluate(node => {
+    const art = node.querySelector('.tsugi-junction-art').getBoundingClientRect();
+    return { columns: getComputedStyle(node).gridTemplateColumns.split(' ').length, artLeft: art.left, artRight: art.right, viewport: innerWidth };
+  });
+  assert.equal(narrowGeometry.columns, 1, 'narrow Nocturne stacks the artwork and transport');
+  assert.ok(narrowGeometry.artLeft >= 0 && narrowGeometry.artRight <= narrowGeometry.viewport, 'narrow artwork fits the viewport');
+  await capture('08-expanded-nocturne-narrow');
+  await page.setViewportSize({ width: 1440, height: 900 });
   await expanded.getByRole('button', { name: 'Player settings', exact: true }).click();
+  const matrixSettings = expanded.getByRole('dialog', { name: 'Player settings' });
+  await matrixSettings.getByRole('combobox', { name: 'Pixel matrix' }).selectOption('minimal');
+  await matrixSettings.getByRole('button', { name: 'Close', exact: true }).click();
+  await expanded.locator('canvas[data-ui="tsugi-pixel-matrix"]').waitFor();
+  await expanded.getByRole('button', { name: 'Player settings', exact: true }).click();
+  assert.equal(await expanded.getByRole('combobox', { name: 'Pixel matrix' }).inputValue(), 'minimal');
   await expanded.getByRole('combobox', { name: 'Pixel matrix' }).selectOption('off');
   await expanded.getByRole('dialog', { name: 'Player settings' }).getByRole('button', { name: 'Close', exact: true }).click();
   assert.equal(await expanded.locator('canvas[data-ui="tsugi-pixel-matrix"]').count(), 0);
