@@ -26,8 +26,8 @@ import {
   setLocalEqualizer, nativeDspMode, type AudioProfile, type LocalEqualizer,
 } from '@/lib/music/audio-profiles';
 import {
-  addToMusicPlaylist, createMusicPlaylist, findLocalPlaylistMatch,
-  readMusicLibrary, saveMusicLibrary,
+  findLocalPlaylistMatch,
+  readMusicLibrary, saveMusicLibrary, saveMusicCollection, saveMusicTracks, sameMusicCollection, isSavedMusicTrack,
   savedTrack, type SavedMusicTrack,
 } from '@/lib/music/library';
 import { TsugiRail } from '@/components/shell/tsugi-rail';
@@ -81,6 +81,7 @@ export function MusicPage({
   const [tab, setTab] = React.useState<'discover' | 'search' | 'library'>('discover');
   const [playlists, setPlaylists] = React.useState(readMusicLibrary);
   const [libraryError, setLibraryError] = React.useState('');
+  const [saveNotice, setSaveNotice] = React.useState('');
   const [sessionTracks, setSessionTracks] = React.useState<EclipseTrack[]>([]);
   const [localLibraryRequest,setLocalLibraryRequest]=React.useState(0);
   const folder = useRememberedMusicFolder();
@@ -559,35 +560,42 @@ export function MusicPage({
     }
   }
 
-  function saveTrackInLibrary(track: EclipseTrack) {
-    const sourceId = activeSource?.id ?? playingSourceId;
-    const entry = savedTrack(track, sourceId);
-    setPlaylists((current) => {
-      const existing = current.find((list) => list.id === SAVED_PLAYLIST_ID);
-      if (existing) return current.map((list) =>
-        list.id === existing.id ? addToMusicPlaylist(list, entry) : list);
-      return [...current, addToMusicPlaylist({
-        ...createMusicPlaylist(t`Saved tracks`), id: SAVED_PLAYLIST_ID,
-      }, entry)];
-    });
+  const favorites = playlists.find(list => list.id === SAVED_PLAYLIST_ID);
+  const isTrackSaved = (source: MusicConnection, track: EclipseTrack) => isSavedMusicTrack(favorites, track, source.id);
+  const isCollectionSaved = (source: MusicConnection, item: EclipseCatalogItem) => item.type !== 'track' &&
+    playlists.some(list => sameMusicCollection(list.collection, { sourceId: source.id, id: item.id, type: item.type as 'album' | 'artist' | 'playlist' }));
+  function saveTracksInLibrary(sourceId: string, tracks: EclipseTrack[]): boolean {
+    const next = saveMusicTracks(playlists, SAVED_PLAYLIST_ID, t`Saved tracks`, tracks, sourceId);
+    if (!next) { setSaveNotice(t`Library limit reached or invalid track metadata. No changes were made.`); return false; }
+    setPlaylists(next);
+    setSaveNotice(t`Saved to your library.`);
+    return true;
   }
-
+  function toggleTrackInLibrary(sourceId: string, track: EclipseTrack): boolean {
+    if (isSavedMusicTrack(favorites, track, sourceId)) {
+      setPlaylists(current => current.map(list => list.id !== SAVED_PLAYLIST_ID ? list : {
+        ...list, tracks: list.tracks.filter(entry => entry.id !== track.id || entry.sourceId !== sourceId),
+      }));
+      setSaveNotice(t`Removed from saved tracks.`);
+      return true;
+    }
+    return saveTracksInLibrary(sourceId, [track]);
+  }
+  function saveCollectionInLibrary(source: MusicConnection, item: EclipseCatalogItem, title: string, tracks: EclipseTrack[]): boolean {
+    if (item.type === 'track') return false;
+    const next = saveMusicCollection(playlists, { sourceId: source.id, id: item.id, type: item.type }, title, tracks);
+    if (!next) { setSaveNotice(t`Collection exceeds library limits or contains invalid tracks. No changes were made.`); return false; }
+    setPlaylists(next);
+    setSaveNotice(t`Collection saved to your library.`);
+    return true;
+  }
+  const collectionSaving = {
+    isTrackSaved, isCollectionSaved,
+    onToggleTrack: (source: MusicConnection, track: EclipseTrack) => toggleTrackInLibrary(source.id, track),
+    onSaveCollection: saveCollectionInLibrary,
+  };
   function togglePlayingFavorite() {
-    if (!playing || playingSourceId === LOCAL_SOURCE) return;
-    const entry = savedTrack(playing, playingSourceId);
-    setPlaylists((current) => {
-      const existing = current.find((list) => list.id === SAVED_PLAYLIST_ID);
-      if (!existing) return [...current, addToMusicPlaylist({
-        ...createMusicPlaylist(t`Saved tracks`), id: SAVED_PLAYLIST_ID,
-      }, entry)];
-      const liked = existing.tracks.some(track =>
-        track.id === entry.id && track.sourceId === entry.sourceId);
-      return current.map(list => list.id !== SAVED_PLAYLIST_ID ? list : {
-        ...list, tracks: liked
-          ? list.tracks.filter(track => !(track.id === entry.id && track.sourceId === entry.sourceId))
-          : addToMusicPlaylist(list,entry).tracks,
-      });
-    });
+    if (playing && playingSourceId && playingSourceId !== LOCAL_SOURCE) toggleTrackInLibrary(playingSourceId, playing);
   }
 
   async function playSavedTrack(entry: SavedMusicTrack) {
@@ -811,7 +819,7 @@ export function MusicPage({
           <h1 id="music-workspace-heading">{tab === 'search' ? <Trans>Search music</Trans> : <Trans>Discover</Trans>}</h1>
         </div>}
 
-        {tab === 'discover' && <MusicDiscover source={activeSource} onPlay={playCollection}
+        {tab === 'discover' && <MusicDiscover source={activeSource} onPlay={playCollection} saving={collectionSaving}
           onFind={(song) => { void findChartTrack(song); }}
           recent={recent}
           onPlayRecent={(entry) => {
@@ -879,6 +887,7 @@ export function MusicPage({
               </button>
             </form>
             {searchError && <p role="alert" className="text-sm text-red-300">{searchError}</p>}
+            {saveNotice && <p role="status" className="text-sm text-[--tsugi-muted]">{saveNotice}</p>}
             {collections.length > 0 && (
               <section className="space-y-3">
                 <h3 className="text-lg font-semibold"><Trans>Albums, artists and playlists</Trans></h3>
@@ -895,12 +904,13 @@ export function MusicPage({
                           </span>}
                       <span className="mt-2 block truncate text-sm font-medium">{item.title}</span>
                       <span className="block truncate text-xs text-white/45">{item.artist ?? item.type}</span>
+                      {activeSource && isCollectionSaved(activeSource,item) && <span className="text-xs text-[--tsugi-accent]"><Trans>Saved</Trans></span>}
                     </button>
                   ))}
                 </div>
               </section>
             )}
-            {tracks.length > 0 && <div className="tsugi-search-results-heading"><h2><Trans>Tracks</Trans> <span>{tracks.length}</span></h2><span>{connectedName}</span></div>}
+            {tracks.length > 0 && <div className="tsugi-search-results-heading"><h2><Trans>Tracks</Trans> <span>{tracks.length}</span></h2><span>{connectedName}</span>{activeSource && <button type="button" className="tsugi-read-action" disabled={tracks.every(track=>isTrackSaved(activeSource,track))} onClick={()=>saveTracksInLibrary(activeSource.id,tracks)}><FiPlus aria-hidden/><Trans>Save all tracks</Trans></button>}</div>}
             <ul className="tsugi-search-track-list">
               {tracks.map((track, at) => (
                 <li key={track.id} className="tsugi-search-track-line" data-active={playing?.id === track.id && playingSourceId === activeSource?.id ? 'true' : 'false'}>
@@ -918,9 +928,9 @@ export function MusicPage({
                     {typeof track.duration === 'number' && <span className="tsugi-track-duration">{Math.floor(track.duration / 60)}:{String(Math.floor(track.duration % 60)).padStart(2, '0')}</span>}
                   </button>
                   {activeSource?.id === YOUTUBE_MUSIC_ID && desktopArea?.openVaultMusic && <button type="button" className="tsugi-icon-action shrink-0" onClick={() => desktopArea.openVaultMusic?.({ id: track.id, title: track.title })} aria-label={t`Send track to Vault`} title={t`Send track to Vault`}><BrushDownload aria-hidden/></button>}
-                  <button type="button" className="tsugi-icon-action shrink-0" onClick={() => saveTrackInLibrary(track)}
-                    aria-label={t`Save track to library`}>
-                    <FiPlus aria-hidden />
+                  <button type="button" className="tsugi-icon-action shrink-0 tsugi-save-track" disabled={!activeSource} onClick={() => activeSource && toggleTrackInLibrary(activeSource.id,track)}
+                    aria-pressed={!!activeSource && isTrackSaved(activeSource,track)} aria-label={t`Save track to library`} title={activeSource && isTrackSaved(activeSource,track) ? t`Remove from saved tracks` : t`Save track to library`}>
+                    {activeSource && isTrackSaved(activeSource,track) ? <span aria-hidden>✓</span> : <FiPlus aria-hidden />}
                   </button>
                 </li>
               ))}
@@ -1023,7 +1033,7 @@ export function MusicPage({
 
       {activeSource && (
         <MusicCollection source={activeSource} selected={selectedCollection}
-          onClose={() => setSelectedCollection(null)} onPlay={playCollection} />
+          onClose={() => setSelectedCollection(null)} onPlay={playCollection} saving={collectionSaving} />
       )}
       <MusicPlayer p={{
         track: playing,

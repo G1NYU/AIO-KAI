@@ -59,16 +59,19 @@ export function PixelMatrix({ mode, accent, paused, analyser, nativeMeter }: {
         const immersive = mode === 'immersive';
         const step = Math.max(immersive ? 17 : 30, Math.ceil(Math.sqrt(width * height / 3000)));
         const columns = Math.ceil(width / step), rows = Math.ceil(height / step);
-        const phase = time / 1450;
+        const phase = moving ? time / 640 : 0;
         for (let x = 0; x < columns; x++) {
           const energy = local && bins ? bins[Math.min(bins.length - 1, Math.floor(x / columns * bins.length * .65))] / 255 : valid ? sample.level : 0;
           for (let y = immersive ? 0 : Math.floor(rows * .72); y < rows; y++) {
             const nx = x / columns, ny = y / rows;
-            const wave = .5 + .5 * Math.sin(nx * 11 + ny * 7 + phase + Math.sin(ny * 6 - phase));
-            const strength = local || valid ? .15 + energy * Math.max(0, 1 - Math.abs(ny - .65) / (.15 + energy * .65)) : wave * wave;
-            ctx.globalAlpha = (immersive ? .43 : .15) * (.45 + .55 * strength);
-            const size = immersive ? 4 : 2;
-            ctx.fillRect(x * step, y * step, size, size);
+            const wave = .5 + .5 * Math.sin(nx * 13 + ny * 9 + phase + 1.5 * Math.sin(ny * 6 - phase * .72));
+            // Retain a traveling field even with steady RMS/FFT samples.
+            // Audio controls intensity; phase supplies visible spatial motion.
+            const strength = Math.min(1, wave * wave * (.65 + energy * .75));
+            ctx.globalAlpha = immersive ? .13 + .75 * strength : .045 + .17 * strength;
+            const size = immersive ? 2 + 5 * strength : 2;
+            const drift = immersive && moving ? 2.4 * Math.sin(phase + nx * 8 + ny * 5) : 0;
+            ctx.fillRect(x * step + drift, y * step - drift, size, size);
           }
         }
       }

@@ -669,9 +669,23 @@ try {
   await detail.getByRole('textbox',{name:'Find collection tracks'}).fill('Collection track 12');
   assert.equal(await detail.locator('.tsugi-music-detail-track').count(),1);
   await detail.getByRole('textbox',{name:'Find collection tracks'}).fill('');
+  const saveCollection = detail.getByRole('button',{name:'Save collection to library',exact:true});
+  await saveCollection.click();
+  await detail.getByRole('button',{name:'Saved to library',exact:true}).waitFor();
+  const saveRow = detail.locator('.tsugi-music-detail-track').first().getByRole('button',{name:'Save track to library',exact:true});
+  await saveRow.click();
+  assert.equal(await saveRow.getAttribute('aria-pressed'),'true');
+  await saveRow.click();
+  assert.equal(await saveRow.getAttribute('aria-pressed'),'false');
+  await page.waitForFunction(()=>JSON.parse(localStorage.getItem('tsugi-independent-playlists-v1')||'[]').some(list=>list.name==='Fixture playlist'&&list.collection?.type==='playlist'&&list.tracks.length===12));
   await capture('11-music-collection-redesign');
   await detail.getByRole('button', { name: 'Back to music', exact: true }).click();
   await detail.waitFor({ state: 'detached' });
+  const bulkSave=music.getByRole('button',{name:'Save all tracks',exact:true});
+  await bulkSave.click();
+  assert.equal(await bulkSave.isDisabled(),true);
+  await music.getByRole('button',{name:'Save track to library',exact:true}).click();
+  assert.equal(await bulkSave.isEnabled(),true);
   await music.getByRole('button',{name:'Send track to Vault',exact:true}).click();
   const selectedVaultQueue=vault.locator('[data-ui="tsugi-native-vault-queue"]');
   await selectedVaultQueue.getByRole('textbox',{name:'YouTube Music track link'}).waitFor();
@@ -780,6 +794,7 @@ try {
     await headerToggle.click();
     assert.equal(await headerToggle.isChecked(), headerWasChecked);
     await settings.getByRole('combobox', { name: 'Player layout' }).selectOption(layout);
+    await settings.getByRole('combobox', { name: 'Pixel matrix' }).selectOption('immersive');
     await settings.getByRole('button', { name: 'Close', exact: true }).click();
     const stage = expanded.locator('[data-layout="' + layout + '"]');
     await stage.waitFor();
@@ -794,6 +809,18 @@ try {
     assert.ok(geometry.art >= 440, 'native stage displays a large cover');
     await stage.locator('canvas[data-ui="tsugi-pixel-matrix"]').waitFor();
     assert.equal(await stage.locator('.tsugi-nocturne-backdrop').count(), layout === 'nocturne' ? 1 : 0);
+    if (layout === 'default') {
+      const motion=await stage.locator('canvas[data-mode="immersive"]').evaluate(async canvas=>{
+        const ctx=canvas.getContext('2d');
+        const first=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+        await new Promise(resolve=>setTimeout(resolve,300));
+        const second=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+        let changed=0, bright=0;
+        for(let i=3;i<second.length;i+=4){if(first[i]!==second[i])changed++;if(second[i]>100)bright++;}
+        return {changed,bright};
+      });
+      assert.ok(motion.changed>100&&motion.bright>100,'immersive field visibly animates');
+    }
     if (layout === 'nocturne') {
       await stage.getByRole('button', { name: 'Queue', exact: true }).click();
       await stage.getByRole('region', { name: 'Playback queue', exact: true }).waitFor();

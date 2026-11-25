@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createMusicPlaylist, addToMusicPlaylist, importMusicPlaylist,
   exportMusicPlaylist, saveMusicLibrary, readMusicLibrary, savedTrack,
-  findLocalPlaylistMatch,
+  findLocalPlaylistMatch, saveMusicCollection, saveMusicTracks, sameMusicCollection,
 } from '../src/lib/music/library';
 
 import {
@@ -44,6 +44,24 @@ describe('independent Tsugi playlists', () => {
     expect(readMusicLibrary()[0].tracks[0]).toMatchObject({ id: song.id, artist: '', sourceId });
     expect(importMusicPlaylist('test.json', exportMusicPlaylist(list)).tracks).toHaveLength(1);
     expect(addToMusicPlaylist(list, { id: 'ambiguous', title: 'Ambiguous', artist: '' }).tracks).toHaveLength(1);
+  });
+  it('persists ordered provider collections independently from individual saves', () => {
+    const sourceId = 'eeaa2cb3-5735-43ad-bff6-f1f9f23acdb9';
+    const identity = { sourceId, id:'album-1', type:'album' as const };
+    const tracks = [{id:'b',title:'Second',artist:'Artist',streamURL:'https://private.example/token'}, {id:'a',title:'First',artist:''}];
+    const lists = saveMusicCollection([],identity,'Album',tracks)!;
+    expect(lists[0].tracks.map(track=>track.id)).toEqual(['b','a']);
+    expect(lists[0].tracks[0].album).toBe('Album');
+    expect(saveMusicCollection(lists,identity,'Album',tracks)).toBe(lists);
+    saveMusicLibrary(lists);
+    const restored=readMusicLibrary();
+    expect(sameMusicCollection(restored[0].collection,identity)).toBe(true);
+    expect(JSON.stringify(restored)).not.toContain('private.example');
+    const bulk=saveMusicTracks(restored,'saved','Saved tracks',tracks,sourceId)!;
+    expect(bulk).toHaveLength(2);
+    expect(saveMusicTracks(bulk,'saved','Saved tracks',tracks,sourceId)![1].tracks).toHaveLength(2);
+    expect(saveMusicCollection([],identity,'Album',Array(1001).fill(tracks[0]))).toBeNull();
+    expect(saveMusicTracks([],'saved','Saved tracks',Array.from({length:1001},(_,i)=>({...tracks[0],id:String(i)})),sourceId)).toBeNull();
   });
   it('exports and imports Tsugi playlists without stream URLs', () => {
     const list = addToMusicPlaylist(createMusicPlaylist('Test'),

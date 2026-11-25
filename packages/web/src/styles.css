@@ -2966,3 +2966,18 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-app-general p,.tsugi-app-about { color:var(--tsugi-muted); font-size:.84rem; line-height:1.55; }
 .tsugi-app-general label { display:grid; gap:8px; font-size:14px; }
 .tsugi-app-about { display:grid; gap:8px; padding:18px 0 0; border-top:1px solid var(--tsugi-line); }
+
+/* Final library and fullscreen polish. Keep save targets separate from playback. */
+.tsugi-save-track[aria-pressed='true'] { color:var(--tsugi-accent); }
+.tsugi-hub-collection .tsugi-music-detail-track { grid-template-columns:minmax(0,1fr) 40px; padding:0; gap:0; }
+.tsugi-hub-collection .tsugi-remote-track-play { min-width:0; display:grid; grid-template-columns:26px minmax(0,1.7fr) minmax(0,1fr) minmax(64px,.6fr) 52px; gap:10px; align-items:center; padding:10px 12px; }
+.tsugi-hub-collection .tsugi-hub-remote-columns { grid-template-columns:26px minmax(0,1.7fr) minmax(0,1fr) minmax(64px,.6fr) 52px 30px; }
+.tsugi-music-detail-track > .tsugi-save-track { align-self:stretch; width:40px; display:grid; place-items:center; }
+.tsugi-remote-track-play:focus-visible,.tsugi-save-track:focus-visible { outline:2px solid var(--tsugi-focus); outline-offset:-2px; }
+.tsugi-search-results-heading { flex-wrap:wrap; }
+.tsugi-search-results-heading .tsugi-read-action { margin-inline-start:auto; }
+.tsugi-matrix[data-mode='immersive'] { z-index:0; opacity:1; }
+@media(max-width:760px) {
+  .tsugi-hub-collection .tsugi-remote-track-play { grid-template-columns:22px minmax(0,1fr) 48px; }
+  .tsugi-hub-collection .tsugi-hub-remote-columns { grid-template-columns:22px minmax(0,1fr) 48px 30px; }
+}

@@ -2,7 +2,7 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { BiArrowBack, BiDisc, BiPlay } from 'react-icons/bi';
-import { FiPlay, FiSettings } from 'react-icons/fi';
+import { FiPlay, FiSettings, FiPlus, FiCheck } from 'react-icons/fi';
 import {
   catalogTrack,
   type EclipseCatalogDefinition, type EclipseCatalogItem, type EclipseDetail, type EclipseTrack,
@@ -15,6 +15,12 @@ import { MusicArtwork } from './music-artwork';
 import type { RecentMusicPlay } from '@/lib/music/history';
 
 export type PlayCollection = (source: MusicConnection, songs: EclipseTrack[], at: number) => void;
+type CollectionSaving = {
+  isTrackSaved(source: MusicConnection, track: EclipseTrack): boolean;
+  isCollectionSaved(source: MusicConnection, item: EclipseCatalogItem): boolean;
+  onToggleTrack(source: MusicConnection, track: EclipseTrack): boolean;
+  onSaveCollection(source: MusicConnection, item: EclipseCatalogItem, title: string, tracks: EclipseTrack[]): boolean;
+};
 
 type Shelf = {
   catalog: EclipseCatalogDefinition;
@@ -34,16 +40,18 @@ function Cover({ src, size = 'full' }: { src?: string; size?: 'full' | 'small' }
 
 /** Each collection is loaded through the addon that supplied its item id. */
 export function MusicCollection({
-  source, selected, onClose, onPlay,
+  source, selected, onClose, onPlay, saving,
 }: {
   source: MusicConnection;
   selected: EclipseCatalogItem | null;
   onClose(): void;
   onPlay: PlayCollection;
+  saving: CollectionSaving;
 }) {
   const [detail, setDetail] = React.useState<EclipseDetail | null>(null);
   const [nested, setNested] = React.useState<EclipseCatalogItem | null>(null);
   const [trackFilter,setTrackFilter]=React.useState('');
+  const [saveNotice,setSaveNotice]=React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   const current = nested ?? selected;
@@ -54,6 +62,7 @@ export function MusicCollection({
     const controller = new AbortController();
     setDetail(null);
     setTrackFilter('');
+    setSaveNotice('');
     setError('');
     setLoading(true);
     providerFor(source).detail(current, controller.signal).then((result) => {
@@ -76,6 +85,7 @@ export function MusicCollection({
   }, [selected, onClose]);
 
   if (!current) return null;
+  const collectionSaved = saving.isCollectionSaved(source,current);
   const visibleTracks=detail?.tracks.map((track,at)=>({track,at})).filter(({track})=>[track.title,track.artist,track.album].join(' ').toLocaleLowerCase().includes(trackFilter.trim().toLocaleLowerCase()))||[];
   return (
     <section role="dialog" aria-modal="true" aria-label={t`Music collection`}
@@ -100,9 +110,11 @@ export function MusicCollection({
               <button type="button" onClick={() => { onPlay(source, detail.tracks, 0); onClose(); }}
                 className="tsugi-music-detail-play inline-flex items-center gap-2 rounded-full bg-violet-200 px-5 py-2.5 font-semibold text-[#171420]"><BiPlay aria-hidden/><Trans>Play all</Trans></button>
               <button type="button" className="tsugi-read-action" onClick={()=>{const tracks=[...detail.tracks];for(let i=tracks.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[tracks[i],tracks[j]]=[tracks[j],tracks[i]];}onPlay(source,tracks,0);onClose();}}><Trans>Shuffle</Trans></button>
+              {current.type !== 'track' && <button type="button" className="tsugi-read-action tsugi-save-track" disabled={collectionSaved} aria-pressed={collectionSaved} onClick={()=>setSaveNotice(saving.onSaveCollection(source,current,detail.title||current.title,detail.tracks)?t`Collection saved to your library.`:t`Could not save this collection. Check library limits.`)}>{collectionSaved?<FiCheck aria-hidden/>:<FiPlus aria-hidden/>}{collectionSaved?t`Saved to library`:t`Save collection to library`}</button>}
             </div>}
           </div>
         </header>
+        {saveNotice && <p role="status" className="text-sm text-[--tsugi-muted]">{saveNotice}</p>}
         {loading && <p role="status" className="text-sm text-white/50"><Trans>Loading music…</Trans></p>}
         {error && <p role="alert" className="text-sm text-amber-200">{error}</p>}
         {detail && detail.tracks.length > 0 && (
@@ -112,12 +124,11 @@ export function MusicCollection({
               <input className="tsugi-read-input tsugi-detail-search" value={trackFilter} onChange={event=>setTrackFilter(event.target.value)} aria-label={t`Find collection tracks`} placeholder={t`Find tracks in collection`}/>
             </div>
             {visibleTracks.length===0&&<p className="tsugi-library-muted"><Trans>No matching tracks.</Trans></p>}
-            <div className="tsugi-hub-remote-columns"><span>#</span><span><Trans>Title</Trans></span><span><Trans>Album</Trans></span><span><Trans>Source</Trans></span><span><Trans>Time</Trans></span></div>
+            <div className="tsugi-hub-remote-columns"><span>#</span><span><Trans>Title</Trans></span><span><Trans>Album</Trans></span><span><Trans>Source</Trans></span><span><Trans>Time</Trans></span><span aria-hidden/></div>
             <div className="tsugi-music-detail-track-grid">
             {visibleTracks.map(({track,at}) => (
-              <button key={track.id + ':' + at} type="button"
-                onClick={() => { onPlay(source, detail.tracks, at); onClose(); }}
-                className="tsugi-music-detail-track flex w-full items-center gap-4 border-b border-white/[0.08] px-4 py-3 text-left transition-colors hover:bg-white/[0.04]">
+              <div key={track.id + ':' + at} className="tsugi-music-detail-track">
+              <button type="button" onClick={() => { onPlay(source, detail.tracks, at); onClose(); }} className="tsugi-remote-track-play text-left">
                 <span className="w-6 text-right text-xs text-white/35">{at + 1}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{track.title}</span>
@@ -126,6 +137,8 @@ export function MusicCollection({
                 <span className="tsugi-hub-remote-album" title={track.album}>{track.album||current.title}</span><span className="tsugi-hub-source"><span>{source.manifest.name}</span></span>
                 <span className="tsugi-track-duration">{typeof track.duration==='number'?Math.floor(track.duration/60)+':'+String(Math.floor(track.duration%60)).padStart(2,'0'):'—'}</span>
               </button>
+              <button type="button" className="tsugi-icon-action tsugi-save-track" aria-label={t`Save track to library`} aria-pressed={saving.isTrackSaved(source,track)} title={saving.isTrackSaved(source,track)?t`Remove from saved tracks`:t`Save track to library`} onClick={()=>setSaveNotice(saving.onToggleTrack(source,track)?t`Saved tracks updated.`:t`Could not update saved tracks. Check library limits.`)}>{saving.isTrackSaved(source,track)?<FiCheck aria-hidden/>:<FiPlus aria-hidden/>}</button>
+              </div>
             ))}
             </div>
           </section>
@@ -154,10 +167,11 @@ export function MusicCollection({
 }
 
 export function MusicDiscover({
-  source, onPlay, onFind, recent, onPlayRecent, onConfigure, onLibrary,
+  source, onPlay, onFind, recent, onPlayRecent, onConfigure, onLibrary, saving,
 }: {
   source: MusicConnection | undefined;
   onPlay: PlayCollection;
+  saving: CollectionSaving;
   onFind(recording: TrendingRecording): void;
   recent: RecentMusicPlay[];
   onPlayRecent(item: RecentMusicPlay): void;
@@ -331,7 +345,7 @@ export function MusicDiscover({
 
       <MusicCharts onFind={onFind} />
       <MusicCollection source={source} selected={selected}
-        onClose={() => setSelected(null)} onPlay={onPlay} />
+        onClose={() => setSelected(null)} onPlay={onPlay} saving={saving} />
     </section>
   );
 }
