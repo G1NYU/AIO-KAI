@@ -2,7 +2,6 @@ import { useEffect,useRef,useState } from 'react';
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
 import { TsugiRail } from '@/components/shell/tsugi-rail';
-import { LandscapeSpotlight } from '@/components/landscape-spotlight';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { saveVaultFile,vaultPicker,vaultTarget } from './transfer';
 import { NativeVaultQueue } from './native-queue';
@@ -10,7 +9,6 @@ import { NativeVaultQueue } from './native-queue';
 export function VaultPage({track=null}:{track?:{id:string;title:string}|null}){
   const actions=useDesktopArea();
   const [input,setInput]=useState('');
-  const [openRequest,setOpenRequest]=useState(0);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const [progress,setProgress]=useState<{bytes:number;total:number|null}>({bytes:0,total:null});
@@ -33,12 +31,12 @@ export function VaultPage({track=null}:{track?:{id:string;title:string}|null}){
   }
   return <main className="tsugi-vault-root" data-page="vault">
     <TsugiRail area="vault" disabled={busy}/>
-    <header className="tsugi-vault-page-header"><div><p className="tsugi-feature-kicker"><Trans>Your media collection</Trans></p><h1><Trans>Vault</Trans></h1></div><div className="tsugi-vault-actions">
+    <header className="tsugi-vault-page-header"><div><p className="tsugi-feature-kicker"><Trans>Download center</Trans></p><h1><Trans>Vault</Trans></h1></div><div className="tsugi-vault-actions">
       {actions?.openBooks&&<button className="tsugi-read-action" onClick={actions.openBooks} disabled={busy}><Trans>Local books</Trans></button>}
       <button className="tsugi-read-action" onClick={actions?.openLocalMusic} disabled={busy}><Trans>Local music</Trans></button>
       <button className="tsugi-read-action" onClick={actions?.openVideoDownloads} disabled={busy}><Trans>Video downloads</Trans></button>
     </div></header>
-    <NativeVaultQueue track={track} openRequest={openRequest}/>
+    <NativeVaultQueue track={track}/>
     <details className="tsugi-vault-advanced"><summary><Trans>Save a direct file to a custom location</Trans></summary>
     <h2><Trans>Download a book or audio file</Trans></h2>
     <p><Trans>Use a direct HTTPS file link you have permission to download. PDF, EPUB and common audio formats, up to 256 MiB. The host must allow direct browser access.</Trans></p>
@@ -56,6 +54,5 @@ export function VaultPage({track=null}:{track?:{id:string;title:string}|null}){
     {saved.length===0?<p><Trans>No completed transfers yet.</Trans></p>:saved.map((file,i)=><div className="tsugi-vault-file-row" key={i}><span>{file.name}</span><span>{(file.bytes/1048576).toFixed(1)} MiB</span></div>)}
     <div className="tsugi-pixel-rule" style={{height:4,marginBlock:24}} aria-hidden="true"/>
     </details>
-    <LandscapeSpotlight title={t`Vault`} eyebrow={t`Your media collection`} description={t`Books, music and downloads, in one place.`} actionLabel={t`Save a file`} onAction={()=>setOpenRequest(v=>v+1)} disabled={busy}/>
   </main>;
 }

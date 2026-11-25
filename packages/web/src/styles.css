@@ -2702,3 +2702,104 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   .tsugi-vault-queue-tools label { flex:1 1 160px; width:auto; }
   .tsugi-torbox-row { grid-template-columns:minmax(0,1fr) 100px; gap:8px; padding-inline:6px; }
 }
+
+/* Destination-first Vault. The cloud service is a destination, never an inventory. */
+.tsugi-vault-workspace { max-width:1200px; margin-inline:auto; gap:26px; }
+.tsugi-vault-page-header { max-width:1200px; margin-inline:auto; }
+.tsugi-vault-root > .tsugi-vault-advanced { max-width:1200px; margin-inline:auto; border:0; border-top:1px solid var(--tsugi-line); border-radius:0; padding-inline:0; }
+.tsugi-vault-overline { color:var(--tsugi-muted); font-size:10px; font-weight:700; letter-spacing:.15em; margin-bottom:7px; }
+.tsugi-vault-onboarding { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px 32px; padding:24px 28px; background:var(--tsugi-surface); border-inline-start:3px solid var(--tsugi-accent); }
+.tsugi-vault-onboarding h2 { font-size:26px; font-weight:700; line-height:1.2; letter-spacing:-.035em; }
+.tsugi-vault-onboarding p:not(.tsugi-vault-overline) { color:var(--tsugi-muted); font-size:13px; line-height:1.65; max-width:62ch; margin-top:8px; }
+.tsugi-vault-onboarding-steps { display:grid; gap:11px; align-content:center; }
+.tsugi-vault-onboarding-steps span { display:flex; gap:12px; align-items:center; font-size:13px; }
+.tsugi-vault-onboarding-steps strong { font-size:12px; color:var(--tsugi-accent); font-variant-numeric:tabular-nums; }
+.tsugi-vault-onboarding > button { justify-self:start; }
+.tsugi-vault-composer { display:grid; gap:16px; }
+.tsugi-vault-quiet { color:var(--tsugi-muted); font-size:13px; font-weight:550; text-align:start; padding:6px 0; }
+.tsugi-vault-quiet:hover { color:var(--tsugi-ink); text-decoration:underline; }
+.tsugi-vault-destinations { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.tsugi-vault-destinations > button { display:flex; gap:14px; align-items:center; text-align:start; padding:16px 18px; border:1px solid var(--tsugi-line); border-radius:var(--tsugi-radius-control); min-height:74px; }
+.tsugi-vault-destinations > button[aria-pressed='true'] { background:var(--tsugi-surface); border-color:var(--tsugi-accent); }
+.tsugi-vault-destinations > button > svg { width:24px; height:24px; color:var(--tsugi-muted); flex:none; }
+.tsugi-vault-destinations > button[aria-pressed='true'] > svg { color:var(--tsugi-accent); }
+.tsugi-vault-destinations strong,.tsugi-vault-destinations small { display:block; }
+.tsugi-vault-destinations strong { font-weight:650; font-size:15px; }
+.tsugi-vault-destinations small { color:var(--tsugi-muted); font-size:12px; margin-top:3px; }
+.tsugi-vault-workspace .tsugi-vault-intake,.tsugi-vault-workspace .tsugi-torbox-submit,.tsugi-vault-workspace .tsugi-torbox-connect { width:100%; max-width:none; padding:0; border:0; background:transparent; }
+.tsugi-vault-input-header,.tsugi-vault-submit-row { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+.tsugi-vault-input-header strong { font-size:13px; }
+.tsugi-vault-source-info { display:flex; gap:8px; align-items:center; color:var(--tsugi-muted); font-size:12px; }
+.tsugi-vault-source-info svg { width:17px; height:17px; }
+.tsugi-vault-submit-row label { flex:1 1 230px; }
+.tsugi-vault-submit-row button { flex:none; }
+.tsugi-vault-queue-heading { display:grid; gap:12px; padding-top:22px; border-top:1px solid var(--tsugi-line); }
+.tsugi-vault-transfer-settings { border-bottom:1px solid var(--tsugi-line); padding-bottom:12px; }
+.tsugi-vault-transfer-settings summary,.tsugi-torbox-account-menu summary { cursor:pointer; color:var(--tsugi-muted); font-size:13px; }
+.tsugi-vault-transfer-settings summary svg { width:15px; height:15px; display:inline-block; margin-inline-end:8px; vertical-align:middle; }
+.tsugi-vault-transfer-settings[open] .tsugi-vault-queue-tools { margin-top:12px; }
+.tsugi-vault-transfer-settings[open] p { margin-top:8px; }
+.tsugi-vault-workspace .tsugi-vault-task { padding:12px 0; }
+.tsugi-torbox-destination { display:grid; gap:14px; }
+.tsugi-torbox-identity { display:flex; align-items:center; gap:12px; }
+.tsugi-torbox-identity > svg { width:26px; height:26px; color:var(--tsugi-muted); }
+.tsugi-torbox-identity h2 { font-size:16px; }
+.tsugi-torbox-account-menu .tsugi-vault-actions { margin-top:8px; margin-bottom:0; }
+.tsugi-vault-receipt { display:flex; align-items:center; gap:10px; color:var(--tsugi-ink); font-size:13px; padding:12px 14px; border-inline-start:2px solid var(--tsugi-accent); background:var(--tsugi-surface); }
+.tsugi-vault-receipt svg { width:20px; height:20px; color:var(--tsugi-accent); flex:none; }
+
+/* Music library: actual content navigation and collections, no decorative blank canvas. */
+.tsugi-library-v2 .tsugi-collection-header { border-bottom:1px solid var(--tsugi-line); }
+.tsugi-library-shell { display:grid; grid-template-columns:clamp(190px,18vw,260px) minmax(0,1fr); min-height:calc(100vh - 270px); }
+.tsugi-library-sidebar { min-width:0; padding:22px 18px 28px 0; border-inline-end:1px solid var(--tsugi-line); }
+.tsugi-library-sidebar nav { display:grid; gap:3px; }
+.tsugi-library-nav { display:flex; align-items:center; gap:12px; width:100%; padding:10px; min-height:42px; border-radius:var(--tsugi-radius-control); text-align:start; font-size:14px; }
+.tsugi-library-nav > svg { width:18px; height:18px; flex:none; color:var(--tsugi-muted); }
+.tsugi-library-nav span:not(.tsugi-library-cover) { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tsugi-library-nav small { color:var(--tsugi-muted); font-size:12px; }
+.tsugi-library-nav:hover,.tsugi-library-nav[aria-current='page'] { background:var(--tsugi-wash); }
+.tsugi-library-nav[aria-current='page'] { font-weight:650; }
+.tsugi-library-nav[aria-current='page'] > svg { color:var(--tsugi-accent); }
+.tsugi-library-sidebar-head { display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--tsugi-line); margin-top:20px; padding-top:12px; }
+.tsugi-library-sidebar-head h2 { font-size:14px; font-weight:650; }
+.tsugi-library-cover { display:grid; place-items:center; aspect-ratio:1; width:100%; background:var(--tsugi-surface); color:var(--tsugi-muted); border-radius:var(--tsugi-radius-control); overflow:hidden; border:1px solid var(--tsugi-line); }
+.tsugi-library-cover[data-mosaic='true'] { grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(2,minmax(0,1fr)); gap:1px; }
+.tsugi-library-cover img { width:100%; height:100%; min-height:0; min-width:0; object-fit:cover; }
+.tsugi-library-cover svg { width:36%; height:36%; max-width:70px; max-height:70px; }
+.tsugi-library-playlist-nav .tsugi-library-cover { width:34px; flex:none; }
+.tsugi-library-playlist-nav .tsugi-library-cover svg { width:18px; height:18px; }
+.tsugi-library-folder { display:grid; grid-template-columns:24px minmax(0,1fr); align-items:center; gap:10px; border-top:1px solid var(--tsugi-line); margin-top:24px; padding-top:16px; }
+.tsugi-library-folder > svg { width:20px; height:20px; color:var(--tsugi-muted); }
+.tsugi-library-folder strong { font-size:13px; font-weight:650; }
+.tsugi-library-folder p { color:var(--tsugi-muted); font-size:12px; overflow-wrap:anywhere; }
+.tsugi-library-folder > :is(button,.tsugi-collection-actions,p) { grid-column:1/-1; }
+.tsugi-library-main { min-width:0; padding:24px 0 40px clamp(20px,3vw,44px); }
+.tsugi-library-overview { display:grid; gap:32px; }
+.tsugi-library-intro { display:grid; grid-template-columns:minmax(0,1fr) minmax(130px,25%); gap:24px; padding:clamp(20px,3vw,40px); background:var(--tsugi-surface); border-inline-start:3px solid var(--tsugi-accent); align-items:center; }
+.tsugi-library-intro h2 { font-size:clamp(26px,3vw,44px); font-weight:700; line-height:1.15; letter-spacing:-.04em; }
+.tsugi-library-intro p:not(.tsugi-vault-overline) { color:var(--tsugi-muted); font-size:14px; margin-block:10px 18px; max-width:52ch; }
+.tsugi-library-metrics { display:grid; gap:12px; border-inline-start:1px solid var(--tsugi-line); padding-inline-start:20px; }
+.tsugi-library-metrics span { display:flex; align-items:baseline; gap:10px; font-size:12px; color:var(--tsugi-muted); }
+.tsugi-library-metrics strong { font-size:24px; color:var(--tsugi-ink); font-weight:700; font-variant-numeric:tabular-nums; }
+.tsugi-library-section-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:16px; }
+.tsugi-library-section-head :is(h2,h3) { font-size:21px; font-weight:650; }
+.tsugi-library-card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,145px),1fr)); gap:20px 16px; }
+.tsugi-library-card { min-width:0; text-align:start; }
+.tsugi-library-card:hover .tsugi-library-cover { border-color:var(--tsugi-accent); }
+.tsugi-library-card strong,.tsugi-library-card small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tsugi-library-card strong { margin-top:10px; font-size:14px; font-weight:650; }
+.tsugi-library-card small { color:var(--tsugi-muted); font-size:12px; margin-top:3px; }
+.tsugi-library-muted { color:var(--tsugi-muted); font-size:13px; }
+.tsugi-library-detail-head { display:flex; align-items:center; flex-wrap:wrap; gap:24px; padding-block:4px 24px; border-bottom:1px solid var(--tsugi-line); }
+.tsugi-library-detail-head > .tsugi-library-cover { width:clamp(100px,14vw,180px); flex:none; }
+.tsugi-library-detail-head > div { min-width:0; flex:1 1 250px; }
+.tsugi-library-detail-head h2 { font-size:clamp(25px,3vw,40px); font-weight:700; letter-spacing:-.035em; overflow-wrap:anywhere; }
+.tsugi-library-detail-head p:not(.tsugi-vault-overline) { font-size:13px; color:var(--tsugi-muted); margin:4px 0 14px; }
+.tsugi-library-empty { display:flex; align-items:center; flex-direction:column; justify-content:center; text-align:center; gap:10px; min-height:240px; padding:32px 16px; }
+.tsugi-library-empty > svg { width:40px; height:40px; color:var(--tsugi-muted); }
+.tsugi-library-empty h3 { font-size:20px; font-weight:650; }
+.tsugi-library-empty p { max-width:46ch; font-size:13px; color:var(--tsugi-muted); line-height:1.5; }
+.tsugi-detail-search { width:min(100%,320px); }
+.tsugi-detail-row-play { width:18px; height:18px; color:var(--tsugi-muted); flex:none; }
+@media(max-width:900px) { .tsugi-library-intro { grid-template-columns:1fr; } .tsugi-library-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); border-inline-start:0; border-top:1px solid var(--tsugi-line); padding:12px 0 0; } .tsugi-library-metrics span { flex-direction:column; gap:2px; } }
+@media(max-width:700px) { .tsugi-vault-onboarding { grid-template-columns:1fr; padding:18px; } .tsugi-vault-onboarding-steps { gap:6px; } .tsugi-vault-destinations { grid-template-columns:1fr; } .tsugi-library-shell { grid-template-columns:1fr; } .tsugi-library-sidebar { border-inline-end:0; border-bottom:1px solid var(--tsugi-line); padding-inline-end:0; } .tsugi-library-main { padding-inline-start:0; } }

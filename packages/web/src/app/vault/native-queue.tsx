@@ -6,16 +6,16 @@ import { shellDownloads } from '@/lib/hosts/shell/downloads';
 import type { HostEvent } from '@/lib/downloads/types';
 import { vaultJob, youtubeVaultJob, detectVaultSource, vaultBatch } from './native-job';
 import { settings, useSetting } from '@/lib/settings';
-import { BrushBook, BrushDisc, BrushFolder, BrushPause, BrushPlay, BrushPlus, BrushRefresh, BrushTrash } from '@/components/tsugi-icons';
+import { BrushBook, BrushDisc, BrushFolder, BrushPause, BrushPlay, BrushDownload, BrushRefresh, BrushTrash, BrushSettings } from '@/components/tsugi-icons';
 import { TorBoxPanel } from './torbox-panel';
-import { VaultProviders } from './providers';
+import { supportsNativeTorBox } from './native-torbox';
 import { vaultTransferRate, vaultEta, reconcileVaultRows } from './queue-model';
 import { importBook } from '@/app/read/book-library';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { readCompletedVaultFile } from './completed-file';
 
 type Row = Extract<HostEvent, {type:'state'}>['jobs'][number] & {speed?:number};
-type Filter = 'all'|'active'|'queued'|'done'|'cloud'|'providers';
+type Filter = 'all'|'active'|'queued'|'done';
 const newId = () => ['vault',Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('')].join('-');
 function status(row: Row) {
   switch(row.state) {
@@ -27,7 +27,7 @@ function status(row: Row) {
   }
 }
 
-export function NativeVaultQueue({track=null,openRequest=0}:{track?:{id:string;title:string}|null;openRequest?:number}) {
+export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|null}) {
   const actions=useDesktopArea();
   const activeImport=useRef<AbortController|null>(null);
   const [importing,setImporting]=useState('');
@@ -47,10 +47,9 @@ export function NativeVaultQueue({track=null,openRequest=0}:{track?:{id:string;t
   const [pending,setPending] = useState<string[]>([]);
   const [batch,setBatch] = useState(false);
   const [filter,setFilter] = useState<Filter>('all');
-  const [intakeOpen,setIntakeOpen]=useState(!!track);
-  const intakeRef=useRef<HTMLFormElement|null>(null);
-  useEffect(()=>{if(openRequest){setFilter('all');setIntakeOpen(true);}},[openRequest]);
-  useEffect(()=>{if(openRequest&&intakeOpen)intakeRef.current?.scrollIntoView({block:'nearest'});},[openRequest,intakeOpen]);
+  const [destination,setDestination]=useState<'local'|'torbox'>('local');
+  const [showHelp,setShowHelp]=useState(()=>{try{return localStorage.getItem('tsugi.vault.intro')!=='seen';}catch{return true;}});
+  function dismissHelp(){setShowHelp(false);try{localStorage.setItem('tsugi.vault.intro','seen');}catch{/* session only */}}
   const [concurrent,setConcurrent] = useSetting(settings.downloads.concurrent);
   const [rate,setRate] = useState<number|undefined>();
   const [engineAvailable,setEngineAvailable] = useState<boolean|undefined>();
@@ -69,7 +68,7 @@ export function NativeVaultQueue({track=null,openRequest=0}:{track?:{id:string;t
   },[supported]);
   useEffect(()=>{
     if(!pending.length)return;
-    if(pending.every(id=>rows.some(row=>row.id===id))) { setPending([]);setInput('');setTrackTitle('');setPermission(false);setIntakeOpen(false); }
+    if(pending.every(id=>rows.some(row=>row.id===id))) { setPending([]);setInput('');setTrackTitle('');setPermission(false); }
   },[rows,pending]);
   useEffect(()=>{
     if(!pending.length)return;
@@ -103,56 +102,50 @@ export function NativeVaultQueue({track=null,openRequest=0}:{track?:{id:string;t
   const visible=rows.filter(row=>filter==='all'||(filter==='active'&&row.state==='downloading')||(filter==='queued'&&['queued','paused','failed'].includes(row.state))||(filter==='done'&&row.state==='done'));
   const tabs:{id:Filter;label:string;count?:number}[]=[
     {id:'all',label:t`All downloads`,count:rows.length},{id:'active',label:t`Active`,count:active.length},
-    {id:'queued',label:t`Waiting`,count:rows.length-active.length-done.length},{id:'done',label:t`Completed`,count:done.length},{id:'cloud',label:t`Cloud · TorBox`},{id:'providers',label:t`Providers`}
+    {id:'queued',label:t`Waiting`,count:rows.length-active.length-done.length},{id:'done',label:t`Completed`,count:done.length}
   ];
-  const local=filter!=='cloud'&&filter!=='providers';
-  return <section data-ui="tsugi-native-vault-queue" className="tsugi-vault-manager">
+  return <section data-ui="tsugi-native-vault-queue" className="tsugi-vault-manager tsugi-vault-workspace">
     {!supported?<p><Trans>Native Vault downloads require the Windows desktop application.</Trans></p>:<>
-      <nav className="tsugi-vault-tabs" aria-label={t`Download views`}>{tabs.map(tab=><button type="button" key={tab.id} className="tsugi-read-action" aria-pressed={filter===tab.id} onClick={()=>setFilter(tab.id)}>{tab.label}{tab.count!==undefined&&<span>{tab.count}</span>}</button>)}</nav>
-      {local&&<>
-      <div className="tsugi-vault-commandbar">
-        <h2><Trans>Local downloads</Trans></h2>
+      {showHelp&&<section className="tsugi-vault-onboarding" aria-label={t`Getting started with Vault`}>
+        <div><p className="tsugi-vault-overline"><Trans>GET STARTED</Trans></p><h2><Trans>From a link to your library.</Trans></h2><p><Trans>Paste an authorized media or file link, choose where it goes, and start the download. You can also use Download on the music player.</Trans></p></div>
+        <div className="tsugi-vault-onboarding-steps"><span><strong>01</strong><Trans>Paste a link</Trans></span><span><strong>02</strong><Trans>Choose a destination</Trans></span><span><strong>03</strong><Trans>Download</Trans></span></div>
+        <button type="button" className="tsugi-read-action" onClick={dismissHelp}><Trans>Got it</Trans></button>
+      </section>}
+      <section className="tsugi-vault-composer">
+        <header className="tsugi-vault-commandbar"><h2><Trans>New download</Trans></h2><button type="button" className="tsugi-vault-quiet" onClick={()=>setShowHelp(v=>!v)}><Trans>How it works</Trans></button></header>
+        <div className="tsugi-vault-destinations" role="group" aria-label={t`Download destination`}>
+          <button type="button" aria-pressed={destination==='local'} disabled={!!pendingCount} onClick={()=>setDestination('local')}><BrushFolder aria-hidden/><span><strong><Trans>This PC</Trans></strong><small><Trans>Save locally · Aria2 / yt-dlp</Trans></small></span></button>
+          {supportsNativeTorBox()&&<button type="button" aria-pressed={destination==='torbox'} disabled={!!pendingCount} onClick={()=>setDestination('torbox')}><BrushDownload aria-hidden/><span><strong><Trans>TorBox</Trans></strong><small><Trans>Send a link to your cloud</Trans></small></span></button>}
+        </div>
+        {destination==='torbox'?<TorBoxPanel initialLink={batch?'':input}/>:<form className="tsugi-vault-form tsugi-vault-intake" onSubmit={event=>{event.preventDefault();enqueue();}}>
+          <div className="tsugi-vault-input-header"><strong><Trans>Source link</Trans></strong><button type="button" className="tsugi-vault-quiet" aria-pressed={batch} disabled={!!pendingCount} onClick={()=>{setBatch(v=>!v);setPermission(false);setTrackTitle('');setInput('');}}>{batch?<Trans>Single link</Trans>:<Trans>Batch links</Trans>}</button></div>
+          {batch?<label><Trans>Download links (one per line)</Trans><textarea rows={4} maxLength={40000} value={input} disabled={!!pendingCount} onChange={event=>{setInput(event.target.value);setPermission(false);setError('');}} placeholder={t`Up to 20 links`}/></label>:<>
+            <label><span>{mode==='youtube'?<Trans>YouTube Music track link</Trans>:<Trans>Public file URL</Trans>}</span><input type="url" required value={input} disabled={!!pendingCount} placeholder={t`Paste a YouTube or direct file link`} onChange={event=>{setInput(event.target.value);setMode(detectVaultSource(event.target.value));setTrackTitle('');setPermission(false);setError('');}}/></label>
+            <div className="tsugi-vault-source-info"><BrushDisc aria-hidden/><span>{trackTitle|| (mode==='youtube'?t`YouTube · M4A audio`:t`Direct file · PDF, EPUB or audio`)}</span></div>
+          </>}
+          <div className="tsugi-vault-submit-row"><label><span><input type="checkbox" style={{width:'auto'}} checked={permission} disabled={!!pendingCount} onChange={event=>setPermission(event.target.checked)}/> <Trans>I have permission to download this content.</Trans></span></label>
+          <button type="submit" className="tsugi-read-action tsugi-series-primary" disabled={!ready||!permission||!input.trim()||!!pendingCount}><BrushDownload aria-hidden/>{batch?<Trans>Add batch to queue</Trans>:<Trans>Queue local download</Trans>}</button></div>
+          <p className="tsugi-vault-hint"><Trans>Public links are saved in your local queue. YouTube audio is limited to 64 MiB.</Trans></p>
+        </form>}
+      </section>
+      <section className="tsugi-vault-queue-heading">
+        <header className="tsugi-vault-commandbar"><div><h2><Trans>Downloads</Trans></h2><p className="tsugi-vault-hint">{active.length} <Trans>active</Trans> · {queued.length} <Trans>waiting</Trans> · {vaultTransferRate(speed)}</p></div>
         <div className="tsugi-vault-actions">
-          <button type="button" className="tsugi-read-action tsugi-series-primary" aria-expanded={intakeOpen} disabled={!!pendingCount} onClick={()=>setIntakeOpen(v=>!v)}><BrushPlus aria-hidden/>{intakeOpen?<Trans>Close add download</Trans>:<Trans>Add download</Trans>}</button>
-          <button type="button" className="tsugi-read-action" aria-label={t`Refresh local downloads`} title={t`Refresh local downloads`} onClick={()=>shellDownloads.list()}><BrushRefresh aria-hidden/></button>
-          {shellDownloads.folder&&<button type="button" className="tsugi-read-action" aria-label={t`Choose download folder`} title={t`Choose download folder`} onClick={()=>shellDownloads.folder?.choose()}><BrushFolder aria-hidden/></button>}
-        </div>
-      </div>
-      <div className="tsugi-vault-overview">
-        <div><span><Trans>Downloading</Trans></span><strong>{active.length}</strong></div>
-        <div><span><Trans>Queued</Trans></span><strong>{queued.length}</strong></div>
-        <div><span><Trans>Completed</Trans></span><strong>{done.length}</strong></div>
-        <div><span><Trans>Local transfer speed</Trans></span><strong>{vaultTransferRate(speed)}</strong></div>
-      </div>
-      {intakeOpen&&<form ref={intakeRef} className="tsugi-vault-form tsugi-vault-intake" onSubmit={event=>{event.preventDefault();enqueue();}}>
-        <div className="tsugi-vault-actions"><button type="button" className="tsugi-read-action" aria-pressed={!batch} disabled={!!pendingCount} onClick={()=>{setBatch(false);setInput('');setPermission(false);setTrackTitle('');}}><Trans>Single link</Trans></button><button type="button" className="tsugi-read-action" aria-pressed={batch} disabled={!!pendingCount} onClick={()=>{setBatch(true);setInput('');setPermission(false);setTrackTitle('');}}><Trans>Batch links</Trans></button></div>
-        {batch?<label><Trans>Download links (one per line)</Trans><textarea rows={4} maxLength={40000} value={input} disabled={!!pendingCount} onChange={event=>{setInput(event.target.value);setPermission(false);setError('');}}/></label>:<>
-        <label><Trans>Download source</Trans><select className="tsugi-read-input" value={mode} disabled={!!pendingCount} onChange={event=>{setMode(event.target.value==='youtube'?'youtube':'file');setInput('');setTrackTitle('');setPermission(false);setError('');}}><option value="file"><Trans>Direct book or audio link</Trans></option><option value="youtube"><Trans>YouTube Music</Trans></option></select></label>
-        <label>{mode==='youtube'?<Trans>YouTube Music track link</Trans>:<Trans>Public file URL</Trans>}<input type="url" required value={input} disabled={!!pendingCount} onChange={event=>{setInput(event.target.value);setMode(detectVaultSource(event.target.value));setTrackTitle('');setPermission(false);setError('');}}/></label>
-        {mode==='youtube'&&trackTitle&&<p>{trackTitle}</p>}
-        {mode==='youtube'&&<p><Trans>Save available M4A audio for tracks you are permitted to export (up to 64 MiB).</Trans></p>}</>}
-        <label><span><input type="checkbox" style={{width:'auto'}} checked={permission} disabled={!!pendingCount} onChange={event=>setPermission(event.target.checked)}/> <Trans>I have permission to download this file or track.</Trans></span></label>
-        <div className="tsugi-vault-actions">
-          <button type="submit" className="tsugi-read-action tsugi-series-primary" disabled={!ready||!permission||!input.trim()||!!pendingCount}>{batch?<Trans>Add batch to queue</Trans>:<Trans>Queue local download</Trans>}</button>
-          <span className="tsugi-vault-hint"><Trans>Public links are saved in your local queue.</Trans></span>
-        </div>
-      </form>}
-      <div className="tsugi-vault-queue-tools">
-        <label><Trans>Simultaneous local downloads</Trans><select className="tsugi-read-input" value={Math.min(4,Math.max(1,concurrent))} onChange={event=>{const value=Number(event.target.value);setConcurrent(value);shellDownloads.configure({concurrent:value,wifiOnly});}}>{[1,2,3,4].map(n=><option key={n} value={n}>{n}</option>)}</select></label>
-        {rate!==undefined&&<label title={t`Applies to direct files and Aria2-managed music when starting or resuming. Cloud, video and compatibility transfers are unaffected.`}><Trans>Local transfer speed limit (MiB/s)</Trans><select className="tsugi-read-input" value={rate} onChange={event=>appBridge()?.send({type:'vault-rate',mib:Number(event.target.value)})}><option value={0}><Trans>Unlimited</Trans></option>{[1,2,4,8,16].map(n=><option value={n} key={n}>{n}</option>)}</select></label>}
-        <div className="tsugi-vault-bulk">
-          <button type="button" className="tsugi-read-action" disabled={!active.length&&!queued.length} onClick={()=>rows.filter(row=>row.state==='queued'||row.state==='downloading').forEach(row=>shellDownloads.control(row.id,'pause'))}><BrushPause aria-hidden/><Trans>Pause all</Trans></button>
-          <button type="button" className="tsugi-read-action" disabled={!rows.some(row=>row.state==='paused')} onClick={()=>rows.filter(row=>row.state==='paused').forEach(row=>shellDownloads.control(row.id,'resume'))}><BrushPlay aria-hidden/><Trans>Resume all</Trans></button>
-        </div>
-      </div>
-      {folder&&<p className="tsugi-vault-saved-path" title={folder}><BrushFolder aria-hidden/> <span>{folder}</span></p>}
-      </>}
-      <div className="tsugi-pixel-rule" aria-hidden="true"/>
+          <button type="button" className="tsugi-read-action tsugi-vault-icon-action" aria-label={t`Refresh local downloads`} title={t`Refresh local downloads`} onClick={()=>shellDownloads.list()}><BrushRefresh aria-hidden/></button>
+          <button type="button" className="tsugi-read-action tsugi-vault-icon-action" aria-label={t`Pause all`} title={t`Pause all`} disabled={!active.length&&!queued.length} onClick={()=>rows.filter(row=>row.state==='queued'||row.state==='downloading').forEach(row=>shellDownloads.control(row.id,'pause'))}><BrushPause aria-hidden/></button>
+          <button type="button" className="tsugi-read-action tsugi-vault-icon-action" aria-label={t`Resume all`} title={t`Resume all`} disabled={!rows.some(row=>row.state==='paused')} onClick={()=>rows.filter(row=>row.state==='paused').forEach(row=>shellDownloads.control(row.id,'resume'))}><BrushPlay aria-hidden/></button>
+        </div></header>
+        <nav className="tsugi-vault-tabs" aria-label={t`Download views`}>{tabs.map(tab=><button type="button" key={tab.id} className="tsugi-read-action" aria-pressed={filter===tab.id} onClick={()=>setFilter(tab.id)}>{tab.label}{tab.count!==undefined&&<span>{tab.count}</span>}</button>)}</nav>
+        <details className="tsugi-vault-transfer-settings"><summary><BrushSettings aria-hidden/><Trans>Transfer settings</Trans></summary><div className="tsugi-vault-queue-tools">
+          <label><Trans>Simultaneous local downloads</Trans><select className="tsugi-read-input" value={Math.min(4,Math.max(1,concurrent))} onChange={event=>{const value=Number(event.target.value);setConcurrent(value);shellDownloads.configure({concurrent:value,wifiOnly});}}>{[1,2,3,4].map(n=><option key={n} value={n}>{n}</option>)}</select></label>
+          {rate!==undefined&&<label title={t`Applies to direct files and Aria2-managed music when starting or resuming. Cloud, video and compatibility transfers are unaffected.`}><Trans>Local transfer speed limit (MiB/s)</Trans><select className="tsugi-read-input" value={rate} onChange={event=>appBridge()?.send({type:'vault-rate',mib:Number(event.target.value)})}><option value={0}><Trans>Unlimited</Trans></option>{[1,2,4,8,16].map(n=><option value={n} key={n}>{n}</option>)}</select></label>}
+          {shellDownloads.folder&&<button type="button" className="tsugi-read-action" onClick={()=>shellDownloads.folder?.choose()}><BrushFolder aria-hidden/><Trans>Choose download folder</Trans></button>}
+        </div>{folder&&<p className="tsugi-vault-saved-path" title={folder}>{folder}</p>}{engineAvailable!==undefined&&<p className="tsugi-vault-hint">{engineAvailable?<Trans>Managed engine ready</Trans>:<Trans>Built-in fallback active</Trans>}</p>}</details>
+      </section>
       {!ready&&<p role="status"><Trans>Waiting for the desktop download manager.</Trans></p>}
       {!!pendingCount&&<p role="status"><Trans>Adding download…</Trans></p>}
       {importing&&<p role="status"><Trans>Importing completed file…</Trans></p>}
       {error&&<p role="alert">{error}</p>}
-      {filter==='providers'?<VaultProviders engineAvailable={engineAvailable} onOpenCloud={()=>setFilter('cloud')}/>:filter==='cloud'?<TorBoxPanel/>:<>
       {ready&&visible.length===0&&<div className="tsugi-vault-empty"><BrushFolder aria-hidden/><p><Trans>No downloads in this view.</Trans></p></div>}
       {visible.map(row=><div className="tsugi-vault-file-row tsugi-vault-task" key={row.id}>
         <div className="tsugi-vault-task-main">{/\.(epub|pdf)$/i.test(row.vault_title||'')?<BrushBook aria-hidden/>:<BrushDisc aria-hidden/>}<div className="tsugi-vault-task-text"><strong>{row.vault_title}</strong><p><span className="tsugi-vault-task-state" data-state={row.state}>{status(row)}</span> · {(row.bytes/1048576).toFixed(1)} MiB {row.total!==null&&row.total>0&&<span>/ {(row.total/1048576).toFixed(1)} MiB</span>}</p>
@@ -171,7 +164,6 @@ export function NativeVaultQueue({track=null,openRequest=0}:{track?:{id:string;t
           {row.state==='done'&&shellDownloads.folder?.open&&<button className="tsugi-read-action tsugi-vault-icon-action" aria-label={t`Show in folder`} title={t`Show in folder`} onClick={()=>shellDownloads.folder?.open?.(row.id)}><BrushFolder aria-hidden/></button>}
         </div>
       </div>)}
-      </>}
     </>}
   </section>;
 }

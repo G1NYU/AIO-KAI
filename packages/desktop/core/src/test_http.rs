@@ -22,6 +22,9 @@ pub(crate) fn response_with_headers(status: u16, mime: &'static str, body: Vec<u
                 Err(e) => panic!("fixture accept: {e}"),
             }
         };
+        // Accepted sockets can inherit nonblocking mode on Windows. The
+        // fixture uses blocking BufRead with a bounded timeout.
+        stream.set_nonblocking(false).unwrap();
         stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         stream.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
         let mut reader = BufReader::new(&mut stream);

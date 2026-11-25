@@ -79,6 +79,7 @@ export function MusicPage({
   const [playlists, setPlaylists] = React.useState(readMusicLibrary);
   const [libraryError, setLibraryError] = React.useState('');
   const [sessionTracks, setSessionTracks] = React.useState<EclipseTrack[]>([]);
+  const [localLibraryRequest,setLocalLibraryRequest]=React.useState(0);
   const folder = useRememberedMusicFolder();
   const folderTracks = React.useMemo<EclipseTrack[]>(() => folder.entries.map(entry => ({
     id: entry.id, title: entry.file.name.replace(/\.[^.]+$/, ''),
@@ -93,7 +94,7 @@ export function MusicPage({
   playbackAllowedRef.current = playbackAllowed;
   const LOCAL_SOURCE = 'tsugi-local';
   const [settingsOpen, setSettingsOpen] = React.useState(() => readMusicSources().length === 0);
-  React.useEffect(() => { if (libraryRequest) { setTab('library'); setSettingsOpen(false); } }, [libraryRequest]);
+  React.useEffect(() => { if (libraryRequest) { setTab('library'); setSettingsOpen(false);setLocalLibraryRequest(v=>v+1); } }, [libraryRequest]);
 
   const [recent, setRecent] = React.useState<RecentMusicPlay[]>(readRecentPlays);
   const settingsCloseRef = React.useRef<HTMLButtonElement>(null);
@@ -409,6 +410,7 @@ export function MusicPage({
     });
     if (tracks.length) {
       setSessionTracks(current => [...current,...tracks].slice(-250));
+      setLocalLibraryRequest(v=>v+1);
       setLibraryError('');
     } else {
       setLibraryError(t`No supported audio files were selected.`);
@@ -752,7 +754,7 @@ export function MusicPage({
         {tab === 'library' && (
           <>
             {libraryError && <p role="alert" className="mb-6 text-sm text-amber-200">{libraryError}</p>}
-            <MusicLibrary playlists={playlists} onChange={setPlaylists} recent={recent}
+            <MusicLibrary playlists={playlists} onChange={setPlaylists} recent={recent} localRequest={localLibraryRequest}
               activeTrackId={playing?.id} onPlayRecent={(entry) => {
                 const source = connections.find(item => item.id === entry.sourceId);
                 if (!source) { setLibraryError(t`Connect the original music source to play this track.`); return; }
@@ -769,7 +771,11 @@ export function MusicPage({
               onRescanFolder={() => { stopFolderPlayback(); void folder.rescan(); }}
               onForgetFolder={() => { stopFolderPlayback(); void folder.forget(); }}
               onImportLocal={importLocalFiles}
-              onPlayLocal={(track) => { void playLocalTrack(track, 0); }} />
+              onPlayLocal={(track) => { void playLocalTrack(track, 0); }}
+              onPlayLocalCollection={(entries) => {
+                const playable=entries.flatMap(entry=>{const track=localTracks.find(item=>item.id===entry.id);return track?[track]:[];});
+                if(playable.length){setQueue(playable);void playLocalTrack(playable[0],0,true);}
+              }} />
           </>
         )}
 

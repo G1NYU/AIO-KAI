@@ -43,6 +43,7 @@ export function MusicCollection({
 }) {
   const [detail, setDetail] = React.useState<EclipseDetail | null>(null);
   const [nested, setNested] = React.useState<EclipseCatalogItem | null>(null);
+  const [trackFilter,setTrackFilter]=React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   const current = nested ?? selected;
@@ -52,6 +53,7 @@ export function MusicCollection({
     if (!current) return;
     const controller = new AbortController();
     setDetail(null);
+    setTrackFilter('');
     setError('');
     setLoading(true);
     providerFor(source).detail(current, controller.signal).then((result) => {
@@ -74,6 +76,7 @@ export function MusicCollection({
   }, [selected, onClose]);
 
   if (!current) return null;
+  const visibleTracks=detail?.tracks.map((track,at)=>({track,at})).filter(({track})=>[track.title,track.artist,track.album].join(' ').toLocaleLowerCase().includes(trackFilter.trim().toLocaleLowerCase()))||[];
   return (
     <section role="dialog" aria-modal="true" aria-label={t`Music collection`}
       className="tsugi-player-dialog tsugi-music-detail fixed inset-0 z-40 overflow-y-auto">
@@ -92,21 +95,24 @@ export function MusicCollection({
             <p className="mt-3 text-white/50">{detail?.artist ?? current.artist ?? source.manifest.name}</p>
             {detail?.description && <p className="mt-3 max-w-2xl text-sm text-white/45">{detail.description}</p>}
             {detail && detail.tracks.length > 0 && <p className="tsugi-music-detail-count mt-3 text-sm">{detail.tracks.length} <Trans>tracks</Trans></p>}
-            {detail && detail.tracks.length > 0 && <button type="button" onClick={() => { onPlay(source, detail.tracks, 0); onClose(); }}
-              className="tsugi-music-detail-play mt-5 inline-flex items-center gap-2 rounded-full bg-violet-200 px-5 py-2.5 font-semibold text-[#171420]">
-              <BiPlay aria-hidden /> <Trans>Play all</Trans>
-            </button>}
+            {detail && detail.tracks.length > 0 && <div className="tsugi-collection-actions mt-5">
+              <button type="button" onClick={() => { onPlay(source, detail.tracks, 0); onClose(); }}
+                className="tsugi-music-detail-play inline-flex items-center gap-2 rounded-full bg-violet-200 px-5 py-2.5 font-semibold text-[#171420]"><BiPlay aria-hidden/><Trans>Play all</Trans></button>
+              <button type="button" className="tsugi-read-action" onClick={()=>{const tracks=[...detail.tracks];for(let i=tracks.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[tracks[i],tracks[j]]=[tracks[j],tracks[i]];}onPlay(source,tracks,0);onClose();}}><Trans>Shuffle</Trans></button>
+            </div>}
           </div>
         </header>
         {loading && <p role="status" className="text-sm text-white/50"><Trans>Loading music…</Trans></p>}
         {error && <p role="alert" className="text-sm text-amber-200">{error}</p>}
         {detail && detail.tracks.length > 0 && (
           <section aria-label={t`Collection tracks`} className="tsugi-music-detail-tracks space-y-2">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold"><Trans>Tracks</Trans></h2>
+            <div className="tsugi-library-section-head">
+              <h2 className="text-xl font-semibold"><Trans>Tracks</Trans> <small className="tsugi-library-muted">{visibleTracks.length}</small></h2>
+              <input className="tsugi-read-input tsugi-detail-search" value={trackFilter} onChange={event=>setTrackFilter(event.target.value)} aria-label={t`Find collection tracks`} placeholder={t`Find tracks in collection`}/>
             </div>
-            <div className="tsugi-music-detail-track-grid" data-multi={detail.tracks.length>8}>
-            {detail.tracks.map((track, at) => (
+            {visibleTracks.length===0&&<p className="tsugi-library-muted"><Trans>No matching tracks.</Trans></p>}
+            <div className="tsugi-music-detail-track-grid" data-multi={visibleTracks.length>8}>
+            {visibleTracks.map(({track,at}) => (
               <button key={track.id + ':' + at} type="button"
                 onClick={() => { onPlay(source, detail.tracks, at); onClose(); }}
                 className="tsugi-music-detail-track flex w-full items-center gap-4 border-b border-white/[0.08] px-4 py-3 text-left transition-colors hover:bg-white/[0.04]">
@@ -116,6 +122,8 @@ export function MusicCollection({
                   <span className="block truncate text-sm font-medium">{track.title}</span>
                   <span className="block truncate text-xs text-white/50">{track.artist}</span>
                 </span>
+                {typeof track.duration==='number'&&<span className="tsugi-track-duration">{Math.floor(track.duration/60)}:{String(Math.floor(track.duration%60)).padStart(2,'0')}</span>}
+                <BiPlay aria-hidden className="tsugi-detail-row-play"/>
               </button>
             ))}
             </div>
