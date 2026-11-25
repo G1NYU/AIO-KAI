@@ -18,6 +18,7 @@ describe('cross-media audio policy', () => {
     expect(allowsMusicPlayback('music')).toBe(true);
     expect(allowsMusicPlayback('read')).toBe(true);
     expect(allowsMusicPlayback('welcome')).toBe(true);
+    expect(allowsMusicPlayback('vault')).toBe(true);
     expect(allowsMusicPlayback('video')).toBe(false);
   });
 });

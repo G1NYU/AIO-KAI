@@ -10,6 +10,7 @@ import { useDesktopArea } from '@/lib/desktop-area';
 import { prepareReading, readRequest, readImage } from '@/lib/hosts/shell/reading';
 import { ChapterReader } from './chapter-reader';
 import { BatchAddWorkspace, MigrationWorkspace } from './collection-transfer';
+import { LandscapeSpotlight } from '@/components/landscape-spotlight';
 import { lookupMissingCover, mayLookUpCover, readCoverFallback, saveCoverFallback } from './cover-fallback';
 import { ReaderSettings } from './reader-settings';
 import { MangaTracking, type Tracker } from './tracking';
@@ -349,6 +350,12 @@ export function ReadPage({ visible }: {
           <FiSearch aria-hidden /><input value={globalQuery} onChange={(event) => setGlobalQuery(event.target.value)} maxLength={200} placeholder={t({ id: "Search all installed sources", message: "Search all installed sources" })} aria-label={t({ id: "Global manga search", message: "Global manga search" })} /><button disabled={busy || !globalQuery.trim()} aria-label={t({ id: "Search", message: "Search" })}><FiChevronRight aria-hidden /></button>
         </form>
       </header>
+    {visible && !details && !reader && (tab === 'library' || (tab === 'browse' && browseTab === 'sources')) && <LandscapeSpotlight
+      title={(tab === 'library' && continuing[0]?.title) || t({ id: 'A world of stories', message: 'A world of stories' })}
+      eyebrow={tab === 'library' && continuing[0] ? t({ id: 'Continue reading', message: 'Continue reading' }) : t({ id: 'Reading room', message: 'Reading room' })}
+      description={(tab === 'library' && continuing[0]?.lastReadChapter?.name) || t({ id: 'Find your next story or return to your collection.', message: 'Find your next story or return to your collection.' })}
+      actionLabel={tab === 'library' && continuing[0] ? t({ id: 'Resume reading', message: 'Resume reading' }) : tab === 'browse' ? t({ id: 'Search manga', message: 'Search manga' }) : t({ id: 'Explore sources', message: 'Explore sources' })}
+      onAction={() => { if (tab === 'library' && continuing[0]) void run(() => resumeManga(continuing[0])); else switchBrowse(tab === 'library' ? 'sources' : 'search'); }} disabled={busy} />}
     {busy && <p className="mb-4 text-sm text-[--tsugi-muted]" role="status"><Trans id="Working…">Working…</Trans></p>}
     {error && <div role="alert" className="tsugi-read-error mb-4">{error}</div>}
     {details ? <section>

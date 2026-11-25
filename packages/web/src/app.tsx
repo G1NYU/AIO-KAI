@@ -55,6 +55,7 @@ import { SplashEnd } from './lib/splash';
 import { DesktopAreaContext, initialDesktopArea, allowsMusicPlayback, type DesktopArea } from './lib/desktop-area';
 import { DesktopLandingPage } from './app/desktop-landing/page';
 import { MusicPage } from './app/music/page';
+import { VaultPage } from './app/vault/page';
 import { ReadPage, ReadSetupPage } from './app/read/page';
 import { supportsReading, supportsReadingSection } from './lib/hosts/shell/reading';
 import { GlobalAppearance, GlobalSettingsDialog } from './components/shell/global-settings';
@@ -149,12 +150,16 @@ function Standalone() {
   const [readVisited, setReadVisited] = React.useState(area === 'read');
   const openSettings = React.useCallback(() => setGlobalSettings(true), []);
   const openRead = React.useCallback(() => { setReadVisited(true); setArea('read'); }, []);
+  const [musicLibraryRequest, setMusicLibraryRequest] = React.useState(0);
   const openMusic = React.useCallback(() => setArea('music'), []);
+  const openLocalMusic = React.useCallback(() => { setMusicLibraryRequest(value => value + 1); setArea('music'); }, []);
+  const openVault = React.useCallback(() => setArea('vault'), []);
   const openVideo = React.useCallback(() => { setReadVisited(false); setArea('video'); }, []);
   const openWelcome = React.useCallback(() => setArea('welcome'), []);
+  const openVideoDownloads = React.useCallback(() => { openVideo(); navigate(to.downloads); }, [openVideo]);
   const areaActions = React.useMemo(
-    () => ({ openWelcome, openMusic, openVideo, openSettings, openRead: reading ? openRead : undefined }),
-    [openWelcome, openMusic, openVideo, openSettings, openRead, reading]
+    () => ({ openWelcome, openMusic, openVideo, openSettings, openVault, openLocalMusic, openVideoDownloads, openRead: reading ? openRead : undefined }),
+    [openWelcome, openMusic, openVideo, openSettings, openVault, openLocalMusic, openVideoDownloads, openRead, reading]
   );
   // Who's watching, asked across the saved servers.
   const [picking, setPicking] = React.useState(() => {
@@ -261,12 +266,17 @@ function Standalone() {
         >
           {desktop && area === 'welcome' ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
-              <DesktopLandingPage openVideo={openVideo} openMusic={openMusic} openRead={reading ? openRead : undefined} />
+              <DesktopLandingPage openVideo={openVideo} openMusic={openMusic} openRead={reading ? openRead : undefined} openVault={openVault} />
               <SplashEnd />
             </ServerInfoProvider>
           ) : desktop && area === 'read' && reading ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
               {!readerReady && <ReadSetupPage openWelcome={openWelcome} onReady={() => { setReaderReady(true); setReadVisited(true); }} />}
+              <SplashEnd />
+            </ServerInfoProvider>
+          ) : desktop && area === 'vault' ? (
+            <ServerInfoProvider value={NO_SERVER_INFO}>
+              <VaultPage />
               <SplashEnd />
             </ServerInfoProvider>
           ) : desktop && area === 'music' ? (
@@ -291,7 +301,7 @@ function Standalone() {
           )}
         </motion.div>
       </AnimatePresence>
-      {desktop && reading && readerReady && (area === 'read' || (readVisited && (area === 'music' || area === 'welcome'))) && (
+      {desktop && reading && readerReady && (area === 'read' || (readVisited && (area === 'music' || area === 'welcome' || area === 'vault'))) && (
         <ServerInfoProvider value={NO_SERVER_INFO}>
           <div hidden={area !== 'read'} inert={area !== 'read'}><ReadPage visible={area === 'read'} /></div>
         </ServerInfoProvider>
@@ -301,7 +311,8 @@ function Standalone() {
           <MusicPage
             visible={area === 'music'}
             playbackAllowed={allowsMusicPlayback(area)}
-            reading={area === 'read'}
+            reading={area === 'read' || area === 'vault'}
+            libraryRequest={musicLibraryRequest}
             openVideo={openVideo}
             openWelcome={openWelcome}
           />

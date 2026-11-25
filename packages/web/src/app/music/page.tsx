@@ -40,12 +40,14 @@ export function MusicPage({
   visible,
   playbackAllowed,
   reading,
+  libraryRequest = 0,
 }: {
   openVideo(): void;
   openWelcome(): void;
   visible: boolean;
   playbackAllowed: boolean;
   reading: boolean;
+  libraryRequest?: number;
 }) {
   const [store, setStore] = React.useState<EclipseStoreEntry[]>([]);
   const [storeError, setStoreError] = React.useState('');
@@ -83,6 +85,7 @@ export function MusicPage({
   playbackAllowedRef.current = playbackAllowed;
   const LOCAL_SOURCE = 'tsugi-local';
   const [settingsOpen, setSettingsOpen] = React.useState(() => readMusicSources().length === 0);
+  React.useEffect(() => { if (libraryRequest) { setTab('library'); setSettingsOpen(false); } }, [libraryRequest]);
 
   const [recent, setRecent] = React.useState<RecentMusicPlay[]>(readRecentPlays);
   const settingsCloseRef = React.useRef<HTMLButtonElement>(null);

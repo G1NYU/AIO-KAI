@@ -161,8 +161,8 @@ try {
   const landing = page.locator('[data-page="desktop-landing"]');
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).waitFor();
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'sumi');
-  assert.deepEqual(await landing.locator('.tsugi-index-link').allTextContents(), ['Movies & TV', 'Music', 'Read']);
-  assert.equal(await landing.locator('.tsugi-index-link svg').count(), 3);
+  assert.deepEqual(await landing.locator('.tsugi-index-link').allTextContents(), ['Movies & TV', 'Music', 'Read', 'Vault']);
+  assert.equal(await landing.locator('.tsugi-index-link svg').count(), 4);
   assert.equal(await landing.locator('.tsugi-index-kanji').count(), 0);
   assert.equal(await landing.getByRole('heading', { name: 'Tsugi', exact: true }).count(), 1);
   assert.equal(await landing.locator('.tsugi-index-pattern').count(), 0);
@@ -202,6 +202,15 @@ try {
   await assertLauncherGeometry();
   await capture('01-launcher-wide');
   await page.setViewportSize({ width: 1440, height: 900 });
+  await landing.getByRole('button', { name: 'Vault', exact: true }).click();
+  const vault = page.locator('[data-page="vault"]');
+  await vault.waitFor();
+  assert.equal(await vault.locator('[data-ui="tsugi-desktop-rail"] [aria-current="page"]').getAttribute('aria-label'), 'Vault');
+  assert.equal(await vault.locator('.tsugi-landscape-fallback').count(), 1);
+  assert.equal(await vault.locator('.tsugi-spotlight-backdrop img').count(), 0, 'external art is opt-in');
+  await capture('01-vault');
+  await vault.getByRole('button', { name: 'All media', exact: true }).click();
+  await landing.waitFor();
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).click();
   const entry = page.locator('.tsugi-video-entry');
   const field = entry.getByRole('textbox', { name: /Server address/ });

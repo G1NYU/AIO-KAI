@@ -2425,3 +2425,34 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 }
 @media(max-width:1000px) { :root[data-host='desktop'] .tsugi-music-root:has(.tsugi-mini-player) .tsugi-desktop-rail { bottom:180px; } }
 @media(prefers-reduced-motion:reduce) { :root[data-host='desktop'] .tsugi-desktop-rail button { transition:none; } }
+
+/* Cross-area spotlight surfaces and theme-independent poster badges. */
+:root[data-host='desktop'] :is(.tsugi-unwatched-badge,.tsugi-watched-badge) { background:#101116; color:#fff; border:1px solid #ffffff66; box-shadow:0 1px 4px #0009; font-weight:750; font-variant-numeric:tabular-nums; }
+:root[data-host='desktop'] .tsugi-unwatched-badge { min-width:25px; padding:3px 7px; border-radius:6px; font-size:12px; line-height:1.1; text-align:center; }
+:root[data-host='desktop'] .tsugi-spotlight { position:relative; isolation:isolate; display:flex; align-items:flex-end; gap:clamp(20px,4vw,64px); min-height:clamp(280px,39vh,520px); padding:clamp(24px,4vw,64px); margin:0 0 28px; overflow:hidden; border:0; border-radius:12px; background:var(--tsugi-surface); color:#f4f4f7; }
+:root[data-host='desktop'] .tsugi-spotlight-backdrop { position:absolute; inset:0; z-index:-1; pointer-events:none; overflow:hidden; background:#11141e; }
+:root[data-host='desktop'] .tsugi-spotlight-backdrop :is(img,svg) { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 42%; }
+:root[data-host='desktop'] .tsugi-spotlight-backdrop::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,#101116f2 0%,#101116d9 30%,#10111660 66%,#10111612 100%),linear-gradient(0deg,#101116b0,transparent 60%); }
+:root[data-host='desktop'] .tsugi-spotlight-copy { flex:1; min-width:0; position:relative; z-index:1; padding:0; max-width:760px; }
+:root[data-host='desktop'] .tsugi-spotlight-copy h2 { color:#f4f4f7; font-size:clamp(2rem,4vw,4rem); line-height:1.08; letter-spacing:-.04em; font-weight:720; }
+:root[data-host='desktop'] .tsugi-spotlight-copy p { color:#e2e3eb; }
+:root[data-host='desktop'] .tsugi-spotlight-copy .tsugi-feature-kicker { color:#c8cbd9; letter-spacing:.12em; font-size:11px; }
+:root[data-host='desktop'] .tsugi-spotlight-cover { flex:none; align-self:center; width:clamp(130px,20vw,300px); aspect-ratio:1; overflow:hidden; border-radius:10px; box-shadow:0 12px 35px #0005; margin-inline-start:auto; }
+:root[data-host='desktop'] .tsugi-spotlight-cover img { width:100%; height:100%; object-fit:cover; }
+:root[data-host='desktop'] .tsugi-music-spotlight .tsugi-spotlight-backdrop img { opacity:.85; object-position:center 40%; }
+:root[data-host='desktop'] .tsugi-spotlight-steps { position:absolute; z-index:2; bottom:16px; inset-inline-end:24px; display:flex; align-items:center; gap:6px; }
+:root[data-host='desktop'] .tsugi-spotlight-steps button { width:14px; height:20px; position:relative; }
+:root[data-host='desktop'] .tsugi-spotlight-steps button::before { content:''; position:absolute; inset:8px 4px; border-radius:3px; background:#c5c5cc80; }
+:root[data-host='desktop'] .tsugi-spotlight-steps button[aria-pressed='true'] { width:24px; }
+:root[data-host='desktop'] .tsugi-spotlight-steps button[aria-pressed='true']::before { background:#fff; }
+:root[data-host='desktop'] .tsugi-landscape-spotlight .tsugi-spotlight-copy { max-width:630px; }
+:root[data-host='desktop'] .tsugi-landscape-credit { position:absolute; inset-inline-end:16px; bottom:10px; z-index:2; display:flex; align-items:center; flex-wrap:wrap; gap:8px; font-size:11px; color:#f1f1f6; background:#101116cc; padding:5px 8px; border-radius:5px; }
+:root[data-host='desktop'] .tsugi-landscape-credit button { text-decoration:underline; text-underline-offset:3px; }
+:root[data-host='desktop'] .tsugi-vault-root { padding:62px 24px 100px calc(var(--tsugi-rail-width) + 24px); min-height:100vh; }
+.tsugi-vault-form { display:grid; gap:14px; max-width:800px; margin-block:22px; }
+.tsugi-vault-form label { display:grid; gap:7px; color:var(--tsugi-muted); font-size:13px; }
+.tsugi-vault-form input { width:100%; border:0; border-radius:8px; padding:12px; background:var(--tsugi-wash); color:var(--tsugi-ink); }
+.tsugi-vault-form progress { width:100%; height:6px; accent-color:var(--tsugi-accent); }
+.tsugi-vault-file-row { display:flex; align-items:center; justify-content:space-between; min-height:52px; gap:10px; }
+.tsugi-vault-actions { display:flex; flex-wrap:wrap; gap:10px; margin:0 0 22px; }
+@media(max-width:760px) { :root[data-host='desktop'] .tsugi-spotlight { min-height:280px; padding:22px 20px 36px; } :root[data-host='desktop'] .tsugi-spotlight-cover { width:clamp(80px,20vw,130px); } :root[data-host='desktop'] .tsugi-spotlight-copy h2 { font-size:clamp(24px,5vw,40px); } :root[data-host='desktop'] .tsugi-vault-root { padding-inline:calc(var(--tsugi-rail-width) + 12px) 12px; } }

@@ -350,7 +350,7 @@ export function WatchedMark() {
   return (
     <span
       data-ui="watched-badge"
-      className="absolute end-2 top-2 z-[2] flex size-6 items-center justify-center rounded-full bg-brand-500 text-white shadow"
+      className="absolute end-2 top-2 z-[2] flex size-6 items-center justify-center rounded-full bg-brand-500 text-white shadow tsugi-watched-badge"
     >
       <BiCheck className="text-lg" />
     </span>
@@ -453,7 +453,7 @@ export function PosterCard(props: PosterCardProps) {
         {!watched && !!unwatched && (
           <span
             data-ui="unwatched-count"
-            className="absolute end-2 top-2 z-[2] rounded-full bg-brand-500 px-2 py-0.5 text-xs font-semibold text-white shadow"
+            className="absolute end-2 top-2 z-[2] rounded-full bg-brand-500 px-2 py-0.5 text-xs font-semibold text-white shadow tsugi-unwatched-badge"
           >
             {unwatched}
           </span>

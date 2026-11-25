@@ -11,6 +11,7 @@ import type { MusicConnection } from '@/lib/music/connections';
 import { providerFor } from '@/lib/music/providers';
 import type { TrendingRecording } from '@/lib/music/discovery';
 import { MusicCharts } from './charts';
+import { MusicArtwork } from './music-artwork';
 import type { RecentMusicPlay } from '@/lib/music/history';
 
 export type PlayCollection = (source: MusicConnection, songs: EclipseTrack[], at: number) => void;
@@ -155,6 +156,7 @@ export function MusicDiscover({
   const [error, setError] = React.useState('');
   const [selected, setSelected] = React.useState<EclipseCatalogItem | null>(null);
   const [hasCatalog, setHasCatalog] = React.useState(false);
+  const [spotlight, setSpotlight] = React.useState(0);
 
   React.useEffect(() => {
     if (!source) {
@@ -164,6 +166,7 @@ export function MusicDiscover({
     }
     const controller = new AbortController();
     setShelves([]);
+    setSpotlight(0);
     setSelected(null);
     setError('');
     setLoading(true);
@@ -204,8 +207,11 @@ export function MusicDiscover({
   }
 
   const filled = shelves.filter((row) => row.items.length > 0);
-  const featuredRow = filled.find((row) => row.items.some((item) => item.artworkURL)) ?? filled[0];
-  const featured = featuredRow?.items.find((item) => item.artworkURL) ?? featuredRow?.items[0];
+  const heroItems = filled.flatMap(row => row.items.filter(item => !!item.artworkURL).map(item => ({ row, item })))
+    .filter((entry, index, all) => all.findIndex(other => other.item.id === entry.item.id) === index).slice(0, 6);
+  const hero = heroItems[spotlight % Math.max(heroItems.length, 1)];
+  const featuredRow = hero?.row ?? filled[0];
+  const featured = hero?.item ?? featuredRow?.items[0];
   const recentFromSource = recent.filter((item) => item.sourceId === source?.id);
 
   if (!source) return (
@@ -232,9 +238,10 @@ export function MusicDiscover({
       {error && <p role="alert" className="text-sm text-amber-200">{error}</p>}
 
       {featured && featuredRow && (
-        <section className="tsugi-hub-feature tsugi-feature-composition" data-art={featured.artworkURL ? 'true' : 'false'}
+        <section className="tsugi-spotlight tsugi-music-spotlight" data-art={featured.artworkURL ? 'true' : 'false'}
           aria-label={t`Featured music`}>
-          <div className="tsugi-feature-copy">
+          {featured.artworkURL && <div className="tsugi-spotlight-backdrop" aria-hidden="true"><MusicArtwork source={featured.artworkURL} className="tsugi-spotlight-image" /></div>}
+          <div className="tsugi-feature-copy tsugi-spotlight-copy">
             <p className="tsugi-feature-kicker">{featuredRow.catalog.name}</p>
             <h2 className="line-clamp-3 text-[clamp(1.85rem,3.2vw,3.4rem)] font-semibold leading-tight tracking-[-.045em]">
               {featured.title}
@@ -247,11 +254,11 @@ export function MusicDiscover({
             </button>
           </div>
           {featured.artworkURL && (
-            <div className="tsugi-hub-feature-art relative overflow-hidden">
-              <img src={featured.artworkURL} alt="" draggable={false} loading="eager"
-                referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+            <div className="tsugi-spotlight-cover">
+              <MusicArtwork source={featured.artworkURL} className="size-full object-cover" />
             </div>
           )}
+          {heroItems.length > 1 && <div className="tsugi-spotlight-steps" aria-label={t`Featured music`}>{heroItems.map((entry, at) => <button type="button" key={entry.item.id} aria-label={entry.item.title} aria-pressed={spotlight === at} onClick={() => setSpotlight(at)} />)}</div>}
         </section>
       )}
 

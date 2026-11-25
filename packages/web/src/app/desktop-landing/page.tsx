@@ -5,14 +5,15 @@ import { TsugiBrand, TsugiMediaIcon } from '@/components/tsugi-brand';
 import { useDesktopArea } from '@/lib/desktop-area';
 
 /** Direct media destinations, independent of server configuration. */
-export function DesktopLandingPage({ openVideo, openMusic, openRead }: {
-  openVideo(): void; openMusic(): void; openRead?: () => void;
+export function DesktopLandingPage({ openVideo, openMusic, openRead, openVault }: {
+  openVideo(): void; openMusic(): void; openRead?: () => void; openVault?: () => void;
 }) {
   const desktopArea = useDesktopArea();
   const sections = [
     { id: 'video' as const, label: t({ id: "Movies & TV", message: "Movies & TV" }), open: openVideo },
     { id: 'music' as const, label: t({ id: "Music", message: "Music" }), open: openMusic },
     ...(openRead ? [{ id: 'read' as const, label: t({ id: 'Read', message: 'Read' }), open: openRead }] : []),
+    ...(openVault ? [{ id: 'vault' as const, label: t({ id: 'Vault', message: 'Vault' }), open: openVault }] : []),
   ];
   return <main data-page="desktop-landing" className="tsugi-landing tsugi-index">
     <header className="tsugi-index-header">

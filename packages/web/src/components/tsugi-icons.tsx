@@ -27,6 +27,7 @@ const paths = {
   calendar: 'M4 6h16v14H4ZM4 10h16M8 3.5v5m8-5v5M8 14h.1m4 0h.1m4 0h.1',
   people: 'M9 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM3 20v-2a6 6 0 0 1 12 0v2M16 5.5a3.5 3.5 0 0 1 0 6.5m1 2a5 5 0 0 1 4 5',
   download: 'M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4',
+  vault: 'M4 6h16v14H4ZM3 3h18v3H3ZM9 10h6',
   disc: 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17Zm0 6a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z',
   play: '', pause: '', previous: 'M5 6v12', next: 'M19 6v12',
   back: 'M20 12H5m6-6-6 6 6 6',
@@ -42,7 +43,7 @@ const paths = {
   file: 'M5 3.5h9l5 5V21H5ZM14 3.5V9h5M9 15h6m-3-3v6',
 } as const;
 export type TsugiIconName = keyof typeof paths;
-export function TsugiIcon({ name, ...props }: SVGProps<SVGSVGElement> & { name: TsugiIconName }) {
+export function TsugiIcon({ name, ...props }: Omit<SVGProps<SVGSVGElement>, 'name'> & { name: TsugiIconName }) {
   const wedge = name === 'video' ? 'M10 9l5.5 3-5.5 3Z' : name === 'compass' ? 'm15.8 8.2-2.4 5.2-5.2 2.4 2.4-5.2Z' : name === 'play' ? 'M7 4.5 20 12 7 19.5Z' : name === 'previous' ? 'M18 5.5 7 12l11 6.5Z' : name === 'next' ? 'M6 5.5 17 12 6 18.5Z' : name === 'pause' ? 'M7 5h3v14H7Zm7 0h3v14h-3Z' : '';
   return <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
     {paths[name] && <path d={paths[name]} />}
@@ -50,7 +51,7 @@ export function TsugiIcon({ name, ...props }: SVGProps<SVGSVGElement> & { name: 
   </svg>;
 }
 export function tsugiIcon(name: TsugiIconName) {
-  return function Icon(props: SVGProps<SVGSVGElement>) { return <TsugiIcon name={name} {...props} />; };
+  return function Icon(props: Omit<SVGProps<SVGSVGElement>, 'name'>) { return <TsugiIcon {...props} name={name} />; };
 }
 export const BrushBook = tsugiIcon('book'), BrushCompass = tsugiIcon('compass'), BrushSearch = tsugiIcon('search'), BrushGrid = tsugiIcon('grid'), BrushSettings = tsugiIcon('settings'), BrushHistory = tsugiIcon('history'), BrushBell = tsugiIcon('bell'), BrushFolder = tsugiIcon('folder'), BrushMigrate = tsugiIcon('migrate'), BrushPlus = tsugiIcon('plus'), BrushBookmark = tsugiIcon('bookmark'), BrushBack = tsugiIcon('back'), BrushLeft = tsugiIcon('left'), BrushRight = tsugiIcon('right'), BrushDown = tsugiIcon('down'), BrushCheck = tsugiIcon('check'), BrushRefresh = tsugiIcon('refresh'), BrushList = tsugiIcon('list'), BrushPlay = tsugiIcon('play'), BrushPause = tsugiIcon('pause'), BrushPrevious = tsugiIcon('previous'), BrushNext = tsugiIcon('next'), BrushDisc = tsugiIcon('disc'), BrushPlug = tsugiIcon('plug'), BrushHeart = tsugiIcon('heart'), BrushExpand = tsugiIcon('expand'), BrushShrink = tsugiIcon('shrink'), BrushMinus = tsugiIcon('minus'), BrushClose = tsugiIcon('close'), BrushShuffle = tsugiIcon('shuffle'), BrushLyrics = tsugiIcon('lyrics'), BrushTrash = tsugiIcon('trash'), BrushFile = tsugiIcon('file'), BrushDownload = tsugiIcon('download');
 

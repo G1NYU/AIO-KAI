@@ -32,7 +32,7 @@ import { cn } from '@aiostreams/ui/core/styling';
 import { useMediaQuery } from '@aiostreams/ui/hooks/media-query';
 import { useSession } from '@/lib/jellyfin/session';
 import { useDesktopArea } from '@/lib/desktop-area';
-import { TsugiMusicIcon, TsugiReadIcon } from '@/components/tsugi-brand';
+import { TsugiMusicIcon, TsugiReadIcon, TsugiVaultIcon } from '@/components/tsugi-brand';
 import { mediaDestinations } from './media-navigation';
 import { TsugiRail } from './tsugi-rail';
 import { TsugiIcon, type TsugiIconName } from '@/components/tsugi-icons';
@@ -235,7 +235,7 @@ export function WebLayout() {
     },
     ...(desktopArea ? [{ id: 'all-media', name: t({ id: 'All media', message: 'All media' }), iconType: BiGridAlt, isCurrent: false, onClick: desktopArea.openWelcome }] : []),
     ...(desktopArea ? mediaDestinations(desktopArea).filter(({ id }) => id !== 'video').map(({ id, label, open }) => ({
-      id, name: label, iconType: id === 'music' ? TsugiMusicIcon : TsugiReadIcon, isCurrent: false, onClick: open,
+      id, name: label, iconType: id === 'music' ? TsugiMusicIcon : id === 'vault' ? TsugiVaultIcon : TsugiReadIcon, isCurrent: false, onClick: open,
     })) : []),
     {
       id: 'discover',
@@ -326,7 +326,7 @@ export function WebLayout() {
                     <SidebarAccount you={you} />
                   </>}>
                     <nav className="tsugi-rail-local" aria-label={t({ id: 'Video sections', message: 'Video sections' })}>
-                      {items.filter(item => !['all-media', 'music', 'read'].includes(item.id || '')).map(item => {
+                      {items.filter(item => !['all-media', 'music', 'read', 'vault'].includes(item.id || '')).map(item => {
                         const icons: Record<string, TsugiIconName> = { home: 'home', discover: 'compass', search: 'search', favourites: 'heart', live: 'video', calendar: 'calendar', activity: 'history', playlists: 'list', party: 'people', downloads: 'download' };
                         const name = icons[item.id || ''];
                         const Icon = item.iconType;

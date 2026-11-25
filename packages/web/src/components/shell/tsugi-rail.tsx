@@ -7,7 +7,7 @@ import { mediaDestinations } from './media-navigation';
 
 /** The one desktop rail. Sections contribute actions, never their own geometry. */
 export function TsugiRail({ area, disabled = false, children, footer, className = '', mediaClassName = '', globalSettings = true }: {
-  area: 'video' | 'music' | 'read';
+  area: 'video' | 'music' | 'read' | 'vault';
   disabled?: boolean;
   children?: ReactNode;
   footer?: ReactNode;
