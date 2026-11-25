@@ -113,7 +113,7 @@ export function MusicCollection({
             </div>
             {visibleTracks.length===0&&<p className="tsugi-library-muted"><Trans>No matching tracks.</Trans></p>}
             <div className="tsugi-hub-remote-columns"><span>#</span><span><Trans>Title</Trans></span><span><Trans>Album</Trans></span><span><Trans>Source</Trans></span><span><Trans>Time</Trans></span></div>
-            <div className="tsugi-music-detail-track-grid" data-multi={visibleTracks.length>8}>
+            <div className="tsugi-music-detail-track-grid">
             {visibleTracks.map(({track,at}) => (
               <button key={track.id + ':' + at} type="button"
                 onClick={() => { onPlay(source, detail.tracks, at); onClose(); }}

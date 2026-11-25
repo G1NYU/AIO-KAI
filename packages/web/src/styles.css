@@ -2620,7 +2620,6 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 :root[data-host='desktop'] .tsugi-collection-rail { border-inline-end:1px solid var(--tsugi-line); padding-inline-end:18px; }
 @media(min-width:1100px) {
   :root[data-host='desktop'] .tsugi-video-entry-content:not(.max-w-5xl) { transform:translateX(min(10vw,170px)); }
-  :root[data-host='desktop'] .tsugi-music-detail-track-grid[data-multi='true'] { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 @media(max-width:760px) {
   :root[data-host='desktop'] .tsugi-atmosphere[data-placement='entry'] .tsugi-atmosphere-brand { left:5%; top:6%; width:42vw; opacity:.06; }
@@ -2903,7 +2902,7 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-dashboard-current { padding:10px; color:var(--tsugi-ink); background:var(--tsugi-wash); font-size:13px; overflow-wrap:anywhere; }
 .tsugi-hub-collection .tsugi-music-detail-hero { align-items:flex-end; gap:24px; }
 .tsugi-hub-collection .tsugi-music-detail-hero > div:first-child { width:clamp(110px,15vw,200px); flex:none; }
-.tsugi-hub-collection .tsugi-music-detail-track-grid[data-multi] { display:grid; grid-template-columns:1fr; gap:0; padding:5px; border:1px solid var(--tsugi-line); border-top:0; background:var(--tsugi-surface); border-radius:0 0 var(--tsugi-radius-control) var(--tsugi-radius-control); }
+.tsugi-hub-collection .tsugi-music-detail-track-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:0; padding:5px; border:1px solid var(--tsugi-line); border-top:0; background:var(--tsugi-surface); border-radius:0 0 var(--tsugi-radius-control) var(--tsugi-radius-control); }
 .tsugi-hub-collection .tsugi-music-detail-track,.tsugi-hub-remote-columns { display:grid; grid-template-columns:26px minmax(0,1.7fr) minmax(0,1fr) minmax(64px,.6fr) 52px; align-items:center; gap:10px; padding:10px 12px; border:0; }
 .tsugi-hub-collection .tsugi-music-detail-track:hover { background:var(--tsugi-wash); border-radius:var(--tsugi-radius-control); }
 .tsugi-hub-remote-columns { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--tsugi-muted); background:var(--tsugi-surface); border:1px solid var(--tsugi-line); border-bottom:0; border-radius:var(--tsugi-radius-control) var(--tsugi-radius-control) 0 0; }
