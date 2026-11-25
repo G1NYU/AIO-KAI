@@ -21,7 +21,7 @@ def main():
                               check=True, timeout=30).stdout
     for tool in (ffmpeg, ffprobe):
         version = run(tool, "-version").decode()
-        assert "8.1.2" in version.splitlines()[0], version.splitlines()[0]
+        assert any(marker in version.splitlines()[0] for marker in ("8.1.2", "38b8833")), version.splitlines()[0]
         assert "--enable-gpl" not in version and "--enable-nonfree" not in version
     def convert(*args):
         run(ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-n", *args)
