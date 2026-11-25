@@ -101,3 +101,23 @@ describe('Persistent Vault job',()=>{
     expect(()=>vaultJob('https://example.org/book.epub','../bad')).toThrow();
   });
 });
+
+import { bookFormat, validBookProgress, MAX_BOOK_BYTES } from '../src/app/read/book-library';
+describe('Local book file and progress guards', () => {
+  it('checks size, extension and signature before importing', async () => {
+    expect(await bookFormat(new File(['%PDF-1.7'], 'book.pdf'))).toBe('pdf');
+    expect(await bookFormat(new File([new Uint8Array([80, 75, 3, 4, 0])], 'book.epub'))).toBe('epub');
+    await expect(bookFormat(new File(['<html>'], 'book.pdf'))).rejects.toThrow();
+    await expect(bookFormat(new File(['%PDF-1.7'], 'book.exe'))).rejects.toThrow();
+    await expect(bookFormat(new File([], 'empty.epub'))).rejects.toThrow();
+    await expect(bookFormat({ name: 'huge.pdf', size: MAX_BOOK_BYTES + 1, slice: () => new Blob() })).rejects.toThrow();
+  });
+  it('validates format-specific positions and bounded progress', () => {
+    expect(validBookProgress('pdf', 2, .5)).toEqual({ position: 2, fraction: .5 });
+    expect(validBookProgress('epub', 'epubcfi(/6/2)', .2)).toEqual({ position: 'epubcfi(/6/2)', fraction: .2 });
+    expect(validBookProgress('pdf', '2', .5)).toBeNull();
+    expect(validBookProgress('pdf', 0, .5)).toBeNull();
+    expect(validBookProgress('epub', 'epubcfi(/6/2', .5)).toBeNull();
+    expect(validBookProgress('pdf', 1, NaN)).toBeNull();
+  });
+});
