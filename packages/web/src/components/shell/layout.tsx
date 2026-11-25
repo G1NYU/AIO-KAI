@@ -15,6 +15,8 @@ import {
   BiHeart,
   BiHistory,
   BiHomeAlt2,
+  BiGridAlt,
+  BiSliderAlt,
   BiListUl,
   BiCog,
   BiSearch,
@@ -229,11 +231,11 @@ export function WebLayout() {
       isCurrent: pathname === '/',
       onClick: () => navigate(to.home),
     },
-    ...(desktopArea ? [{ id: 'all-media', name: t({ id: 'All media', message: 'All media' }), iconType: BiHomeAlt2, isCurrent: false, onClick: desktopArea.openWelcome }] : []),
+    ...(desktopArea ? [{ id: 'all-media', name: t({ id: 'All media', message: 'All media' }), iconType: BiGridAlt, isCurrent: false, onClick: desktopArea.openWelcome }] : []),
     ...(desktopArea ? mediaDestinations(desktopArea).filter(({ id }) => id !== 'video').map(({ id, label, open }) => ({
       id, name: label, iconType: id === 'music' ? TsugiMusicIcon : TsugiReadIcon, isCurrent: false, onClick: open,
     })) : []),
-    ...(desktopArea ? [{ id: 'app-settings', name: t({ id: 'App settings', message: 'App settings' }), iconType: BiCog, isCurrent: false, onClick: desktopArea.openSettings }] : []),
+    ...(desktopArea ? [{ id: 'app-settings', name: t({ id: 'App settings', message: 'App settings' }), iconType: BiSliderAlt, isCurrent: false, onClick: desktopArea.openSettings }] : []),
     {
       id: 'discover',
       name: t`Discover`,

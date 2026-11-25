@@ -226,7 +226,6 @@ export function MusicDiscover({
     <section aria-label={t`Music discovery`} className="tsugi-hub tsugi-discovery-workspace">
       <header className="tsugi-discovery-source">
         <span><Trans>Browsing</Trans> <strong>{source.manifest.name}</strong></span>
-        <button type="button" className="tsugi-read-action" onClick={onConfigure}><FiSettings aria-hidden /><Trans>Music sources</Trans></button>
       </header>
 
       {loading && <p role="status" className="text-sm text-[--tsugi-muted]"><Trans>Loading music…</Trans></p>}
@@ -261,13 +260,16 @@ export function MusicDiscover({
           <div className="mb-5 flex items-center justify-between gap-4">
             <h3 className="text-2xl font-semibold"><Trans>Recently played</Trans></h3>
           </div>
-          <div className="tsugi-music-shelf flex gap-5 overflow-x-auto pb-5">
+          <div className="tsugi-recent-music-grid">
             {recentFromSource.slice(0, 12).map((item) => (
               <button type="button" key={item.sourceId + ':' + item.track.id}
-                onClick={() => onPlayRecent(item)} className="tsugi-music-tile group w-40 shrink-0 text-left sm:w-44">
-                <Cover src={item.track.artworkURL} />
-                <span className="mt-3 block truncate text-sm font-medium">{item.track.title}</span>
-                <span className="mt-1 block truncate text-xs text-[--tsugi-muted]">{item.track.artist}</span>
+                onClick={() => onPlayRecent(item)} className="tsugi-recent-music-card">
+                <Cover src={item.track.artworkURL} size="small" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{item.track.title}</span>
+                  {item.track.artist && <span className="block truncate text-xs text-[--tsugi-muted]">{item.track.artist}</span>}
+                </span>
+                <FiPlay aria-hidden />
               </button>
             ))}
           </div>

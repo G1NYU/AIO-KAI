@@ -1,8 +1,8 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { BiDisc, BiSearch } from 'react-icons/bi';
-import { FiSettings, FiX, FiPlus, FiPlay, FiPause, FiSkipBack, FiSkipForward } from 'react-icons/fi';
+import { BiDisc, BiSearch, BiPlug } from 'react-icons/bi';
+import { FiX, FiPlus, FiPlay, FiPause, FiSkipBack, FiSkipForward } from 'react-icons/fi';
 import {
   loadAddon, loadStore, manifestUrlFor,
   type EclipseCatalogItem, type EclipseStoreEntry, type EclipseTrack,
@@ -26,7 +26,6 @@ import {
   readMusicLibrary, saveMusicLibrary,
   savedTrack, type SavedMusicTrack,
 } from '@/lib/music/library';
-import { TsugiBrand, TsugiMediaIcon } from '@/components/tsugi-brand';
 import { MediaNavigation } from '@/components/shell/media-navigation';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 import type { TrendingRecording } from '@/lib/music/discovery';
@@ -36,8 +35,6 @@ const SAVED_PLAYLIST_ID = 'tsugi-saved-tracks';
 
 /** Music lives outside the AIOStreams/Jellyfin session. */
 export function MusicPage({
-  openVideo,
-  openWelcome,
   visible,
   playbackAllowed,
   reading,
@@ -692,7 +689,7 @@ export function MusicPage({
   };
 
   const musicNavigation = (
-    <nav className="tsugi-music-navigation flex items-center"
+    <nav className="tsugi-music-navigation flex flex-wrap items-center"
           aria-label={t`Music sections`}>
           <button type="button" aria-current={tab === 'discover' ? 'page' : undefined}
             onClick={() => setTab('discover')}><Trans>Discover</Trans></button>
@@ -700,6 +697,7 @@ export function MusicPage({
             onClick={() => setTab('search')}><Trans>Search</Trans></button>
           <button type="button" aria-current={tab === 'library' ? 'page' : undefined}
             onClick={() => setTab('library')}><Trans>Library</Trans></button>
+          <button type="button" className="tsugi-music-source-trigger" onClick={() => setSettingsOpen(true)}><BiPlug aria-hidden /><Trans>Music sources</Trans></button>
         </nav>
   );
 
@@ -713,14 +711,9 @@ export function MusicPage({
     </div>}
     <main data-page="music" style={{ display: visible ? 'block' : 'none' }}
       className="tsugi-music-root min-h-screen px-6 pb-36 pt-14 sm:px-[3vw]">
-      <div className="w-full">
+      <div className="tsugi-music-workspace w-full">
         <header className="tsugi-music-top mb-10 flex items-center justify-between gap-6">
-          <MediaNavigation area="music" tools={
-            <button type="button" className="tsugi-icon-action" onClick={() => setSettingsOpen(true)}
-              aria-label={t`Music settings`}>
-              <FiSettings aria-hidden className="text-xl" />
-            </button>
-          } />
+          <MediaNavigation area="music" />
         </header>
 
         {tab !== 'library' && <div className="tsugi-music-section-header">
@@ -767,12 +760,12 @@ export function MusicPage({
           <h2><Trans>Connect a music source</Trans></h2>
           <p><Trans>Connect a source to search for artists, albums and tracks, or play your local music.</Trans></p>
           <div className="tsugi-empty-actions">
-            <button type="button" className="tsugi-read-action tsugi-empty-primary" onClick={() => setSettingsOpen(true)}><Trans>Music settings</Trans></button>
+            <button type="button" className="tsugi-read-action tsugi-empty-primary" onClick={() => setSettingsOpen(true)}><Trans>Manage music sources</Trans></button>
             <button type="button" className="tsugi-read-action" onClick={() => setTab('library')}><Trans>Open library</Trans></button>
           </div>
         </section>}
         {tab === 'search' && activeAddon && (
-          <section aria-labelledby="music-workspace-heading" className="tsugi-music-search mb-10 space-y-4">
+          <section aria-labelledby="music-workspace-heading" className="tsugi-music-search mb-10 space-y-4" data-empty={!query.trim() ? 'true' : undefined}>
             <form onSubmit={search} className="flex flex-col gap-3 sm:flex-row">
               <input aria-label={t`Search music`} value={query} onChange={(e) => setQuery(e.target.value)}
                 placeholder={t`Artist, album or track`}
@@ -786,16 +779,16 @@ export function MusicPage({
             {collections.length > 0 && (
               <section className="space-y-3">
                 <h3 className="text-lg font-semibold"><Trans>Albums, artists and playlists</Trans></h3>
-                <div className="flex gap-4 overflow-x-auto pb-3">
+                <div className="tsugi-search-collections flex gap-4 overflow-x-auto pb-3">
                   {collections.map((item) => (
                     <button key={item.type + ':' + item.id} type="button"
                       onClick={() => setSelectedCollection(item)}
-                      className="w-36 shrink-0 text-left transition-transform hover:-translate-y-0.5">
+                      className="tsugi-search-collection shrink-0 text-left">
                       {item.artworkURL
                         ? <img src={item.artworkURL} alt="" loading="lazy" referrerPolicy="no-referrer"
                             className="aspect-square w-full rounded-xl object-cover" />
-                        : <span className="flex aspect-square items-center justify-center rounded-xl bg-[#292335]">
-                            <BiDisc aria-hidden className="text-4xl text-violet-200/70" />
+                        : <span className="tsugi-discovery-placeholder flex aspect-square items-center justify-center rounded-xl">
+                            <BiDisc aria-hidden className="text-4xl" />
                           </span>}
                       <span className="mt-2 block truncate text-sm font-medium">{item.title}</span>
                       <span className="block truncate text-xs text-white/45">{item.artist ?? item.type}</span>
@@ -829,36 +822,34 @@ export function MusicPage({
               ))}
             </ul>
             {!searching && tracks.length === 0 && collections.length === 0 && !searchError &&
-              <p className="text-sm text-[--muted]"><Trans>Search your connected addon to find tracks.</Trans></p>}
+              <div className="tsugi-music-search-help">
+                <BiSearch aria-hidden />
+                <h2><Trans>Find your next listen</Trans></h2>
+                <p><Trans>Search by artist, album or track using your connected music source.</Trans></p>
+                <div className="tsugi-search-shortcuts">
+                  <button type="button" className="tsugi-read-action" onClick={() => setTab('discover')}><Trans>Explore music</Trans></button>
+                  <button type="button" className="tsugi-read-action" onClick={() => setTab('library')}><Trans>Open library</Trans></button>
+                </div>
+              </div>}
           </section>
         )}
 
       </div>
 
       {settingsOpen && (
-        <div className="tsugi-settings-backdrop fixed inset-0 z-40 flex justify-end"
+        <div className="tsugi-settings-backdrop tsugi-source-backdrop fixed inset-0 z-40 flex justify-end"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setSettingsOpen(false);
           }}>
-          <aside role="dialog" aria-modal="true" aria-label={t`Music settings`}
-            className="tsugi-settings-sheet h-full w-full max-w-[520px] overflow-y-auto px-6 pb-14 pt-14 sm:px-9">
+          <aside role="dialog" aria-modal="true" aria-label={t`Music sources`}
+            className="tsugi-settings-sheet tsugi-source-sheet h-full w-full overflow-y-auto px-6 pb-14 pt-10 sm:px-9">
             <div className="mb-10 flex items-center justify-between gap-4">
-              <h2 className="text-2xl font-semibold"><Trans>Music settings</Trans></h2>
+              <h2 className="text-2xl font-semibold"><Trans>Music sources</Trans></h2>
               <button ref={settingsCloseRef} type="button" className="tsugi-icon-action"
                 onClick={() => setSettingsOpen(false)} aria-label={t`Close`}>
                 <FiX aria-hidden className="text-xl" />
               </button>
             </div>
-            <nav className="tsugi-music-settings-destinations mb-10 flex flex-wrap gap-5 text-sm">
-              <button type="button" onClick={() => { setSettingsOpen(false); openWelcome(); }}
-                className="inline-flex items-center gap-2 text-[--tsugi-muted] hover:text-white">
-                <TsugiBrand markOnly /><Trans>All media</Trans>
-              </button>
-              <button type="button" onClick={() => { setSettingsOpen(false); openVideo(); }}
-                className="inline-flex items-center gap-2 text-[--tsugi-muted] hover:text-white">
-                <TsugiMediaIcon area="video" /><Trans>Movies & TV</Trans>
-              </button>
-            </nav>
             {connections.length > 0 && (
               <label className="mb-7 block text-xs text-[--tsugi-muted]">
                 <Trans>Active music source</Trans>
@@ -953,7 +944,7 @@ export function MusicPage({
               <Trans>Configure DebridVault</Trans>
             </a>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="tsugi-source-store-grid grid gap-5">
             {store.map((addon) => (
               <article key={addon.id} className="flex flex-col gap-3 border-b border-white/10 py-5">
                 <div className="flex items-center gap-3">
@@ -961,7 +952,7 @@ export function MusicPage({
                     ? <img src={addon.icon} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-12 rounded-xl object-contain" />
                     : <BiDisc aria-hidden className="text-3xl text-violet-200" />}
                   <div className="min-w-0">
-                    <h3 className="truncate font-semibold">{addon.name}</h3>
+                    <h3 className="break-words font-semibold">{addon.name}</h3>
                     <p className="text-xs text-[--muted]">{addon.author ?? t`Community`}</p>
                   </div>
                 </div>

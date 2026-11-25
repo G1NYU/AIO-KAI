@@ -94,6 +94,8 @@ export function SearchPage({ initialTerm }: { initialTerm: string }) {
   const voice = useVoice(choose, setTerm);
   // A remote reaches the microphone in one press, and the keyboard only on Select.
   const voiceFirst = !!voice && !!currentHost().tv;
+  const desktop = currentHost().name === 'desktop';
+  const idle = desktop && !typed;
 
   // Keeps the term in the address, so back returns to the same results.
   React.useEffect(() => {
@@ -153,10 +155,12 @@ export function SearchPage({ initialTerm }: { initialTerm: string }) {
 
   return (
     <PageBody>
+      <section className={desktop ? 'tsugi-video-search-workspace' : 'space-y-6'} data-idle={idle || undefined}>
       <h1 data-ui="page-title" className="text-3xl font-bold">
         <Trans>Search</Trans>
       </h1>
-      <div className="flex max-w-xl items-center gap-2">
+      {idle && <p className="tsugi-video-search-intro"><Trans>Find movies, series and people across your connected server.</Trans></p>}
+      <div className={cn('flex items-center gap-2', desktop ? 'tsugi-video-search-field' : 'max-w-xl')}>
         {voiceFirst && voice.button}
         <TextInput
           autoFocus={!voiceFirst}
@@ -246,6 +250,15 @@ export function SearchPage({ initialTerm }: { initialTerm: string }) {
           </ul>
         </section>
       )}
+      {idle && <div className="tsugi-video-search-actions">
+        <h2><Trans>Browse instead</Trans></h2>
+        <div className="tsugi-search-shortcuts">
+          <Button intent="gray-subtle" onClick={() => navigate(to.home)}><Trans>Home</Trans></Button>
+          <Button intent="gray-subtle" onClick={() => navigate(to.discover())}><Trans>Discover</Trans></Button>
+          <Button intent="gray-subtle" onClick={() => navigate(to.favourites())}><Trans>Favourites</Trans></Button>
+        </div>
+      </div>}
+      </section>
       {searching && (
         <div
           data-ui="search-results"

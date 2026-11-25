@@ -95,7 +95,7 @@ function AddServer({
         </h1>
         <p className="text-sm text-[--muted]">
           {currentHost().name === 'desktop'
-            ? <Trans>Enter your video server address. Compatible Jellyfin servers work too.</Trans>
+            ? <Trans>Enter your video server address or AIOStreams URL. Compatible Jellyfin servers work too.</Trans>
             : <Trans>
                 The address of the AIOStreams instance where you set up your addon.
                 Other Jellyfin servers work too.

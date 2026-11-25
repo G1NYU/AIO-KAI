@@ -27,6 +27,12 @@
     <script>
       // Players drawn beneath the page show through it, which the apps' web
       // views only render for a page transparent from the start.
+      var desktopBridge = window.aiostreamsApp;
+      if (desktopBridge && ['windows', 'macos', 'linux'].includes(desktopBridge.platform)) {
+        document.documentElement.classList.add('tsugi-desktop-boot');
+        document.title = 'Tsugi';
+        document.querySelector('meta[name="apple-mobile-web-app-title"]').content = 'Tsugi';
+      }
       if (window.jmpInfo || window.aiostreamsApp || window.tizen) {
         document.documentElement.classList.add('see-through');
         document.querySelector('meta[name="color-scheme"]').remove();
@@ -44,6 +50,12 @@
         place-items: center;
         background: #000;
       }
+      .tsugi-desktop-boot #splash { background: #101214; }
+      .tsugi-desktop-boot .splash-logo { width: 96px; height: 96px; }
+      .tsugi-desktop-boot .splash-breath { animation: none; }
+      .splash-tsugi { display: none !important; }
+      .tsugi-desktop-boot .splash-upstream { display: none !important; }
+      .tsugi-desktop-boot .splash-tsugi { display: block !important; }
       #splash[data-ending] {
         pointer-events: none;
         animation: splash-out 0.5s ease-out forwards;
@@ -109,7 +121,10 @@
     <div id="splash" aria-hidden="true">
       <div class="splash-logo">
         <div class="splash-breath">
-          <svg viewBox="0 0 1080 1080">
+          <svg class="splash-tsugi" viewBox="0 0 128 128" aria-hidden="true">
+            <path fill="#e8e6df" d="M22 44 C43 34 71 27 91 35 C113 43 118 63 108 83 C98 102 75 113 51 116 C72 102 92 85 95 67 C98 52 87 46 72 46 C59 46 45 50 32 59 C26 63 18 58 18 52 C18 49 19 47 22 44 Z"/>
+          </svg>
+          <svg class="splash-upstream" viewBox="0 0 1080 1080">
             <path
               fill="#fff"
               d="M508.34,338.5h3.14c65.24,0,106.01,70.62,73.39,127.12l-160.44,277.88h0c-66.63,0-108.27,-72.13 -74.96,-129.83l158.87,-275.17Z"

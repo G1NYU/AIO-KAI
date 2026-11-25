@@ -1,5 +1,6 @@
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
+import { BiHeadphone, BiBookOpen } from 'react-icons/bi';
 
 /** Original brush-stroke つ (the opening sound of Tsugi), in a restrained seal. */
 export function TsugiBrand({
@@ -25,12 +26,14 @@ export function TsugiBrand({
   );
 }
 
-/** Original filled glyphs. Negative space ties all three to the same grid. */
+/** Use the 24px outline family of the movie sidebar throughout Tsugi. */
 export function TsugiMediaIcon({ area, className = '' }: { area: 'video' | 'music' | 'read'; className?: string }) {
-  return <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true" className={`tsugi-media-icon ${className}`}>
-    {area === 'video' ? <path fillRule="evenodd" d="M5 6h22a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Zm8 4v12l8-6-8-6Z" />
-      : area === 'music' ? <path fillRule="evenodd" d="M16 3a13 13 0 0 0-13 13v6a5 5 0 0 0 5 5h3V15H7a9 9 0 0 1 18 0h-4v12h3a5 5 0 0 0 5-5v-6A13 13 0 0 0 16 3Z" />
-      : <path fillRule="evenodd" d="M5 4h9l2 2 2-2h9v23h-9l-2 2-2-2H5V4Zm3 4v16h6l2 1.5V9l-2-1H8Zm11 0v12l2-1.5 2 1.5V8h-4Z" />}
+  const classes = 'tsugi-media-icon ' + className;
+  if (area === 'music') return <BiHeadphone aria-hidden="true" className={classes} />;
+  if (area === 'read') return <BiBookOpen aria-hidden="true" className={classes} />;
+  return <svg viewBox="0 0 24 24" aria-hidden="true" className={classes} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
+    <rect x="3" y="5" width="18" height="14" rx="3" />
+    <path d="m10 9 5 3-5 3Z" fill="currentColor" stroke="none" />
   </svg>;
 }
 
