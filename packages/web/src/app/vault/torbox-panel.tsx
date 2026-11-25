@@ -13,7 +13,7 @@ function errorMessage(error: unknown) {
   return t`TorBox could not complete the request. Check your account and the download link.`;
 }
 
-export function TorBoxPanel({initialLink='',compact=false}:{initialLink?:string;compact?:boolean} = {}) {
+export function TorBoxPanel({initialLink='',compact=false,manageOnly=false}:{initialLink?:string;compact?:boolean;manageOnly?:boolean} = {}) {
   const active = useRef<AbortController | null>(null);
   const [key, setKey] = useState('');
   const [connected, setConnected] = useState(false);
@@ -28,10 +28,10 @@ export function TorBoxPanel({initialLink='',compact=false}:{initialLink?:string;
     if (supportsNativeTorBox()) void nativeTorBox('status').then(result => {
       if (!alive) return;
       setConnected(result.connected);
-      if (result.connected && !compact) void nativeTorBox('list').then(list=>{if(alive)setItems(list.items||[]);}).catch(e=>{if(alive){setError(errorMessage(e));if(e instanceof TorBoxError && e.kind==='auth')setConnected(false);}});
+      if (result.connected && !compact && !manageOnly) void nativeTorBox('list').then(list=>{if(alive)setItems(list.items||[]);}).catch(e=>{if(alive){setError(errorMessage(e));if(e instanceof TorBoxError && e.kind==='auth')setConnected(false);}});
     }).catch(e=>{if(alive)setError(errorMessage(e));});
     return () => { alive=false; active.current?.abort(); };
-  }, [compact]);
+  }, [compact,manageOnly]);
 
   async function run(work: (signal: AbortSignal) => Promise<void>) {
     if (active.current) return;
@@ -78,23 +78,23 @@ export function TorBoxPanel({initialLink='',compact=false}:{initialLink?:string;
   }
   if(!supportsNativeTorBox())return <p role="status"><Trans>TorBox requires the updated Windows desktop application.</Trans></p>;
   return <section data-ui="tsugi-torbox">
-    <h2><Trans>TorBox cloud downloads</Trans></h2>
-    <p><Trans>Send authorized web downloads to your own TorBox account. Transfers run on TorBox, even after Tsugi closes.</Trans></p>
+    <h2>{manageOnly?<Trans>TorBox account</Trans>:<Trans>TorBox cloud downloads</Trans>}</h2>
+    {manageOnly?<p><Trans>Manage the session connection used by Vault and the music player. No API key is stored on disk.</Trans></p>:<p><Trans>Send authorized web downloads to your own TorBox account. Transfers run on TorBox, even after Tsugi closes.</Trans></p>}
     {!connected ? <form className="tsugi-vault-form" onSubmit={e => { e.preventDefault(); void connect(); }}>
       <label><Trans>TorBox API key</Trans><input type="password" autoComplete="off" spellCheck={false} value={key} onChange={e => setKey(e.target.value)} required disabled={busy}/></label>
       <p><Trans>Find your API key in your TorBox account settings. Tsugi keeps it in memory until you close the app or disconnect.</Trans></p>
       <div className="tsugi-vault-actions"><button type="submit" className="tsugi-read-action tsugi-series-primary" disabled={busy || !key.trim()}><Trans>Connect TorBox</Trans></button></div>
     </form> : <>
       <div className="tsugi-vault-actions">
-        <button type="button" className="tsugi-read-action" onClick={() => void refresh()} disabled={busy}><Trans>Refresh cloud downloads</Trans></button>
+        <button type="button" className="tsugi-read-action" onClick={() => void refresh()} disabled={busy}>{manageOnly?<Trans>Verify connection</Trans>:<Trans>Refresh cloud downloads</Trans>}</button>
         <button type="button" className="tsugi-read-action" onClick={disconnect} disabled={busy}><Trans>Disconnect TorBox</Trans></button>
       </div>
-      <form className="tsugi-vault-form" onSubmit={e => { e.preventDefault(); void submit(); }}>
+      {manageOnly?<p><Trans>Connected for this session.</Trans></p>:<form className="tsugi-vault-form" onSubmit={e => { e.preventDefault(); void submit(); }}>
         <label><Trans>Cloud download URL</Trans><input type="url" required value={link} onChange={e => { setLink(e.target.value); setPermitted(false); }} disabled={busy}/></label>
         <label><span><input type="checkbox" style={{width:'auto'}} checked={permitted} onChange={e => setPermitted(e.target.checked)} disabled={busy}/> <Trans>I have permission to download this file and send its URL to TorBox.</Trans></span></label>
         <div className="tsugi-vault-actions"><button type="submit" className="tsugi-read-action tsugi-series-primary" disabled={busy || !link.trim() || !permitted}><Trans>Send to TorBox</Trans></button></div>
-      </form>
-      {!compact&&<><h3><Trans>Cloud downloads (up to 100)</Trans></h3>
+      </form>}
+      {!compact&&!manageOnly&&<><h3><Trans>Cloud downloads (up to 100)</Trans></h3>
       {items.length === 0 ? <p><Trans>No web downloads returned.</Trans></p> : items.map(item => <div key={item.id} className="tsugi-vault-file-row"><span>{item.name || t`Unnamed download`}</span><span>{item.finished ? t`Complete` : item.state || t`Pending status`}</span></div>)}</>}
     </>}
     {busy && <p role="status"><Trans>Contacting TorBox…</Trans></p>}

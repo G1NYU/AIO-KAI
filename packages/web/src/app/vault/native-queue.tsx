@@ -8,13 +8,14 @@ import { vaultJob, youtubeVaultJob, detectVaultSource, vaultBatch } from './nati
 import { settings, useSetting } from '@/lib/settings';
 import { BrushBook, BrushDisc, BrushFolder, BrushPause, BrushPlay } from '@/components/tsugi-icons';
 import { TorBoxPanel } from './torbox-panel';
+import { VaultProviders } from './providers';
 import { vaultTransferRate, vaultEta, reconcileVaultRows } from './queue-model';
 import { importBook } from '@/app/read/book-library';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { readCompletedVaultFile } from './completed-file';
 
 type Row = Extract<HostEvent, {type:'state'}>['jobs'][number] & {speed?:number};
-type Filter = 'all'|'active'|'queued'|'done'|'cloud';
+type Filter = 'all'|'active'|'queued'|'done'|'cloud'|'providers';
 const newId = () => ['vault',Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('')].join('-');
 function status(row: Row) {
   switch(row.state) {
@@ -96,7 +97,7 @@ export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|n
   const visible=rows.filter(row=>filter==='all'||(filter==='active'&&row.state==='downloading')||(filter==='queued'&&['queued','paused','failed'].includes(row.state))||(filter==='done'&&row.state==='done'));
   const tabs:{id:Filter;label:string;count?:number}[]=[
     {id:'all',label:t`All downloads`,count:rows.length},{id:'active',label:t`Active`,count:active.length},
-    {id:'queued',label:t`Waiting`,count:rows.length-active.length-done.length},{id:'done',label:t`Completed`,count:done.length},{id:'cloud',label:t`Cloud · TorBox`}
+    {id:'queued',label:t`Waiting`,count:rows.length-active.length-done.length},{id:'done',label:t`Completed`,count:done.length},{id:'cloud',label:t`Cloud · TorBox`},{id:'providers',label:t`Providers`}
   ];
   return <section data-ui="tsugi-native-vault-queue" className="tsugi-vault-manager">
     <h2><Trans>Local downloads</Trans></h2>
@@ -132,7 +133,7 @@ export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|n
       {!!pendingCount&&<p role="status"><Trans>Adding download…</Trans></p>}
       {importing&&<p role="status"><Trans>Importing completed file…</Trans></p>}
       {error&&<p role="alert">{error}</p>}
-      {filter==='cloud'?<TorBoxPanel/>:<>
+      {filter==='providers'?<VaultProviders/>:filter==='cloud'?<TorBoxPanel/>:<>
       {ready&&visible.length===0&&<div className="tsugi-vault-empty"><BrushFolder aria-hidden/><p><Trans>No downloads in this view.</Trans></p></div>}
       {visible.map(row=><div className="tsugi-vault-file-row tsugi-vault-task" key={row.id}>
         <div className="tsugi-vault-task-main">{/\.(epub|pdf)$/i.test(row.vault_title||'')?<BrushBook aria-hidden/>:<BrushDisc aria-hidden/>}<div className="tsugi-vault-task-text"><strong>{row.vault_title}</strong><p><span className="tsugi-vault-task-state" data-state={row.state}>{status(row)}</span> · {(row.bytes/1048576).toFixed(1)} MiB {row.total!==null&&row.total>0&&<span>/ {(row.total/1048576).toFixed(1)} MiB</span>}</p>
