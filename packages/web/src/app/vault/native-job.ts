@@ -21,10 +21,14 @@ export function youtubeVaultTrack(input: string): string {
   if (!/^[A-Za-z0-9_-]{11}$/.test(id)) throw new Error('Choose a single YouTube Music track.');
   return id;
 }
-export function youtubeVaultJob(input: string, id: string): HostJob {
+export function youtubeVaultJob(input: string, id: string, title = ''): HostJob {
   const track = youtubeVaultTrack(input);
   if (!/^vault-[a-zA-Z0-9_-]{1,58}$/.test(id)) throw new Error('Invalid Vault job.');
-  const name = [track, 'm4a'].join('.');
+  const cleaned=title.replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').replace(/[. ]+$/,'').trim();
+  const label=Array.from(cleaned).slice(0,90).join('');
+  const safeLabel=new TextEncoder().encode(label).length<=150?label:'';
+  const stem=safeLabel?[safeLabel,track].join(' - '):track;
+  const name = [stem, 'm4a'].join('.');
   // eslint-disable-next-line lingui/no-unlocalized-strings -- provider URL and native path identifiers
   return { id, title: name, versionId: id, files: [{url: 'https://www.youtube.com/watch?v=' + track, path: ['Vault', id, name].join('/'), kind: 'vault'}], texts: [] };
 }

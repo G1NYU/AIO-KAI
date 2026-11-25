@@ -38,13 +38,21 @@ try {
     const replacement = { id: '3', sourceId: '67890', title: 'Tsugi Original Fixture', author: 'Tsugi', inLibrary: false, categories: { nodes: [] } };
     const replacementChapters = [{ id: 31, name: 'Chapter 1', chapterNumber: 1, isRead: false, isBookmarked: false, lastPageRead: 0, pageCount: 4 }];
     const batchTitle = { id: '4', sourceId: '67890', title: 'Batch Fixture', author: 'Tsugi', inLibrary: false, categories: { nodes: [] } };
-    const state = window.__readerFixture = { requests: [], lastPath: '', serial: 0, installed: false, stores: [], progress: [], nativeMessages: [], nativeRequest: null, categories: [], categorySequence: 0, updateChecks: 0 };
+    const state = window.__readerFixture = { requests: [], lastPath: '', serial: 0, installed: false, stores: [], progress: [], nativeMessages: [], nativeRequest: null, vaultJobs: [], vaultRequests: [], categories: [], categorySequence: 0, updateChecks: 0 };
     const nodes = (items) => ({ nodes: items, totalCount: items.length });
     const emit = (message) => queueMicrotask(() => { for (const listener of listeners) listener(message); });
     window.aiostreamsApp = {
       protocol: 2, version: 'fixture', platform: 'windows', reading: true, readingSetup: true, youtubeMusic: true, nativeMusicAudio: true, device: 'Fixture',
       subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
       send(message) {
+        if (message.type === 'download-list') {
+          emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs});return;
+        }
+        if (message.type === 'download-add') {
+          state.vaultRequests.push(message);
+          for(const job of message.jobs)state.vaultJobs.push({id:job.id,state:'queued',bytes:0,total:null,error:null,vault_title:job.title});
+          emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs});return;
+        }
         if (message.type === 'youtube-music-request') {
           const data = message.operation === 'search' ? { musicResponsiveListItemRenderer: {
             playlistItemData: { videoId: 'abcdefghijk' },
@@ -702,5 +710,32 @@ try {
   assert.equal(await bookReader.getByRole('spinbutton').inputValue(),'2');
   await bookReader.getByRole('button',{name:'Back to books',exact:true}).click();
   console.log('PASS: real isolated local EPUB/PDF rendering, disabled book scripts and persistent PDF resume.');
+  // Test the actual Vault UI and browser storage, with a synthetic native file response.
+  await page.route('**/__tsugi_vault/file/vault-fixture-pdf', async route=>{
+    assert.equal(route.request().headers()['x-tsugi-vault-import'],'1');
+    await route.fulfill({contentType:'application/pdf',body:pdfFixture()});
+  });
+  await page.route('**/__tsugi_vault/file/vault-fixture-audio', async route=>{
+    assert.equal(route.request().headers()['x-tsugi-vault-import'],'1');
+    await route.fulfill({contentType:'audio/wav',body:wav});
+  });
+  await page.evaluate(()=>{
+    window.__readerFixture.vaultJobs=[
+      {id:'vault-fixture-pdf',state:'done',bytes:900,total:900,error:null,vault_title:'Vault imported fixture.pdf'},
+      {id:'vault-fixture-audio',state:'done',bytes:1024,total:1024,error:null,vault_title:'Vault imported audio.wav'},
+    ];
+  });
+  await books.locator('[data-ui="tsugi-desktop-rail"]').getByRole('button',{name:'Vault',exact:true}).click();
+  const nativeQueue=vault.locator('[data-ui="tsugi-native-vault-queue"]');
+  await nativeQueue.getByRole('button',{name:'Import into Books',exact:true}).click();
+  await books.locator('.tsugi-manga-card').filter({hasText:'Vault imported fixture'}).waitFor();
+  await books.locator('[data-ui="tsugi-desktop-rail"]').getByRole('button',{name:'Vault',exact:true}).click();
+  await nativeQueue.getByRole('button',{name:'Import into Books',exact:true}).click();
+  await books.locator('.tsugi-manga-card').filter({hasText:'Vault imported fixture'}).waitFor();
+  assert.equal(await books.locator('.tsugi-manga-card').filter({hasText:'Vault imported fixture'}).count(),1);
+  await books.locator('[data-ui="tsugi-desktop-rail"]').getByRole('button',{name:'Vault',exact:true}).click();
+  await nativeQueue.getByRole('button',{name:'Open in Music',exact:true}).click();
+  await music.getByText('Vault imported audio',{exact:true}).waitFor();
+  console.log('PASS: completed Vault file import into persistent Books and session Music; duplicate book guarded.');
   assert.deepEqual(errors, []);
 } finally { await browser.close(); }

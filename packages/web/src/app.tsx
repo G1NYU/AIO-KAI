@@ -162,13 +162,15 @@ function Standalone() {
   const [vaultAudio, setVaultAudio] = React.useState<File | null>(null);
   const openLocalAudio = React.useCallback((file: File) => { setVaultAudio(file); setMusicLibraryRequest(value => value + 1); setArea('music'); }, []);
   const clearVaultAudio = React.useCallback(() => setVaultAudio(null), []);
-  const openVault = React.useCallback(() => setArea('vault'), []);
+  const [vaultTrack, setVaultTrack] = React.useState<{id:string;title:string} | null>(null);
+  const openVault = React.useCallback(() => { setVaultTrack(null); setArea('vault'); }, []);
+  const openVaultMusic = React.useCallback((track: {id:string;title:string}) => { setVaultTrack(track); setArea('vault'); }, []);
   const openVideo = React.useCallback(() => { setReadVisited(false); setArea('video'); }, []);
   const openWelcome = React.useCallback(() => setArea('welcome'), []);
   const openVideoDownloads = React.useCallback(() => { openVideo(); navigate(to.downloads); }, [openVideo]);
   const areaActions = React.useMemo(
-    () => ({ openWelcome, openMusic, openVideo, openSettings, openVault, openLocalMusic, openLocalAudio, openVideoDownloads, openRead: reading || books ? openRead : undefined, openBooks: books ? openBooks : undefined, openManga: reading ? openManga : undefined }),
-    [openWelcome, openMusic, openVideo, openSettings, openVault, openLocalMusic, openLocalAudio, openVideoDownloads, openRead, reading, books, openBooks, openManga]
+    () => ({ openWelcome, openMusic, openVideo, openSettings, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead: reading || books ? openRead : undefined, openBooks: books ? openBooks : undefined, openManga: reading ? openManga : undefined }),
+    [openWelcome, openMusic, openVideo, openSettings, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead, reading, books, openBooks, openManga]
   );
   // Who's watching, asked across the saved servers.
   const [picking, setPicking] = React.useState(() => {
@@ -285,7 +287,7 @@ function Standalone() {
             </ServerInfoProvider>
           ) : desktop && area === 'vault' ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
-              <VaultPage />
+              <VaultPage track={vaultTrack} />
               <SplashEnd />
             </ServerInfoProvider>
           ) : desktop && area === 'music' ? (

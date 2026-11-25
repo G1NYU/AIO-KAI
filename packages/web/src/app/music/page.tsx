@@ -29,7 +29,8 @@ import {
   savedTrack, type SavedMusicTrack,
 } from '@/lib/music/library';
 import { TsugiRail } from '@/components/shell/tsugi-rail';
-import { BrushCompass, BrushSearch, BrushBook } from '@/components/tsugi-icons';
+import { BrushCompass, BrushSearch, BrushBook, BrushDownload } from '@/components/tsugi-icons';
+import { useDesktopArea } from '@/lib/desktop-area';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 import type { TrendingRecording } from '@/lib/music/discovery';
 import { makeRecentPlay, mergeRecentPlays, readRecentPlays, storeRecentPlays, type RecentMusicPlay } from '@/lib/music/history';
@@ -54,6 +55,7 @@ export function MusicPage({
   vaultAudio?: File | null;
   onVaultAudioImported?: () => void;
 }) {
+  const desktopArea = useDesktopArea();
   const lastVaultAudio = React.useRef<File | null>(null);
   const [store, setStore] = React.useState<EclipseStoreEntry[]>([]);
   const [storeError, setStoreError] = React.useState('');
@@ -829,6 +831,7 @@ export function MusicPage({
                     </span>
                     {typeof track.duration === 'number' && <span className="tsugi-track-duration">{Math.floor(track.duration / 60)}:{String(Math.floor(track.duration % 60)).padStart(2, '0')}</span>}
                   </button>
+                  {activeSource?.id === YOUTUBE_MUSIC_ID && desktopArea?.openVaultMusic && <button type="button" className="tsugi-icon-action shrink-0" onClick={() => desktopArea.openVaultMusic?.({ id: track.id, title: track.title })} aria-label={t`Send track to Vault`} title={t`Send track to Vault`}><BrushDownload aria-hidden/></button>}
                   <button type="button" className="tsugi-icon-action shrink-0" onClick={() => saveTrackInLibrary(track)}
                     aria-label={t`Save track to library`}>
                     <FiPlus aria-hidden />

@@ -583,3 +583,6 @@ Migration commit 1be0b4c passed Unified Windows validation (45558491536) and the
 
 ### Vault library handoff (2026-11-25)
 - Completed Vault job UI now explicitly imports books into persistent IndexedDB (duplicate job guard) or opens audio in the existing Music session library, using the bounded same-origin native file route. The on-disk queue survives restart, and the audio file can be re-opened from Vault or a remembered music folder. Added a Local books shortcut and cancel-on-unmount for the file fetch. CI and physical Windows transfer verification pending. Next: music track-list shortcut, authorized ebook provider access and final package.
+
+### Music source → Vault selection (2026-11-25)
+- Native YouTube Music search rows now expose Send track to Vault. It pre-fills the canonical track link/title but requires explicit permission and Queue local download. Sanitized filename retains track title and ID; direct link paste still works. Added native folder chooser and mocked browser completed-file import (book dedupe/audio session), plus title guard assertion. Native transfer and live provider acceptance pending. Cover extraction and direct imports included in combined source. No packaging request yet.

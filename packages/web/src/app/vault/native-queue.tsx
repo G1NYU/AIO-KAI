@@ -20,15 +20,19 @@ function status(row: Row) {
   }
 }
 
-export function NativeVaultQueue() {
+export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|null}) {
   const actions=useDesktopArea();
   const activeImport=useRef<AbortController|null>(null);
   const [importing,setImporting]=useState('');
   useEffect(()=>()=>activeImport.current?.abort(),[]);
   const supported = appBridge()?.platform === 'windows';
   const [ready,setReady] = useState(false);
-  const [input,setInput] = useState('');
-  const [mode,setMode] = useState<'file'|'youtube'>('file');
+  const [input,setInput] = useState(()=>{
+    if(!track)return '';
+    const url=new URL('https://www.youtube.com/watch');url.searchParams.set('v',track.id);return url.href;
+  });
+  const [trackTitle,setTrackTitle] = useState(track?.title || '');
+  const [mode,setMode] = useState<'file'|'youtube'>(track?'youtube':'file');
   const [permission,setPermission] = useState(false);
   const [rows,setRows] = useState<Row[]>([]);
   const [folder,setFolder] = useState('');
@@ -48,7 +52,7 @@ export function NativeVaultQueue() {
   useEffect(()=>{
     if(!pending)return;
     const row = rows.find(row=>row.id===pending);
-    if(row) { setPending('');setInput('');setPermission(false); }
+    if(row) { setPending('');setInput('');setTrackTitle('');setPermission(false); }
   },[rows,pending]);
   useEffect(()=>{
     if(!pending)return;
@@ -60,7 +64,7 @@ export function NativeVaultQueue() {
     setError('');
     try {
       const id = 'vault-' + Array.from(crypto.getRandomValues(new Uint8Array(16)), n=>n.toString(16).padStart(2,'0')).join('');
-      const job=mode==='youtube'?youtubeVaultJob(input,id):vaultJob(input,id);
+      const job=mode==='youtube'?youtubeVaultJob(input,id,trackTitle):vaultJob(input,id);
       setPending(id);shellDownloads.add([job]);
     } catch { setPending('');setError(mode==='youtube'?t`Enter a single valid YouTube Music track link.`:t`Enter a supported direct HTTPS file URL without query parameters or fragments.`); }
   }
@@ -81,13 +85,15 @@ export function NativeVaultQueue() {
     <p><Trans>Public direct book and audio links can be queued in the desktop download folder. The queue survives app restarts. Incomplete transfers restart when resumed; each file is limited to 256 MiB.</Trans></p>
     {!supported?<p><Trans>Native Vault downloads require the Windows desktop application.</Trans></p>:<>
       <form className="tsugi-vault-form" onSubmit={event=>{event.preventDefault();enqueue();}}>
-        <label><Trans>Download source</Trans><select className="tsugi-read-input" value={mode} disabled={!!pending} onChange={event=>{setMode(event.target.value==='youtube'?'youtube':'file');setInput('');setPermission(false);setError('');}}><option value="file"><Trans>Direct book or audio link</Trans></option><option value="youtube"><Trans>YouTube Music</Trans></option></select></label>
-        <label>{mode==='youtube'?<Trans>YouTube Music track link</Trans>:<Trans>Public file URL</Trans>}<input type="url" required value={input} disabled={!!pending} onChange={event=>{setInput(event.target.value);setPermission(false);}}/></label>
+        <label><Trans>Download source</Trans><select className="tsugi-read-input" value={mode} disabled={!!pending} onChange={event=>{setMode(event.target.value==='youtube'?'youtube':'file');setInput('');setTrackTitle('');setPermission(false);setError('');}}><option value="file"><Trans>Direct book or audio link</Trans></option><option value="youtube"><Trans>YouTube Music</Trans></option></select></label>
+        <label>{mode==='youtube'?<Trans>YouTube Music track link</Trans>:<Trans>Public file URL</Trans>}<input type="url" required value={input} disabled={!!pending} onChange={event=>{setInput(event.target.value);setTrackTitle('');setPermission(false);}}/></label>
+        {mode==='youtube'&&trackTitle&&<p>{trackTitle}</p>}
         {mode==='youtube'&&<p><Trans>For tracks you own or are permitted to export. Saves the original available M4A audio without conversion, up to 64 MiB. Availability depends on the source.</Trans></p>}
         <label><span><input type="checkbox" style={{width:'auto'}} checked={permission} disabled={!!pending} onChange={event=>setPermission(event.target.checked)}/> <Trans>I have permission to download this file or track. Its public URL will be stored in the local download queue.</Trans></span></label>
         <div className="tsugi-vault-actions">
           <button type="submit" className="tsugi-read-action tsugi-series-primary" disabled={!ready||!permission||!input.trim()||!!pending}><Trans>Queue local download</Trans></button>
           <button type="button" className="tsugi-read-action" onClick={()=>shellDownloads.list()}><Trans>Refresh local downloads</Trans></button>
+          {shellDownloads.folder&&<button type="button" className="tsugi-read-action" onClick={()=>shellDownloads.folder?.choose()}><Trans>Choose download folder</Trans></button>}
         </div>
       </form>
       {folder&&<p><Trans>Download folder:</Trans> {folder}</p>}
