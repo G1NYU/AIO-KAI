@@ -704,6 +704,20 @@ try {
   await selectedVaultQueue.getByText('second.mp3',{exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>window.__readerFixture.vaultRequests[1].jobs.length),3);
   await selectedVaultQueue.getByText('Transfer settings',{exact:true}).click();
+  for (const width of [1440,2560,1664,1024,800]) {
+    await page.setViewportSize({width,height:900});
+    const sizing=await selectedVaultQueue.locator('.tsugi-dashboard-panel').filter({has:page.getByText('Transfer settings',{exact:true})}).evaluate(panel=>{
+      const rect=panel.getBoundingClientRect();
+      const bounds=[...panel.querySelectorAll('select,button,.tsugi-dashboard-sparkline,.tsugi-vault-saved-path')].map(node=>{
+        const box=node.getBoundingClientRect();
+        return {left:box.left,right:box.right};
+      });
+      return {left:rect.left,right:rect.right,viewport:innerWidth,bounds,scroll:panel.scrollWidth,client:panel.clientWidth};
+    });
+    assert.ok(sizing.right<=sizing.viewport+1 && sizing.scroll<=sizing.client+1 && sizing.bounds.every(box=>box.left>=sizing.left-1&&box.right<=sizing.right+1), 'expanded Vault inspector fits at '+width+': '+JSON.stringify(sizing));
+    if(width===1664) await capture('12-vault-expanded-transfer-settings');
+  }
+  await page.setViewportSize({width:1440,height:900});
   await selectedVaultQueue.getByLabel('Simultaneous local downloads').selectOption('4');
   await page.waitForFunction(()=>window.__readerFixture.vaultConcurrent===4);
   await selectedVaultQueue.getByLabel('Local transfer speed limit (MiB/s)').selectOption('2');

@@ -414,7 +414,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag=v0.1.0-preview.1
+          tag=v0.1.0-preview.2
           cd release
           mv Tsugi-windows-x64-test.zip Tsugi-windows-x64.zip
           python - <<'PY'
@@ -433,7 +433,7 @@ jobs:
             exit 1
           fi
           cat > notes.md <<EOF
-          First public Windows x64 portable preview of Tsugi.
+          Second public Windows x64 portable preview of Tsugi. Fixes horizontal overflow when expanding Vault transfer settings; controls and bandwidth chart now fit the inspector at desktop and narrow widths.
 
           - Movies & TV through the AIOStreams / Stremio addon and Jellyfin-compatible ecosystem.
           - Music, local library, saved albums and collections, native YouTube Music, Eclipse sources and fullscreen visualizers.
@@ -448,7 +448,7 @@ jobs:
           Validation: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           License: AGPL-3.0; bundled components retain their respective licenses. See included notices and source archives.
           EOF
-          gh release create "$tag" Tsugi-windows-x64.zip SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Tsugi v0.1.0 — Windows preview" --notes-file notes.md --draft --prerelease
+          gh release create "$tag" Tsugi-windows-x64.zip SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Tsugi v0.1.0 — Windows Preview 2" --notes-file notes.md --draft --prerelease
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort > actual-assets.txt
           printf '%s\n' SHA256SUMS.txt Tsugi-windows-x64.zip | sort > expected-assets.txt
           diff -u expected-assets.txt actual-assets.txt

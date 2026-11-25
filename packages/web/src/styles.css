@@ -2824,7 +2824,7 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-dashboard-transfer .tsugi-vault-actions { justify-content:flex-end; margin:0; }
 .tsugi-dashboard-transfer .tsugi-vault-actions button { font-size:11px; min-height:32px; }
 .tsugi-dashboard-transfer .tsugi-vault-icon-action { width:32px; min-width:32px; }
-.tsugi-dashboard-panel { background:var(--tsugi-canvas); border:1px solid var(--tsugi-line); padding:14px; border-radius:var(--tsugi-radius-control); min-width:0; display:grid; gap:12px; }
+.tsugi-dashboard-panel { background:var(--tsugi-canvas); border:1px solid var(--tsugi-line); padding:14px; border-radius:var(--tsugi-radius-control); min-width:0; display:grid; grid-template-columns:minmax(0,1fr); gap:12px; }
 .tsugi-dashboard-panel h3 { font-size:14px; font-weight:650; }
 .tsugi-dashboard-panel > header { display:flex; justify-content:space-between; align-items:center; }
 .tsugi-dashboard-panel small { font-size:11px; color:var(--tsugi-muted); }
@@ -2832,11 +2832,16 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-dashboard-panel .tsugi-vault-destinations > button { min-height:38px; padding:8px; justify-content:center; }
 .tsugi-dashboard-panel .tsugi-vault-destinations > button svg,.tsugi-dashboard-panel .tsugi-vault-destinations > button small { display:none; }
 .tsugi-dashboard-panel .tsugi-vault-destinations > button strong { font-size:12px; }
-.tsugi-dashboard-panel .tsugi-vault-queue-tools { flex-direction:column; align-items:stretch; gap:10px; }
-.tsugi-dashboard-panel .tsugi-vault-queue-tools label { width:100%; }
-.tsugi-dashboard-panel .tsugi-vault-transfer-settings { border:0; padding:0; }
+.tsugi-dashboard-panel .tsugi-vault-queue-tools { display:grid; grid-template-columns:minmax(0,1fr); align-items:stretch; gap:10px; min-width:0; }
+.tsugi-dashboard-panel .tsugi-vault-queue-tools label { width:100%; min-width:0; overflow-wrap:anywhere; }
+.tsugi-dashboard-panel .tsugi-vault-queue-tools select { width:100%; min-width:0; max-width:100%; box-sizing:border-box; }
+.tsugi-dashboard-panel .tsugi-vault-queue-tools > button { width:100%; min-width:0; max-width:100%; box-sizing:border-box; white-space:normal; padding-inline:8px; }
+.tsugi-dashboard-panel .tsugi-vault-queue-tools > button svg { flex:none; }
+.tsugi-dashboard-panel .tsugi-vault-queue-tools > button span { min-width:0; overflow-wrap:anywhere; }
+.tsugi-dashboard-panel .tsugi-vault-transfer-settings { min-width:0; max-width:100%; border:0; padding:0; }
+.tsugi-dashboard-panel .tsugi-vault-saved-path { max-width:100%; }
 .tsugi-dashboard-rate { font-size:24px; font-weight:700; font-variant-numeric:tabular-nums; }
-.tsugi-dashboard-sparkline { width:100%; height:76px; color:var(--tsugi-accent); }
+.tsugi-dashboard-sparkline { display:block; width:100%; min-width:0; max-width:100%; height:76px; color:var(--tsugi-accent); }
 .tsugi-dashboard-service { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; min-width:0; padding:9px 0; border-top:1px solid var(--tsugi-line); font-size:12px; text-align:start; }
 .tsugi-dashboard-service > span { min-width:0; overflow-wrap:anywhere; }
 .tsugi-dashboard-service > small { text-align:end; flex:none; }
