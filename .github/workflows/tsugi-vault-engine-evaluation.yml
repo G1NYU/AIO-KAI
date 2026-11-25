@@ -10,12 +10,30 @@ permissions:
 jobs:
   engine-fixtures:
     runs-on: windows-latest
-    timeout-minutes: 12
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/desktop
+      - name: Fetch pinned libmpv for native example
+        shell: pwsh
+        run: ./packages/desktop/scripts/fetch-libs.ps1 -Arch x86_64
+      - name: Build native RPC evaluation client
+        working-directory: packages/desktop
+        shell: pwsh
+        run: |
+          $messages = cargo build --locked -p aiostreams-desktop-core --example vault_engine_probe --message-format=json
+          if ($LASTEXITCODE -ne 0) { throw 'Native RPC example compilation failed' }
+          $example = $messages | ForEach-Object { try { $_ | ConvertFrom-Json -ErrorAction Stop } catch {} } |
+            Where-Object { $_.reason -eq 'compiler-artifact' -and $_.executable -and $_.target.name -eq 'vault_engine_probe' } |
+            Select-Object -Last 1
+          if (-not $example -or -not (Test-Path -LiteralPath $example.executable -PathType Leaf)) { throw 'Cannot locate native RPC example' }
+          "TSUGI_ENGINE_PROBE=$($example.executable)" >> $env:GITHUB_ENV
       - name: Fetch and verify exact evaluation binary
         shell: pwsh
         run: |
@@ -24,7 +42,7 @@ jobs:
           $digest = (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($digest -ne '94edc284cd84dec26a16ae9431378c5ab9e5cde8011482566483f4f0cb20c03f') { throw 'Aria2 Next digest mismatch' }
           python -m py_compile tools/vault-evaluation/aria2_probe.py
-          python tools/vault-evaluation/aria2_probe.py $binary
+          python tools/vault-evaluation/aria2_probe.py $binary $env:TSUGI_ENGINE_PROBE
           if ($LASTEXITCODE -ne 0) { throw 'Engine evaluation failed' }
       - name: Remove standalone evaluation binary
         if: always()
