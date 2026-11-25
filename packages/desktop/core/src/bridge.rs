@@ -183,6 +183,7 @@ pub enum Inbound {
         operation: String,
         value: String,
     },
+    TorboxRequest { request: String, operation: String, value: String },
     ReadRequest {
         request: String,
         action: ReadAction,
@@ -420,6 +421,7 @@ pub enum Outbound {
         data: Option<Value>,
         error: Option<String>,
     },
+    TorboxResult { request: String, data: Option<Value>, error: Option<String> },
     ReadResult {
         request: String,
         data: Option<Value>,

@@ -26,6 +26,7 @@ export type VideoOutput = 'mpv' | 'system' | 'compatibility';
 /** `external` marks what the player in its own window sends. */
 export type ShellMessage =
   | { type: 'read-result'; request: string; data: unknown; error: string | null }
+  | { type: 'torbox-result'; request: string; data: unknown; error: string | null }
   | {
       type: 'youtube-resolved';
       request: string;
@@ -217,6 +218,7 @@ interface ShellBridge {
   miniPlayer?: boolean;
   youtubeMusic?: boolean;
   nativeMusicAudio?: boolean;
+  torbox?: boolean;
   reading?: boolean;
   readingSetup?: boolean;
   /** The app sends a controller's buttons as `gamepad` messages. */

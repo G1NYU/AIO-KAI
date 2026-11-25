@@ -25,6 +25,7 @@
     miniPlayer: true,
     youtubeMusic: true,
     nativeMusicAudio: true,
+    torbox: __PLATFORM__ === 'windows',
     reading: __READING__,
     readingSetup: __READING_SETUP__,
     pip: __PIP__,

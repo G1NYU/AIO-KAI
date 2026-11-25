@@ -250,6 +250,10 @@ pub fn run(app: App) {
             let _ = proxy.send_event(UserEvent::Emit(receive_script(&message)));
         }))
     });
+    let torbox = Rc::new(aiostreams_desktop_core::torbox::Worker::start({
+        let proxy = proxy.clone();
+        move |message| { let _ = proxy.send_event(UserEvent::Emit(receive_script(&message))); }
+    }));
     let ebook_web = web.clone();
     let mut context = WebContext::new(Some(data_dir.join(platform::WEB_DATA_DIR)));
     let builder = WebViewBuilder::new_with_web_context(&mut context)
@@ -325,6 +329,7 @@ pub fn run(app: App) {
             let (player, proxy, app_origin) = (player.clone(), proxy.clone(), app_origin.clone());
             let (external, paths, updater) = (external.clone(), paths.clone(), updater.clone());
             let downloads = downloads.clone();
+            let torbox = torbox.clone();
             #[cfg(windows)]
             let reading = reading.clone();
             move |req: Request<String>| {
@@ -336,6 +341,17 @@ pub fn run(app: App) {
                     let _ = proxy.send_event(event);
                 };
                 if let Some(message) = bridge::parse(req.body()) {
+                    let message = match message {
+                        bridge::Inbound::TorboxRequest { request, operation, value } => {
+                            if !torbox.request(request.clone(), operation, value) {
+                                let _ = proxy.send_event(UserEvent::Emit(receive_script(&Outbound::TorboxResult {
+                                    request, data: None, error: Some("busy".into()),
+                                })));
+                            }
+                            return;
+                        }
+                        other => other,
+                    };
                     #[cfg(windows)]
                     let message = match message {
                         bridge::Inbound::ReadRequest { request, action } => {

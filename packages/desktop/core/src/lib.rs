@@ -18,3 +18,4 @@ pub mod sound;
 pub mod thumbnails;
 pub mod upscale;
 pub mod youtube;
+pub mod torbox;

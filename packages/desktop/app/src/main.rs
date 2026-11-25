@@ -731,6 +731,7 @@ pub fn handle(
                 });
             }
         }
+        Inbound::TorboxRequest { request, .. } => emit(Outbound::TorboxResult { request, data: None, error: Some("unsupported".into()) }),
         Inbound::ReadRequest { request, .. } => {
             emit(Outbound::ReadResult {
                 request,
