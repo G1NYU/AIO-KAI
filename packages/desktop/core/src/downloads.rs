@@ -83,6 +83,8 @@ struct Saved {
     concurrent: Option<u32>,
     #[serde(default)]
     vault_rate_mib: u32,
+    #[serde(default)]
+    aria2_enabled: bool,
     jobs: Vec<Job>,
 }
 
@@ -96,6 +98,7 @@ pub enum Command {
     SetFolder(PathBuf),
     SetConcurrent(u32),
     SetVaultRate(u32),
+    SetVaultEngine(bool),
 }
 
 enum Failure {
@@ -150,10 +153,16 @@ impl Downloads {
             .unwrap_or_default();
         let (events, received) = mpsc::channel();
         let shared = Arc::new(Mutex::new(Shared::default()));
+        #[cfg(windows)]
+        let aria2_available = crate::vault_engine::installed_binary().is_some();
+        #[cfg(not(windows))]
+        let aria2_available = false;
         let mut queue = Queue {
             folder: saved.folder.unwrap_or(default_folder),
             concurrent: saved.concurrent.unwrap_or(2).clamp(1, MAX_CONCURRENT),
             vault_rate_mib: vault_rate(saved.vault_rate_mib),
+            aria2_available,
+            aria2_enabled: saved.aria2_enabled && aria2_available,
             jobs: saved.jobs,
             running: HashMap::new(),
             removing: HashMap::new(),
@@ -253,6 +262,8 @@ struct Queue {
     folder: PathBuf,
     concurrent: u32,
     vault_rate_mib: u32,
+    aria2_available: bool,
+    aria2_enabled: bool,
     jobs: Vec<Job>,
     running: HashMap<String, Arc<AtomicBool>>,
     /// Removed while running: its files go once its thread lets go of them.
@@ -342,6 +353,7 @@ impl Queue {
             }
             Command::SetConcurrent(n) => self.concurrent = n.clamp(1, MAX_CONCURRENT),
             Command::SetVaultRate(n) => { if VAULT_RATES.contains(&n) { self.vault_rate_mib = n; } },
+            Command::SetVaultEngine(enabled) => self.aria2_enabled = enabled && self.aria2_available,
         }
         self.changed();
     }
@@ -407,9 +419,10 @@ impl Queue {
                 self.agent.clone(),
             );
             let vault_rate_mib = self.vault_rate_mib;
+            let aria2_enabled = self.aria2_enabled;
             if thread::Builder::new()
                 .name("download".into())
-                .spawn(move || work(spec, folder, agent, stop, events, vault_rate_mib)).is_err() {
+                .spawn(move || work(spec, folder, agent, stop, events, vault_rate_mib, aria2_enabled)).is_err() {
                 self.running.remove(&job.spec.id);
                 job.state = State::Failed;
                 job.error = Some("Could not start download worker".into());
@@ -420,6 +433,8 @@ impl Queue {
         (self.emit)(Outbound::DownloadState {
             folder: self.folder.to_string_lossy().into_owned(),
             vault_rate_mib: self.vault_rate_mib,
+            aria2_available: self.aria2_available,
+            aria2_enabled: self.aria2_enabled,
             jobs: self
                 .jobs
                 .iter()
@@ -478,6 +493,7 @@ impl Queue {
             folder: Some(self.folder.clone()),
             concurrent: Some(self.concurrent),
             vault_rate_mib: self.vault_rate_mib,
+            aria2_enabled: self.aria2_enabled,
             jobs: self.jobs.clone(),
         };
         let Ok(bytes) = serde_json::to_vec(&saved) else {
@@ -546,7 +562,11 @@ impl Queue {
             }
             let _ = fs::remove_file(&path);
             let _ = fs::remove_file(part_of(&path));
-            if job.spec.files.iter().any(|f| f.kind == FileKind::Vault) { let _ = fs::remove_file(vault_checkpoint_path(&path)); }
+            if job.spec.files.iter().any(|f| f.kind == FileKind::Vault) {
+                let _ = fs::remove_file(vault_checkpoint_path(&path));
+                #[cfg(windows)]
+                crate::vault_engine::cleanup(&path);
+            }
             // Empty folders up to the downloads folder go too.
             let mut dir = path.parent();
             while let Some(d) = dir {
@@ -662,6 +682,7 @@ fn work(
     stop: Arc<AtomicBool>,
     events: Sender<Event>,
     vault_rate_mib: u32,
+    aria2_enabled: bool,
 ) {
     let result = (|| {
         for text in &spec.texts {
@@ -687,7 +708,7 @@ fn work(
             let result = if file.kind == FileKind::Vault && music_resolver::is_target(&file.url) {
                 fetch_vault_music(&file.url, &path, &stop, report)
             } else if file.kind == FileKind::Vault {
-                fetch_vault(&agent, &file.url, &path, &stop, report, vault_rate_mib)
+                fetch_vault_backend(&agent, &file.url, &path, &stop, report, vault_rate_mib, aria2_enabled)
             } else {
                 fetch(&agent, &file.url, &file.headers, &path, &stop, report)
             };
@@ -976,6 +997,33 @@ fn pace_vault_chunk(started: Instant, bytes: usize, rate_mib: u32, stop: &Atomic
     Ok(())
 }
 
+fn fetch_vault_backend(
+    agent: &ureq::Agent, url: &str, path: &Path, stop: &Arc<AtomicBool>,
+    report: impl Fn(u64, Option<u64>), rate_mib: u32, aria2_enabled: bool,
+) -> Result<(), Failure> {
+    #[cfg(windows)]
+    {
+        // A valid native partial takes precedence over the optional engine.
+        if aria2_enabled && read_vault_checkpoint(path, url).is_none() {
+            if let Some(binary) = crate::vault_engine::installed_binary() {
+                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+                match crate::vault_engine::transfer(&binary, url, path, stop.clone(), rate_mib,
+                    |mime| vault_mime_allowed(&ext,mime), &report, false) {
+                    crate::vault_engine::Outcome::Complete => return Ok(()),
+                    crate::vault_engine::Outcome::Stopped => return Err(Failure::Stopped),
+                    crate::vault_engine::Outcome::Fallback => {},
+                }
+            }
+        }
+        if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
+        // Engine stage is never interpreted as a native partial.
+        crate::vault_engine::cleanup(path);
+    }
+    #[cfg(not(windows))]
+    let _ = aria2_enabled;
+    fetch_vault(agent,url,path,stop,report,rate_mib)
+}
+
 fn fetch_vault(
     agent: &ureq::Agent,
     url: &str,
@@ -1191,7 +1239,7 @@ mod vault_tests {
             jobs.push(Job { spec, folder: dir.clone(), state: State::Queued, bytes: 0, total: None, error: None });
         }
         let mut queue = Queue {
-            folder: dir.clone(), concurrent: 2, vault_rate_mib: 0, jobs, running: HashMap::new(),
+            folder: dir.clone(), concurrent: 2, vault_rate_mib: 0, aria2_available:false, aria2_enabled:false, jobs, running: HashMap::new(),
             removing: HashMap::new(), speeds: HashMap::new(), events,
             emit: Box::new(|_| {}), state_file: dir.join("queue.json"),
             shared: Arc::new(Mutex::new(Shared::default())), agent: agent(),
@@ -1347,6 +1395,7 @@ mod vault_tests {
         server.join().unwrap();
         let saved: Saved = serde_json::from_str(r#"{"jobs":[]}"#).unwrap();
         assert_eq!(saved.vault_rate_mib, 0);
+        assert!(!saved.aria2_enabled);
         assert_eq!(vault_rate(3), 0);
         let stopped = AtomicBool::new(true);
         assert!(matches!(pace_vault_chunk(Instant::now(), 1024, 1, &stopped), Err(Failure::Stopped)));

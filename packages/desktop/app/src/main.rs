@@ -904,6 +904,7 @@ pub fn handle(
             downloads.send(downloads::Command::SetConcurrent(concurrent))
         }
         Inbound::VaultRate { mib } => downloads.send(downloads::Command::SetVaultRate(mib)),
+        Inbound::VaultEngine { enabled } => downloads.send(downloads::Command::SetVaultEngine(enabled)),
         Inbound::WebError { message } => log::error!(target: "web", "{}", page_text(&message)),
         Inbound::Log { level, message } => {
             log::log!(target: "web", log::Level::from(level), "{}", page_text(&message))

@@ -20,6 +20,8 @@ pub mod upscale;
 pub mod youtube;
 pub mod torbox;
 pub mod vault_gateway;
+#[cfg(windows)]
+pub mod vault_engine;
 
 #[cfg(test)]
 pub(crate) mod test_http;

@@ -18,7 +18,7 @@ export const shellDownloads: DownloadsHost = {
   subscribe: (listener) =>
     appBridge()?.subscribe((m) => {
       if (m.type === 'download-state')
-        listener({ type: 'state', folder: m.folder, jobs: m.jobs, vault_rate_mib: m.vault_rate_mib });
+        listener({ type: 'state', folder: m.folder, jobs: m.jobs, vault_rate_mib: m.vault_rate_mib, aria2_available: m.aria2_available, aria2_enabled: m.aria2_enabled });
       else if (m.type === 'download-progress')
         listener({
           type: 'progress',

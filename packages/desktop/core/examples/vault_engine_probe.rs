@@ -176,6 +176,30 @@ mod windows {
         let result=engine.until(&gid,"complete",Duration::from_secs(60))?;
         if result.completed!=FIXTURE_LEN||result.total!=FIXTURE_LEN{return Err("Gateway output size mismatch");}
         println!("PASS: Rust engine through validated native range gateway");
+        drop(gateway);
+        drop(engine);
+        // Exercise the actual runtime adapter, including its persisted stage,
+        // using a distinct directory and the same pinned fixture executable.
+        use aiostreams_desktop_core::vault_engine::{transfer,Outcome};
+        use std::sync::{Arc,atomic::{AtomicBool,Ordering}};
+        let destination=root.join("runtime");
+        fs::create_dir(&destination).map_err(|_|"Runtime fixture folder failed")?;
+        let target=destination.join("restored.bin");
+        let source=format!("{}crash.bin",url.as_str());
+        let stop=Arc::new(AtomicBool::new(false));
+        let signal=stop.clone();
+        let first=transfer(&binary,&source,&target,stop,2,|m|m=="application/octet-stream",move|bytes,_|{
+            if bytes>=5*1024*1024{signal.store(true,Ordering::Relaxed);}
+        },true);
+        if first!=Outcome::Stopped||target.exists()||!destination.join(".tsugi-aria2/manifest.json").is_file(){
+            return Err("Runtime adapter did not preserve interrupted stage");
+        }
+        let first_report=std::cell::Cell::new(None);
+        let result=transfer(&binary,&source,&target,Arc::new(AtomicBool::new(false)),2,|m|m=="application/octet-stream",|bytes,_|{
+            if first_report.get().is_none(){first_report.set(Some(bytes));}
+        },true);
+        if result!=Outcome::Complete||destination.join(".tsugi-aria2").exists(){return Err("Runtime adapter recovery failed");}
+        println!("PASS: Runtime adapter resumed validated stage; first observed progress {:?}",first_report.get());
         Ok(())
     }
 }

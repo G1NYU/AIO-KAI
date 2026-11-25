@@ -196,7 +196,8 @@ def main():
                 subprocess.run([sys.argv[2], str(executable), origin, str(native_root)], check=True, timeout=150)
                 assert hashlib.sha256((native_root / "output" / "one.bin").read_bytes()).hexdigest() == DIGEST
                 assert hashlib.sha256((native_root / "output" / "gateway.bin").read_bytes()).hexdigest() == DIGEST
-                print("PASS: Rust adapter and validated gateway output SHA-256")
+                assert hashlib.sha256((native_root / "runtime" / "restored.bin").read_bytes()).hexdigest() == DIGEST
+                print("PASS: Rust adapter, validated gateway and runtime recovery output SHA-256")
         finally:
             engine.stop()
             server.shutdown()

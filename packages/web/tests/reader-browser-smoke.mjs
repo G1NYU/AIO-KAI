@@ -54,14 +54,15 @@ try {
           return;
         }
         if (message.type === 'download-config') {state.vaultConcurrent=message.concurrent;return;}
-        if (message.type === 'vault-rate') {state.vaultRate=message.mib;emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs,vault_rate_mib:state.vaultRate});return;}
+        if (message.type === 'vault-engine') {state.aria2Enabled=message.enabled;emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs,vault_rate_mib:state.vaultRate??0,aria2_available:true,aria2_enabled:state.aria2Enabled});return;}
+        if (message.type === 'vault-rate') {state.vaultRate=message.mib;emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs,vault_rate_mib:state.vaultRate,aria2_available:true,aria2_enabled:state.aria2Enabled??false});return;}
         if (message.type === 'download-list') {
-          emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs,vault_rate_mib:state.vaultRate??0});return;
+          emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs,vault_rate_mib:state.vaultRate??0,aria2_available:true,aria2_enabled:state.aria2Enabled??false});return;
         }
         if (message.type === 'download-add') {
           state.vaultRequests.push(message);
           for(const job of message.jobs)state.vaultJobs.push({id:job.id,state:'queued',bytes:0,total:null,error:null,vault_title:job.title});
-          emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs,vault_rate_mib:state.vaultRate??0});return;
+          emit({type:'download-state',folder:'Fixture downloads',jobs:state.vaultJobs,vault_rate_mib:state.vaultRate??0,aria2_available:true,aria2_enabled:state.aria2Enabled??false});return;
         }
         if (message.type === 'youtube-music-request') {
           const data = message.operation === 'search' ? { musicResponsiveListItemRenderer: {
@@ -606,6 +607,11 @@ try {
   const providers=selectedVaultQueue.locator('[data-ui="tsugi-vault-providers"]');
   await providers.getByText('Desktop queue available',{exact:true}).waitFor();
   await providers.getByText('Desktop resolver advertised',{exact:true}).waitFor();
+  const engineToggle=providers.getByRole('checkbox',{name:'Use Aria2 Next',exact:true});
+  await engineToggle.check();
+  await page.waitForFunction(()=>window.__readerFixture.aria2Enabled===true);
+  await engineToggle.uncheck();
+  await page.waitForFunction(()=>window.__readerFixture.aria2Enabled===false);
   await providers.getByLabel('TorBox API key').fill('fixture-key');
   await providers.getByRole('button',{name:'Connect TorBox',exact:true}).click();
   await providers.getByText('Connected for this session.',{exact:true}).waitFor();
