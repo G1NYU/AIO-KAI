@@ -263,8 +263,9 @@ function EpisodeRow({
               title={itemTitle(item)}
               subtitle={itemSubtitle(item)}
               meta={
-                left && progressOf(item) ? `${duration(left)} left` : undefined
+                left && progressOf(item) ? t`${duration(left)} left` : undefined
               }
+              metaOnArtwork={currentHost().name === 'desktop' && id === 'resume'}
               progress={progressOf(item)}
             />
           </ItemMenu>

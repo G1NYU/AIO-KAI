@@ -492,6 +492,8 @@ export interface WideCardProps {
   title: string;
   subtitle?: string;
   meta?: React.ReactNode;
+  /** Show genuine remaining-time metadata over the image instead of beside the title. */
+  metaOnArtwork?: boolean;
   watched?: boolean;
   progress?: number | null;
   /** Rings the card, for the item a page was opened on. */
@@ -516,6 +518,7 @@ export function WideCard(props: WideCardProps) {
     title,
     subtitle,
     meta,
+    metaOnArtwork,
     watched,
     progress,
     highlighted,
@@ -561,6 +564,7 @@ export function WideCard(props: WideCardProps) {
         )}
         {watched && <WatchedMark />}
         {progress != null && progress > 0 && <ProgressBar percent={progress} />}
+        {metaOnArtwork && meta && <span data-ui="wide-card-time" className="tsugi-card-time">{meta}</span>}
       </div>
       <div
         data-ui="wide-card-text"
@@ -584,7 +588,7 @@ export function WideCard(props: WideCardProps) {
             </p>
           )}
         </div>
-        {meta && (
+        {!metaOnArtwork && meta && (
           <div
             data-ui="wide-card-meta"
             className="flex-none pt-0.5 text-xs text-[--muted]"

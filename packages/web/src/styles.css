@@ -2056,3 +2056,52 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 @media(max-width:760px) {
   .tsugi-index-pattern { height:64px; }
 }
+
+/* Media-led desktop composition. Align real metadata and actions with the
+   content rather than wrapping every shelf in a decorative card. */
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] :is([data-ui='poster-card-image'],[data-ui='wide-card-image']) {
+  border-radius:var(--tsugi-radius-art);
+}
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='hero-title'] {
+  font-weight:720; letter-spacing:-.045em; line-height:1.08;
+}
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='hero-overview'] {
+  max-width:60ch; line-height:1.55;
+}
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='hero-actions'] { gap:8px; }
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='hero-action'][data-name='play'] {
+  border-radius:22px; min-height:44px; padding-inline:20px; font-weight:650;
+}
+:root[data-host='desktop']:not(.playing) [data-ui='shell'] [data-ui='hero-action'][data-name='info'] { border-radius:var(--tsugi-radius-control); min-height:44px; }
+.tsugi-hero-resume-progress {
+  width:min(320px,90%); height:4px; overflow:hidden; background:rgb(255 255 255 / 17%); border-radius:3px;
+}
+.tsugi-hero-resume-progress > span { display:block; height:100%; background:var(--tsugi-ink); border-radius:inherit; }
+:root[data-host='desktop']:not(.playing) [data-ui='home-rows'] > :not([hidden]) ~ :not([hidden]) {
+  margin-top:clamp(20px,3vh,32px);
+}
+:root[data-host='desktop']:not(.playing) [data-ui='home-rows'] [data-ui='media-row-title'] {
+  font-size:clamp(17px,1.5vw,21px); font-weight:650; letter-spacing:-.025em;
+}
+:root[data-host='desktop']:not(.playing) [data-ui='home-rows'] :is([data-ui='wide-card-title'],[data-ui='poster-card-title']) {
+  font-size:14px; line-height:1.4; font-weight:600;
+}
+:root[data-host='desktop']:not(.playing) [data-ui='home-rows'] :is([data-ui='wide-card-subtitle'],[data-ui='poster-card-subtitle']) { font-size:12px; line-height:1.4; }
+.tsugi-card-time {
+  position:absolute; inset-inline-end:8px; bottom:9px; z-index:2;
+  padding:3px 7px; border-radius:var(--tsugi-radius-small,6px);
+  background:rgb(0 0 0 / 75%); color:white; font-size:11px; font-weight:550; line-height:1.35;
+  white-space:nowrap; pointer-events:none; font-variant-numeric:tabular-nums;
+}
+:root[data-host='desktop'] .tsugi-media-navigation:not(.tsugi-media-navigation-rail) .tsugi-media-destinations {
+  gap:6px;
+}
+:root[data-host='desktop'] .tsugi-media-navigation:not(.tsugi-media-navigation-rail) .tsugi-media-destinations .tsugi-category-link {
+  min-height:44px; padding-block:8px; transition:background-color 150ms ease,color 150ms ease;
+}
+:root[data-host='desktop'] .tsugi-media-navigation:not(.tsugi-media-navigation-rail) .tsugi-media-destinations .tsugi-category-link[aria-current='page'] {
+  background:var(--tsugi-panel);
+}
+@media(prefers-reduced-motion:reduce) {
+  :root[data-host='desktop'] .tsugi-media-navigation:not(.tsugi-media-navigation-rail) .tsugi-media-destinations .tsugi-category-link { transition:none; }
+}

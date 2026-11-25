@@ -1,6 +1,7 @@
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { FiSettings } from 'react-icons/fi';
+import { useIsPresent } from 'motion/react';
 import { TsugiBrand, TsugiMediaIcon } from '@/components/tsugi-brand';
 import { useDesktopArea } from '@/lib/desktop-area';
 
@@ -9,13 +10,14 @@ export function DesktopLandingPage({ openVideo, openMusic, openRead }: {
   openVideo(): void; openMusic(): void; openRead?: () => void;
 }) {
   const desktopArea = useDesktopArea();
+  const present = useIsPresent();
   const sections = [
     { id: 'video' as const, label: t({ id: "Movies & TV", message: "Movies & TV" }), open: openVideo },
     { id: 'music' as const, label: t({ id: "Music", message: "Music" }), open: openMusic },
     ...(openRead ? [{ id: 'read' as const, label: t({ id: 'Read', message: 'Read' }), open: openRead }] : []),
   ];
   return <main data-page="desktop-landing" className="tsugi-landing tsugi-index">
-    <div className="tsugi-index-pattern" aria-hidden="true" />
+    {present && <div className="tsugi-index-pattern" aria-hidden="true" />}
     <header className="tsugi-index-header">
       {desktopArea && <button type="button" className="tsugi-category-link" onClick={desktopArea.openSettings}><FiSettings aria-hidden /><Trans id="App settings">App settings</Trans></button>}
     </header>

@@ -138,8 +138,8 @@ try {
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).click();
   const entry = page.locator('.tsugi-video-entry');
   const field = entry.getByRole('textbox', { name: /Server address/ });
-  assert.equal(await page.locator('.tsugi-index-pattern:visible').count(), 0);
   await field.waitFor();
+  await page.locator('.tsugi-index-pattern').waitFor({ state: 'detached' });
   await field.focus();
   assert.equal(await field.evaluate((node) => getComputedStyle(node).outlineColor), 'rgb(213, 213, 220)');
   assert.equal(await field.evaluate((node) => getComputedStyle(node).borderRadius), '8px');

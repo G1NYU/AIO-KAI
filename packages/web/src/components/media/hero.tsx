@@ -16,7 +16,7 @@ import { useFetchNextUp, useItem } from '@/lib/jellyfin/queries';
 import { focusOn, keyboardFocus, useAction } from '@/lib/input';
 import { ScrollRoot, watch } from '@/hooks/use-in-view';
 import { backdropUrl, landscapeUrl, logoUrl } from '@/lib/artwork/urls';
-import { itemSubtitle, itemTitle, ticksToMs } from '@/lib/format';
+import { itemSubtitle, itemTitle, progressOf, ticksToMs } from '@/lib/format';
 import { itemPath, navigate } from '@/lib/paths';
 import { useVersionPicker } from '@/features/versions/version-picker';
 import { Scores, scoresOf } from './scores';
@@ -270,6 +270,9 @@ function HeroDetails({
           held,
         });
   const holdPlay = useHold(() => play(true));
+  const desktop = currentHost().name === 'desktop';
+  const progress = progressOf(item);
+  const resuming = desktop && item.Type !== 'Series' && playable && progress != null && progress > 0 && progress < 100 && ticksToMs(item.UserData?.PlaybackPositionTicks) > 0;
   const phone = useMediaQuery('(max-width: 639px)');
   const open = () => navigate(itemPath(item), { fromHero: phone });
   const parts: [string, React.ReactNode][] = [
@@ -324,6 +327,7 @@ function HeroDetails({
           {item.Overview}
         </p>
       )}
+      {resuming && actions && <div className="tsugi-hero-resume-progress" aria-hidden="true"><span style={{ width: Math.min(100, Math.max(0, progress ?? 0)) + '%' }} /></div>}
       {actions && (
         <div
           data-ui="hero-actions"
@@ -339,7 +343,7 @@ function HeroDetails({
               onClick={() => play()}
               {...holdPlay}
             >
-              <Trans>Play</Trans>
+              {resuming ? <Trans>Resume</Trans> : <Trans>Play</Trans>}
             </Button>
           )}
           {playable && phone ? (
