@@ -1,0 +1,56 @@
+name: Vault Ytdown resolver evaluation
+on:
+  push:
+    branches: [feature/tsugi-read-runtime]
+    paths:
+      - 'tools/vault-evaluation/ytdown_probe.py'
+      - '.github/workflows/tsugi-vault-ytdown-evaluation.yml'
+permissions:
+  contents: read
+jobs:
+  resolver:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: 4thel00z/ytdown
+          ref: b2fabbe6436d8ab189e8f285d6616bd4a06d554c
+          path: upstream-ytdown
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: upstream-ytdown
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Verify exact source revision
+        working-directory: upstream-ytdown
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne 'b2fabbe6436d8ab189e8f285d6616bd4a06d554c') { throw 'Ytdown source revision mismatch' }
+      - name: Test offline resolver fixtures
+        working-directory: upstream-ytdown
+        shell: pwsh
+        run: cargo test --locked -p ytdown --lib --test youtube_integration
+      - name: Build pinned CLI without optional web server
+        working-directory: upstream-ytdown
+        shell: pwsh
+        run: |
+          $messages = cargo build --locked -p ytdown-cli --bin ytdown --message-format=json
+          if ($LASTEXITCODE -ne 0) { throw 'Ytdown build failed' }
+          $binary = $messages | ForEach-Object { try { $_ | ConvertFrom-Json -ErrorAction Stop } catch {} } |
+            Where-Object { $_.reason -eq 'compiler-artifact' -and $_.executable -and $_.target.name -eq 'ytdown' } |
+            Select-Object -Last 1
+          if (-not $binary -or -not (Test-Path -LiteralPath $binary.executable -PathType Leaf)) { throw 'Cannot locate Ytdown CLI' }
+          "TSUGI_YTDOWN_PROBE=$($binary.executable)" >> $env:GITHUB_ENV
+      - name: Authorized live metadata comparison (no media download)
+        shell: pwsh
+        run: |
+          python -m py_compile tools/vault-evaluation/ytdown_probe.py
+          python tools/vault-evaluation/ytdown_probe.py $env:TSUGI_YTDOWN_PROBE
+          if ($LASTEXITCODE -ne 0) { throw 'Resolver probe output invalid' }
