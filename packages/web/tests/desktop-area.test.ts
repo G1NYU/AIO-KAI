@@ -61,3 +61,33 @@ describe('Landscape artwork provider guards',()=>{
     expect(kitsuLandscapes({data:[{},item('https://user:pass@media.kitsu.io/a'),item('https://media.kitsu.io:8080/a')]})).toEqual([]);
   });
 });
+
+import { listTorBox, submitTorBox, torboxItems, torboxLink } from '../src/app/vault/torbox';
+describe('Vault TorBox cloud provider', () => {
+  it('accepts only HTTPS links without embedded credentials or fragments', () => {
+    expect(torboxLink(' https://example.org/book.epub ')).toBe('https://example.org/book.epub');
+    for (const url of ['http://example.org/file', 'file:///book.epub', 'https://user:secret@example.org/file', 'https://example.org/file#private']) expect(() => torboxLink(url)).toThrow();
+  });
+  it('parses and deduplicates only valid account download rows', () => {
+    expect(torboxItems([{id: 1, name: 'Book', download_finished: true}, {id: 1}, {id: 'bad'}, null])).toEqual([{id: 1, name: 'Book', state: '', finished: true}]);
+    expect(() => torboxItems({})).toThrow();
+  });
+  it('sends credentials only in the Authorization header to fixed TorBox endpoints', async () => {
+    const calls: {url: string; init?: RequestInit}[] = [];
+    const fake: typeof fetch = async (url, init) => {
+      calls.push({url: String(url), init});
+      return new Response(JSON.stringify({success: true, data: []}), {status: 200});
+    };
+    const signal = new AbortController().signal;
+    await listTorBox('fixture-key', signal, fake);
+    await submitTorBox('fixture-key', 'https://example.org/book.epub', signal, fake);
+    expect(calls.map(c => c.url)).toEqual(['https://api.torbox.app/v1/api/webdl/mylist?limit=100&files=false','https://api.torbox.app/v1/api/webdl/createwebdownload']);
+    expect(calls.every(c => c.init?.redirect === 'error' && c.init.credentials === 'omit' && new Headers(c.init.headers).get('Authorization') === 'Bearer fixture-key')).toBe(true);
+    expect(String(calls[1].init?.body)).toBe('link=https%3A%2F%2Fexample.org%2Fbook.epub');
+  });
+  it('does not expose provider error details or treat a rejected submission as success', async () => {
+    const signal = new AbortController().signal;
+    const fake: typeof fetch = async () => new Response(JSON.stringify({success:false, detail:'sensitive-response'}), {status:200});
+    await expect(submitTorBox('fixture-key','https://example.org/book.epub',signal,fake)).rejects.toMatchObject({kind:'request',message:'request'});
+  });
+});

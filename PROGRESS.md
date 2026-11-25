@@ -528,3 +528,7 @@ Migration commit 1be0b4c passed Unified Windows validation (45558491536) and the
 - Local standalone TypeScript and fixture checks passed on the prepared patch; full application CI and live provider behavior pending. Next: Readest-inspired local EPUB/PDF reader, then native authorized book/audio downloads and import into Read/Music, then gated unified Windows package.
 
 - Updated browser regression fixture for default-on artwork: synthetic safe Kitsu response, failing Kitsu CDN image, valid wide Nekos fallback, local-only preference and re-enable. Replaces obsolete opt-in assertion. CI pending on combined source and fixture.
+
+### TorBox Vault cloud destination (2026-11-25)
+- Added an independent session-only TorBox panel using official fixed HTTPS webdl/mylist and createwebdownload endpoints. Password input, in-memory key, explicit permission checkbox before each cloud submission, manual refresh, sanitized errors, no local credential persistence, no token in URLs, no redirects, no automatic submission retry. Existing video and music logic untouched. Up to 100 account web downloads shown, no remote delete or local import yet.
+- Added mocked fetch and link guard tests in existing gated test suite. Live account authentication, WebView CORS, actual remote submission and full CI remain unverified. Next: verify CI and authorized account test; then integrate native queue, secure optional credential storage and ebook reader. No public release.
