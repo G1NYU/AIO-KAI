@@ -279,6 +279,10 @@ fn bridge_script(reading: bool, reading_setup: bool) -> String {
 }
 
 fn main() {
+    #[cfg(windows)]
+    if std::env::args().any(|arg| arg == "--check-vault-engine") {
+        std::process::exit(if aiostreams_desktop_core::vault_engine::installed_binary().is_some() { 0 } else { 2 });
+    }
     // Diagnostic used by the portable launcher and CI. It uses the same
     // eligibility and path checks as the real shell, without starting a JVM
     // or acquiring a data-directory lock.
@@ -904,7 +908,6 @@ pub fn handle(
             downloads.send(downloads::Command::SetConcurrent(concurrent))
         }
         Inbound::VaultRate { mib } => downloads.send(downloads::Command::SetVaultRate(mib)),
-        Inbound::VaultEngine { enabled } => downloads.send(downloads::Command::SetVaultEngine(enabled)),
         Inbound::WebError { message } => log::error!(target: "web", "{}", page_text(&message)),
         Inbound::Log { level, message } => {
             log::log!(target: "web", log::Level::from(level), "{}", page_text(&message))

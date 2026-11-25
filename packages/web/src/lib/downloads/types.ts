@@ -63,7 +63,6 @@ export type HostEvent =
       folder: string;
       vault_rate_mib?: number;
       aria2_available?: boolean;
-      aria2_enabled?: boolean;
       jobs: {
         id: string;
         state: 'queued' | 'downloading' | 'paused' | 'failed' | 'done';

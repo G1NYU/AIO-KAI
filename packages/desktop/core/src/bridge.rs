@@ -318,9 +318,6 @@ pub enum Inbound {
     VaultRate {
         mib: u32,
     },
-    VaultEngine {
-        enabled: bool,
-    },
 }
 
 static REFUSED: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
@@ -576,7 +573,6 @@ pub enum Outbound {
         folder: String,
         vault_rate_mib: u32,
         aria2_available: bool,
-        aria2_enabled: bool,
         jobs: Vec<DownloadStatus>,
     },
     /// The running download's video; `speed` in bytes a second.

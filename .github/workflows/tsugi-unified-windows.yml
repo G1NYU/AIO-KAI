@@ -87,6 +87,47 @@ jobs:
           path: packages/web/dist-standalone/
           include-hidden-files: true
 
+      - name: Check out corresponding Aria2 Next source
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package tsugi]')))
+        uses: actions/checkout@v7
+        with:
+          repository: AnInsomniacy/aria2-next
+          ref: 2a13a664edb5314d86bfd7d488305266be6688e8
+          path: upstream-aria2-next
+          persist-credentials: false
+      - name: Archive exact Aria2 Next source and notices
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package tsugi]')))
+        shell: bash
+        run: |
+          set -euo pipefail
+          source=upstream-aria2-next
+          test "$(git -C "$source" rev-parse HEAD)" = 2a13a664edb5314d86bfd7d488305266be6688e8
+          test -z "$(git -C "$source" status --porcelain)"
+          git -C "$source" ls-files --stage > "$RUNNER_TEMP/aria2-index.txt"
+          if grep '^160000 ' "$RUNNER_TEMP/aria2-index.txt"; then
+            echo 'Unexpected source submodule; refusing incomplete archive'
+            exit 1
+          fi
+          out="$RUNNER_TEMP/tsugi-aria2-source"
+          mkdir -p "$out"
+          cp "$source/COPYING" "$source/AUTHORS" "$out/"
+          tar -czf "$out/aria2-next-3.1.2-source.tar.gz" --exclude="$source/.git" "$source"
+          tar -tzf "$out/aria2-next-3.1.2-source.tar.gz" > "$RUNNER_TEMP/aria2-source-contents.txt"
+          for file in COPYING AUTHORS CMakeLists.txt packaging/scripts/build-release packaging/dependencies.env third_party/README.md; do
+            grep -Fx "$source/$file" "$RUNNER_TEMP/aria2-source-contents.txt" >/dev/null
+          done
+          for vendor in boost curl doctest expat ffmpeg gpac libssh2 libtorrent nghttp2 openssl spdlog sqlite zlib; do
+            grep -F "$source/third_party/$vendor/" "$RUNNER_TEMP/aria2-source-contents.txt" >/dev/null
+          done
+          (cd "$out" && sha256sum aria2-next-3.1.2-source.tar.gz > SOURCE.sha256)
+      - uses: actions/upload-artifact@v7
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package tsugi]')))
+        with:
+          name: tsugi-aria2-corresponding-source
+          retention-days: 7
+          path: ${{ runner.temp }}/tsugi-aria2-source/
+          if-no-files-found: error
+
   windows-check:
     if: github.ref == 'refs/heads/feature/tsugi-read-runtime' && github.event_name == 'push' && !contains(github.event.head_commit.message, '[package tsugi]')
     runs-on: windows-latest
@@ -162,6 +203,7 @@ jobs:
           Copy-Item packages/desktop/vendor/x86_64/vulkan "$current/vulkan" -Recurse
           Copy-Item packages/desktop/THIRD-PARTY.md $current
           ./packages/desktop/scripts/fetch-music-tools.ps1 -Destination "$current/music-tools"
+          ./packages/desktop/scripts/fetch-vault-tools.ps1 -Destination "$current/vault-tools"
           $launcher = New-Item -ItemType Directory -Force "$current/read-launcher"
           & "$env:JAVA_HOME_21_X64/bin/javac.exe" --release 21 -d $launcher packages/desktop/scripts/read-runtime/TsugiReadLauncher.java
           if ($LASTEXITCODE -ne 0) { throw 'Reading launcher compilation failed' }
@@ -193,6 +235,23 @@ jobs:
         with:
           name: tsugi-standalone-web
           path: stage/current/web
+      - uses: actions/download-artifact@v5
+        with:
+          name: tsugi-aria2-corresponding-source
+          path: stage/current/vault-tools/source
+      - name: Verify assembled managed Vault engine and corresponding source
+        run: |
+          $root = (Resolve-Path stage).Path
+          $exe = Join-Path $root 'current/Tsugi.exe'
+          $tools = Join-Path $root 'current/vault-tools'
+          $probe = Start-Process -FilePath $exe -ArgumentList '--check-vault-engine' -Wait -PassThru
+          if ($probe.ExitCode -ne 0) { throw 'Packaged Tsugi cannot verify its managed Vault engine' }
+          $source = Join-Path $tools 'source/aria2-next-3.1.2-source.tar.gz'
+          $expected = ((Get-Content (Join-Path $tools 'source/SOURCE.sha256') -Raw).Trim() -split '\s+')[0]
+          if ($expected.Length -ne 64 -or (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw 'Corresponding source archive checksum mismatch' }
+          foreach ($file in @('SOURCE.txt','source/COPYING','source/AUTHORS')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $tools $file) -PathType Leaf)) { throw "Missing engine notice: $file" }
+          }
       - name: Exercise native EXE reading preparation against assembled assets
         run: |
           $root = (Resolve-Path stage).Path
@@ -227,13 +286,11 @@ jobs:
 
           VAULT ACCEPTANCE
           Use Vault for direct-file downloads, batches, concurrency, and rate limits.
-          Aria2 Next is optional and not redistributed in this ZIP. Download the
-          pinned Windows x64 v3.1.2 executable from the upstream release:
-          https://github.com/AnInsomniacy/aria2-next/releases/tag/v3.1.2
-          Save it as current/vault-tools/aria2-next.exe (create the folder).
-          SHA-256: 94edc284cd84dec26a16ae9431378c5ab9e5cde8011482566483f4f0cb20c03f
-          Restart Tsugi; enable Use Aria2 Next in Vault > Providers.
-          If unavailable or incompatible, the built-in downloader remains active.
+          Aria2 Next v3.1.2 is bundled and automatically used for eligible
+          direct-file transfers. No setup or engine toggle is required.
+          Incompatible sources use the built-in downloader.
+          The engine's corresponding source and notices are included under
+          current/vault-tools/source/.
           Test authorized music downloads and TorBox with your own account.
           Never share an API key, signed download URL or account credential.
           Third-party reading extensions execute with your account permissions:
@@ -257,6 +314,9 @@ jobs:
           $archive = [IO.Compression.ZipFile]::OpenRead($zip)
           try {
             $names = @($archive.Entries | ForEach-Object FullName)
+            foreach ($required in @('current/vault-tools/aria2-next.exe', 'current/vault-tools/SOURCE.txt', 'current/vault-tools/source/COPYING', 'current/vault-tools/source/AUTHORS', 'current/vault-tools/source/SOURCE.sha256', 'current/vault-tools/source/aria2-next-3.1.2-source.tar.gz')) {
+              if ($required -notin $names) { throw "Managed Vault artifact missing $required" }
+            }
             foreach ($required in @('.portable', 'current/Tsugi.exe', 'current/music-tools/yt-dlp.exe', 'current/music-tools/deno.exe', 'current/read-launcher/TsugiReadLauncher.class', 'current/read-launcher/fetch-read-tools.ps1', 'current/web/index.html', 'LICENSE', 'README-TEST.txt', 'BUILD-INFO.json')) {
               if ($required -notin $names) { throw "Unified artifact missing $required" }
             }

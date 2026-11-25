@@ -49,7 +49,7 @@ export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|n
   const [filter,setFilter] = useState<Filter>('all');
   const [concurrent,setConcurrent] = useSetting(settings.downloads.concurrent);
   const [rate,setRate] = useState<number|undefined>();
-  const [engine,setEngine] = useState<{available:boolean;enabled:boolean}|undefined>();
+  const [engineAvailable,setEngineAvailable] = useState<boolean|undefined>();
   const [wifiOnly] = useSetting(settings.downloads.wifiOnly);
   const pendingCount=pending.length;
   useEffect(()=>{
@@ -57,7 +57,7 @@ export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|n
     const stop = shellDownloads.subscribe(event=>{
       if(event.type==='state') {
         setRows(old=>reconcileVaultRows(old,event.jobs.filter(job=>job.id.startsWith('vault-') && typeof job.vault_title==='string')));
-        setFolder(event.folder);setRate(event.vault_rate_mib);setEngine(event.aria2_available===undefined?undefined:{available:event.aria2_available,enabled:event.aria2_enabled===true});setReady(true);
+        setFolder(event.folder);setRate(event.vault_rate_mib);setEngineAvailable(event.aria2_available);setReady(true);
       } else if(event.id.startsWith('vault-')) setRows(old=>old.map(row=>row.id===event.id?{...row,bytes:event.bytes,total:event.total,speed:row.state==='downloading'?event.speed:0}:row));
     });
     shellDownloads.list();
@@ -136,7 +136,7 @@ export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|n
       {!!pendingCount&&<p role="status"><Trans>Adding download…</Trans></p>}
       {importing&&<p role="status"><Trans>Importing completed file…</Trans></p>}
       {error&&<p role="alert">{error}</p>}
-      {filter==='providers'?<VaultProviders engine={engine} onEngineChange={enabled=>appBridge()?.send({type:'vault-engine',enabled})}/>:filter==='cloud'?<TorBoxPanel/>:<>
+      {filter==='providers'?<VaultProviders engineAvailable={engineAvailable}/>:filter==='cloud'?<TorBoxPanel/>:<>
       {ready&&visible.length===0&&<div className="tsugi-vault-empty"><BrushFolder aria-hidden/><p><Trans>No downloads in this view.</Trans></p></div>}
       {visible.map(row=><div className="tsugi-vault-file-row tsugi-vault-task" key={row.id}>
         <div className="tsugi-vault-task-main">{/\.(epub|pdf)$/i.test(row.vault_title||'')?<BrushBook aria-hidden/>:<BrushDisc aria-hidden/>}<div className="tsugi-vault-task-text"><strong>{row.vault_title}</strong><p><span className="tsugi-vault-task-state" data-state={row.state}>{status(row)}</span> · {(row.bytes/1048576).toFixed(1)} MiB {row.total!==null&&row.total>0&&<span>/ {(row.total/1048576).toFixed(1)} MiB</span>}</p>

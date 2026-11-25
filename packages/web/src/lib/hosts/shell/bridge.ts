@@ -188,7 +188,6 @@ export type ShellMessage =
       folder: string;
       vault_rate_mib?: number;
       aria2_available?: boolean;
-      aria2_enabled?: boolean;
       jobs: Extract<HostEvent, { type: 'state' }>['jobs'];
     }
   | {

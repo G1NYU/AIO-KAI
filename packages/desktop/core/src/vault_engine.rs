@@ -1,5 +1,5 @@
-//! Optional Windows Aria2 Next transfer backend. The external executable is
-//! independently installed by the user and verified against the pinned release.
+//! Managed Windows Aria2 Next transfer backend. The bundled independent
+//! executable is verified against the pinned release before use.
 //! Native Vault admission and the bounded range gateway remain authoritative.
 use crate::vault_gateway::{Gateway,Source};
 use serde::{Deserialize,Serialize};
