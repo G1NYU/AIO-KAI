@@ -517,3 +517,7 @@ Migration commit 1be0b4c passed Unified Windows validation (45558491536) and the
 - Music: full-width provider artwork spotlight with manual featured selection; Read and Vault: bundled vector landscape fallback and optional Nekos API scenic image. API endpoint/tag live behavior unverified. No automatic image requests.
 - High contrast unread/watched badges independent of selected accent. No dependency or engine changes.
 - Added launcher/Vault smoke checks and transfer validation unit tests. Next: unified Windows CI, verify live desktop file picker and artwork, final Music queue polish, gated EXE packaging.
+
+- Music queue candidate: move upcoming tracks earlier/later, remove or clear upcoming in mini and expanded players; current track and history remain unchanged. Added regression coverage to the existing explicit CI test list (desktop-area.test.ts). Pending CI; package only through the existing gate.
+
+- Hero/Vault commit 3fc0c62, CI 45565155078: native Windows check and web TypeScript passed; web lint failed only on two unlocalized labels. Corrected both in this candidate. Package requested via existing gated development ZIP workflow; no public release. Real-source and physical Windows acceptance still pending.

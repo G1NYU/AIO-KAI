@@ -16,6 +16,7 @@ import { providerFor } from '@/lib/music/providers';
 import { supportsYouTubeMusic } from '@/lib/hosts/shell/youtube-music';
 import { appBridge, type ShellMessage } from '@/lib/hosts/shell/bridge';
 import { MusicPlayer, type RepeatMode } from './player';
+import { moveUpcoming, removeUpcoming, clearUpcoming } from '@/lib/music/queue';
 import { MusicLibrary } from './library';
 import { useRememberedMusicFolder } from './use-remembered-folder';
 import {
@@ -998,6 +999,9 @@ export function MusicPage({
         onExpanded: setExpanded, onToggle: toggle, onNext: next,
         onPrevious: previous, onSeek: seek, onVolume: changeVolume,
         onShuffle: setShuffle, onRepeat: setRepeat,
+        onMoveQueue: (at,direction) => { if (!resolving) setQueue(items => moveUpcoming(items,queueIndex,at,direction)); },
+        onRemoveQueue: at => { if (!resolving) setQueue(items => removeUpcoming(items,queueIndex,at)); },
+        onClearUpcoming: () => { if (!resolving) setQueue(items => clearUpcoming(items,queueIndex)); },
         onQueue: (at) => {
           const source = connections.find((item) => item.id === playingSourceId);
           if (playingSourceId === LOCAL_SOURCE && queue[at]) void playLocalTrack(queue[at],at,true);

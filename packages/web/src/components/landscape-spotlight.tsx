@@ -24,7 +24,7 @@ export function LandscapeSpotlight({title,eyebrow,description,actionLabel,onActi
       <button type="button" className="tsugi-read-action tsugi-series-primary mt-6" onClick={onAction} disabled={disabled}>{actionLabel}</button>
     </div>
     <div className="tsugi-landscape-credit">
-      {external&&!failed?<><span>Nekos API</span><button type="button" onClick={()=>setExternal(false)}><Trans>Use local artwork</Trans></button></>:<button type="button" title={t`External illustrations are filtered but may be incorrectly classified.`} onClick={()=>{setFailed(false);setExternal(true);}}><Trans>Enable external illustration</Trans></button>}
+      {external&&!failed?<><span><Trans>Nekos API</Trans></span><button type="button" onClick={()=>setExternal(false)}><Trans>Use local artwork</Trans></button></>:<button type="button" title={t`External illustrations are filtered but may be incorrectly classified.`} onClick={()=>{setFailed(false);setExternal(true);}}><Trans>Enable external illustration</Trans></button>}
       {external&&failed&&<span role="status"><Trans>Illustration unavailable</Trans></span>}
     </div>
   </section>;

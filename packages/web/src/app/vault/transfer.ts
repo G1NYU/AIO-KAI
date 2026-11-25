@@ -22,11 +22,12 @@ export function vaultPicker():VaultPicker|undefined {
 }
 export async function saveVaultFile(target:ReturnType<typeof vaultTarget>,picker:VaultPicker,signal:AbortSignal,onProgress:(bytes:number,total:number|null)=>void) {
   const handle=await picker({suggestedName:target.name});
+  signal.throwIfAborted();
   const response=await fetch(target.url,{signal,credentials:'omit',referrerPolicy:'no-referrer',redirect:'error'});
   if(!response.ok||!response.body)throw new Error('File could not be retrieved.');
   if(!vaultResponseAllowed(target.extension,response.headers.get('content-type')||''))throw new Error('The URL did not return a supported file type.');
   const length=Number(response.headers.get('content-length')||0);
-  const total=Number.isFinite(length)&&length>0?length:null;
+  const total=Number.isFinite(length)&&length>0&&!response.headers.get('content-encoding')?length:null;
   if(total&&total>MAX_VAULT_BYTES)throw new Error('File exceeds the 256 MiB limit.');
   const writer=await handle.createWritable();
   const reader=response.body.getReader();

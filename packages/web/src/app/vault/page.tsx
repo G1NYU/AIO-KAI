@@ -31,7 +31,7 @@ export function VaultPage(){
   }
   return <main className="tsugi-vault-root" data-page="vault">
     <TsugiRail area="vault" disabled={busy}/>
-    <LandscapeSpotlight title="Vault" eyebrow={t`Your media collection`} description={t`Books, music and downloads, in one place.`} actionLabel={t`Save a file`} onAction={()=>form.current?.focus()} disabled={busy||!supported}/>
+    <LandscapeSpotlight title={t`Vault`} eyebrow={t`Your media collection`} description={t`Books, music and downloads, in one place.`} actionLabel={t`Save a file`} onAction={()=>form.current?.focus()} disabled={busy||!supported}/>
     <section className="tsugi-vault-actions">
       <button className="tsugi-read-action" onClick={actions?.openLocalMusic} disabled={busy}><Trans>Local music</Trans></button>
       <button className="tsugi-read-action" onClick={actions?.openVideoDownloads} disabled={busy}><Trans>Video downloads</Trans></button>

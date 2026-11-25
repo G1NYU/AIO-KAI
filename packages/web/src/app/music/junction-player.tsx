@@ -5,6 +5,7 @@ import { Trans } from '@lingui/react/macro';
 
 import { VolumeControl } from './volume-control';
 import { MusicArtwork } from './music-artwork';
+import { QueueControls, ClearUpcoming } from './queue-controls';
 
 import type { MusicPlayerProps } from './player';
 import { Timeline, Transport } from './player';
@@ -126,7 +127,7 @@ export function JunctionPlayer({
         {queueOpen && (
           <section aria-label={t`Up next`} className="tsugi-junction-secondary overflow-hidden py-4">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold"><Trans>Up next</Trans></h2>
+              <h2 className="text-sm font-semibold"><Trans>Up next</Trans></h2><ClearUpcoming p={p}/>
               <button type="button" aria-label={t`Close queue`}
                 className="tsugi-control flex size-8 items-center justify-center"
                 onClick={() => setQueueOpen(false)}><FiX aria-hidden /></button>
@@ -142,6 +143,7 @@ export function JunctionPlayer({
                     <span className="min-w-0 flex-1 truncate">{item.title}</span>
                     <span className="max-w-[35%] truncate opacity-50">{item.artist}</span>
                   </button>
+                  <QueueControls p={p} at={index}/>
                 </li>
               ))}
             </ol>

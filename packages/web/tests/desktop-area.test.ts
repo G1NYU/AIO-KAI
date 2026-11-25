@@ -22,3 +22,28 @@ describe('cross-media audio policy', () => {
     expect(allowsMusicPlayback('video')).toBe(false);
   });
 });
+
+import { moveUpcoming,removeUpcoming,clearUpcoming } from '../src/lib/music/queue';
+import { vaultTarget,vaultResponseAllowed } from '../src/app/vault/transfer';
+describe('Music upcoming queue',()=>{
+  const queue=['past','active','next','last'];
+  it('keeps the active track and history unchanged while moving upcoming tracks',()=>{
+    expect(moveUpcoming(queue,1,3,-1)).toEqual(['past','active','last','next']);
+    expect(moveUpcoming(queue,1,2,-1)).toBe(queue);
+    expect(moveUpcoming(queue,1,1,1)).toBe(queue);
+    expect(removeUpcoming(queue,1,3)).toEqual(['past','active','next']);
+    expect(removeUpcoming(queue,1,1)).toBe(queue);
+    expect(clearUpcoming(queue,1)).toEqual(['past','active']);
+    expect(clearUpcoming(queue,-1)).toBe(queue);
+  });
+});
+describe('Vault transfer guards',()=>{
+  it('requires supported direct HTTPS files and matching media types',()=>{
+    expect(vaultTarget('https://example.org/my%20book.epub').name).toBe('my book.epub');
+    expect(()=>vaultTarget('http://example.org/file.pdf')).toThrow();
+    expect(()=>vaultTarget('https://example.org/CON.pdf')).toThrow();
+    expect(()=>vaultTarget('https://example.org/file.exe')).toThrow();
+    expect(vaultResponseAllowed('mp3','text/html')).toBe(false);
+    expect(vaultResponseAllowed('pdf','application/pdf')).toBe(true);
+  });
+});

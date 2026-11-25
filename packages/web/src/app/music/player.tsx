@@ -9,6 +9,7 @@ import { parsePlayerTemplate } from '@/lib/music/player-template';
 import { readPlayerStage, savePlayerStage, type PlayerStageId } from '@/lib/music/player-layout';
 import { EclipseStudioStage } from './studio-player';
 import { JunctionPlayer } from './junction-player';
+import { QueueControls, ClearUpcoming } from './queue-controls';
 import { PlayerSettings } from './player-settings';
 import { DotSeeker } from './wave-seeker';
 import { VolumeControl } from './volume-control';
@@ -53,6 +54,9 @@ export type MusicPlayerProps = {
   onShuffle(value: boolean): void;
   onRepeat(mode: RepeatMode): void;
   onQueue(index: number): void;
+  onMoveQueue(index: number, direction: -1 | 1): void;
+  onRemoveQueue(index: number): void;
+  onClearUpcoming(): void;
 };
 
 const buttonClass = 'tsugi-control inline-flex size-10 items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2';
@@ -213,13 +217,14 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                 <FiList aria-hidden /><span className="tsugi-mini-queue-count">{p.queue.length}</span>
               </summary>
               <div className="tsugi-mini-queue-panel">
-                <h2><Trans>Playback queue</Trans></h2>
+                <div className="tsugi-queue-heading"><h2><Trans>Playback queue</Trans></h2><ClearUpcoming p={p}/></div>
                 <ol>{p.queue.map((item, at) => <li key={item.id + ':' + at}>
                   <button type="button" aria-current={at === p.index ? 'true' : undefined} disabled={p.loading}
                     onClick={event => { p.onQueue(at); event.currentTarget.closest('details')?.removeAttribute('open'); }}>
                     <span className="tsugi-mini-queue-number">{at + 1}</span>
                     <span className="min-w-0"><strong className="block truncate">{item.title}</strong><small className="block truncate">{item.artist}</small></span>
                   </button>
+                  <QueueControls p={p} at={at}/>
                 </li>)}</ol>
               </div>
             </details>

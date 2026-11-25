@@ -2456,3 +2456,14 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-vault-file-row { display:flex; align-items:center; justify-content:space-between; min-height:52px; gap:10px; }
 .tsugi-vault-actions { display:flex; flex-wrap:wrap; gap:10px; margin:0 0 22px; }
 @media(max-width:760px) { :root[data-host='desktop'] .tsugi-spotlight { min-height:280px; padding:22px 20px 36px; } :root[data-host='desktop'] .tsugi-spotlight-cover { width:clamp(80px,20vw,130px); } :root[data-host='desktop'] .tsugi-spotlight-copy h2 { font-size:clamp(24px,5vw,40px); } :root[data-host='desktop'] .tsugi-vault-root { padding-inline:calc(var(--tsugi-rail-width) + 12px) 12px; } }
+
+/* Shared upcoming queue actions, independent of the active playback engine. */
+.tsugi-queue-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.tsugi-mini-queue-panel li,.tsugi-junction-secondary li { display:flex; align-items:center; gap:4px; }
+.tsugi-mini-queue-panel li > button,.tsugi-junction-secondary li > button { flex:1; min-width:0; }
+.tsugi-queue-controls { display:flex; align-items:center; flex:none; gap:2px; }
+.tsugi-queue-controls button { display:grid; place-items:center; width:24px; height:28px; padding:0; border:0; background:transparent; color:inherit; border-radius:5px; }
+.tsugi-queue-controls button:not(:disabled):hover { background:#ffffff16; }
+.tsugi-queue-controls button:disabled { opacity:.28; cursor:default; }
+.tsugi-queue-clear { font-size:11px; padding:5px 7px; border-radius:5px; color:inherit; }
+.tsugi-queue-clear:hover:not(:disabled) { background:#ffffff16; }
