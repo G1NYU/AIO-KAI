@@ -2116,18 +2116,7 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   :root[data-host='desktop'] .tsugi-discovery-workspace .tsugi-hub-feature.tsugi-feature-composition[data-art='true'] { grid-template-columns:minmax(170px,270px) minmax(0,1fr); }
 }
 
-/* Desktop acceptance: use the available canvas, not a centered website column.
-   Only the wordmark may use a user-installed Amanojaku face; no bundled demo. */
-@font-face {
-  font-family: 'Tsugi Signature';
-  src: local('Amanojaku'), local('Amanojaku Regular');
-  font-weight: 400;
-  font-display: swap;
-}
-:root[data-host='desktop'] :is(.tsugi-brand-wordmark,.tsugi-index .tsugi-index-wordmark) {
-  font-family:'Tsugi Signature',var(--tsugi-display);
-  font-synthesis:none;
-}
+/* Desktop acceptance: use the available canvas, not a centered website column. */
 :root[data-host='desktop'] .tsugi-music-root {
   padding-inline:clamp(20px,2.5vw,64px);
 }
@@ -2175,11 +2164,11 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-recent-music-card > svg { flex:none; width:18px; height:18px; color:var(--tsugi-muted); }
 :root[data-host='desktop'] .tsugi-source-sheet input[type='checkbox'] { accent-color:var(--tsugi-accent); }
 :root[data-host='desktop'] .tsugi-source-sheet .text-violet-200 { color:var(--tsugi-muted); }
-:root[data-host='desktop'] :is(.tsugi-brand-wordmark,.tsugi-index .tsugi-index-wordmark) { font-weight:400; letter-spacing:0; }
 
 /* Launcher composition from the annotated Windows reference: centered
    signature above, one balanced destination row below. No decorative layer. */
 :root[data-host='desktop'] .tsugi-index {
+  box-sizing:border-box; width:100%; max-width:100%; margin:0;
   padding:clamp(36px,5vh,64px) clamp(20px,5vw,96px) clamp(32px,7vh,100px);
 }
 :root[data-host='desktop'] .tsugi-index-body {
@@ -2220,4 +2209,32 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   :root[data-host='desktop'] .tsugi-index-body { gap:12px; }
   :root[data-host='desktop'] .tsugi-index-identity { padding-bottom:0; }
   :root[data-host='desktop'] .tsugi-index .tsugi-index-wordmark { font-size:clamp(2.75rem,6vw,4.5rem); }
+}
+
+/* Signature artwork rendered from the user's original Amanojaku face.
+   Bundled alpha mask, inherits palette, keeps accessible text and uses no
+   external font request or system installation. Only branding is affected. */
+:root[data-host='desktop'] :is(.tsugi-brand-wordmark,.tsugi-index .tsugi-index-wordmark) {
+  position:relative; display:inline-block; flex:none; overflow:hidden;
+  width:46px; aspect-ratio:432 / 285; font-size:0; line-height:0; color:transparent;
+}
+:root[data-host='desktop'] :is(.tsugi-brand-wordmark,.tsugi-index .tsugi-index-wordmark)::before {
+  content:''; display:block; position:absolute; inset:0; background:var(--tsugi-ink);
+  -webkit-mask:url('./tsugi-wordmark.png') center / contain no-repeat;
+  mask:url('./tsugi-wordmark.png') center / contain no-repeat;
+}
+:root[data-host='desktop'] .tsugi-media-navigation .tsugi-entry-home .tsugi-brand-wordmark {
+  font-size:0; width:46px;
+}
+:root[data-host='desktop'] .tsugi-auth-brand .tsugi-brand-wordmark {
+  font-size:0; width:72px;
+}
+:root[data-host='desktop'] .tsugi-index .tsugi-index-wordmark {
+  font-size:0; width:clamp(180px,16vw,340px); line-height:0;
+}
+@media(max-width:760px) {
+  :root[data-host='desktop'] .tsugi-media-navigation .tsugi-entry-home .tsugi-brand-wordmark { display:none; }
+}
+@media(max-height:520px) {
+  :root[data-host='desktop'] .tsugi-index .tsugi-index-wordmark { width:clamp(120px,14vw,190px); }
 }

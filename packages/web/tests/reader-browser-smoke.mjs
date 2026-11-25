@@ -140,19 +140,32 @@ try {
   const assertLauncherGeometry = async () => {
     const width = await page.evaluate(() => document.documentElement.clientWidth);
     const height = await page.evaluate(() => window.innerHeight);
+    const canvas = await landing.boundingBox();
     const brandBox = await landing.locator('.tsugi-index-wordmark').boundingBox();
     const choices = await landing.locator('.tsugi-index-destinations').boundingBox();
     const buttons = await landing.locator('.tsugi-index-link').evaluateAll(nodes => nodes.map(node => {
       const { x, y, width, height } = node.getBoundingClientRect();
       return { x, y, width, height };
     }));
-    assert.ok(Math.abs(brandBox.x + brandBox.width / 2 - width / 2) < 3, 'launcher brand centered');
-    assert.ok(Math.abs(choices.x + choices.width / 2 - width / 2) < 3, 'launcher destinations centered');
+    const center = canvas.x + canvas.width / 2;
+    assert.ok(Math.abs(center - width / 2) <= 8, 'launcher canvas centered within viewport including scrollbar: ' + JSON.stringify({ canvas, width }));
+    assert.ok(Math.abs(brandBox.x + brandBox.width / 2 - center) < 3, 'launcher brand centered: ' + JSON.stringify({ brandBox, canvas }));
+    assert.ok(Math.abs(choices.x + choices.width / 2 - center) < 3, 'launcher destinations centered: ' + JSON.stringify({ choices, canvas }));
     assert.ok(brandBox.y + brandBox.height / 2 < height * .53, 'brand raised above the midpoint');
     assert.ok(choices.y > brandBox.y + brandBox.height && choices.y + choices.height <= height, 'destination row below wordmark and within viewport');
     assert.ok(buttons.every(button => Math.abs(button.y - buttons[0].y) < 2 && Math.abs(button.width - buttons[0].width) < 2), 'equal-width destinations on one baseline');
   };
   await assertLauncherGeometry();
+  const wordmarkAsset = await landing.locator('.tsugi-index-wordmark').evaluate(async node => {
+    const mask = getComputedStyle(node, '::before').maskImage;
+    const url = mask.match(/^url\(["']?(.*?)["']?\)$/)?.[1];
+    if (!url) return null;
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    return { width: img.naturalWidth, height: img.naturalHeight };
+  });
+  assert.deepEqual(wordmarkAsset, { width: 432, height: 285 }, 'bundled signature artwork loads without a local font');
   await capture('01-launcher');
   await page.setViewportSize({ width: 2560, height: 1440 });
   await assertLauncherGeometry();
