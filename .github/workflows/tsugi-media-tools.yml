@@ -1,0 +1,56 @@
+name: Tsugi FFmpeg media tools evaluation
+on:
+  push:
+    branches: [feature/tsugi-read-runtime]
+    paths:
+      - '.github/workflows/tsugi-media-tools.yml'
+      - 'packages/desktop/scripts/build-media-tools.sh'
+      - 'tools/vault-evaluation/media_tools_probe.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: FFmpeg/FFmpeg
+          ref: 38b88335f99e76ed89ff3c93f877fdefce736c13
+          path: upstream-ffmpeg
+          persist-credentials: false
+      - name: Install cross compiler
+        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
+      - name: Build and archive corresponding source
+        run: |
+          bash packages/desktop/scripts/build-media-tools.sh upstream-ffmpeg "$RUNNER_TEMP/tsugi-media-tools"
+          rm -rf "$RUNNER_TEMP/tsugi-media-tools/build"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tsugi-media-tools-candidate
+          path: ${{ runner.temp }}/tsugi-media-tools/
+          if-no-files-found: error
+          retention-days: 7
+  windows-fixtures:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v5
+        with:
+          name: tsugi-media-tools-candidate
+          path: media-tools
+      - name: Test real Windows media binaries
+        run: python tools/vault-evaluation/media_tools_probe.py media-tools
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tsugi-media-tools-verified
+          path: media-tools/
+          if-no-files-found: error
+          retention-days: 7

@@ -45,7 +45,7 @@ pub struct Source {
     pub total: u64,
     headers: Vec<(String,String)>,
     // Unvalidated media is served through one full request, never stitched.
-    single_body: Option<Arc<AtomicBool>>,
+    single_probe: Option<u8>,
 }
 impl Source {
     /// Production accepts HTTPS only; loopback HTTP is solely for the fixture client.
@@ -77,7 +77,7 @@ impl Source {
         }
         Ok(source)
     }
-    pub fn segmented(&self)->bool{self.single_body.is_none()}
+    pub fn segmented(&self)->bool{self.single_probe.is_none()}
 
     fn probe_inner(url:&str,allow_fixture:bool,headers:Vec<(String,String)>,media:bool)->Result<Self>{
         let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(20)))
@@ -94,12 +94,12 @@ impl Source {
         }
         let etag=header(&response,"etag").filter(|s|strong_etag(s)).unwrap_or("").to_owned();
         if etag.is_empty()&&!media{return Err("Strong validator required");}
-        let single_body=etag.is_empty().then(||Arc::new(AtomicBool::new(false)));
         let mime = header(&response,"content-type").and_then(mime).ok_or("Source MIME unavailable")?;
         let mut bytes=Vec::new();
         response.into_body().into_reader().take(2).read_to_end(&mut bytes).map_err(|_|"Source probe unreadable")?;
         if bytes.len()!=1 { return Err("Source probe body mismatch"); }
-        Ok(Self { agent,url:url.to_owned(),etag,mime,total,headers,single_body })
+        let single_probe=etag.is_empty().then_some(bytes[0]);
+        Ok(Self { agent,url:url.to_owned(),etag,mime,total,headers,single_probe })
     }
 
     fn range(&self,start:u64,end:u64) -> Result<Vec<u8>> {
@@ -125,8 +125,9 @@ impl Source {
     }
 
     fn full_body(&self)->Result<ureq::http::Response<ureq::Body>>{
-        let used=self.single_body.as_ref().ok_or("Single stream unavailable")?;
-        if used.swap(true,Ordering::AcqRel){return Err("Unvalidated media cannot resume");}
+        if self.segmented(){return Err("Single stream unavailable");}
+        // Full GETs can be independently restarted; offset/partial data is
+        // forbidden below. Never combine separate upstream representations.
         let mut request=self.agent.get(&self.url);
         for(name,value)in &self.headers{request=request.header(name.as_str(),value.as_str());}
         let response=request.header("Range",format!("bytes=0-{}",self.total-1)).header("Accept-Encoding","identity")
@@ -187,8 +188,17 @@ fn serve(mut stream:TcpStream,source:&Source,path:&str,job:&AtomicBool,shutdown:
         let _=write!(stream,"HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",source.total);return;
     };
     let status=if range.is_some(){"206 Partial Content"}else{"200 OK"};
-    if !source.segmented(){
-        if start!=0||end!=source.total-1{reject(&mut stream,"416 Range Not Satisfiable");return;}
+    if let Some(probe)=source.single_probe{
+        // Aria2 may request a one-byte capability probe before its real GET.
+        // Respond with the previously read byte, not a second media body.
+        if range.is_some()&&start==0&&end==0&&source.total>1{
+            if write!(stream,"HTTP/1.1 206 Partial Content\r\nContent-Length: 1\r\nContent-Type: {}\r\nContent-Range: bytes 0-0/{}\r\nAccept-Ranges: none\r\nConnection: close\r\n\r\n",source.mime,source.total).is_ok()&&!head{let _=stream.write_all(&[probe]);}
+            return;
+        }
+        if start!=0||end!=source.total-1{
+            let _=write!(stream,"HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",source.total);
+            return;
+        }
         let response=if head{None}else{match source.full_body(){Ok(r)=>Some(r),Err(_)=>{reject(&mut stream,"502 Bad Gateway");return;}}};
         if stopped(job,shutdown){return;}
         if write!(stream,"HTTP/1.1 {status}\r\nContent-Length: {}\r\nContent-Type: {}\r\nAccept-Ranges: none\r\nConnection: close\r\n",source.total,source.mime).is_err(){return;}

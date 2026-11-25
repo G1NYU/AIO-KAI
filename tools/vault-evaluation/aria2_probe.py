@@ -201,12 +201,22 @@ def main():
             engine.stop()
             if len(sys.argv) == 3:
                 native_root = pathlib.Path(temporary) / "rust"
-                subprocess.run([sys.argv[2], str(executable), origin, str(native_root)], check=True, timeout=260)
+                try:
+                    subprocess.run([sys.argv[2], str(executable), origin, str(native_root)], check=True, timeout=260)
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                    with LOCK:
+                        requests = [(method, path.split("?")[0], start, end, ranged)
+                                    for method, path, start, end, ranged in REQUESTS if ".m4a" in path]
+                    print("Audio fixture request ranges:", requests, flush=True)
+                    raise
                 assert hashlib.sha256((native_root / "output" / "one.bin").read_bytes()).hexdigest() == DIGEST
                 assert hashlib.sha256((native_root / "output" / "gateway.bin").read_bytes()).hexdigest() == DIGEST
                 assert hashlib.sha256((native_root / "runtime" / "restored.bin").read_bytes()).hexdigest() == DIGEST
                 for name in ("media", "single"):
                     assert hashlib.sha256((native_root / name / "audio.m4a").read_bytes()).hexdigest() == AUDIO_DIGEST
+                with LOCK:
+                    single_ranges = [row for row in REQUESTS if row[1].startswith("/single.m4a") and row[0] == "GET"]
+                assert single_ranges and all(row[2] == 0 and row[3] in (0, len(AUDIO) - 1) for row in single_ranges), "Unvalidated stream requested an offset or partial body"
                 print("PASS: Rust adapter, validated gateway, runtime recovery and both audio output SHA-256 hashes")
         finally:
             engine.stop()
