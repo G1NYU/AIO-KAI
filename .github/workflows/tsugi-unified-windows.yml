@@ -116,10 +116,17 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
-          ./packages/desktop/scripts/fetch-music-tools.ps1 -Destination packages/desktop/target/debug/deps/music-tools
           Push-Location packages/desktop
           try {
-            cargo test --locked -p aiostreams-desktop-core --lib live_youtube_export_writes_m4a -- --ignored --nocapture
+            $messages = cargo test --locked -p aiostreams-desktop-core --lib --no-run --message-format=json
+            if ($LASTEXITCODE -ne 0) { throw 'Native test compilation failed' }
+            $test = $messages | ForEach-Object { try { $_ | ConvertFrom-Json -ErrorAction Stop } catch {} } |
+              Where-Object { $_.reason -eq 'compiler-artifact' -and $_.profile.test -and $_.executable -and $_.target.name -eq 'aiostreams_desktop_core' } |
+              Select-Object -Last 1
+            if (-not $test -or -not (Test-Path -LiteralPath $test.executable -PathType Leaf)) { throw 'Cannot locate actual native test executable' }
+            $tools = Join-Path (Split-Path -Parent $test.executable) 'music-tools'
+            ./scripts/fetch-music-tools.ps1 -Destination $tools
+            & $test.executable live_youtube_export_writes_m4a --ignored --nocapture
             if ($LASTEXITCODE -ne 0) { throw 'Live YouTube export failed' }
           } finally { Pop-Location }
 
