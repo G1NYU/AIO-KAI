@@ -44,6 +44,9 @@ export type MusicPlayerProps = {
   eqAvailable: boolean;
   eqError: string;
   analyser?: AnalyserNode | null;
+  nativeMeter?: React.RefObject<{level:number;at:number} | null>;
+  nativeMeterAvailable?: boolean;
+  onMatrixActive?(active: boolean): void;
   isFavorite: boolean;
   canFavorite: boolean;
   canDownload?: boolean;
@@ -140,9 +143,15 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
   );
   const [matrixMode, setMatrixMode] = React.useState<MatrixMode>(() => {
     const saved = storage.get<MatrixMode>('tsugi-matrix-mode-v1');
-    return saved === 'off' || saved === 'minimal' || saved === 'immersive' ? saved : 'immersive';
+    return saved === 'off' || saved === 'minimal' || saved === 'immersive' || saved === 'wave' ? saved : 'immersive';
   });
   const template = stageId === 'imported' ? importedTemplate : null;
+  const matrixActive = p.expanded && stageId !== 'imported' && matrixMode !== 'off';
+  const onMatrixActive = p.onMatrixActive;
+  React.useEffect(() => {
+    onMatrixActive?.(matrixActive);
+    return () => onMatrixActive?.(false);
+  }, [matrixActive, onMatrixActive]);
 
   React.useEffect(() => {
     notifyEclipseAppearance();

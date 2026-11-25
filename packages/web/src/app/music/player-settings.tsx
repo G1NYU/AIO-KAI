@@ -83,9 +83,10 @@ export function PlayerSettings({
           <select aria-label={t`Pixel matrix`} className="tsugi-menu-select w-full" value={matrixMode} onChange={event => onMatrixMode(event.target.value as MatrixMode)}>
             <option value="immersive">{t`Immersive`}</option>
             <option value="minimal">{t`Minimal`}</option>
+            <option value="wave">{t`Dot wave`}</option>
             <option value="off">{t`Off`}</option>
           </select>
-          <span className="mt-2 block text-xs leading-5 text-[--tsugi-muted]"><Trans>Audio-reactive for local audio with an active equalizer graph; ambient for other sources. Reduced motion is respected.</Trans></span>
+          <span className="mt-2 block text-xs leading-5 text-[--tsugi-muted]"><Trans>Immersive fills the background; Minimal uses a sparse lower field. Dot wave follows actual local waveform or native audio levels. Unsupported streams show no reactive wave. Reduced motion is respected.</Trans></span>
         </label>}
         <div className="mb-8 border-t border-[--tsugi-line] pt-8"><GlobalAppearanceSettings /></div>
 
@@ -112,7 +113,7 @@ export function PlayerSettings({
               style={{accentColor:'var(--tsugi-accent)'}} />
           </label>
           <p className="mt-4 text-xs leading-5 text-[--tsugi-muted]">
-            <Trans>The equalizer processes locally opened audio files. Remote addon streams play without EQ to avoid cross-origin audio interruptions.</Trans>
+            <Trans>The equalizer supports local audio and the Windows native YouTube Music engine. Other remote addon streams remain unmodified to avoid cross-origin audio interruptions.</Trans>
           </p>
           {eqError && <p role="alert" className="mt-3 text-xs text-amber-200">{eqError}</p>}
         </section>

@@ -23,7 +23,7 @@ import { MusicLibrary } from './library';
 import { useRememberedMusicFolder } from './use-remembered-folder';
 import {
   createLocalEqualizer, readAudioProfile, saveAudioProfile,
-  setLocalEqualizer, type AudioProfile, type LocalEqualizer,
+  setLocalEqualizer, nativeDspMode, type AudioProfile, type LocalEqualizer,
 } from '@/lib/music/audio-profiles';
 import {
   addToMusicPlaylist, createMusicPlaylist, findLocalPlaylistMatch,
@@ -119,6 +119,9 @@ export function MusicPage({
   const [eqError, setEqError] = React.useState('');
   const eqGraph = React.useRef<LocalEqualizer | null>(null);
   const [matrixAnalyser, setMatrixAnalyser] = React.useState<AnalyserNode | null>(null);
+  const [matrixWanted, setMatrixWanted] = React.useState(false);
+  const [nativeMeterAvailable, setNativeMeterAvailable] = React.useState(false);
+  const nativeMeter = React.useRef<{ level: number; at: number } | null>(null);
   const [expanded, setExpanded] = React.useState(false);
   const [shuffle, setShuffle] = React.useState(false);
   const [repeat, setRepeat] = React.useState<RepeatMode>('off');
@@ -131,7 +134,7 @@ export function MusicPage({
   volumeRef.current = volume;
   const generation = React.useRef(0);
 
-  function nativeControl(action: 'stop' | 'pause' | 'seek' | 'volume', value = 0) {
+  function nativeControl(action: 'stop' | 'pause' | 'seek' | 'volume' | 'dsp', value = 0) {
     const current = nativeAudio.current;
     if (current) appBridge()?.send({ type: 'music-audio-control', request: current.request, action, value });
   }
@@ -139,6 +142,8 @@ export function MusicPage({
   function stopNativeAudio(advance = false) {
     const current = nativeAudio.current;
     if (current) {
+      nativeMeter.current = null;
+      setNativeMeterAvailable(false);
       clearTimeout(current.timer);
       nativeAudio.current = null;
       appBridge()?.send({ type: 'music-audio-control', request: current.request, action: advance ? 'advance' : 'stop', value: 0 });
@@ -152,6 +157,11 @@ export function MusicPage({
   React.useEffect(() => {
     const unsubscribe = appBridge()?.subscribe(message => {
       if (message.type === 'music-audio-state') nativeEvent.current(message);
+      if (message.type === 'music-audio-meter' && nativeAudio.current?.request === message.request && Number.isFinite(message.level)) {
+        nativeMeter.current = { level: Math.min(1,Math.max(0,message.level)), at: performance.now() };
+        setNativeMeterAvailable(true);
+      }
+      if (message.type === 'music-audio-dsp' && nativeAudio.current?.request === message.request) setEqError(message.error ?? '');
     });
     return () => {
       stopNativeAudio();
@@ -196,6 +206,12 @@ export function MusicPage({
   }, [audioProfile]);
 
   React.useEffect(() => {
+    if (!nativeAudio.current || resolving || !playbackAllowed) return;
+    nativeControl('dsp', nativeDspMode(audioProfile, eqEnabled, matrixWanted));
+    if (!matrixWanted) { nativeMeter.current = null; setNativeMeterAvailable(false); }
+  }, [playing, resolving, playbackAllowed, audioProfile, eqEnabled, matrixWanted]);
+
+  React.useEffect(() => {
     const element = audioRef.current;
     const active = eqGraph.current;
     if (active && (active.element !== element || playingSourceId !== LOCAL_SOURCE)) {
@@ -206,21 +222,18 @@ export function MusicPage({
       eqGraph.current = null;
     }
     if (!element || playingSourceId !== LOCAL_SOURCE || !streamUrl) return;
-    if (!eqEnabled) {
-      if (eqGraph.current) setLocalEqualizer(eqGraph.current, audioProfile, false);
-      return;
-    }
+    if (!eqEnabled && !matrixWanted && !eqGraph.current) return;
     try {
       if (!eqGraph.current) eqGraph.current = createLocalEqualizer(element);
       setMatrixAnalyser(eqGraph.current.analyser);
-      setLocalEqualizer(eqGraph.current, audioProfile, true);
+      setLocalEqualizer(eqGraph.current, audioProfile, eqEnabled);
       void eqGraph.current.context.resume();
       setEqError('');
     } catch {
       setEqError(t`Local audio EQ could not be initialized on this device.`);
       setEqEnabled(false);
     }
-  }, [streamUrl, playingSourceId, eqEnabled, audioProfile]);
+  }, [streamUrl, playingSourceId, eqEnabled, audioProfile, matrixWanted]);
 
   React.useEffect(() => {
     return () => {
@@ -387,6 +400,9 @@ export function MusicPage({
     if (!fromQueue) setQueue(tracks);
     setQueueIndex(at);
     setPlaying(track);
+    setEqError('');
+    nativeMeter.current = null;
+    setNativeMeterAvailable(false);
     setPlayingSourceId(source.id);
     setSearching(false);
     setStreamUrl('');
@@ -1011,8 +1027,11 @@ export function MusicPage({
           connections.find((item) => item.id === playingSourceId)?.manifest.name ?? '',
         queue, index: queueIndex, paused, loading: resolving, error: playError,
         position, duration, volume, quality, expanded, shuffle, repeat,
-        audioProfile, eqEnabled, eqAvailable: playingSourceId === LOCAL_SOURCE, eqError,
+        audioProfile, eqEnabled, eqAvailable: playingSourceId === LOCAL_SOURCE || (playingSourceId === YOUTUBE_MUSIC_ID && appBridge()?.platform === 'windows' && !!appBridge()?.nativeMusicAudio), eqError,
         analyser: playingSourceId === LOCAL_SOURCE ? matrixAnalyser : null,
+        nativeMeter: playingSourceId === YOUTUBE_MUSIC_ID ? nativeMeter : undefined,
+        nativeMeterAvailable: playingSourceId === YOUTUBE_MUSIC_ID && nativeMeterAvailable,
+        onMatrixActive: setMatrixWanted,
         isFavorite: !!playing && !!playlists.find(list => list.id === SAVED_PLAYLIST_ID)
           ?.tracks.some(track => track.id === playing.id && track.sourceId === playingSourceId),
         canFavorite: playingSourceId !== LOCAL_SOURCE,
