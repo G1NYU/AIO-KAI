@@ -11,6 +11,8 @@ on:
       - 'packages/desktop/core/src/read_runtime.rs'
       - 'packages/desktop/core/src/read_extension_update.rs'
       - 'packages/desktop/core/src/read_checkpoint.rs'
+      - 'packages/desktop/core/src/read_download_cleanup.rs'
+      - 'packages/desktop/core/src/read_download_cleanup_tests.rs'
       - 'packages/desktop/core/src/lib.rs'
       - 'packages/desktop/core/Cargo.toml'
       - 'packages/desktop/Cargo.lock'
@@ -63,6 +65,15 @@ jobs:
           Copy-Item packages/desktop/scripts/read-runtime/fixture/AndroidManifest-changed-source.xml "$classes/AndroidManifest.xml" -Force
           & "$java/jar.exe" --create --file "$fixtures/tsugi-fixture-v1.6.3.jar" -C $classes .
           if ($LASTEXITCODE -ne 0) { throw 'Incompatible-source extension fixture packaging failed' }
+          # Keep the existing extension-update artifacts unchanged. The cleanup
+          # source serves only original PNGs on its own ephemeral loopback port.
+          $downloadClasses = "$env:RUNNER_TEMP/tsugi-read-download-fixture-classes"
+          New-Item -ItemType Directory -Force $downloadClasses | Out-Null
+          & "$java/javac.exe" --release 21 -cp "$runtime/bin/Suwayomi-Server.jar" -d $downloadClasses packages/desktop/scripts/read-runtime/fixture/FixtureSource.java packages/desktop/scripts/read-runtime/fixture/DownloadFixtureSource.java
+          if ($LASTEXITCODE -ne 0) { throw 'Original download fixture compilation failed' }
+          Copy-Item packages/desktop/scripts/read-runtime/fixture/AndroidManifest-downloads.xml "$downloadClasses/AndroidManifest.xml"
+          & "$java/jar.exe" --create --file "$fixtures/tsugi-download-fixture-v1.6.1.jar" -C $downloadClasses .
+          if ($LASTEXITCODE -ne 0) { throw 'Original download fixture packaging failed' }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -88,7 +99,7 @@ jobs:
                 'Failed to fetch extension store', 'Shutting down HikariCP',
                 'Failed to sync preference store', 'AccessDeniedException',
                 'FileSystemException', 'SQLException', 'JdbcSQL', 'NoClassDefFoundError')
-              foreach ($kind in @('library', 'stores', 'extension', 'extension-update')) {
+              foreach ($kind in @('library', 'stores', 'extension', 'extension-update', 'download-cleanup-folder', 'download-cleanup-cbz', 'download-cleanup-locked')) {
                 $logs = Join-Path $env:TSUGI_READ_FIXTURE "$kind/logs"
                 if (Test-Path -LiteralPath $logs) {
                   foreach ($marker in $markers) {

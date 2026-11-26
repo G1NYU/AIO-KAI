@@ -19,6 +19,10 @@ use crate::bridge::MangaProgressPatch;
 mod extension_update;
 pub use extension_update::ExtensionUpdateReview;
 
+#[path = "read_download_cleanup.rs"]
+mod download_cleanup;
+pub use download_cleanup::DownloadCleanupReview;
+
 const VERSION: &str = "v2.4.2373";
 const USER: &str = "tsugi-read";
 const MAX_RESPONSE: u64 = 2 * 1024 * 1024;

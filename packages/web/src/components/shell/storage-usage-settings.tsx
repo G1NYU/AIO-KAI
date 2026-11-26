@@ -3,6 +3,7 @@ import { reviewArtworkCleanup } from '@/lib/cache/store';
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
 import { inspectManagedStorage,supportsManagedBackups,type StorageKind,type StorageRow } from '@/lib/backup/managed-archive';
+import { DownloadCleanupSettings } from './download-cleanup-settings';
 
 function size(bytes:number){
   if(bytes<1024)return bytes+' B';
@@ -65,12 +66,15 @@ export function StorageUsageSettings(){
   const [rows,setRows]=React.useState<StorageRow[]|null>(null);
   const [busy,setBusy]=React.useState(false);
   const [failed,setFailed]=React.useState(false);
+  const scanRevision=React.useRef(0);
   if(!supportsManagedBackups())return null;
+  function invalidate(){scanRevision.current++;setRows(null);setBusy(false);setFailed(false);}
   async function scan(){
+    const revision=++scanRevision.current;
     setBusy(true);setFailed(false);setRows(null);
-    try{setRows(await inspectManagedStorage());}
-    catch{setFailed(true);}
-    finally{setBusy(false);}
+    try{const result=await inspectManagedStorage();if(scanRevision.current===revision)setRows(result);}
+    catch{if(scanRevision.current===revision)setFailed(true);}
+    finally{if(scanRevision.current===revision)setBusy(false);}
   }
   const total=rows?.reduce((sum,row)=>sum+row.bytes,0)??0;
   const detailed=rows?.some(row=>row.kind==='readerChapters')??false;
@@ -85,8 +89,9 @@ export function StorageUsageSettings(){
       <div className="flex items-baseline justify-between gap-3"><strong><Trans>App data measured</Trans></strong><span>{partial?'≥ ':''}{size(total)}</span></div>
       {rows.map(row=><div key={row.kind} className="tsugi-read-row flex-wrap"><div className="min-w-0 flex-1"><span>{label(row.kind,detailed)}</span><small className="block text-[--tsugi-muted]">{row.files} <Trans>files</Trans>{!row.complete&&<> · <Trans>Partial scan</Trans></>}</small><progress className="w-full h-1" value={row.bytes} max={Math.max(1,total)} aria-label={label(row.kind,detailed)}/></div><strong>{!row.complete?'≥ ':''}{size(row.bytes)}</strong></div>)}
       {partial&&<p role="status"><Trans>Some entries were inaccessible, redirected or beyond scan limits. Reported sizes are lower bounds.</Trans></p>}
-      <p><Trans>No files were removed. Manage media downloads through their respective libraries.</Trans></p>
+      <p><Trans id="Choose a cleanup below to review which files can be removed.">Choose a cleanup below to review which files can be removed.</Trans></p>
     </div>}
-    <ArtworkCleanup onRemoved={()=>setRows(null)} />
+    <ArtworkCleanup onRemoved={invalidate} />
+    <DownloadCleanupSettings onChanged={invalidate} />
   </section>;
 }

@@ -4,7 +4,7 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 
 import { TsugiMediaIcon } from '@/components/tsugi-brand';
-import { readImage, readRequest } from '@/lib/hosts/shell/reading';
+import { closeReadingChapter, readImage, readRequest } from '@/lib/hosts/shell/reading';
 import { readerWindow, nextPageIndex, visibleReadingPage, chapterGroups, type ReadingChapter } from './reader-utils';
 import { ReaderSettings } from './reader-settings';
 import { readReaderPreferences, saveReaderPreferences, READER_DEFAULTS } from './reader-preferences';
@@ -15,6 +15,7 @@ type Props = {
   onMusic?: () => void;
   onAppSettings?: () => void;
   chapter: ReadingChapter;
+  session: string;
   count: number;
   start: number;
   chapters: ReadingChapter[];
@@ -25,7 +26,7 @@ type Props = {
   onSaved(index: number, finished: boolean): void;
 };
 type Page = { url: string; ratio?: number; shown?: boolean; error?: string };
-export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter, count, start, chapters, previous, next, onClose, onChapter, onSaved }: Props) {
+export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter, session, count, start, chapters, previous, next, onClose, onChapter, onSaved }: Props) {
   const [preferences, setPreferences] = React.useState(readReaderPreferences);
   const [settings, setSettings] = React.useState(false);
   const [chapterMenu, setChapterMenu] = React.useState(false);
@@ -47,7 +48,9 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
   visibleRef.current = visible;
   const anchor = React.useRef({ index: start, fraction: 0 });
   const mode = React.useRef(preferences.mode);
-  const closeAction = React.useRef<null | (() => void)>(null);
+  const closeAction = React.useRef<null | { run(): void; release: boolean }>(null);
+  const released = React.useRef(false);
+  const releaseGeneration = React.useRef(0);
   const focusedAt = React.useRef(Date.now());
   const saved = React.useRef<number | null>(null);
   const finish = React.useRef(false);
@@ -61,6 +64,19 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
   React.useEffect(() => {
     saveReaderPreferences(preferences);
   }, [preferences]);
+
+  React.useEffect(() => {
+    const current = ++releaseGeneration.current;
+    return () => {
+      // React's development effect replay is not a real unmount. Defer the
+      // release so a replacement setup can retain the current capability.
+      queueMicrotask(() => {
+        if (releaseGeneration.current === current && !released.current) {
+          void closeReadingChapter(chapter.id, session).catch(() => { /* retained for retry before cleanup */ });
+        }
+      });
+    };
+  }, [chapter.id, session]);
 
   function selectPage(page: number) {
     const target = Math.max(0, Math.min(count - 1, page));
@@ -159,9 +175,9 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
 
   React.useEffect(() => {
     const controller = new AbortController();
-    const session = ++generation.current;
+    const requestGeneration = ++generation.current;
     let running = false;
-    const alive = () => !controller.signal.aborted && generation.current === session;
+    const alive = () => !controller.signal.aborted && generation.current === requestGeneration;
     function publish() { if (alive()) setPages({ ...memory.current }); }
     async function tick() {
       if (running || !alive() || !visibleRef.current) return;
@@ -186,7 +202,7 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
             callbacks.current.onSaved(progress, wantFinish);
             if (visibleRef.current && wantFinish && mode.current === 'scroll' && !closeAction.current && callbacks.current.autoNext && callbacks.current.next) {
               const nextChapter = callbacks.current.next;
-              closeAction.current = () => callbacks.current.onChapter(nextChapter);
+              closeAction.current = { run: () => callbacks.current.onChapter(nextChapter), release: true };
               setClosing(true);
             }
           } catch (error) {
@@ -204,10 +220,22 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
           }
           const action = closeAction.current;
           closeAction.current = null;
+          if (action.release && !released.current) {
+            try {
+              await closeReadingChapter(chapter.id, session);
+              if (!alive()) return;
+              released.current = true;
+            } catch (error) {
+              if (!alive()) return;
+              setSaveError(error instanceof Error ? error.message : t({ id: "The reading session could not be closed.", message: "The reading session could not be closed." }));
+              setClosing(false);
+              return;
+            }
+          }
           // Switching to Music keeps this reader mounted; release the busy
           // state before executing the navigation callback.
           setClosing(false);
-          action();
+          action.run();
           return;
         }
         if (!visibleRef.current) return;
@@ -245,7 +273,7 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
       for (const page of Object.values(memory.current)) if (page.url) URL.revokeObjectURL(page.url);
       memory.current = {};
     };
-  }, [chapter.id, count]);
+  }, [chapter.id, count, session]);
 
   function imageLoaded(page: number, image: HTMLImageElement) {
     const entry = memory.current[page];
@@ -271,14 +299,14 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
     delete memory.current[page];
     setPages({ ...memory.current });
   }
-  function leave(action: () => void, complete = false) {
+  function leave(action: () => void, complete = false, release = true) {
     if (closing) return;
     if (complete) {
       if (!memory.current[count - 1]?.shown) return;
       finish.current = !completed.current;
     }
     failedSave.current = false;
-    closeAction.current = action;
+    closeAction.current = { run: action, release };
     setClosing(true);
     setSaveError('');
   }
@@ -328,7 +356,7 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
       <button className="tsugi-read-action" aria-label={t({ id: "Chapter list", message: "Chapter list" })} aria-expanded={chapterMenu} onClick={() => { setChapterMenu(!chapterMenu); setSettings(false); }}><FiList aria-hidden /><span className="tsugi-reader-chapter-label">{chapter.name}</span></button>
       <button className="tsugi-read-action" aria-label={t({ id: "Previous chapter", message: "Previous chapter" })} disabled={closing || !previous} onClick={() => previous && leave(() => onChapter(previous))}><FiChevronLeft aria-hidden /></button>
       <button className="tsugi-read-action" aria-label={t({ id: "Next chapter", message: "Next chapter" })} disabled={closing || !next} onClick={() => next && leave(() => onChapter(next))}><FiChevronRight aria-hidden /></button>
-      {onMusic && <button className="tsugi-read-action" disabled={closing} onClick={() => leave(onMusic)} aria-label={t({ id: "Music", message: "Music" })}><TsugiMediaIcon area="music" /></button>}
+      {onMusic && <button className="tsugi-read-action" disabled={closing} onClick={() => leave(onMusic, false, false)} aria-label={t({ id: "Music", message: "Music" })}><TsugiMediaIcon area="music" /></button>}
       {onAppSettings && <button className="tsugi-read-action" disabled={closing} onClick={onAppSettings} aria-label={t({ id: "App settings", message: "App settings" })}><FiSettings aria-hidden /><span className="tsugi-reader-chapter-label"><Trans id="App settings">App settings</Trans></span></button>}
       <button className="tsugi-read-action" aria-label={t({ id: "Reader settings", message: "Reader settings" })} aria-expanded={settings} onClick={() => { setSettings(!settings); setChapterMenu(false); }}><FiSettings aria-hidden /></button>
       <button className="tsugi-read-action" aria-label={t({ id: "Focus mode", message: "Focus mode" })} aria-pressed={preferences.focus} onClick={() => { setPreferences((old) => ({ ...old, focus: !old.focus })); setChromeVisible(false); }}>{preferences.focus ? <FiMinimize aria-hidden /> : <FiMaximize aria-hidden />}</button>

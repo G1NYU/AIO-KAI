@@ -8,6 +8,7 @@ import { verifyMusicAudioBrowser } from './music-audio-browser.mjs';
 import { verifyRestoreSessionBrowser } from './restore-session-browser.mjs';
 import { verifyExtensionUpdatesBrowser } from './extension-updates-browser.mjs';
 import { verifyMihonImportBrowser } from './mihon-import-browser.mjs';
+import { verifyDownloadCleanupBrowser, verifyReaderReleaseBrowser } from './download-cleanup-browser.mjs';
 import { pathToFileURL } from 'node:url';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -46,6 +47,7 @@ try {
     const state = window.__readerFixture = { requests: [], lastPath: '', serial: 0, installed: false, stores: [], progress: [], nativeMessages: [], nativeRequest: null, vaultJobs: [], vaultRequests: [], categories: [], categorySequence: 0, updateChecks: 0 };
     const nodes = (items) => ({ nodes: items, totalCount: items.length });
     const emit = (message) => queueMicrotask(() => { for (const listener of listeners) listener(message); });
+    state.emitLink = url => emit({ type: 'link', url });
     window.aiostreamsApp = {
       protocol: 2, version: 'fixture', platform: 'windows', reading: !new URLSearchParams(location.search).has('readerSetup'), readingSetup: true, backupStore: true, tsugiReleaseCheck: true, youtubeMusic: true, nativeMusicAudio: true, torbox: true, device: 'Fixture',
       subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
@@ -194,13 +196,28 @@ try {
             else data = { mangas: a.source === '34567' ? [] : a.source === '67890' ? a.query === 'Batch Fixture' ? [batchTitle] : [replacement] : [manga], hasNextPage: false };
             break;
           case 'manga': data = a.id === 3 ? { manga: replacement, chapters: replacementChapters } : { manga, chapters }; break;
-          case 'chapter': data = { id: a.id, pageCount: 4 }; break;
+          case 'chapter':
+            state.activeChapter = { id: a.id, session: 'chapter-' + ++state.serial };
+            data = { ...state.activeChapter, pageCount: state.invalidChapterPages ? 0 : 4 };
+            if (state.deferChapterReply) {
+              const opened = data;
+              state.completeChapterOpen = () => emit({ type: 'read-result', request: message.request, data: opened, error: null });
+              return;
+            }
+            break;
+          case 'close-chapter':
+            if (state.failCloseOnce) { state.failCloseOnce = false; error = 'Fixture close busy'; break; }
+            data = { closed: state.activeChapter?.id === a.chapterId && state.activeChapter?.session === a.session };
+            if (data.closed) state.activeChapter = null;
+            break;
           case 'cover':
           case 'page':
+            if (a.kind === 'page' && state.activeChapter?.id !== a.chapterId) { error = 'Open the reading chapter first.'; break; }
             state.lastPath = '/__tsugi_read/page/' + ++state.serial;
             data = { path: state.lastPath, ...(a.kind === 'page' ? { index: a.index } : {}) };
             break;
           case 'progress':
+            if (state.activeChapter?.id !== a.chapterId) { error = 'Open the reading chapter first.'; break; }
             state.progress.push(a);
             data = { chapter: { id: a.chapterId, lastPageRead: a.index, isRead: a.finished } };
             break;
@@ -837,15 +854,33 @@ try {
   await reader.getByRole('button', { name: 'Graphite', exact: true }).click();
   assert.equal(await reader.getAttribute('data-background'), 'graphite');
   await reader.getByRole('button', { name: 'Close settings', exact: true }).click();
+  const firstReaderSession = await page.evaluate(() => window.__readerFixture.activeChapter.session);
   await reader.getByRole('button', { name: 'Chapter list', exact: true }).click();
   await reader.getByRole('button', { name: /Chapter 2 Original/ }).click();
   await page.waitForFunction(() => window.__readerFixture.requests.some((a) => a.kind === 'chapter' && a.id === 12));
   await page.waitForFunction(() => document.querySelector('.tsugi-chapter-toolbar h2')?.textContent === 'Tsugi Original Fixture' && document.querySelector('.tsugi-chapter-toolbar p')?.textContent?.includes('Chapter 2'));
   assert.equal(await page.locator('.tsugi-chapter-reader').getAttribute('data-mode'), 'spread');
+  const secondReaderSession = await page.evaluate(() => window.__readerFixture.activeChapter.session);
+  assert.notEqual(firstReaderSession, secondReaderSession);
+  assert.ok(await page.evaluate(session => {
+    const rows = window.__readerFixture.requests;
+    const release = rows.findIndex(a => a.kind === 'close-chapter' && a.session === session);
+    const next = rows.findIndex(a => a.kind === 'chapter' && a.id === 12);
+    return release >= 0 && release < next;
+  }, firstReaderSession), 'chapter switching releases the previous native capability before opening the next');
+  await page.evaluate(session => window.aiostreamsApp.send({ type: 'read-request', request: 'stale-close-probe', action: { kind: 'close-chapter', chapterId: 11, session } }), firstReaderSession);
+  assert.equal(await page.evaluate(() => window.__readerFixture.activeChapter.session), secondReaderSession, 'a delayed old release retains the current chapter');
   // A real local WAV exercises the HTML audio element, not just a policy
   // function or synthetic native status. Keep it playing through the Read
   // transition, then verify the video environment stops competing audio.
+  await page.evaluate(() => { window.__readerFixture.failCloseOnce = true; });
   await reader.getByRole('button', { name: 'Chapters', exact: true }).click();
+  await reader.getByRole('alert').filter({ hasText: 'Fixture close busy' }).waitFor();
+  assert.equal(await page.evaluate(() => window.__readerFixture.activeChapter.session), secondReaderSession, 'failed release keeps the reader open for retry');
+  await reader.getByRole('button', { name: 'Chapters', exact: true }).click();
+  await reader.waitFor({ state: 'hidden' });
+  assert.equal(await page.evaluate(() => window.__readerFixture.activeChapter), null);
+  console.log('PASS: Reader close and chapter switch release the exact native session; failed and stale releases preserve active chapters.');
   await readMedia.getByRole('button', { name: 'Music', exact: true }).click();
   const music = page.locator('[data-page="music"]');
   await music.waitFor({ state: 'visible' });
@@ -954,9 +989,11 @@ try {
   await reader.getByRole('button', { name: 'Next page', exact: true }).click();
   const chapterBefore = await reader.locator('.tsugi-chapter-toolbar p').first().textContent();
   const visiblePages = await reader.locator('.tsugi-chapter-page').evaluateAll(nodes => nodes.map(n => n.getAttribute('data-reader-page')));
+  const retainedReaderSession = await page.evaluate(() => window.__readerFixture.activeChapter.session);
   await reader.getByRole('button', { name: 'Music', exact: true }).click();
   await music.waitFor({ state: 'visible' });
   await reader.waitFor({ state: 'hidden' });
+  assert.equal(await page.evaluate(() => window.__readerFixture.activeChapter.session), retainedReaderSession, 'Music keeps the hidden Reader capability in use');
   await music.getByRole('button', { name: 'Read', exact: true }).click();
   await reader.waitFor({ state: 'visible' });
   assert.equal(await reader.locator('.tsugi-chapter-toolbar p').first().textContent(), chapterBefore);
@@ -1417,4 +1454,6 @@ try {
   await verifyRestoreSessionBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyExtensionUpdatesBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyMihonImportBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyDownloadCleanupBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyReaderReleaseBrowser({ browser, origin, installDesktopFixture });
 } finally { await browser.close(); }

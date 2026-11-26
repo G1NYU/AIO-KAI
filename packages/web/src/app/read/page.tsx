@@ -7,7 +7,7 @@ import { MediaNavigation } from '@/components/shell/media-navigation';
 import { TsugiRail } from '@/components/shell/tsugi-rail';
 import { BrushSliders } from '@/components/tsugi-icons';
 import { useDesktopArea } from '@/lib/desktop-area';
-import { prepareReading, readRequest, readImage } from '@/lib/hosts/shell/reading';
+import { closeReadingChapter, prepareReading, readRequest, readImage } from '@/lib/hosts/shell/reading';
 import { ChapterReader } from './chapter-reader';
 import { BatchAddWorkspace, MigrationWorkspace } from './collection-transfer';
 import { LandscapeSpotlight } from '@/components/landscape-spotlight';
@@ -27,7 +27,7 @@ function extensionUpdateLabel(name: string) { return t({ id: 'Select update for 
 type Manga = { id: number | string; sourceId?: string; categories?: { nodes: { id: number }[] }; title: string; author?: string | null; artist?: string | null; genre?: string[]; thumbnailUrl?: string | null; description?: string | null; inLibrary: boolean; unreadCount?: number; lastReadChapter?: { id: number; name: string; lastPageRead: number; pageCount: number; isRead: boolean; lastReadAt?: number | string } | null };
 type Details = { manga: Manga; chapters: Chapter[] };
 type Catalogue = { mangas: Manga[]; hasNextPage: boolean };
-type Reader = { chapter: Chapter; count: number; index: number };
+type Reader = { chapter: Chapter; count: number; index: number; session: string };
 type Tab = 'library' | 'history' | 'updates' | 'categories' | 'migrate' | 'batch' | 'browse' | 'settings';
 type Category = { id: number; name: string; order: number };
 type Activity = Chapter & { manga: Manga; lastReadAt?: number | string; fetchedAt?: number | string; uploadDate?: number | string };
@@ -110,6 +110,7 @@ export function ReadPage({ visible }: {
   const [stoppingExtensions, setStoppingExtensions] = React.useState(false);
   const stopExtensionUpdates = React.useRef(false);
   const active = React.useRef(true);
+  const openGeneration = React.useRef(0);
 
   async function run(work: () => Promise<void>) {
     if (lock.current) return;
@@ -198,7 +199,7 @@ export function ReadPage({ visible }: {
   React.useEffect(() => {
     active.current = true;
     void run(loadLibrary);
-    return () => { active.current = false; };
+    return () => { active.current = false; openGeneration.current++; };
   }, []);
   // Poll only while the update feed is visible; the native updater owns its
   // queue and continues safely when the user navigates away.
@@ -279,10 +280,20 @@ export function ReadPage({ visible }: {
     return chapters.find((chapter) => !chapter.isRead && chapter.lastPageRead > 0) || groups.find((group) => group.some((chapter) => !chapter.isRead))?.find((chapter) => !chapter.isRead) || groups[0]?.[0];
   }
   async function openChapter(chapter: Chapter) {
-    const result = await readRequest<{ pageCount: number }>({ kind: 'chapter', id: chapter.id });
-    if (!Number.isSafeInteger(result.pageCount) || result.pageCount < 1 || result.pageCount > 2000) throw new Error(t({ id: "This chapter has no supported pages.", message: "This chapter has no supported pages." }));
+    if (!active.current) return;
+    const generation = ++openGeneration.current;
+    const result = await readRequest<{ pageCount: number; session: string }>({ kind: 'chapter', id: chapter.id });
+    const validSession = typeof result.session === 'string' && /^chapter-[1-9]\d{0,19}$/.test(result.session);
+    const validPages = Number.isSafeInteger(result.pageCount) && result.pageCount >= 1 && result.pageCount <= 2000;
+    // A native deep link may unmount Read while the chapter opens. No
+    // ChapterReader will exist to release that late capability in this case.
+    if (!active.current || generation !== openGeneration.current || !validSession || !validPages) {
+      if (validSession) await closeReadingChapter(chapter.id, result.session);
+      if (!active.current || generation !== openGeneration.current) return;
+      throw new Error(t({ id: "This chapter has no supported pages.", message: "This chapter has no supported pages." }));
+    }
     const index = chapter.isRead || !readReaderPreferences().resume ? 0 : Math.max(0, Math.min(chapter.lastPageRead || 0, result.pageCount - 1));
-    setReader({ chapter, count: result.pageCount, index });
+    setReader({ chapter, count: result.pageCount, index, session: result.session });
   }
   async function changeChapters(ids: number[], patch: { read?: boolean; bookmarked?: boolean }) {
     if (!ids.length) return;
@@ -338,8 +349,8 @@ export function ReadPage({ visible }: {
       }
     }
   }
-  if (reader && details) return <ChapterReader key={reader.chapter.id} title={details.manga.title} visible={visible} onMusic={desktopArea?.openMusic} onAppSettings={desktopArea?.openSettings}
-    chapter={reader.chapter} count={reader.count} start={reader.index} chapters={details.chapters}
+  if (reader && details) return <ChapterReader key={reader.session} title={details.manga.title} visible={visible} onMusic={desktopArea?.openMusic} onAppSettings={desktopArea?.openSettings}
+    chapter={reader.chapter} session={reader.session} count={reader.count} start={reader.index} chapters={details.chapters}
     previous={neighboringChapter(details.chapters, reader.chapter, -1)} next={neighboringChapter(details.chapters, reader.chapter, 1)}
     onClose={() => setReader(null)} onChapter={(chapter) => { setReader(null); void run(() => openChapter(chapter)); }}
     onSaved={(index, finished) => setDetails((old) => old ? { ...old, chapters: old.chapters.map((chapter) =>

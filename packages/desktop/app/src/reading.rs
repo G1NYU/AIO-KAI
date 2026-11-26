@@ -13,7 +13,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use aiostreams_desktop_core::bridge::{Outbound, ReadAction};
-use aiostreams_desktop_core::read_runtime::{CatalogueMode, ChapterPages, ReadJob, ReadOperation, ReadRuntime};
+use aiostreams_desktop_core::read_runtime::{CatalogueMode, ChapterPages, DownloadCleanupReview, ReadJob, ReadOperation, ReadRuntime};
 use serde_json::{Value, json};
 
 use crate::Args;
@@ -161,6 +161,7 @@ impl Worker {
         let thread = thread::spawn(move || {
             let mut reader = None;
             let mut chapter = None;
+            let mut cleanup = None;
             let mut serial = 0u64;
             while !stopped.load(Ordering::Acquire) {
                 let (request, action) = match rx.recv_timeout(Duration::from_millis(100)) {
@@ -180,7 +181,7 @@ impl Worker {
                     if preparing {
                         return Ok(json!({"ready": true}));
                     }
-                    execute(reader.as_mut().unwrap(), &mut chapter, &images, &mut serial, owner, &stopped, action)
+                    execute(reader.as_mut().unwrap(), &mut chapter, &mut cleanup, &images, &mut serial, owner, &stopped, action)
                 })();
                 if !stopped.load(Ordering::Acquire) {
                     answer(&reply, request, result);
@@ -278,7 +279,8 @@ fn stage_image(cache: &Cache, serial: &mut u64, image: aiostreams_desktop_core::
 
 fn execute(
     reader: &mut ReadRuntime,
-    chapter: &mut Option<(i32, ChapterPages)>,
+    chapter: &mut Option<(i32, String, ChapterPages)>,
+    cleanup: &mut Option<DownloadCleanupReview>,
     cache: &Cache,
     serial: &mut u64,
     owner: isize,
@@ -287,6 +289,33 @@ fn execute(
 ) -> Result<Value, &'static str> {
     match action {
         ReadAction::Prepare => Err("Invalid reading setup state."),
+        ReadAction::DownloadCleanupCandidates { offset } => reader.download_cleanup_candidates(offset),
+        ReadAction::ReviewDownloadCleanup { ids } => {
+            *cleanup = None;
+            if chapter.is_some() { return Err("Close the open manga chapter before reviewing downloaded media."); }
+            let review = reader.review_download_cleanup(&ids)?;
+            let preview = review.preview();
+            *cleanup = Some(review);
+            Ok(preview)
+        }
+        ReadAction::CancelDownloadCleanup { review_id } => {
+            if !cleanup.as_ref().is_some_and(|review| review.id() == review_id) {
+                return Err("The download cleanup review is no longer available. Review the downloads again.");
+            }
+            *cleanup = None;
+            Ok(json!({"reviewId": review_id, "cancelled": true}))
+        }
+        ReadAction::ApplyDownloadCleanup { review_id } => {
+            let review = cleanup.take().filter(|review| review.id() == review_id)
+                .ok_or("The download cleanup review is no longer available. Review the downloads again.")?;
+            if chapter.is_some() { return Err("Close the open manga chapter before removing downloaded media."); }
+            if !confirm(owner, "Tsugi downloaded chapter removal", review.description()) {
+                return Ok(json!({"reviewId": review_id, "cancelled": true}));
+            }
+            if stopped.load(Ordering::Acquire) { return Err("Reading is closing."); }
+            if chapter.is_some() { return Err("Close the open manga chapter before removing downloaded media."); }
+            reader.apply_reviewed_download_cleanup(review)
+        }
         ReadAction::Status => reader.query(ReadOperation::Status),
         ReadAction::Sources => reader.query(ReadOperation::Sources),
         ReadAction::Library => reader.query(ReadOperation::Library),
@@ -379,12 +408,27 @@ fn execute(
         ReadAction::Chapter { id } => {
             let pages = reader.chapter(id)?;
             let count = pages.len();
-            *chapter = Some((id, pages));
+            *serial = serial.checked_add(1).ok_or("Reading session counter exhausted.")?;
+            let session = format!("chapter-{}", *serial);
+            *chapter = Some((id, session.clone(), pages));
             if let Ok(mut cache) = cache.lock() { *cache = None; }
-            Ok(json!({"id": id, "pageCount": count}))
+            Ok(json!({"id": id, "pageCount": count, "session": session}))
+        }
+        ReadAction::CloseChapter { chapter_id, session } => {
+            if chapter_id <= 0 || session.len() > 28 || !session.starts_with("chapter-") {
+                return Err("Invalid reading session release.");
+            }
+            // Closing an old component must not release a newer opening of
+            // the same chapter. The per-open native session binds the release.
+            let matches = chapter.as_ref().is_some_and(|(id, current, _)| *id == chapter_id && *current == session);
+            if matches {
+                *chapter = None;
+                if let Ok(mut cache) = cache.lock() { *cache = None; }
+            }
+            Ok(json!({"closed": matches}))
         }
         ReadAction::Page { chapter_id, index } => {
-            let (_, pages) = chapter.as_ref().filter(|(id, _)| *id == chapter_id)
+            let (_, _, pages) = chapter.as_ref().filter(|(id, _, _)| *id == chapter_id)
                 .ok_or("Open the reading chapter first.")?;
             let image = reader.page(pages, index)?;
             let mut result = stage_image(cache, serial, image)?;
@@ -392,7 +436,7 @@ fn execute(
             Ok(result)
         }
         ReadAction::Progress { chapter_id, index, finished } => {
-            let (_, pages) = chapter.as_ref().filter(|(id, _)| *id == chapter_id)
+            let (_, _, pages) = chapter.as_ref().filter(|(id, _, _)| *id == chapter_id)
                 .ok_or("Open the reading chapter first.")?;
             reader.save_progress(pages, index, finished)
         }

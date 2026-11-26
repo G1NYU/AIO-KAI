@@ -19,6 +19,10 @@ export type ReadAction =
   | { kind: 'install-extension' | 'update-extension' | 'uninstall-extension'; package: string }
   | { kind: 'catalogue'; source: string; page: number; mode: 'popular' | 'latest' | 'search'; query?: string }
   | { kind: 'manga' | 'chapter' | 'cover'; id: number }
+  | { kind: 'close-chapter'; chapterId: number; session: string }
+  | { kind: 'download-cleanup-candidates'; offset: number }
+  | { kind: 'review-download-cleanup'; ids: number[] }
+  | { kind: 'apply-download-cleanup' | 'cancel-download-cleanup'; reviewId: string }
   | { kind: 'set-library'; id: number; inLibrary: boolean }
   | { kind: 'page'; chapterId: number; index: number }
   | { kind: 'progress'; chapterId: number; index: number; finished: boolean }
@@ -42,14 +46,30 @@ export function supportsReading(): boolean {
 }
 
 let sequence = 0;
+// An unmounted reader may encounter a busy native queue while releasing its
+// capability. Retry that exact, idempotent release before a cleanup request.
+const closingChapters = new Map<string, number>();
 export async function readRequest<T>(action: ReadAction): Promise<T> {
   if (action.kind === 'prepare' ? !supportsReadingSection() : !supportsReading()) throw new Error(t({ id: "Reading is not available in this app.", message: "Reading is not available in this app." }));
+  if (action.kind === 'download-cleanup-candidates' || action.kind === 'review-download-cleanup' || action.kind === 'apply-download-cleanup') {
+    for (const [session, chapterId] of [...closingChapters]) await closeReadingChapter(chapterId, session);
+  }
   const request = 'read-' + Date.now() + '-' + ++sequence;
   const response = await ask({ type: 'read-request', request, action }, 'read-result', {
-    timeoutMs: action.kind === 'prepare' ? 20 * 60_000 : action.kind === 'update-extension' ? 10 * 60_000 : action.kind === 'tracker-login' ? 240_000 : 180_000, matches: (message) => message.request === request,
+    timeoutMs: action.kind === 'prepare' ? 20 * 60_000 : action.kind === 'update-extension' || action.kind === 'apply-download-cleanup' || action.kind === 'review-download-cleanup' ? 10 * 60_000 : action.kind === 'tracker-login' ? 240_000 : 180_000, matches: (message) => message.request === request,
   });
   if (response.error || response.data == null) throw new Error(response.error || t({ id: "Reading request returned no data.", message: "Reading request returned no data." }));
   return response.data as T;
+}
+
+export async function closeReadingChapter(chapterId: number, session: string): Promise<void> {
+  if (!Number.isSafeInteger(chapterId) || chapterId <= 0 || !/^chapter-[1-9]\d{0,19}$/.test(session)) {
+    throw new Error(t({ id: "The reading session could not be closed.", message: "The reading session could not be closed." }));
+  }
+  closingChapters.set(session, chapterId);
+  const result = await readRequest<{ closed: boolean }>({ kind: 'close-chapter', chapterId, session });
+  if (typeof result.closed !== 'boolean') throw new Error(t({ id: "The reading session could not be closed.", message: "The reading session could not be closed." }));
+  closingChapters.delete(session);
 }
 
 export async function prepareReading(): Promise<void> {
