@@ -774,6 +774,7 @@ mod private_storage {
 /// The caller must supply a trusted, current-user app-data parent path.
 /// Root and sensitive files must pass the owner-only ACL checks.
 struct ReadStorage {
+    temp_dir: std::path::PathBuf,
     _lock: fs::File,
     password: String,
 }
@@ -828,7 +829,11 @@ impl ReadStorage {
         for path in [&lock_path, &key_path, &config_path] {
             user.verify(path, false)?;
         }
-        Ok(Self { _lock: lock, password })
+        // Java and Suwayomi otherwise share TEMP/Tachidesk across portable installations.
+        let temp_dir = data.join("runtime-temp");
+        user.create_root(&temp_dir)?;
+        user.verify(&temp_dir, true)?;
+        Ok(Self { _lock: lock, password, temp_dir })
     }
 }
 
@@ -1026,6 +1031,7 @@ impl ReadRuntime {
         drop(listener);
         let job = ReadJob::new()?;
         let mut child = Command::new(java)
+            .arg(format!("-Djava.io.tmpdir={}", storage.temp_dir.display()))
             .arg(format!(
                 "-Dsuwayomi.tachidesk.config.server.rootDir={}",
                 data.display()
@@ -1875,10 +1881,16 @@ mod tests {
             user.verify(&data.join(name), false).unwrap();
         }
         assert!(ReadStorage::open(&data, 12346).is_err());
+        user.verify(&first.temp_dir, true).unwrap();
+        fs::write(first.temp_dir.join("fixture"), b"one").unwrap();
+        let other = ReadStorage::open(&parent.join("second"), 12347).unwrap();
+        assert!(!other.temp_dir.join("fixture").exists());
+        drop(other);
         let password = first.password.clone();
         drop(first);
         let reopened = ReadStorage::open(&data, 12346).unwrap();
         assert!(reopened.password == password);
+        assert_eq!(fs::read(reopened.temp_dir.join("fixture")).unwrap(), b"one");
         drop(reopened);
         let public = parent.join("public");
         private_storage::create_public_fixture(&public, &user);

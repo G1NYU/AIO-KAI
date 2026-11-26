@@ -75,3 +75,16 @@ Settings requests a detailed scan of the same app-data root. Older requests reta
 | WebView disk cache | `WebView2/EBWebView/Default/Cache` | Recognized default-profile HTTP cache directory. Other layouts, IndexedDB book blobs, site storage and unrecognized cache directories stay in the WebView total. |
 
 The native worker shares the original traversal budgets across subcategories. A skipped parent can make subsidiary counts partial. Directory names classify measured files for display only. They do not establish that files are disposable, unmodified, idle, or safe to remove. Installed binaries and external folders remain unmeasured.
+
+### Cleanup ownership review
+
+| Candidate | Owner and verified scope | Requirement before offering cleanup |
+|---|---|---|
+| Reader cache | Pinned Suwayomi uses `reading/cache/kcef` as an embedded browser profile. Its WebviewMutation clears cookies along with cache. | Preserve source sessions. The aggregate Reader cache size cannot be offered as reclaimable space. |
+| Cached chapter pages and thumbnails | Pinned ImageMutation calls `ImageResponse.clearImages`, which recursively removes a directory under the JVM temporary Tachidesk root. Upstream defaults to a shared temporary root. Tsugi now passes a private per-installation JVM temp directory to its managed launcher. | Measure only the two image subdirectories beneath the isolated root. Coordinate with the running reader, reject redirects and revalidate before deletion. |
+| Downloaded chapters | The offline chapter directory contains persistent media. | Use the owning runtime's per-chapter removal contract after verifying identity, pin state, in-use readers, and current transfer state. |
+| WebView disk cache | WebView2 distinguishes DiskCache from IndexedDB, cookies and other profile data. Its API operates on a profile, while A1.9b measures one recognized directory. | Verify the active profile, measure exactly the reviewed scope, recheck on apply and verify book payloads, preferences and sessions after operation. |
+
+The storage inventory alone authorizes no cleanup. Test deletion on disposable Windows profiles, including a changed target between review and apply, before exposing a destructive action.
+
+The managed Reader now opens and verifies an owner-only runtime-temp directory inside its locked data root. Existing installations acquire this directory on next launch. The legacy system temp folder is neither migrated nor cleaned. The native ACL fixture checks two independent profiles and reopening the first.
