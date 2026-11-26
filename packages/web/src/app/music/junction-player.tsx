@@ -47,8 +47,9 @@ export function JunctionPlayer({
   if (!song) return null;
   const next = p.queue[p.index + 1];
   const lyricIndex = lyrics ? lyricAt(lyrics.synced, p.position) : -1;
+  const lyricStart = Math.max(0, lyricIndex - 2);
   return (
-    <div data-ui="tsugi-junction" data-layout={layout}
+    <div data-ui="tsugi-junction" data-layout={layout} data-lyrics-open={lyricsOpen}
       className="tsugi-native-stage grid w-full flex-1 items-center">
       {layout === 'nocturne' && song.artworkURL && <div className="tsugi-nocturne-backdrop" aria-hidden="true"><MusicArtwork source={song.artworkURL} className="size-full object-cover" /></div>}
       {matrixMode !== 'off' && <PixelMatrix mode={matrixMode} accent={palette.accent} paused={p.paused || p.loading} analyser={p.analyser} nativeMeter={p.nativeMeter} />}
@@ -68,10 +69,11 @@ export function JunctionPlayer({
             <Trans>Up next</Trans> · {next.title}
           </span>}
         </div>
+        {lyricsOpen && <div className="oto-lyrics-track"><p className="oto-overline">{song.album || p.sourceName}</p><h2>{song.title}</h2><p>{song.artist}</p></div>}
       </section>
 
       <section className="tsugi-junction-content relative flex min-w-0 flex-col justify-center">
-        <header className="min-w-0">
+        <header className="oto-listening-heading min-w-0">
           <p className="tsugi-eyebrow"><Trans>Now playing</Trans></p>
           {matrixMode !== 'off' && <p className="tsugi-matrix-label">{p.analyser || p.nativeMeterAvailable ? (matrixMode === 'wave' ? <Trans>Audio-reactive dot wave</Trans> : <Trans>Audio-reactive matrix</Trans>) : matrixMode === 'wave' ? (p.visualizerUnavailable ? <Trans>Audio visualization unavailable for this stream</Trans> : <Trans>Waiting for audio data</Trans>) : <Trans>Ambient matrix</Trans>}</p>}
           <h1 className="tsugi-track-title mt-5 break-words text-[clamp(2.2rem,4.5vw,4.8rem)] font-semibold leading-[1.07] tracking-[-.055em]">
@@ -91,10 +93,11 @@ export function JunctionPlayer({
             : lyricsError ? <p role="status" className="text-sm">{lyricsError}</p>
             : lyrics?.synced.length ? (
               <div className="tsugi-stage-lyric-lines space-y-2" aria-label={t`Lyrics`}>
-                {lyrics.synced.slice(Math.max(0,lyricIndex),Math.max(0,lyricIndex)+(layout === 'nocturne' ? 5 : 2)).map((line,at) =>
+                {lyrics.synced.slice(lyricStart, lyricStart + 8).map((line,at) =>
                   <button key={line.at + ':' + at} type="button" onClick={() => p.onSeek(line.at)}
-                    aria-current={lyricIndex >= 0 && at === 0 ? 'true' : undefined}
-                    className={at === 0 ? 'block text-start text-lg font-medium' : 'block text-start text-sm opacity-60'}>
+                    aria-current={lyricStart + at === lyricIndex ? 'true' : undefined}
+                    className="oto-lyric-line block text-start">
+                    <span className="oto-lyric-time" aria-hidden="true">{Math.floor(line.at / 60)}:{String(Math.floor(line.at % 60)).padStart(2, '0')}</span>
                     {line.text}
                   </button>)}
               </div>
@@ -102,7 +105,7 @@ export function JunctionPlayer({
             : <p className="text-sm"><Trans>No matching lyrics found.</Trans></p>}
         </div>
 
-        <div className="space-y-5">
+        <div className="oto-listening-transport space-y-5">
           <Timeline p={p} palette={palette} />
           <Transport p={p} palette={palette} large />
         </div>
@@ -127,6 +130,12 @@ export function JunctionPlayer({
           </div>
           <VolumeControl value={p.volume} onChange={p.onVolume} />
         </div>
+
+        {!lyricsOpen && next && <button type="button" className="oto-up-next" disabled={p.loading} onClick={() => p.onQueue(p.index + 1)}>
+          {next.artworkURL ? <MusicArtwork source={next.artworkURL} target={160} className="oto-row-art" /> : <span className="oto-row-art oto-row-placeholder"><BiDisc aria-hidden /></span>}
+          <span><small><Trans>Up next</Trans></small><strong>{next.title}</strong><span>{next.artist}</span></span>
+          <FiList aria-hidden />
+        </button>}
 
         {(p.loading || p.error) && (
           <p role={p.error ? 'alert' : 'status'} className="text-sm text-amber-200">

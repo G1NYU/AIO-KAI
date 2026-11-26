@@ -16,9 +16,9 @@ export type PlayerPalette = {
 /** Mocha uses official Catppuccin tokens; Matte deliberately uses neutral blacks. */
 export const PLAYER_PALETTES: Record<PlayerThemeId, PlayerPalette> = {
   sumi: {
-    foreground: '#E8E6DF', surface: '#171A1D', canvas: '#101214',
-    panel: '#202428', border: '#363C41', accent: '#D5D5DC',
-    accentText: '#101214', muted: '#A3ABB0',
+    foreground: '#EFEEE8', surface: '#17191E', canvas: '#0C0D10',
+    panel: '#202228', border: '#2B2D34', accent: '#F17960',
+    accentText: '#0C0D10', muted: '#969AA5',
   },
   mocha: {
     foreground: '#CDD6F4', surface: '#181825', canvas: '#11111B',
@@ -73,6 +73,7 @@ export function savePlayerTheme(theme: PlayerThemeId): void {
 /** Accent and canvas are independent saved preferences. Presets are deliberately
  *  constrained to accessible colors instead of accepting arbitrary CSS. */
 export const PLAYER_ACCENTS = {
+  coral: '#F17960',
   silver: '#D5D5DC',
   blue: '#9AB8FF',
   lavender: '#B4BEFE',
@@ -87,8 +88,8 @@ export function isPlayerAccent(value: unknown): value is PlayerAccentId {
 export function readPlayerAccent(): PlayerAccentId {
   try {
     const value = storage.get<unknown>(ACCENT_KEY);
-    return isPlayerAccent(value) ? value : 'silver';
-  } catch { return 'silver'; }
+    return isPlayerAccent(value) ? value : 'coral';
+  } catch { return 'coral'; }
 }
 export function savePlayerAccent(value: PlayerAccentId): void {
   if (isPlayerAccent(value)) storage.set(ACCENT_KEY, value);

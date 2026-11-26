@@ -115,6 +115,7 @@ export async function verifyMusicAudioBrowser({ browser, origin, installDesktopF
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
     const music = page.locator('[data-page="music"]');
     await music.waitFor({ state: 'visible' });
+    await music.getByRole('button', { name: 'Music sources', exact: true }).click();
     const sourceSettings = music.getByRole('dialog', { name: 'Music sources', exact: true });
     await sourceSettings.getByRole('textbox', { name: 'Eclipse addon manifest URL' }).fill(addonOrigin + '/manifest.json');
     await sourceSettings.getByRole('button', { name: 'Connect', exact: true }).click();

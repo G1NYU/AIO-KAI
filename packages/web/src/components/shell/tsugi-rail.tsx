@@ -19,13 +19,16 @@ export function TsugiRail({ area, disabled = false, children, footer, className 
   if (!actions) return null;
   const allMedia = t({ id: 'All media', message: 'All media' });
   const settings = t({ id: 'App settings', message: 'App settings' });
-  return <aside className={'tsugi-desktop-rail ' + className} data-ui="tsugi-desktop-rail" data-area={area}>
+  const sectionLabel = area === 'read' ? t({ id: 'Read', message: 'Read' }) : area === 'music' ? t({ id: 'Music', message: 'Music' }) : area === 'vault' ? t({ id: 'Vault', message: 'Vault' }) : t({ id: 'Video', message: 'Video' });
+  return <aside className={'tsugi-desktop-rail ' + className} data-ui="tsugi-desktop-rail" data-area={area} aria-label={sectionLabel}>
+    <button type="button" className="tsugi-rail-brand" disabled={disabled} onClick={actions.openWelcome} title={allMedia} aria-label={allMedia}>
+      <TsugiBrand className="tsugi-rail-signature" />
+      <span className="tsugi-rail-context" aria-hidden="true">{sectionLabel}</span>
+    </button>
+    <div className="tsugi-rail-workspace">{children}</div>
     <nav className={'tsugi-rail-media ' + mediaClassName} aria-label={t({ id: 'Media sections', message: 'Media sections' })}>
-      <button type="button" className="tsugi-rail-brand" disabled={disabled} onClick={actions.openWelcome} title={allMedia} aria-label={allMedia}><TsugiBrand markOnly /></button>
       {mediaDestinations(actions).map(({ id, label, open }) => <button type="button" key={id} disabled={disabled} onClick={open} aria-current={area === id ? 'page' : undefined} title={label} aria-label={label}><TsugiMediaIcon area={id} /></button>)}
     </nav>
-    <div className="tsugi-pixel-rule" aria-hidden="true" />
-    <div className="tsugi-rail-workspace">{children}</div>
-    {(globalSettings || footer) && <div className="tsugi-rail-footer"><div className="tsugi-pixel-rule" aria-hidden="true" />{globalSettings && <button type="button" className="tsugi-rail-global" disabled={disabled} onClick={actions.openSettings} title={settings} aria-label={settings}><TsugiIcon name="settings" /></button>}{footer}</div>}
+    {(globalSettings || footer) && <div className="tsugi-rail-footer">{globalSettings && <button type="button" className="tsugi-rail-global" disabled={disabled} onClick={actions.openSettings} title={settings} aria-label={settings}><TsugiIcon name="settings" /><span>{settings}</span></button>}{footer}</div>}
   </aside>;
 }

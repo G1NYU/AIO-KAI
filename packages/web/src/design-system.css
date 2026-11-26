@@ -1,0 +1,185 @@
+/* Shared production tokens adapted from the supplied design references.
+   Section styles consume these roles; saved palettes still come from appearance. */
+@font-face { font-family:Interface; src:url('./assets/design/interface-regular.woff2') format('woff2'); font-style:normal; font-weight:400; font-display:swap; }
+@font-face { font-family:Interface; src:url('./assets/design/interface-medium.woff2') format('woff2'); font-style:normal; font-weight:500; font-display:swap; }
+@font-face { font-family:Interface; src:url('./assets/design/interface-semibold.woff2') format('woff2'); font-style:normal; font-weight:600 900; font-display:swap; }
+@font-face { font-family:Amanojaku; src:url('./assets/design/amanojaku.otf') format('opentype'); font-style:normal; font-weight:400; font-display:swap; }
+@font-face { font-family:'Tsugi Japanese'; src:url('./assets/design/noto-jp.otf') format('opentype'); font-style:normal; font-weight:400; font-display:swap; }
+
+:root[data-host='desktop'] {
+  --tsugi-font:Interface,Inter,'Segoe UI',Arial,sans-serif;
+  --tsugi-display:var(--tsugi-font);
+  --tsugi-feature-font:Amanojaku,Interface,sans-serif;
+  --tsugi-japanese:'Tsugi Japanese','Yu Gothic',sans-serif;
+  --tsugi-sage:#afc4ac;
+  --tsugi-rail-width:208px;
+  --tsugi-rail-control:40px;
+  --tsugi-rail-icon:18px;
+  --tsugi-rail-gap:4px;
+  --tsugi-page-gap:32px;
+  --tsugi-radius-panel:14px;
+  --tsugi-radius-control:8px;
+  --tsugi-player-height:88px;
+  font-family:var(--tsugi-font);
+  color:var(--tsugi-ink);
+  background:var(--tsugi-canvas);
+}
+
+:root[data-host='desktop'] :is(body,button,input,select,textarea,[data-ui='shell'],.tsugi-vault-root,.tsugi-music-root,.tsugi-read-root,.tsugi-chapter-reader,.tsugi-book-reader,.tsugi-global-settings,.tsugi-settings-sheet,.tsugi-player-dialog) {
+  font-family:var(--tsugi-font);
+}
+:root[data-host='desktop'] :is(.tsugi-read-action,.tsugi-menu-select,.tsugi-music-input) { border-radius:var(--tsugi-radius-control); }
+:root[data-host='desktop'] :is(.tsugi-series-primary,.tsugi-vault-capture-primary) { background:var(--tsugi-accent); color:var(--tsugi-on-accent); }
+
+/* One sidebar owns all media navigation and the established TSUGI identity. */
+:root[data-host='desktop'] .tsugi-desktop-rail {
+  padding:20px 18px 16px;
+  gap:16px;
+  align-items:stretch;
+  background:color-mix(in srgb,var(--tsugi-canvas) 70%,var(--tsugi-surface));
+}
+:root[data-host='desktop'] .tsugi-desktop-rail > .tsugi-rail-brand {
+  display:flex;
+  flex:none;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  width:100%;
+  min-height:82px;
+  margin:0 0 8px!important;
+  padding:0 0 14px;
+  border:0;
+  background:transparent;
+  cursor:pointer;
+  text-align:center;
+}
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-signature { gap:10px; }
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-signature > svg { width:32px; height:32px; }
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-signature .tsugi-brand-wordmark { width:70px; }
+.tsugi-rail-context { max-width:100%; color:var(--tsugi-muted); font-size:11px; font-weight:500; line-height:1.4; overflow-wrap:anywhere; }
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-workspace { width:100%; scrollbar-width:thin; scrollbar-color:var(--tsugi-panel) transparent; }
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-workspace::-webkit-scrollbar { display:block; width:4px; }
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-workspace::-webkit-scrollbar-thumb { background:var(--tsugi-panel); border-radius:4px; }
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-local { align-items:stretch; gap:4px; }
+:root[data-host='desktop'] .tsugi-desktop-rail :is(.tsugi-rail-local,.tsugi-rail-footer) > button {
+  width:100%;
+  min-height:40px;
+  height:auto;
+  padding:11px 13px;
+  gap:12px;
+  justify-content:flex-start;
+  font-size:12px;
+  line-height:1.35;
+  text-align:left;
+  color:var(--tsugi-muted);
+  background:transparent;
+  border-radius:8px;
+}
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-local > button:nth-child(even) { background:transparent; }
+:root[data-host='desktop'] .tsugi-desktop-rail :is(.tsugi-rail-local,.tsugi-rail-media) > button[aria-current='page'] {
+  background:color-mix(in srgb,var(--tsugi-accent) 15%,var(--tsugi-canvas));
+  color:var(--tsugi-accent);
+}
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-local > button:hover:not(:disabled) { background:var(--tsugi-row-hover); color:var(--tsugi-ink); }
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-reading-rail-label {
+  display:block;
+  margin:0;
+  padding:18px 13px 9px;
+  color:var(--tsugi-muted);
+  font-size:8px;
+  font-weight:500;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+}
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-reading-rail-label:first-child { padding-top:4px; }
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-local > .tsugi-pixel-rule + button,
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-local > .tsugi-pixel-rule + .tsugi-reading-rail-label + button { margin-block-start:0; }
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-media {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:4px;
+  padding:7px 0;
+  border-radius:10px;
+  background:var(--tsugi-surface);
+}
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-media > button { width:100%; height:36px; min-height:36px; border-radius:6px; }
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-footer { align-items:stretch; gap:4px; }
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-footer > button { font-size:11px; }
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-pixel-rule { display:none; }
+
+/* Bundled illustrations are decoration. Featured content keeps its real cover. */
+:root[data-host='desktop'] .tsugi-design-spotlight {
+  min-height:310px;
+  padding:30px 34px;
+  border-radius:16px;
+  align-items:center;
+  margin-bottom:26px;
+}
+:root[data-host='desktop'] .tsugi-design-spotlight[data-design-area='read'] { min-height:348px; }
+:root[data-host='desktop'] .tsugi-design-spotlight[data-design-area='vault'] { min-height:260px; }
+:root[data-host='desktop'] .tsugi-design-spotlight .tsugi-spotlight-backdrop::after {
+  background:linear-gradient(90deg,#0b1016e8,#0b1016ba 35%,#0b101630 68%,#0b10160a),linear-gradient(0deg,#0b101645,transparent 55%);
+}
+:root[data-host='desktop'] .tsugi-design-spotlight .tsugi-design-illustration { object-position:center; }
+:root[data-host='desktop'] .tsugi-design-spotlight .tsugi-spotlight-copy { max-width:min(72%,780px); }
+:root[data-host='desktop'] .tsugi-design-spotlight .tsugi-spotlight-copy h2 {
+  font:400 clamp(42px,5vw,78px)/.98 var(--tsugi-feature-font);
+  letter-spacing:0;
+  text-wrap:balance;
+  margin:16px 0;
+  padding-block:3px 10px;
+  color:#efeee8;
+}
+:root[data-host='desktop'] .tsugi-design-spotlight .tsugi-feature-kicker { font-size:9px; letter-spacing:.25em; color:#efeee8; text-transform:uppercase; }
+:root[data-host='desktop'] .tsugi-design-spotlight .tsugi-spotlight-copy > p:not(.tsugi-feature-kicker) { color:#c2c4c9; font-size:13px; max-width:550px; line-height:1.7; }
+:root[data-host='desktop'] .tsugi-design-spotlight .tsugi-spotlight-source-cover {
+  inset:auto 32px 36px auto;
+  width:110px;
+  height:154px;
+  border-radius:9px;
+  z-index:1;
+  box-shadow:0 12px 28px #0007;
+}
+:root[data-host='desktop'] .tsugi-design-spotlight[data-design-area='music'] .tsugi-spotlight-source-cover { width:114px; height:114px; }
+:root[data-host='desktop'] .tsugi-design-spotlight .tsugi-spotlight-source-cover img { width:100%; height:100%; object-fit:cover; border-radius:inherit; }
+:root[data-host='desktop'] .tsugi-design-spotlight .tsugi-landscape-credit { inset-inline-end:18px; bottom:12px; background:#0c0d1080; font-size:10px; border-radius:6px; }
+:root[data-host='desktop'] .tsugi-design-spotlight .tsugi-landscape-credit button { text-decoration:none; padding:3px 5px; }
+:root[data-host='desktop'] .tsugi-design-spotlight .tsugi-landscape-credit button:hover { background:#ffffff18; border-radius:4px; }
+
+:root[data-host='desktop'] .tsugi-global-settings { border-radius:var(--tsugi-radius-panel); }
+:root[data-host='desktop'] .tsugi-global-settings > header { padding-bottom:20px; border:0; }
+:root[data-host='desktop'] .tsugi-global-settings > section { border-radius:12px; margin-bottom:12px; }
+
+/* The authenticated video shell reserves the same width as its shared rail. */
+@media(min-width:1024px) {
+  :root[data-host='desktop'] .UI-AppLayoutSidebar__root:has(> .tsugi-desktop-rail) { width:var(--tsugi-rail-width); }
+  :root[data-host='desktop'] .UI-AppLayout__root.with-sidebar:has(> .UI-AppLayoutSidebar__root > .tsugi-desktop-rail) > .UI-AppLayout__root { padding-inline-start:var(--tsugi-rail-width); }
+}
+
+@media(max-width:1300px) and (min-width:761px) {
+  :root[data-host='desktop'] { --tsugi-rail-width:184px; --tsugi-page-gap:24px; }
+  :root[data-host='desktop'] .tsugi-desktop-rail { padding-inline:14px; }
+  :root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-local > button { padding-inline:10px; gap:10px; }
+}
+@media(max-width:760px) {
+  :root[data-host='desktop'] { --tsugi-rail-width:58px; --tsugi-rail-control:40px; --tsugi-rail-icon:20px; --tsugi-page-gap:14px; }
+  :root[data-host='desktop'] .tsugi-desktop-rail { padding:10px 7px; gap:10px; }
+  :root[data-host='desktop'] .tsugi-desktop-rail > .tsugi-rail-brand { min-height:44px; margin-bottom:0!important; padding:0; }
+  :root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-signature .tsugi-brand-wordmark,
+  .tsugi-rail-context { display:none; }
+  :root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-signature { gap:0; }
+  :root[data-host='desktop'] .tsugi-desktop-rail :is(.tsugi-rail-local,.tsugi-rail-footer) > button { min-height:40px; height:40px; padding:0; gap:0; justify-content:center; font-size:0; }
+  :root[data-host='desktop'] .tsugi-desktop-rail .tsugi-reading-rail-label { height:12px; padding:0; font-size:0; }
+  :root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-media { grid-template-columns:1fr; gap:2px; padding:4px; }
+  :root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-media > button { height:34px; min-height:34px; }
+  :root[data-host='desktop'] .tsugi-design-spotlight,
+  :root[data-host='desktop'] .tsugi-design-spotlight[data-design-area] { min-height:290px; padding:24px 20px 46px; }
+  :root[data-host='desktop'] .tsugi-design-spotlight .tsugi-spotlight-copy { max-width:100%; }
+  :root[data-host='desktop'] .tsugi-design-spotlight .tsugi-spotlight-copy h2 { font-size:clamp(35px,7vw,56px); }
+  :root[data-host='desktop'] .tsugi-design-spotlight .tsugi-spotlight-source-cover { display:none; }
+  :root[data-host='desktop'] .tsugi-design-spotlight .tsugi-spotlight-backdrop::after { background:linear-gradient(90deg,#0b1016ee,#0b101699),linear-gradient(0deg,#0b101680,transparent); }
+}
+@media(prefers-reduced-motion:reduce) {
+  :root[data-host='desktop'] .tsugi-desktop-rail button { transition:none; }
+}

@@ -3,6 +3,7 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { formatBytes } from '@aiostreams/ui/core/format';
 import { LocalComicImportController, localComicImportBusy, type LocalComicRequest, type LocalComicResult, type LocalComicError } from './local-comic-import-state';
+import { YomiBanner } from './yomi-banner';
 
 export function useLocalComicImport(request: LocalComicRequest) {
   const [controller] = React.useState(() => new LocalComicImportController(request));
@@ -46,6 +47,7 @@ export function LocalComicImport({ localImport, busy, onClose, onImported, onOpe
   }
   return <dialog ref={dialog} data-ui="local-comic-import" className="tsugi-global-settings" role="dialog" aria-modal="true" aria-label={t({ id: 'Import local comic', message: 'Import local comic' })} onCancel={event => { event.preventDefault(); void close(); }}>
     <header><h2><Trans id="Import local comic">Import local comic</Trans></h2><button className="tsugi-read-action" disabled={working} onClick={() => void close()}><Trans id="Close">Close</Trans></button></header>
+    <YomiBanner eyebrow={t({ id: 'Your own stories', message: 'Your own stories' })} title={t({ id: 'Make yourself at home.', message: 'Make yourself at home.' })} description={t({ id: 'Choose a CBZ, review its pages and add it to your collection.', message: 'Choose a CBZ, review its pages and add it to your collection.' })} artwork="/design/shared/hero-train.webp" />
     <p className="my-4 text-sm text-[--tsugi-muted]"><Trans id="Choose one CBZ with PNG or JPEG pages. Archives are limited to 256 MiB, 512 MiB after expansion and 2,000 pages. Review it before adding it to Read.">Choose one CBZ with PNG or JPEG pages. Archives are limited to 256 MiB, 512 MiB after expansion and 2,000 pages. Review it before adding it to Read.</Trans></p>
     {working && <p role="status" className="my-4 text-sm text-[--tsugi-muted]">{snapshot.phase === 'choosing'
       ? t({ id: 'Choose a CBZ in the native file window. Tsugi will validate it for review.', message: 'Choose a CBZ in the native file window. Tsugi will validate it for review.' })

@@ -322,7 +322,7 @@ export function WebLayout() {
               <AppLayoutSidebar data-ui="sidebar">
                 {unifiedRail ? (
                   <TsugiRail area="video" globalSettings={false} footer={<>
-                    <button type="button" title={settingsItem.name} aria-label={settingsItem.name} aria-current={settingsItem.isCurrent ? 'page' : undefined} onClick={settingsItem.onClick}><TsugiIcon name="settings" /></button>
+                    <button type="button" title={settingsItem.name} aria-label={settingsItem.name} aria-current={settingsItem.isCurrent ? 'page' : undefined} onClick={settingsItem.onClick}><TsugiIcon name="settings" /><span>{settingsItem.name}</span></button>
                     <SidebarAccount you={you} />
                   </>}>
                     <nav className="tsugi-rail-local" aria-label={t({ id: 'Video sections', message: 'Video sections' })}>
@@ -330,7 +330,7 @@ export function WebLayout() {
                         const icons: Record<string, TsugiIconName> = { home: 'home', discover: 'compass', search: 'search', favourites: 'heart', live: 'video', calendar: 'calendar', activity: 'history', playlists: 'list', party: 'people', downloads: 'download' };
                         const name = icons[item.id || ''];
                         const Icon = item.iconType;
-                        return <button key={item.id} type="button" data-name={item.id} title={item.name} aria-label={item.name} aria-current={item.isCurrent ? 'page' : undefined} onClick={item.onClick}>{name ? <TsugiIcon name={name} /> : Icon ? <Icon /> : null}</button>;
+                        return <button key={item.id} type="button" data-name={item.id} title={item.name} aria-label={item.name} aria-current={item.isCurrent ? 'page' : undefined} onClick={item.onClick}>{name ? <TsugiIcon name={name} /> : Icon ? <Icon /> : null}<span>{item.name}</span></button>;
                       })}
                     </nav>
                     <HistoryButtons />

@@ -105,6 +105,17 @@ export function PlayerSettings({
               ))}
             </select>
           </label>
+          <dl className="oto-eq-preview" aria-label={t`Three-band profile gains`}>
+            {([
+              { label:t`Low`, value:AUDIO_PROFILES[audioProfile].low },
+              { label:t`Mid`, value:AUDIO_PROFILES[audioProfile].mid },
+              { label:t`High`, value:AUDIO_PROFILES[audioProfile].high },
+            ]).map(band => <div key={band.label}>
+              <dt>{band.label}</dt>
+              <dd>{band.value > 0 ? '+' : ''}{band.value} <Trans>dB</Trans></dd>
+              <meter min={-6} max={6} value={band.value} aria-label={band.label} />
+            </div>)}
+          </dl>
           <label className="flex items-center justify-between gap-5 text-sm">
             <Trans>Enable equalizer</Trans>
             <input type="checkbox" className="size-4" disabled={!eqAvailable}

@@ -1,0 +1,14 @@
+.tsugi-hero-artwork { position:absolute; inset:0; z-index:-2; overflow:hidden; pointer-events:none; }
+.tsugi-hero-artwork > :is(img,svg) { position:absolute; inset:0; display:block; width:100%; height:100%; object-fit:cover; object-position:inherit; }
+.tsugi-hero-artwork + .tsugi-landscape-credit { max-width:calc(100% - 32px); }
+:root[data-host='desktop'] :is(.yomi-banner,.kura-hero,.tsugi-library-intro,.yomi-series-hero):has(> .tsugi-landscape-credit[data-ui='landscape-artwork-controls']) { padding-block-end:58px; }
+:root[data-host='desktop'] .oto-feature:has(> [data-ui='landscape-artwork-controls']) .oto-feature-copy { padding-block-end:58px; }
+:root[data-host='desktop'] .oto-feature > .tsugi-landscape-credit { inset-inline-start:34px; inset-inline-end:auto; bottom:10px; max-width:calc(100% - 210px); }
+.tsugi-spotlight-featured-next { position:absolute; inset-inline-start:34px; bottom:12px; z-index:2; padding:5px 8px; border-radius:6px; background:#101116cc; color:#efeee8; font-size:10px; }
+@media(max-width:760px) {
+  :root[data-host='desktop'] .oto-feature > .tsugi-landscape-credit { inset-inline-start:20px; max-width:calc(100% - 40px); }
+  :root[data-host='desktop'] .oto-feature:has(> .oto-feature-controls) .oto-feature-copy { padding-block-end:88px; }
+  :root[data-host='desktop'] .oto-feature:has(> .oto-feature-controls) > .tsugi-landscape-credit { bottom:50px; }
+  .tsugi-landscape-spotlight:has(.tsugi-spotlight-featured-next) { padding-bottom:88px!important; }
+  .tsugi-spotlight-featured-next { inset-inline-start:20px; bottom:46px; }
+}

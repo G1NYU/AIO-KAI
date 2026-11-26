@@ -102,7 +102,7 @@ export function GlobalAppearanceSettings() {
     })}</div>
     <h3 className="tsugi-accent-heading"><Trans id="Accent">Accent</Trans></h3>
     <div className="tsugi-accent-options">{(Object.keys(PLAYER_ACCENTS) as PlayerAccentId[]).map(id => {
-      const label = id === 'silver' ? t({ id: "Silver", message: "Silver" }) : id === 'blue' ? t({ id: "Blue", message: "Blue" }) : id === 'lavender' ? t({ id: "Lavender", message: "Lavender" }) : id === 'amber' ? t({ id: "Amber", message: "Amber" }) : t({ id: "Rose", message: "Rose" });
+      const label = id === 'coral' ? t`Coral` : id === 'silver' ? t({ id: "Silver", message: "Silver" }) : id === 'blue' ? t({ id: "Blue", message: "Blue" }) : id === 'lavender' ? t({ id: "Lavender", message: "Lavender" }) : id === 'amber' ? t({ id: "Amber", message: "Amber" }) : t({ id: "Rose", message: "Rose" });
       return <button type="button" key={id} aria-pressed={accent === id} onClick={() => { savePlayerAccent(id); announce(theme); }}><i aria-hidden style={{ background: PLAYER_ACCENTS[id] }} />{label}</button>;
     })}</div>
     {hasImported && <label className="flex items-center gap-3"><input type="checkbox" checked={useImported} onChange={(event) => { storage.set(IMPORT_COLORS_KEY, event.target.checked); announce(theme); }} /><Trans id="Use imported player layout colours throughout Tsugi">Use imported player layout colours throughout Tsugi</Trans></label>}

@@ -18,6 +18,7 @@ import { verifySupportSummaryBrowser } from './support-summary-browser.mjs';
 import { verifyReaderDownloadsBrowser } from './reader-downloads-browser.mjs';
 import { verifyLocalComicImportBrowser } from './local-comic-import-browser.mjs';
 import { verifyVaultBookImportsBrowser } from './vault-book-import-browser.mjs';
+import { verifyLandscapeDecorationBrowser } from './landscape-decoration-browser.mjs';
 import { pathToFileURL } from 'node:url';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -580,30 +581,42 @@ try {
   await vault.getByRole('region',{name:'Getting started with Vault'}).waitFor();
   assert.equal(await vault.locator('.tsugi-vault-intake').count(),1);
   const vaultShell=vault.locator('.tsugi-vault-workspace');
-  assert.equal(await vaultShell.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),3);
+  assert.equal(await vaultShell.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),2);
   assert.equal(await vaultShell.locator('.tsugi-dashboard-metrics > div').count(),4);
   assert.equal(await vaultShell.locator('.tsugi-dashboard-right').getByRole('heading',{name:'Save to',exact:true}).count(),1);
   // Compare rendered colors, not raw CSS variable text: the column must
   // match the media rail across theme changes while selected rows retain contrast.
-  const assertCanvasColumns = async (container, selector) => {
-    const colors = await container.evaluate((node, selector) => {
+  const assertWorkspaceSurfaces = async (container, selector, token='--tsugi-canvas', minimum=2) => {
+    const colors = await container.evaluate((node, {selector,token}) => {
       const probe = document.createElement('span');
-      probe.style.cssText = 'position:absolute;visibility:hidden;background:var(--tsugi-canvas)';
+      probe.style.cssText = `position:absolute;visibility:hidden;background:var(${token})`;
       node.appendChild(probe);
       const canvas = getComputedStyle(probe).backgroundColor;
       probe.remove();
-      const columns = [...node.querySelectorAll(selector)].map(column => getComputedStyle(column).backgroundColor);
+      const columns = [...node.querySelectorAll(selector)].map(column => {
+        let surface = column;
+        while (surface) {
+          const color = getComputedStyle(surface).backgroundColor;
+          if (color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent') return color;
+          surface = surface.parentElement;
+        }
+        return 'transparent';
+      });
       return { canvas, columns };
-    }, selector);
-    assert.ok(colors.columns.length >= 2, 'both workspace columns are present');
-    assert.ok(colors.columns.every(color => color === colors.canvas), 'workspace column backing matches canvas: ' + JSON.stringify(colors));
+    }, {selector,token});
+    assert.ok(colors.columns.length >= minimum, 'workspace management surfaces are present');
+    assert.ok(colors.columns.every(color => color === colors.canvas), 'workspace backing matches its shared palette role: ' + JSON.stringify(colors));
   };
-  await assertCanvasColumns(vaultShell, '.tsugi-dashboard-left,.tsugi-dashboard-right');
-  const vaultSelection = await vaultShell.locator('.tsugi-dashboard-nav[aria-pressed="true"]').first().evaluate(node => ({
-    row: getComputedStyle(node).backgroundColor, column: getComputedStyle(node.closest('.tsugi-dashboard-left')).backgroundColor
+  await assertWorkspaceSurfaces(vaultShell, '.tsugi-dashboard-center,.tsugi-dashboard-right');
+  const vaultSelection = await vault.locator('[data-ui="kura-download-navigation"] .tsugi-dashboard-nav[aria-pressed="true"]').first().evaluate(node => ({
+    row: getComputedStyle(node).backgroundColor, column: getComputedStyle(node.closest('.tsugi-desktop-rail')).backgroundColor
   }));
   assert.notEqual(vaultSelection.row, vaultSelection.column, 'selected Vault row remains distinguishable');
-  assert.deepEqual(heroRequests,[],'Vault does not fetch remote decorative artwork');
+  await vault.locator('[data-ui="kura-hero"]').getByText('Kitsu',{exact:true}).waitFor();
+  assert.ok(heroRequests.includes('kitsu-image-2'),'Vault uses the shared landscape API after rejecting a failed image');
+  assert.equal(heroRequests.filter(value=>value==='kitsu').length,1,'hidden media workspaces do not fetch decorative catalogues');
+  await vault.locator('[data-ui="kura-hero"]').getByRole('button',{name:'Use local artwork',exact:true}).click();
+  const localArtworkRequestCount = heroRequests.length;
   await capture('01-vault-onboarding');
   await vault.getByRole('button',{name:'Got it',exact:true}).click();
   assert.equal(await vault.getByRole('region',{name:'Getting started with Vault'}).count(),0);
@@ -631,7 +644,7 @@ try {
   assert.ok((await entryAtmosphere.locator('.tsugi-brand-wordmark').boundingBox()).width > 240);
   assert.equal(await entryAtmosphere.locator('svg').count(),0,'only signature text in background');
   assert.equal(await entry.getByRole('button', { name: 'Connect', exact: true }).evaluate((node) => getComputedStyle(node).borderRadius), '8px');
-  assert.equal(await entry.evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(16, 18, 20)');
+  assert.equal(await entry.evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(12, 13, 16)');
   assert.equal(await entry.locator('.tsugi-auth-brand').count(), 0, 'desktop setup has no redundant foreground wordmark');
   await capture('02-movie-setup');
   const mediaNav = page.locator('.tsugi-entry-media-nav');
@@ -663,17 +676,20 @@ try {
     const media = node.querySelector('.tsugi-rail-media');
     const controls = [...media.querySelectorAll('button')].map(button => {
       const r = button.getBoundingClientRect();
-      return [Math.round(r.x - rect.x), Math.round(r.y - rect.y), Math.round(r.width), Math.round(r.height)];
+      return [Math.round(r.x - rect.x), Math.round(r.width), Math.round(r.height)];
     });
-    const rule = getComputedStyle(node.querySelector('.tsugi-pixel-rule'));
-    return { width: Math.round(rect.width), top: Math.round(rect.y), controls, font: getComputedStyle(node).fontFamily, border: getComputedStyle(node).borderInlineEndWidth, separator: rule.display };
+    const rules = [...node.querySelectorAll('.tsugi-pixel-rule')];
+    return { width: Math.round(rect.width), top: Math.round(rect.y), controls, font: getComputedStyle(node).fontFamily, border: getComputedStyle(node).borderInlineEndWidth, separatorsHidden: rules.every(rule=>getComputedStyle(rule).display==='none') };
   });
   await rail.waitFor({ state: 'visible' });
   const readRailGeometry = await railGeometry(rail);
-  assert.equal(readRailGeometry.width, 80);
+  assert.equal(readRailGeometry.width, 208);
   assert.equal(readRailGeometry.border, '0px');
-  assert.ok(readRailGeometry.font.startsWith('Inter'));
-  assert.equal(readRailGeometry.separator, 'none', 'navigation groups use spacing without separator lines');
+  assert.ok(readRailGeometry.font.startsWith('Interface'));
+  assert.equal(readRailGeometry.separatorsHidden, true, 'navigation groups use spacing without separator lines');
+  assert.equal(await rail.locator('.tsugi-rail-context').textContent(),'Read');
+  assert.equal(await rail.locator('.tsugi-rail-signature .tsugi-brand-wordmark').count(),1,'sidebar keeps the established TSUGI signature');
+  assert.ok(await rail.locator('.tsugi-rail-local button').first().evaluate(node=>parseFloat(getComputedStyle(node).fontSize)>=11),'desktop sidebar labels are visible');
   assert.equal(await page.locator('html').getAttribute('data-tsugi-accent'), 'amber');
   await rail.getByRole('button', { name: 'App settings', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).waitFor();
@@ -686,6 +702,9 @@ try {
   await page.locator('.tsugi-library-grid-heading').waitFor();
   assert.equal(await page.locator('.tsugi-library-grid-heading > span').textContent(), '2');
   const hero = page.locator('[data-ui="landscape-spotlight"]');
+  await hero.locator('img[src="/design/yomi/hero-torii.webp"]').waitFor();
+  assert.equal(heroRequests.length,localArtworkRequestCount,'the shared local-only choice prevents external decoration in Read');
+  await hero.getByRole('button',{name:'Enable external illustration',exact:true}).click();
   await hero.getByRole('button',{name:'Next illustration',exact:true}).waitFor();
   await hero.locator('img[src*="/cover_images/2/"]').waitFor();
   await page.bringToFront();
@@ -695,7 +714,6 @@ try {
   assert.ok(heroRequests.includes('kitsu-image')&&heroRequests.includes('kitsu-image-2')&&heroRequests.includes('nekos'));
   await page.locator('.tsugi-library-controls').waitFor();
   await capture('03-reading-library');
-  const remoteCount=heroRequests.length;
   await page.evaluate(()=>window.__readerFixture.heroFeatured=true);
   await page.getByRole('button',{name:'Refresh library',exact:true}).click();
   await hero.getByRole('heading',{name:'Tsugi Original Fixture',exact:true}).waitFor();
@@ -703,11 +721,12 @@ try {
   assert.equal(await hero.getAttribute('data-artwork-mode'),'featured');
   await hero.getByRole('button',{name:'Next featured title',exact:true}).click();
   await hero.getByRole('heading',{name:'ZZ Missing Fixture',exact:true}).waitFor();
-  assert.equal(await hero.locator('.tsugi-spotlight-backdrop img').count(),0,'missing featured cover uses local illustration');
-  assert.equal(heroRequests.length,remoteCount,'no unrelated external art requested for featured manga');
+  assert.equal(await hero.locator('.tsugi-spotlight-source-cover img').count(),0,'missing featured cover never invents a title cover');
+  assert.equal(await hero.locator('img[src="/design/yomi/hero-torii.webp"]').count(),1,'missing featured cover retains the bundled illustration');
+  assert.equal(await hero.locator('[data-ui="landscape-decoration"]').count(),1,'decorative landscape stays separate from the actual featured cover');
   await page.evaluate(()=>window.__readerFixture.heroFeatured=false);
   await page.getByRole('button',{name:'Refresh library',exact:true}).click();
-  await hero.getByRole('heading',{name:'A world of stories',exact:true}).waitFor();
+  await hero.getByRole('heading',{name:'A world between pages.',exact:true}).waitFor();
   assert.deepEqual(coverQueries, []);
   await rail.getByRole('button', { name: 'Categories', exact: true }).click();
   await page.getByRole('textbox', { name: 'New category', exact: true }).fill('Seinen');
@@ -821,10 +840,14 @@ try {
   await page.getByRole('button', { name: /Original source/ }).click();
   await page.locator('.tsugi-manga-card').first().click();
   await page.getByRole('heading', { name: 'Tsugi Original Fixture' }).waitFor();
-  assert.equal(await page.locator('.tsugi-series-layout').evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').length), 2);
-  const artColumn = await page.locator('.tsugi-series-layout .tsugi-manga-detail').boundingBox();
+  assert.equal(await page.locator('.tsugi-series-layout').evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').length), 1);
+  assert.equal(await page.locator('.yomi-series-body').evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').length), 2);
+  const seriesHero = await page.locator('.tsugi-series-layout .tsugi-manga-detail').boundingBox();
   const chapterColumn = await page.locator('.tsugi-series-chapters').boundingBox();
-  assert.ok(artColumn.x + artColumn.width < chapterColumn.x, 'manga metadata and chapters occupy distinct columns');
+  const summaryColumn = await page.locator('.yomi-series-summary').boundingBox();
+  assert.ok(seriesHero.y + seriesHero.height < chapterColumn.y, 'full-width series hero sits above the chapter workspace');
+  assert.ok(chapterColumn.x + chapterColumn.width < summaryColumn.x, 'chapters and synopsis occupy distinct columns');
+  assert.ok(Math.abs(seriesHero.width - (summaryColumn.x + summaryColumn.width - chapterColumn.x)) <= 1, 'series hero spans the chapter and synopsis workspace');
   const readPrimary = await page.getByRole('button', { name: /Start or resume reading/ }).boundingBox();
   const trackingAction = await page.getByRole('button', { name: 'Tracking', exact: true }).boundingBox();
   assert.ok(readPrimary.y + readPrimary.height < 900 && trackingAction.y + trackingAction.height < 900, 'primary reading and tracking controls fit above the fold');
@@ -896,7 +919,7 @@ try {
   await music.waitFor({ state: 'visible' });
   await page.setViewportSize({ width: 2560, height: 1440 });
   const musicRailGeometry = await railGeometry(music.locator('[data-ui="tsugi-desktop-rail"]'));
-  assert.deepEqual(musicRailGeometry, readRailGeometry, 'Music and Read share exact media rail geometry and typography');
+  assert.deepEqual(musicRailGeometry, readRailGeometry, 'Music and Read share sidebar width, control sizing and typography; footer height follows the live player');
   const musicSettings = music.getByRole('dialog', { name: 'Music sources' });
   if (!(await musicSettings.isVisible())) await music.getByRole('button', { name: 'Music sources', exact: true }).click();
   await musicSettings.waitFor();
@@ -916,7 +939,7 @@ try {
   assert.ok(fixedViewport.nominal - fixedViewport.right >= -1 && fixedViewport.nominal - fixedViewport.right <= 9, 'fixed viewport excludes at most the 8px scrollbar: ' + geometry);
   assert.ok(Math.abs(drawer.x + drawer.width - fixedViewport.right) < 2, 'music sources drawer is flush to the fixed viewport edge: ' + geometry);
   assert.ok(['x', 'y', 'width', 'height'].every(key => Math.abs(backdrop[key] - fixedViewport[key]) < 2), 'music sources backdrop covers the fixed viewport: ' + geometry);
-  assert.ok((await music.locator('.tsugi-music-workspace').boundingBox()).width > 2400, 'wide desktop music workspace uses the canvas');
+  assert.ok((await music.locator('.tsugi-music-workspace').boundingBox()).width > 2200, 'wide desktop music workspace uses the canvas beside the labelled sidebar');
   await musicSettings.getByRole('button', { name: 'Addon store', exact: true }).click();
   await musicSettings.getByRole('heading', { name: 'Eclipse community addon store', exact: true }).waitFor();
   await capture('10-addon-store');
@@ -930,9 +953,9 @@ try {
   if (await musicSettings.isVisible()) await musicSettings.getByRole('button', { name: 'Close', exact: true }).click();
   await music.getByRole('button', { name: 'Library', exact: true }).click();
   await music.getByRole('heading',{name:'Your music, organized.',exact:true}).waitFor();
-  assert.equal(await music.locator('.tsugi-library-shell').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),3);
-  await music.locator('.tsugi-hub-inspector').getByRole('heading',{name:'Sources & plugins',exact:true}).waitFor();
-  await assertCanvasColumns(music.locator('.tsugi-library-shell'), '.tsugi-library-sidebar,.tsugi-hub-inspector');
+  assert.equal(await music.locator('.tsugi-library-shell').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),2);
+  await music.locator('.tsugi-hub-inspector').getByRole('heading',{name:'Your music sources',exact:true}).waitFor();
+  await assertWorkspaceSurfaces(music.locator('.tsugi-library-shell'), '.tsugi-library-sidebar,.tsugi-hub-inspector','--tsugi-surface');
   assert.equal(await music.locator('.tsugi-atmosphere[data-placement="library"]').count(),0);
   const libraryNavFits = await music.locator('.tsugi-library-sidebar').evaluate(sidebar => {
     const edge = sidebar.getBoundingClientRect();
@@ -943,6 +966,9 @@ try {
   });
   assert.ok(libraryNavFits, 'collection navigation stays inside its sidebar');
   await capture('06-music-library-overview');
+  await music.getByRole('group',{name:'Filter music source'}).getByRole('button',{name:'Local',exact:true}).click();
+  assert.equal(await music.getByRole('group',{name:'Filter music source'}).getByRole('button',{name:'Local',exact:true}).getAttribute('aria-pressed'),'true','Overview source selection survives synchronized sidebar navigation');
+  await music.getByRole('navigation',{name:'Music sections'}).getByRole('button',{name:'Library',exact:true}).click();
   await music.getByRole('navigation',{name:'Music collection'}).getByRole('button',{name:/Local music/}).click();
   await music.getByRole('textbox',{name:'Find tracks',exact:true}).waitFor();
   const musicLibraryGlyph = await music.getByRole('navigation', { name: 'Music sections' }).getByRole('button', { name: 'Library', exact: true }).locator('svg path').first().getAttribute('d');
@@ -1023,10 +1049,12 @@ try {
   await musicSettings.getByRole('button', { name: 'Connect YouTube Music', exact: true }).click();
   await music.getByRole('button', { name: 'Discover', exact: true }).click();
   await music.getByRole('heading', { name: 'Native fixture track', exact: true }).waitFor();
+  await music.locator('.oto-feature').getByText('Kitsu',{exact:true}).waitFor();
+  assert.equal(await music.locator('.oto-feature .oto-feature-cover img').count(),1,'Music preserves actual catalogue artwork over its decorative landscape');
   assert.equal(await music.getByRole('heading', { name: 'Discover', exact: true }).count(), 1);
   await music.locator('.tsugi-catalog-lane').filter({ hasText: 'Fixture recommendations' }).waitFor();
   await page.setViewportSize({ width: 2560, height: 1440 });
-  assert.ok((await music.locator('.tsugi-music-workspace').boundingBox()).width > 2400);
+  assert.ok((await music.locator('.tsugi-music-workspace').boundingBox()).width > 2200);
   await capture('09-music-discover-wide');
   await page.setViewportSize({ width: 1440, height: 900 });
   await capture('09-music-discover');
@@ -1039,9 +1067,9 @@ try {
   await detail.getByRole('button', { name: 'Play all', exact: true }).waitFor();
   assert.equal(await detail.locator('.tsugi-atmosphere').count(),0);
   const trackBounds = await detail.getByRole('region', { name: 'Collection tracks' }).boundingBox();
-  assert.ok(trackBounds.width>500&&trackBounds.width<1200);
-  assert.equal(await detail.locator('.tsugi-hub-collection').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),3);
-  await assertCanvasColumns(detail.locator('.tsugi-hub-collection'), '.tsugi-dashboard-left,.tsugi-dashboard-right');
+  assert.ok(trackBounds.width>1000&&trackBounds.width<=1440,'collection tracks use the available wide canvas');
+  assert.equal(await detail.locator('.tsugi-hub-collection').evaluate(node=>getComputedStyle(node).display),'block');
+  await assertWorkspaceSurfaces(detail.locator('.tsugi-hub-collection'), '.tsugi-hub-inspector','--tsugi-surface',1);
   assert.equal(await detail.locator('.tsugi-hub-remote-columns').getByText('Source',{exact:true}).count(),1);
   const trackGrid=detail.locator('.tsugi-music-detail-track-grid');
   const assertTrackSeam = async () => {
@@ -1050,9 +1078,14 @@ try {
   };
   await assertTrackSeam();
   assert.equal(await trackGrid.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),1);
+  await music.locator('.oto-mini-player').getByRole('button', { name: 'Expand player', exact: true }).click({ trial: true });
+  const collectionBottom = await detail.boundingBox();
+  const collectionPlayer = await music.locator('.oto-mini-player').boundingBox();
+  assert.ok(collectionBottom.y + collectionBottom.height <= collectionPlayer.y + 1, 'collection keeps the live mini-player controls exposed');
   await page.setViewportSize({width:800,height:900});
   assert.equal(await trackGrid.evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length),1);
   await assertTrackSeam();
+  await music.locator('.oto-mini-player').getByRole('button', { name: 'Expand player', exact: true }).click({ trial: true });
   await page.setViewportSize({width:1440,height:900});
   await detail.getByRole('textbox',{name:'Find collection tracks'}).fill('Collection track 12');
   assert.equal(await detail.locator('.tsugi-music-detail-track').count(),1);
@@ -1231,13 +1264,38 @@ try {
       await capture('08-expanded-queue');
       await stage.getByRole('button', { name: 'Close queue', exact: true }).click();
       await page.setViewportSize({ width: 2560, height: 1440 });
-      const wide = await stage.evaluate(node => ({ art: node.querySelector('.tsugi-junction-art').getBoundingClientRect().width, viewport: innerWidth }));
-      assert.ok(wide.art >= 850, 'wide native stage scales artwork beyond old cap');
+      const wide = await stage.evaluate(node => {
+        const art = node.querySelector('.tsugi-junction-art').getBoundingClientRect();
+        const content = node.querySelector('.tsugi-junction-content').getBoundingClientRect();
+        const bounds = node.getBoundingClientRect();
+        return { art: { width: art.width, height: art.height, left: art.left, right: art.right }, content: { left: content.left, right: content.right }, stage: { left: bounds.left, right: bounds.right }, viewport: innerWidth, scroll: node.scrollWidth, client: node.clientWidth };
+      });
+      assert.ok(wide.art.width >= 620 && wide.art.width <= 700, 'wide OTO stage retains the supplied design\'s balanced artwork scale');
+      assert.ok(Math.abs(wide.art.width - wide.art.height) <= 1, 'wide artwork remains square');
+      assert.ok(wide.content.left - wide.art.right >= 24, 'wide artwork and listening controls remain distinct columns');
+      assert.ok(wide.art.left >= wide.stage.left && wide.content.right <= wide.stage.right + 1 && wide.stage.right <= wide.viewport && wide.scroll <= wide.client + 1, 'wide player content fits without horizontal clipping');
       await capture('08-expanded-nocturne-wide');
       await page.setViewportSize({ width: 1440, height: 900 });
     }
     await capture('08-expanded-' + layout);
   }
+  await page.setViewportSize({ width: 440, height: 900 });
+  await expanded.getByRole('button', { name: 'Player settings', exact: true }).click();
+  const narrowSettings = expanded.getByRole('dialog', { name: 'Player settings' });
+  const narrowHeaderToggle = narrowSettings.getByRole('checkbox', { name: 'Show player header' });
+  const narrowHeaderWasChecked = await narrowHeaderToggle.isChecked();
+  await narrowHeaderToggle.uncheck();
+  await narrowSettings.getByRole('button', { name: 'Close', exact: true }).click();
+  for (const name of ['Minimise player', 'Player settings', 'Download track']) {
+    const control = expanded.getByRole('button', { name, exact: true });
+    assert.equal(await control.isVisible(), true, name + ' remains visible with the player header disabled');
+    const bounds = await control.boundingBox();
+    assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 440 && bounds.y >= 0 && bounds.y + bounds.height <= 900, name + ' fits the narrow player');
+  }
+  await expanded.getByRole('button', { name: 'Player settings', exact: true }).click();
+  assert.equal(await narrowHeaderToggle.isChecked(), false, 'hidden player context does not hide access to its settings');
+  await narrowHeaderToggle.setChecked(narrowHeaderWasChecked);
+  await narrowSettings.getByRole('button', { name: 'Close', exact: true }).click();
   await page.setViewportSize({ width: 720, height: 900 });
   const narrowStage = expanded.locator('[data-layout="nocturne"]');
   const narrowGeometry = await narrowStage.evaluate(node => {
@@ -1401,7 +1459,7 @@ try {
   await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).waitFor({state:'detached'});
   await books.getByLabel('Choose ebook files').setInputFiles({name:'Tsugi PDF Fixture.pdf',mimeType:'application/pdf',buffer:pdfFixture()});
   await books.locator('.tsugi-library-summary strong').filter({hasText:/^2$/}).waitFor();
-  await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).getByText('0%',{exact:true}).waitFor();
+  await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).getByText('Not started',{exact:true}).waitFor();
   await books.getByRole('button',{name:'App settings',exact:true}).click();
   const freshExportEvent=page.waitForEvent('download');
   await bookBackup.getByRole('button',{name:'Export book progress',exact:true}).click();
@@ -1462,6 +1520,7 @@ try {
   await setup.getByText("Already use Mihon, Komikku or another Tachiyomi-compatible fork? Tsugi supports the same compatible extension repositories. After setup, add a trusted repository URL in Settings → Browse → Sources → Extension repositories, then install individual extensions from Extensions. Sources are not bundled, and compatibility varies by extension.",{exact:true}).waitFor();
   await capture('13-reader-setup-compatibility');
   assert.deepEqual(errors, []);
+  await verifyLandscapeDecorationBrowser({ browser, origin, installDesktopFixture });
   await verifyAppSeparatorsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyMusicAudioBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyRestoreSessionBrowser({ browser, origin, installDesktopFixture, screenshotDir });

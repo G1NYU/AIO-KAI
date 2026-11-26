@@ -12,6 +12,7 @@ on:
       - 'packages/web/scripts/**'
       - 'packages/web/ebook-frame/**'
       - 'packages/web/public/tsugi-books/**'
+      - 'packages/web/public/design/**'
       - 'packages/desktop/app/**'
       - 'packages/desktop/core/**'
       - 'packages/desktop/Cargo.lock'
@@ -344,6 +345,11 @@ jobs:
           Internet access is required once for this setup. No CMD is needed.
 
           Movies & TV, Music, Read and Vault run in the same Tsugi application.
+          Read, Music and Vault include the integrated visual redesign.
+          Kitsu and Nekos provide optional decorative hero images. Fallback
+          artwork and fonts are bundled for offline use; local artwork can be
+          selected in any hero. Real title and album covers remain separate.
+          Extract this candidate into a new folder; retain your working copy.
           Keep the .portable marker; portable data is stored beside current/.
 
           VAULT ACCEPTANCE
@@ -387,6 +393,14 @@ jobs:
             }
             foreach ($required in @('.portable', 'current/Tsugi.exe', 'current/music-tools/yt-dlp.exe', 'current/music-tools/deno.exe', 'current/read-launcher/TsugiReadLauncher.class', 'current/read-launcher/fetch-read-tools.ps1', 'current/web/index.html', 'LICENSE', 'README-TEST.txt', 'BUILD-INFO.json')) {
               if ($required -notin $names) { throw "Unified artifact missing $required" }
+            }
+            foreach ($asset in @('yomi/hero-torii.webp','oto/hero-yuna.webp','kura/hero-kura.webp','shared/hero-neon.webp','shared/hero-train.webp')) {
+              if ("current/web/design/$asset" -notin $names) { throw "Redesign artwork missing $asset" }
+            }
+            foreach ($font in @('amanojaku','interface-regular','interface-medium','interface-semibold','noto-jp')) {
+              if (-not ($names | Where-Object { $_ -match ("^current/web/.*" + [regex]::Escape($font) + "[.-].*\.(otf|woff2)$") })) {
+                throw "Redesign font missing $font"
+              }
             }
             if ('Start Tsugi.cmd' -in $names -or 'Start-Tsugi.ps1' -in $names) { throw 'Legacy manual launcher in Tsugi package' }
             if ('current/aiostreams-desktop.exe' -in $names) { throw 'Legacy executable name in Tsugi package' }

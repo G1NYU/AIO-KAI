@@ -96,7 +96,7 @@ export function BookReader({ entry, file, onClose }: { entry: BookEntry; file: F
     await writing.current;
     onClose();
   }
-  return <section className="tsugi-book-reader" data-ui="tsugi-book-reader">
+  return <section className="tsugi-book-reader yomi-book-reader" data-ui="tsugi-book-reader">
     <header className="tsugi-chapter-toolbar tsugi-book-toolbar">
       <button type="button" className="tsugi-read-action" disabled={closing} onClick={() => void close()}><BrushBack aria-hidden/><Trans>Back to books</Trans></button>
       <strong className="truncate">{title}</strong>

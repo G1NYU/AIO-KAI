@@ -182,7 +182,7 @@ export async function verifySourceFeedBrowser({ browser, origin, installDesktopF
     await complete('success', 'stopped'); await idle();
     assert.equal((await calls()).length, before + 1);
     await feed.getByRole('status').filter({ hasText: 'Feed stopped after the current source.' }).waitFor();
-    await source('12345').getByText('Alpha fixture popular page 1 stopped', { exact: true }).waitFor();
+    await source('12345').locator('.tsugi-manga-title').filter({ hasText: /^Alpha fixture popular page 1 stopped$/ }).waitFor();
 
     before = (await calls()).length;
     await refresh().click(); await pending('12345');

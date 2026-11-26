@@ -1,5 +1,6 @@
 import { BrushDisc as BiDisc, BrushSearch as BiSearch, BrushPlug as BiPlug, BrushClose as FiX, BrushPlus as FiPlus, BrushPlay as FiPlay, BrushPause as FiPause, BrushPrevious as FiSkipBack, BrushNext as FiSkipForward } from '@/components/tsugi-icons';
 import React from 'react';
+import './oto.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 
@@ -31,7 +32,7 @@ import {
   savedTrack, type SavedMusicTrack,
 } from '@/lib/music/library';
 import { TsugiRail } from '@/components/shell/tsugi-rail';
-import { BrushCompass, BrushSearch, BrushMusicLibrary, BrushDownload } from '@/components/tsugi-icons';
+import { BrushCompass, BrushSearch, BrushMusicLibrary, BrushDownload, BrushHistory, BrushFolder, BrushHeart, BrushRight } from '@/components/tsugi-icons';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 import type { TrendingRecording } from '@/lib/music/discovery';
@@ -82,6 +83,7 @@ export function MusicPage({
   const [collections, setCollections] = React.useState<EclipseCatalogItem[]>([]);
   const [selectedCollection, setSelectedCollection] = React.useState<EclipseCatalogItem | null>(null);
   const [tab, setTab] = React.useState<'discover' | 'search' | 'library'>('discover');
+  const [libraryView, setLibraryView] = React.useState('overview');
   const [playlists, setPlaylists] = React.useState(readMusicLibrary);
   React.useEffect(()=>{
     const refresh=()=>setPlaylists(readMusicLibrary());
@@ -105,10 +107,10 @@ export function MusicPage({
   const playbackAllowedRef = React.useRef(playbackAllowed);
   playbackAllowedRef.current = playbackAllowed;
   const LOCAL_SOURCE = 'tsugi-local';
-  const [settingsOpen, setSettingsOpen] = React.useState(() => readMusicSources().length === 0);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [sourcePane, setSourcePane] = React.useState<'connected' | 'store'>('connected');
   const [storeRevision, setStoreRevision] = React.useState(0);
-  React.useEffect(() => { if (libraryRequest) { setTab('library'); setSettingsOpen(false);setLocalLibraryRequest(v=>v+1); } }, [libraryRequest]);
+  React.useEffect(() => { if (libraryRequest) { setLibraryView('local'); setTab('library'); setSettingsOpen(false);setLocalLibraryRequest(v=>v+1); } }, [libraryRequest]);
 
   const [recent, setRecent] = React.useState<RecentMusicPlay[]>(readRecentPlays);
   const settingsCloseRef = React.useRef<HTMLButtonElement>(null);
@@ -579,6 +581,7 @@ export function MusicPage({
     });
     if (tracks.length) {
       setSessionTracks(current => [...current,...tracks].slice(-250));
+      setLibraryView('local');
       setLocalLibraryRequest(v=>v+1);
       setLibraryError('');
     } else {
@@ -912,8 +915,16 @@ export function MusicPage({
             title={t`Discover`} onClick={() => setTab('discover')}><BrushCompass /><Trans>Discover</Trans></button>
           <button type="button" aria-current={tab === 'search' ? 'page' : undefined}
             title={t`Search`} onClick={() => setTab('search')}><BrushSearch /><Trans>Search</Trans></button>
-          <button type="button" aria-current={tab === 'library' ? 'page' : undefined}
-            title={t`Library`} onClick={() => setTab('library')}><BrushMusicLibrary /><Trans>Library</Trans></button>
+          <span className="oto-rail-label"><Trans>Your music</Trans></span>
+          <button type="button" aria-current={tab === 'library' && !['local', 'recent', SAVED_PLAYLIST_ID].includes(libraryView) ? 'page' : undefined}
+            title={t`Library`} onClick={() => { setLibraryView('overview'); setTab('library'); }}><BrushMusicLibrary /><Trans>Library</Trans></button>
+          <button type="button" aria-current={tab === 'library' && libraryView === SAVED_PLAYLIST_ID ? 'page' : undefined}
+            title={t`Saved tracks`} onClick={() => { setLibraryView(SAVED_PLAYLIST_ID); setTab('library'); }}><BrushHeart /><Trans>Saved tracks</Trans></button>
+          <button type="button" aria-current={tab === 'library' && libraryView === 'recent' ? 'page' : undefined}
+            title={t`Recently played`} onClick={() => { setLibraryView('recent'); setTab('library'); }}><BrushHistory /><Trans>Recently played</Trans></button>
+          <span className="oto-rail-label"><Trans>Make it yours</Trans></span>
+          <button type="button" aria-current={tab === 'library' && libraryView === 'local' ? 'page' : undefined}
+            title={t`Local music`} onClick={() => { setLibraryView('local'); setTab('library'); }}><BrushFolder /><Trans>Local music</Trans></button>
           <button type="button" className="tsugi-music-source-trigger" title={t`Music sources`} onClick={() => setSettingsOpen(true)}><BiPlug aria-hidden /><Trans>Music sources</Trans></button>
         </nav>
   );
@@ -926,13 +937,23 @@ export function MusicPage({
       <button type="button" disabled={resolving} onClick={toggle} aria-label={paused ? t({ id: "Play", message: "Play" }) : t({ id: "Pause", message: "Pause" })}>{paused ? <FiPlay aria-hidden /> : <FiPause aria-hidden />}</button>
       <button type="button" disabled={resolving} onClick={() => next()} aria-label={t({ id: "Next track", message: "Next track" })}><FiSkipForward aria-hidden /></button>
     </div>}
-    <main data-page="music" style={{ display: visible ? 'block' : 'none' }}
-      className="tsugi-music-root min-h-screen px-6 pb-36 pt-14 sm:px-[3vw]">
+    <main data-page="music" data-music-view={tab} style={{ display: visible ? 'block' : 'none' }}
+      className="tsugi-music-root tsugi-oto min-h-screen px-6 pb-36 pt-14 sm:px-[3vw]">
       <TsugiRail area="music">{musicNavigation}</TsugiRail>
       <div className="tsugi-music-workspace w-full">
-
+        <header className="oto-topbar">
+          <nav aria-label={t`Music location`} className="oto-breadcrumb">
+            <button type="button" onClick={() => setTab('discover')}><Trans>Your space</Trans></button>
+            <BrushRight aria-hidden />
+            <span>{tab === 'discover' ? t`Discover` : tab === 'search' ? t`Search` : t`Library`}</span>
+          </nav>
+          <button type="button" className="oto-search-shortcut" aria-label={t`Search music`} onClick={() => setTab('search')}>
+            <BiSearch aria-hidden /><span><Trans>Find your next sound</Trans></span>
+          </button>
+        </header>
         {tab !== 'library' && <div className="tsugi-music-section-header">
           <h1 id="music-workspace-heading">{tab === 'search' ? <Trans>Search music</Trans> : <Trans>Discover</Trans>}</h1>
+          <p className="oto-page-note"><span aria-hidden="true" lang="ja"><Trans>今夜の音</Trans></span><Trans>Your night, your frequency</Trans></p>
         </div>}
 
         {tab === 'discover' && <MusicDiscover source={activeSource} onPlay={playCollection} saving={collectionSaving}
@@ -944,12 +965,13 @@ export function MusicPage({
             setQueue([entry.track]);
             void play(entry.track, 0, source, true);
           }}
-          onConfigure={() => setSettingsOpen(true)} onLibrary={() => setTab('library')} />}
+          onConfigure={() => setSettingsOpen(true)} onLibrary={() => setTab('library')} onSearch={() => setTab('search')} />}
 
         {tab === 'library' && (
           <>
             {libraryError && <p role="alert" className="mb-6 text-sm text-amber-200">{libraryError}</p>}
             <MusicLibrary playlists={playlists} onChange={persistLibrary} recent={recent} localRequest={localLibraryRequest}
+              view={libraryView} onViewChange={setLibraryView}
               sources={connections.map(source=>({id:source.id,name:source.manifest.name}))}
               onManageSources={()=>setSettingsOpen(true)} onDiscover={()=>setTab('discover')} onSearch={()=>setTab('search')}
               onPlaySavedCollection={(entries)=>{

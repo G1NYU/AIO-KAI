@@ -2,7 +2,6 @@ import { BrushBack as FiArrowLeft, BrushBook as FiBookOpen, BrushRight as FiChev
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiGlobe } from 'react-icons/fi';
 import { MediaNavigation } from '@/components/shell/media-navigation';
 import { TsugiRail } from '@/components/shell/tsugi-rail';
 import { BrushSliders, BrushDownload } from '@/components/tsugi-icons';
@@ -11,6 +10,7 @@ import { closeReadingChapter, prepareReading, readRequest, readImage, type ReadA
 import { ChapterReader } from './chapter-reader';
 import { BatchAddWorkspace, MigrationWorkspace } from './collection-transfer';
 import { LandscapeSpotlight } from '@/components/landscape-spotlight';
+import { LandscapeDecoration } from '@/components/landscape-decoration';
 import { lookupMissingCover, mayLookUpCover, readCoverFallback, saveCoverFallback } from './cover-fallback';
 import { ReaderSettings } from './reader-settings';
 import { ReaderDownloads, DownloadFeedback, useReaderDownloads } from './reader-downloads';
@@ -25,6 +25,8 @@ import { SourceIcon } from './source-icon';
 import { MangaTracking, type Tracker } from './tracking';
 import { readReaderPreferences, saveReaderPreferences } from './reader-preferences';
 import { chapterGroups, neighboringChapter, cleanSynopsis, type ReadingChapter } from './reader-utils';
+import { YomiBanner } from './yomi-banner';
+import './yomi.css';
 
 type Nodes<T> = { nodes: T[]; totalCount: number };
 type Store = { indexUrl: string; name: string };
@@ -476,11 +478,11 @@ export function ReadPage({ visible }: {
       return;
     }
     void run(async () => { await showManga(manga); });
-  }}><MangaCover manga={manga} fallbackEnabled={visible && tab === 'library' && coverFallback} /><span className="tsugi-manga-title">{manga.title}</span>{!!manga.unreadCount && <span className="tsugi-manga-unread" title={t({ id: "Unread chapters", message: "Unread chapters" })}>{manga.unreadCount}</span>}{manga.author && <span className="truncate text-xs text-[--tsugi-muted]">{manga.author}</span>}</button>;
+  }}><MangaCover manga={manga} fallbackEnabled={visible && tab === 'library' && coverFallback} /><span className="tsugi-manga-title">{manga.title}</span>{!!manga.unreadCount && <span className="tsugi-manga-unread" title={t({ id: "Unread chapters", message: "Unread chapters" })}>{manga.unreadCount}</span>}{manga.author && <span className="truncate text-xs text-[--tsugi-muted]">{manga.author}</span>}{tab === 'library' && manga.lastReadChapter && <span className="yomi-card-progress"><span>{manga.lastReadChapter.name}</span>{manga.lastReadChapter.pageCount > 0 && <progress value={manga.lastReadChapter.isRead ? manga.lastReadChapter.pageCount : Math.min(manga.lastReadChapter.lastPageRead + 1, manga.lastReadChapter.pageCount)} max={manga.lastReadChapter.pageCount} aria-label={t({ id: "Chapter progress", message: "Chapter progress" })} />}</span>}</button>;
   const mangaGrid = (items: Manga[], select?: (manga: Manga) => void) => <div className="tsugi-manga-grid">{items.map(manga => mangaRow(manga, select))}</div>;
   const settingRow = (label: string, description: string, next: SettingsPage) => <button className="tsugi-read-row" disabled={busy} onClick={() => openSettings(next)}><span><span className="block font-medium">{label}</span><span className="text-sm text-[--tsugi-muted]">{description}</span></span><FiChevronRight aria-hidden /></button>;
 
-  return <main data-page="read" className="tsugi-read-root tsugi-read-workspace">
+  return <main data-page="read" data-read-view={details ? 'series' : tab === 'browse' ? browseTab : tab} className="tsugi-read-root tsugi-read-workspace yomi-workspace">
     <TsugiRail area="read" disabled={busy} className="tsugi-reading-rail" mediaClassName="tsugi-read-media-header">
       <nav className="tsugi-rail-local" aria-label={t({ id: "Reading sections", message: "Reading sections" })}>
         {desktopArea?.openBooks && <><span className="tsugi-reading-rail-label"><Trans id="Read">Read</Trans></span><button type="button" disabled={busy} onClick={desktopArea.openBooks} aria-label={t({ id: "Books", message: "Books" })} title={t({ id: "Books", message: "Books" })}><FiBookOpen aria-hidden/><Trans id="Books">Books</Trans></button><div className="tsugi-pixel-rule" aria-hidden="true"/></>}
@@ -489,25 +491,27 @@ export function ReadPage({ visible }: {
         <div className="tsugi-pixel-rule" aria-hidden="true" />
         <span className="tsugi-reading-rail-label"><Trans id="Discover">Discover</Trans></span>
         <button title={t({ id: "Browse", message: "Browse" })} aria-current={tab === 'browse' && browseTab === 'sources' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('sources')}><FiCompass aria-hidden /><Trans id="Browse">Browse</Trans></button>
-        <button title={t({ id: "Feed", message: "Feed" })} aria-current={tab === 'browse' && browseTab === 'feed' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('feed')}><FiGlobe aria-hidden /><Trans id="Feed">Feed</Trans></button>
+        <button title={t({ id: "Feed", message: "Feed" })} aria-current={tab === 'browse' && browseTab === 'feed' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('feed')}><FiCompass aria-hidden /><Trans id="Feed">Feed</Trans></button>
         <button title={t({ id: "Global search", message: "Global search" })} aria-current={tab === 'browse' && browseTab === 'search' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('search')}><FiSearch aria-hidden /><Trans id="Global search">Global search</Trans></button>
         <button title={t({ id: "Extensions", message: "Extensions" })} aria-current={tab === 'browse' && browseTab === 'extensions' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('extensions')}><FiGrid aria-hidden /><Trans id="Extensions">Extensions</Trans></button>
         <div className="tsugi-pixel-rule" aria-hidden="true" />
         <span className="tsugi-reading-rail-label"><Trans id="Preferences">Preferences</Trans></span>
+        <button title={t({ id: "Import local comic", message: "Import local comic" })} aria-label={t({ id: "Import local comic", message: "Import local comic" })} disabled={busy} onClick={() => { setLocalImportOpen(true); void localImport.controller.begin(); }}><FiPlus aria-hidden /><Trans id="Import local comic">Import local comic</Trans></button>
         <button title={t({ id: "Settings", message: "Settings" })} aria-current={tab === 'settings' ? 'page' : undefined} disabled={busy} onClick={() => switchTab('settings')}><BrushSliders aria-hidden /><Trans id="Settings">Settings</Trans></button>
       </nav>
     </TsugiRail>
     <div className="tsugi-reading-content" ref={content}>
       <header className="tsugi-reading-header">
-        <div><h1>{details ? t({ id: "Series", message: "Series" }) : tabs.find(item => item.id === tab)?.label ?? (tab === 'settings' ? t({ id: "Settings", message: "Settings" }) : browseTab === 'search' ? t({ id: "Global search", message: "Global search" }) : browseTab === 'extensions' ? t({ id: "Extensions", message: "Extensions" }) : browseTab === 'feed' ? t({ id: "Feed", message: "Feed" }) : t({ id: "Browse", message: "Browse" }))}</h1>
-          {!details && tab === 'library' && <p className="tsugi-library-summary"><Trans id="Saved titles">Saved titles</Trans> <strong>{allLibrary.length}</strong><span aria-hidden="true"> · </span><Trans id="Unread chapters">Unread chapters</Trans> <strong>{allLibrary.reduce((sum, manga) => sum + (manga.unreadCount || 0), 0)}</strong></p>}
+        <div><p className="yomi-eyebrow"><Trans id="Your reading space">Your reading space</Trans></p><h1>{details ? t({ id: "Series", message: "Series" }) : tabs.find(item => item.id === tab)?.label ?? (tab === 'settings' ? t({ id: "Settings", message: "Settings" }) : browseTab === 'search' ? t({ id: "Global search", message: "Global search" }) : browseTab === 'extensions' ? t({ id: "Extensions", message: "Extensions" }) : browseTab === 'feed' ? t({ id: "Feed", message: "Feed" }) : t({ id: "Browse", message: "Browse" }))}</h1>
+          {!details && tab === 'library' && library && <p className="tsugi-library-summary"><Trans id="Saved titles">Saved titles</Trans> <strong>{allLibrary.length}</strong><span aria-hidden="true"> · </span><Trans id="Unread chapters">Unread chapters</Trans> <strong>{allLibrary.reduce((sum, manga) => sum + (manga.unreadCount || 0), 0)}</strong></p>}
         </div>
         {!(tab === 'browse' && browseTab === 'search' && !details) && <form className="tsugi-reading-global" onSubmit={(event) => { event.preventDefault(); if (!globalQuery.trim() || busy) return; setDetails(null); setTab('browse'); setBrowseTab('search'); void run(async () => { const result = await readRequest<Nodes<Source>>({ kind: 'sources' }); const available = result.nodes.filter((item) => item.id !== '0'); setSources(available); await searchAll(available); }); }}>
           <FiSearch aria-hidden /><input value={globalQuery} onChange={(event) => setGlobalQuery(event.target.value)} maxLength={200} placeholder={t({ id: "Search all installed sources", message: "Search all installed sources" })} aria-label={t({ id: "Global manga search", message: "Global manga search" })} /><button disabled={busy || !globalQuery.trim()} aria-label={t({ id: "Search", message: "Search" })}><FiChevronRight aria-hidden /></button>
         </form>}
       </header>
     {visible && !details && !reader && (tab === 'library' || (tab === 'browse' && browseTab === 'sources')) && <LandscapeSpotlight
-      title={featured?.title || t({ id: 'A world of stories', message: 'A world of stories' })}
+      designArea="read" localArtwork={tab === 'browse' ? '/design/shared/hero-neon.webp' : '/design/yomi/hero-torii.webp'}
+      title={featured?.title || (tab === 'browse' ? t({ id: 'Find your next story.', message: 'Find your next story.' }) : t({ id: 'A world between pages.', message: 'A world between pages.' }))}
       eyebrow={featured ? t({ id: 'Continue reading', message: 'Continue reading' }) : t({ id: 'Reading room', message: 'Reading room' })}
       description={featured?.lastReadChapter?.name || t({ id: 'Find your next story or return to your collection.', message: 'Find your next story or return to your collection.' })}
       actionLabel={featured ? t({ id: 'Resume reading', message: 'Resume reading' }) : tab === 'browse' ? t({ id: 'Search manga', message: 'Search manga' }) : t({ id: 'Explore sources', message: 'Explore sources' })}
@@ -515,14 +519,20 @@ export function ReadPage({ visible }: {
       featuredArtwork={featured ? <MangaCover manga={featured} /> : undefined}
       onNextFeatured={featured && continuing.length>1 ? ()=>setSpotlightChoice({anchor:spotlightAnchor,id:String(continuing[(continuing.indexOf(featured)+1)%continuing.length].id)}) : undefined}
       onAction={() => { if (featured) void run(() => resumeManga(featured)); else switchBrowse(tab === 'library' ? 'sources' : 'search'); }} disabled={busy} />}
+    {!details && (tab === 'history' || tab === 'updates') && <YomiBanner eyebrow={tab === 'history' ? t({ id: 'The path so far', message: 'The path so far' }) : t({ id: 'Back on the shelf', message: 'Back on the shelf' })} title={tab === 'history' ? t({ id: 'Your reading journal.', message: 'Your reading journal.' }) : t({ id: 'One chapter becomes another.', message: 'One chapter becomes another.' })} description={tab === 'history' ? t({ id: 'Return to the exact chapter you opened.', message: 'Return to the exact chapter you opened.' }) : t({ id: 'Unread chapters from your library, ordered by when they were added.', message: 'Unread chapters from your library, ordered by when they were added.' })} />}
+    {!details && tab === 'categories' && <YomiBanner eyebrow={t({ id: 'Collected by you', message: 'Collected by you' })} title={t({ id: 'A home for every story.', message: 'A home for every story.' })} description={t({ id: 'Create shelves for the stories you want to keep together.', message: 'Create shelves for the stories you want to keep together.' })} artwork="/design/shared/hero-train.webp" />}
+    {!details && tab === 'downloads' && <YomiBanner eyebrow={t({ id: 'Stories to take with you', message: 'Stories to take with you' })} title={t({ id: 'Ready for the next chapter.', message: 'Ready for the next chapter.' })} description={t({ id: 'Manage your chapter queue and check the latest download status.', message: 'Manage your chapter queue and check the latest download status.' })} artwork="/design/shared/hero-train.webp" />}
+    {!details && tab === 'settings' && <YomiBanner eyebrow={t({ id: 'Make it yours', message: 'Make it yours' })} title={t({ id: 'Read your own way.', message: 'Read your own way.' })} description={t({ id: 'Set up your sources, reading layout and connected trackers.', message: 'Set up your sources, reading layout and connected trackers.' })} />}
     {busy && <p className="mb-4 text-sm text-[--tsugi-muted]" role="status"><Trans id="Working…">Working…</Trans></p>}
     {error && <div role="alert" className="tsugi-read-error mb-4">{error}</div>}
     {details ? <section>
       <button className="tsugi-read-action mb-6" disabled={busy} onClick={() => { setDetails(null); setError(''); if (tab === 'library') void run(loadLibrary); else if (tab === 'history') void run(loadHistory); else if (tab === 'updates') void run(loadUpdates); content.current?.scrollTo(0, 0); }}><FiArrowLeft aria-hidden /><Trans id="Back">Back</Trans></button>
       <div className="tsugi-series-layout">
-      <aside className="tsugi-manga-detail">
+      <aside className="tsugi-manga-detail yomi-series-hero">
+        <LandscapeDecoration className="yomi-series-backdrop" fallback="/design/yomi/hero-torii.webp" active={visible} />
         <MangaCover manga={details.manga} fallbackEnabled={visible && coverFallback} />
         <div className="min-w-0">
+          <p className="yomi-eyebrow"><Trans id="Manga">Manga</Trans>{details.manga.inLibrary && <><span aria-hidden="true"> / </span><Trans id="In your library">In your library</Trans></>}</p>
           <h2 className="text-3xl font-semibold tracking-tight">{details.manga.title}</h2>
           {details.manga.author && <p className="mt-2 text-[--tsugi-muted]">{details.manga.author}</p>}
           {details.manga.genre?.length ? <div className="my-3 flex flex-wrap gap-2 text-xs text-[--tsugi-muted]">{details.manga.genre.map((genre) => <span className="tsugi-manga-genre" key={genre}>{genre}</span>)}</div> : null}
@@ -531,12 +541,9 @@ export function ReadPage({ visible }: {
             {details.chapters.length > 0 && <button className="tsugi-read-action tsugi-series-primary" disabled={busy} onClick={() => void run(() => openChapter(firstChapter(details.chapters)!))}><FiBookOpen aria-hidden /><Trans id="Start or resume reading">Start or resume reading</Trans></button>}
             <button className="tsugi-read-action" aria-expanded={trackingOpen} disabled={busy} onClick={() => setTrackingOpen(!trackingOpen)}><Trans id="Tracking">Tracking</Trans></button>
           </div>
-          {details.manga.description && <div className="mt-4 max-w-3xl text-sm leading-relaxed">
-            <p className="whitespace-pre-wrap">{expandedSynopsis ? cleanSynopsis(details.manga.description) : cleanSynopsis(details.manga.description).slice(0, 650) + (cleanSynopsis(details.manga.description).length > 650 ? '…' : '')}</p>
-            {cleanSynopsis(details.manga.description).length > 650 && <button className="tsugi-library-action mt-2" onClick={() => setExpandedSynopsis(!expandedSynopsis)}>{expandedSynopsis ? t({ id: "Show less", message: "Show less" }) : t({ id: "Read more", message: "Read more" })}</button>}
-          </div>}
         </div>
       </aside>
+      <div className="yomi-series-body">
       <div className="tsugi-series-chapters">
       {trackingOpen && <MangaTracking key={details.manga.id} mangaId={Number(details.manga.id)} title={details.manga.title} busy={busy} run={run} openAccounts={() => { switchTab('settings'); openSettings('trackers'); }} />}
       <div className="tsugi-reading-list-header"><h3 className="text-xl font-medium"><Trans id="Chapters">Chapters</Trans> <span className="text-sm text-[--tsugi-muted]">({chapterRows.length})</span></h3><div className="tsugi-reading-filters"><input className="tsugi-read-input" value={chapterFilter} onChange={(event) => setChapterFilter(event.target.value)} placeholder={t({ id: "Find a chapter", message: "Find a chapter" })} aria-label={t({ id: "Find a chapter", message: "Find a chapter" })} /><select className="tsugi-read-input" aria-label={t({ id: "Chapter status", message: "Chapter status" })} value={chapterState} onChange={(event) => setChapterState(event.target.value as typeof chapterState)}><option value="all"><Trans id="All chapters">All chapters</Trans></option><option value="unread"><Trans id="Unread">Unread</Trans></option><option value="read"><Trans id="Read">Read</Trans></option><option value="bookmarked"><Trans id="Bookmarked">Bookmarked</Trans></option></select><button className="tsugi-read-action" onClick={() => setChapterOrder(chapterOrder === 'asc' ? 'desc' : 'asc')}>{chapterOrder === 'asc' ? t({ id: "Oldest first", message: "Oldest first" }) : t({ id: "Newest first", message: "Newest first" })}</button></div></div>
@@ -552,13 +559,22 @@ export function ReadPage({ visible }: {
       </div>}
       {chapterRows.map((group) => {
         const first = group[0];
-        const chapterRow = (chapter: Chapter) => <div className="tsugi-chapter-list-item" key={chapter.id}>
+        const chapterRow = (chapter: Chapter) => <div className="tsugi-chapter-list-item" key={chapter.id} data-read-state={chapter.isRead ? 'read' : chapter.lastPageRead > 0 ? 'resume' : 'unread'}>
           <input type="checkbox" checked={selectedChapters.includes(chapter.id)} disabled={busy} aria-label={t({ id: "Select chapter", message: "Select chapter" }) + ' ' + chapter.name} onChange={(event) => setSelectedChapters((ids) => event.target.checked ? [...ids, chapter.id] : ids.filter((id) => id !== chapter.id))} />
           <button className="tsugi-read-row tsugi-chapter-row" disabled={busy} onClick={() => void run(() => openChapter(chapter))}><span><span className="block font-medium">{chapter.name}</span><span className="text-xs text-[--tsugi-muted]">{chapter.scanlator || (group.length > 1 ? t({ id: "Unknown translation group", message: "Unknown translation group" }) : '')}</span></span><span className="text-right text-xs text-[--tsugi-muted]">{chapter.isDownloaded === true && <span className="block" data-chapter-downloaded={chapter.id}><Trans id="Downloaded">Downloaded</Trans></span>}{chapter.isRead ? t({ id: "Read", message: "Read" }) : chapter.lastPageRead > 0 ? t({ id: "Resume", message: "Resume" }) : t({ id: "Unread", message: "Unread" })}</span></button>
           <button className="tsugi-reader-icon" disabled={busy} aria-pressed={!!chapter.isBookmarked} aria-label={chapter.isBookmarked ? t({ id: "Remove bookmark", message: "Remove bookmark" }) : t({ id: "Bookmark chapter", message: "Bookmark chapter" })} onClick={() => void run(() => changeChapters([chapter.id], { bookmarked: !chapter.isBookmarked }))}><FiBookmark aria-hidden /></button>
         </div>;
         return group.length === 1 ? chapterRow(first) : <details key={first.id} className="tsugi-chapter-versions"><summary><span className="font-medium">{first.name}</span><span className="text-xs text-[--tsugi-muted]">{group.length} <Trans id="versions">versions</Trans></span></summary><div className="pl-5">{group.map(chapterRow)}</div></details>;
       })}
+      </div>
+      <aside className="yomi-series-summary">
+        <h3><Trans id="About this story">About this story</Trans></h3>
+        {details.manga.description ? <div className="yomi-series-synopsis">
+          <p className="whitespace-pre-wrap">{expandedSynopsis ? cleanSynopsis(details.manga.description) : cleanSynopsis(details.manga.description).slice(0, 650) + (cleanSynopsis(details.manga.description).length > 650 ? '…' : '')}</p>
+          {cleanSynopsis(details.manga.description).length > 650 && <button className="tsugi-library-action mt-2" onClick={() => setExpandedSynopsis(!expandedSynopsis)}>{expandedSynopsis ? t({ id: "Show less", message: "Show less" }) : t({ id: "Read more", message: "Read more" })}</button>}
+        </div> : <p className="text-sm text-[--tsugi-muted]"><Trans id="No synopsis is available from this source.">No synopsis is available from this source.</Trans></p>}
+        <dl className="yomi-facts"><div><dt><Trans id="Chapters">Chapters</Trans></dt><dd>{chapterGroups(details.chapters).length}</dd></div><div><dt><Trans id="Read">Read</Trans></dt><dd>{chapterGroups(details.chapters).filter(group => group.some(chapter => chapter.isRead)).length}</dd></div>{details.manga.artist && <div><dt><Trans id="Artist">Artist</Trans></dt><dd>{details.manga.artist}</dd></div>}</dl>
+      </aside>
       </div>
       </div>
     </section> : tab === 'downloads' ? <ReaderDownloads downloads={downloads} disabled={busy} /> : tab === 'settings' ? (
@@ -623,22 +639,26 @@ export function ReadPage({ visible }: {
         </div>}
         {(tab === 'history' ? history : updates)?.nodes.map(entry => <button key={entry.id} type="button" className="tsugi-read-row tsugi-reader-activity-row" disabled={busy} onClick={() => void run(() => openActivity(entry))}>
           <MangaCover manga={entry.manga} fallbackEnabled={visible && coverFallback} />
-          <span className="min-w-0 grow"><strong className="block truncate">{entry.manga.title}</strong><small className="block text-[--tsugi-muted]">{entry.name}{tab === 'history' && entry.pageCount > 0 ? ' · ' + Math.min(entry.lastPageRead + 1, entry.pageCount) + '/' + entry.pageCount : ''}</small></span>
-          <small className="text-[--tsugi-muted]">{activityDate(tab === 'history' ? entry.lastReadAt : entry.fetchedAt)}</small>
-          <FiChevronRight aria-hidden />
+          <span className="min-w-0 grow yomi-activity-copy"><strong className="block truncate">{entry.manga.title}</strong><small className="block text-[--tsugi-muted]">{entry.name}{tab === 'history' && entry.pageCount > 0 ? ' · ' + Math.min(entry.lastPageRead + 1, entry.pageCount) + '/' + entry.pageCount : ''}</small>{tab === 'history' && entry.pageCount > 0 && <progress max={entry.pageCount} value={entry.isRead ? entry.pageCount : Math.min(entry.lastPageRead + 1, entry.pageCount)} aria-label={t({ id: "Chapter progress", message: "Chapter progress" })} />}</span>
+          <small className="text-[--tsugi-muted] yomi-activity-date">{activityDate(tab === 'history' ? entry.lastReadAt : entry.fetchedAt)}</small>
+          <span className="yomi-row-action">{tab === 'history' ? <Trans id="Resume">Resume</Trans> : <Trans id="Read">Read</Trans>}<FiChevronRight aria-hidden /></span>
         </button>)}
         {!busy && (tab === 'history' ? history : updates)?.nodes.length === 0 && <div className="tsugi-reading-empty">{tab === 'history' ? <FiClock aria-hidden /> : <FiBell aria-hidden />}<h2>{tab === 'history' ? <Trans id="No reading history yet">No reading history yet</Trans> : <Trans id="No unread updates">No unread updates</Trans>}</h2><p>{tab === 'history' ? <Trans id="Your reading activity will appear here.">Your reading activity will appear here.</Trans> : <Trans id="Check your library for new chapters.">Check your library for new chapters.</Trans>}</p></div>}
         {((tab === 'history' ? history : updates)?.totalCount ?? 0) > 100 && <p className="mt-4 text-sm text-[--tsugi-muted]"><Trans id="Showing the latest 100 chapters.">Showing the latest 100 chapters.</Trans></p>}
       </section>
     ) : tab === 'categories' ? (
-      <section className="tsugi-reader-categories">
+      <section className="tsugi-reader-categories" data-category-selected={!!selectedCategory}>
         <aside className="tsugi-category-list">
           <form className="flex flex-wrap gap-2" onSubmit={event => { event.preventDefault(); if (categoryName.trim()) void run(() => saveCategory(undefined, categoryName)); }}>
             <input className="tsugi-read-input min-w-0 grow" value={categoryName} maxLength={80} onChange={event => setCategoryName(event.target.value)} placeholder={t({ id: "New category", message: "New category" })} aria-label={t({ id: "New category", message: "New category" })} />
             <button className="tsugi-read-action" disabled={busy || !categoryName.trim()}><FiPlus aria-hidden /><Trans id="Create category">Create category</Trans></button>
           </form>
-          <nav aria-label={t({ id: "Custom categories", message: "Custom categories" })} className="mt-5 grid gap-2">
-            {categories.map(category => <button type="button" key={category.id} className="tsugi-category-item" aria-current={categoryId === category.id ? 'page' : undefined} onClick={() => { setCategoryId(category.id); setRenameCategory(category.name); setConfirmDelete(false); }} disabled={busy}><FiFolder aria-hidden /><span className="min-w-0 grow truncate">{category.name}</span><small>{allLibrary.filter(manga => categoryContains(manga, category.id)).length}</small></button>)}
+          <nav aria-label={t({ id: "Custom categories", message: "Custom categories" })} className="yomi-category-cards">
+            {categories.map((category, index) => <button type="button" key={category.id} className="tsugi-category-item yomi-category-card" aria-current={categoryId === category.id ? 'page' : undefined} onClick={() => { setCategoryId(category.id); setRenameCategory(category.name); setConfirmDelete(false); }} disabled={busy}>
+              <img className="yomi-category-art" src={index % 2 ? '/design/shared/hero-train.webp' : '/design/shared/hero-neon.webp'} alt="" />
+              <span className="yomi-category-copy"><FiFolder aria-hidden /><strong>{category.name}</strong><small>{allLibrary.filter(manga => categoryContains(manga, category.id)).length} <Trans id="Saved titles">Saved titles</Trans></small></span>
+              <span className="yomi-cover-stack" aria-hidden="true">{allLibrary.filter(manga => categoryContains(manga, category.id)).slice(0, 3).map(manga => <MangaCover key={manga.id} manga={manga} fallbackEnabled={visible && coverFallback} />)}</span>
+            </button>)}
           </nav>
         </aside>
         {selectedCategory ? <section className="min-w-0">
@@ -652,6 +672,7 @@ export function ReadPage({ visible }: {
           <input className="tsugi-read-input my-4 w-full" value={categorySearch} onChange={event => setCategorySearch(event.target.value)} placeholder={t({ id: "Filter titles", message: "Filter titles" })} aria-label={t({ id: "Filter category titles", message: "Filter category titles" })} />
           <p className="mb-2 text-sm text-[--tsugi-muted]"><Trans id="Select titles to include on this shelf. A title can belong to several categories.">Select titles to include on this shelf. A title can belong to several categories.</Trans></p>
           {allLibrary.filter(manga => manga.title.toLowerCase().includes(categorySearch.trim().toLowerCase())).map(manga => <label key={manga.id} className="tsugi-read-row tsugi-reader-category-title">
+            <MangaCover manga={manga} fallbackEnabled={visible && coverFallback} />
             <span className="min-w-0 grow truncate">{manga.title}</span>
             {categoryContains(manga, categoryId) && <FiCheck aria-hidden />}
             <input type="checkbox" checked={categoryContains(manga, categoryId)} disabled={busy} onChange={event => { const assigned = event.target.checked; void run(async () => { await readRequest({ kind: 'assign-category', mangaId: Number(manga.id), categoryId, assigned }); await loadLibrary(); }); }} />
@@ -663,7 +684,7 @@ export function ReadPage({ visible }: {
     ) : tab === 'browse' ? (
       <section>
         <nav className="tsugi-read-subnav mb-7" aria-label={t({ id: "Browse sections", message: "Browse sections" })}>
-          {[{ id: 'sources' as const, label: t({ id: "Sources", message: "Sources" }), Icon: FiCompass }, { id: 'feed' as const, label: t({ id: "Feed", message: "Feed" }), Icon: FiGlobe }, { id: 'extensions' as const, label: t({ id: "Extensions", message: "Extensions" }), Icon: FiGrid }, { id: 'search' as const, label: t({ id: "Global search", message: "Global search" }), Icon: FiSearch }].map(({ id, label, Icon }) =>
+          {[{ id: 'sources' as const, label: t({ id: "Sources", message: "Sources" }), Icon: FiCompass }, { id: 'feed' as const, label: t({ id: "Feed", message: "Feed" }), Icon: FiCompass }, { id: 'extensions' as const, label: t({ id: "Extensions", message: "Extensions" }), Icon: FiGrid }, { id: 'search' as const, label: t({ id: "Global search", message: "Global search" }), Icon: FiSearch }].map(({ id, label, Icon }) =>
             <button key={id} disabled={busy} aria-current={browseTab === id ? 'page' : undefined} onClick={() => switchBrowse(id)}><Icon aria-hidden />{label}</button>)}
         </nav>
         {browseTab === 'feed' ? <SourceFeed feed={feed} busy={busy} onRequest={() => setError('')} renderManga={(items, select) => mangaGrid(items, item => select(item as FeedManga))} onOpen={item => { void run(async () => { await showManga(item); }); }} /> : browseTab === 'extensions' ? <section data-ui="extension-browser">
@@ -715,7 +736,7 @@ export function ReadPage({ visible }: {
           {!sources.length && !busy && <button className="tsugi-read-action" onClick={() => switchBrowse('extensions')}><Trans id="Install a source extension">Install a source extension</Trans></button>}
           {globalTerm && <div className="tsugi-search-status" role="status"><span><strong>{globalTerm}</strong> · {globalCompleted} / {sources.length} <Trans id="sources checked">sources checked</Trans></span><progress value={globalCompleted} max={Math.max(1,sources.length)} aria-label={t({ id: "Source search progress", message: "Source search progress" })} /><span>{globalResults.reduce((sum,group)=>sum+(group.result?.mangas.length??0),0)} <Trans id="results shown">results shown</Trans></span></div>}
           </div>
-          {globalResults.map((group) => <section key={group.source.id} className="tsugi-search-source" data-result-state={group.error?'error':group.result?.mangas.length?'matches':'empty'}><header className="tsugi-search-source-header"><div className="tsugi-search-source-label"><FiGlobe aria-hidden /><h3>{group.source.displayName || group.source.name}</h3><span className="tsugi-search-language">{group.source.lang.toUpperCase()}</span></div><span className="tsugi-search-result-count">{group.error?<Trans id="Unavailable">Unavailable</Trans>:<><Trans id="Results">Results</Trans>: {group.result?.mangas.length??0}{group.result?.hasNextPage?'+':''}</>}</span></header>
+          {globalResults.map((group) => <section key={group.source.id} className="tsugi-search-source" data-result-state={group.error?'error':group.result?.mangas.length?'matches':'empty'}><header className="tsugi-search-source-header"><div className="tsugi-search-source-label"><FiCompass aria-hidden /><h3>{group.source.displayName || group.source.name}</h3><span className="tsugi-search-language">{group.source.lang.toUpperCase()}</span></div><span className="tsugi-search-result-count">{group.error?<Trans id="Unavailable">Unavailable</Trans>:<><Trans id="Results">Results</Trans>: {group.result?.mangas.length??0}{group.result?.hasNextPage?'+':''}</>}</span></header>
             {group.error ? <p className="py-3 text-sm text-[--tsugi-muted]">{group.error}</p> : group.result?.mangas.length ? mangaGrid(group.result.mangas) : <p className="py-3 text-sm text-[--tsugi-muted]"><Trans id="No matches.">No matches.</Trans></p>}
             {group.result?.hasNextPage && <button className="tsugi-read-action mt-2" disabled={busy} onClick={() => { setBrowseTab('sources'); setSource(group.source.id); setQuery(globalTerm); setBrowse({ source: group.source.id, query: globalTerm, mode: 'search', page: 1, result: group.result! }); }}><Trans id="More results">More results</Trans></button>}
           </section>)}
@@ -748,15 +769,15 @@ export function ReadPage({ visible }: {
       </section>
     ) : <section className="tsugi-library-workspace">
       {continuing.length > 0 && libraryView === 'all' && !categoryFilter && !libraryFilter.trim() && <section className="tsugi-reading-resume" aria-label={t({ id: "Continue reading", message: "Continue reading" })}>
-        <h2><FiClock aria-hidden /><Trans id="Continue reading">Continue reading</Trans></h2>
-        <div className="tsugi-reading-resume-list">{continuing.slice(0, 6).map((manga) => {
+        <div className="yomi-section-heading"><h2><Trans id="Continue reading">Continue reading</Trans></h2><button className="tsugi-library-action" disabled={busy} onClick={() => switchTab('history')}><Trans id="Your reading history">Your reading history</Trans><FiChevronRight aria-hidden /></button></div>
+        <div className="tsugi-reading-resume-list">{continuing.slice(0, 3).map((manga) => {
           const chapter = manga.lastReadChapter;
           const pageCount = chapter?.pageCount ?? 0;
           const page = Math.max(1, Math.min(pageCount, (chapter?.lastPageRead ?? 0) + 1));
           const showProgress = !!chapter && !chapter.isRead && pageCount > 0;
           return <button key={manga.id} className="tsugi-reading-resume-card" disabled={busy} onClick={() => void run(() => resumeManga(manga))}>
             <MangaCover manga={manga} fallbackEnabled={visible && coverFallback} />
-            <span><strong>{manga.title}</strong><small>{chapter?.name}</small>
+            <span><small className="yomi-resume-kicker"><Trans id="Continue manga">Continue manga</Trans></small><strong>{manga.title}</strong><small>{chapter?.name}</small>
               {showProgress && <span className="tsugi-reading-resume-progress"><progress value={page} max={pageCount} aria-label={t({ id: "Chapter progress", message: "Chapter progress" })} /><small>{page}/{pageCount}</small></span>}
               <small className="tsugi-reading-resume-label">{chapter?.isRead ? t({ id: "Next chapter", message: "Next chapter" }) : t({ id: "Resume reading", message: "Resume reading" })}</small>
             </span><FiChevronRight aria-hidden /></button>;
@@ -766,11 +787,15 @@ export function ReadPage({ visible }: {
       {categories.length > 0 && <nav className="tsugi-library-shelves" aria-label={t({ id: "Library categories", message: "Library categories" })}><button type="button" aria-current={!categoryFilter ? 'page' : undefined} onClick={() => setCategoryFilter(0)}><Trans id="All shelves">All shelves</Trans></button>{categories.map(category => <button type="button" key={category.id} aria-current={categoryFilter === category.id ? 'page' : undefined} onClick={() => setCategoryFilter(category.id)}>{category.name}</button>)}<button type="button" disabled={busy} onClick={() => switchTab('categories')}><FiPlus aria-hidden /><Trans id="Manage categories">Manage categories</Trans></button></nav>}
       <div className="tsugi-reading-list-header"><nav className="tsugi-read-subnav" aria-label={t({ id: "Library view", message: "Library view" })}><button aria-current={libraryView === 'all' ? 'page' : undefined} onClick={() => setLibraryView('all')}><Trans id="All manga">All manga</Trans></button><button aria-current={libraryView === 'reading' ? 'page' : undefined} onClick={() => setLibraryView('reading')}><Trans id="In progress">In progress</Trans></button></nav><div className="tsugi-reading-filters"><input className="tsugi-read-input" placeholder={t({ id: "Find in library", message: "Find in library" })} aria-label={t({ id: "Find in library", message: "Find in library" })} value={libraryFilter} onChange={(event) => setLibraryFilter(event.target.value)} /><select className="tsugi-read-input" aria-label={t({ id: "Library sort", message: "Library sort" })} value={librarySort} onChange={(event) => setLibrarySort(event.target.value as typeof librarySort)}><option value="title"><Trans id="Title">Title</Trans></option><option value="recent"><Trans id="Recently read">Recently read</Trans></option></select><button className="tsugi-read-action" disabled={busy} onClick={() => { setLocalImportOpen(true); void localImport.controller.begin(); }}><FiPlus aria-hidden /><Trans id="Import CBZ">Import CBZ</Trans></button><button className="tsugi-read-action" disabled={busy} onClick={() => void run(loadLibrary)} aria-label={t({ id: "Refresh library", message: "Refresh library" })}><FiRefreshCw aria-hidden /></button></div></div>
       </div>
-      {!allLibrary.length && !busy && <div className="tsugi-reading-empty"><FiBookOpen aria-hidden /><h2><Trans id="Your library is empty">Your library is empty</Trans></h2><p><Trans id="Browse a source to add manga and keep your reading progress in one place.">Browse a source to add manga and keep your reading progress in one place.</Trans></p><div className="tsugi-empty-actions"><button className="tsugi-read-action tsugi-empty-primary" onClick={() => switchTab('browse')}><Trans id="Browse sources">Browse sources</Trans></button><button className="tsugi-read-action" onClick={() => switchBrowse('extensions')}><Trans id="Extensions">Extensions</Trans></button></div></div>}
+      {library && !allLibrary.length && !busy && <div className="tsugi-reading-empty"><FiBookOpen aria-hidden /><h2><Trans id="Your library is empty">Your library is empty</Trans></h2><p><Trans id="Browse a source to add manga and keep your reading progress in one place.">Browse a source to add manga and keep your reading progress in one place.</Trans></p><div className="tsugi-empty-actions"><button className="tsugi-read-action tsugi-empty-primary" onClick={() => switchTab('browse')}><Trans id="Browse sources">Browse sources</Trans></button><button className="tsugi-read-action" onClick={() => switchBrowse('extensions')}><Trans id="Extensions">Extensions</Trans></button></div></div>}
       {!!allLibrary.length && !rows.length && !busy && <p className="py-8 text-[--tsugi-muted]"><Trans id="No manga match your filters.">No manga match your filters.</Trans></p>}
       {!!allLibrary.length && <div className="tsugi-library-grid-heading"><h2>{libraryView === 'reading' ? <Trans id="In progress">In progress</Trans> : <Trans id="Your collection">Your collection</Trans>}</h2><span>{rows.length}</span></div>}
       {mangaGrid(rows)}
       {library && library.totalCount > library.nodes.length && <p className="mt-3 text-sm text-[--tsugi-muted]"><Trans id="Some library entries could not be loaded.">Some library entries could not be loaded.</Trans></p>}
+      <div className="yomi-library-links">
+        <button type="button" disabled={busy} onClick={() => switchTab('categories')}><FiFolder aria-hidden /><span><strong><Trans id="A shelf of your own">A shelf of your own</Trans></strong><small><Trans id="Bring your saved stories together in categories.">Bring your saved stories together in categories.</Trans></small></span><FiChevronRight aria-hidden /></button>
+        <button type="button" disabled={busy} onClick={() => switchTab('downloads')}><BrushDownload aria-hidden /><span><strong><Trans id="Chapter downloads">Chapter downloads</Trans></strong><small><Trans id="Check your queue and manage saved chapters.">Check your queue and manage saved chapters.</Trans></small></span><FiChevronRight aria-hidden /></button>
+      </div>
     </section>}
     </div>
     {sourceSettings && <SourceSettings key={sourceSettings.id} source={sourceSettings} busy={busy} request={serializedRequest} onClose={() => setSourceSettings(null)} />}
@@ -820,7 +845,7 @@ function SourceMangaCover({ manga, fallbackEnabled }: { manga: Manga; fallbackEn
     observer.observe(node);
     return () => { observer.disconnect(); controller.abort(); };
   }, [eligible, manga.title, manga.author, manga.inLibrary]);
-  return <div ref={box} className="tsugi-manga-cover">{url && !failed ? <img src={url} alt="" data-cover-origin="source" onError={() => setFailed(true)} /> : eligible && fallback ? <img src={fallback} alt="" referrerPolicy="no-referrer" data-cover-origin="metadata" onError={() => setFallback('')} /> : <FiBookOpen aria-hidden />}</div>;
+  return <div ref={box} className="tsugi-manga-cover">{url && !failed ? <img src={url} alt="" data-cover-origin="source" onError={() => setFailed(true)} /> : eligible && fallback ? <img src={fallback} alt="" referrerPolicy="no-referrer" data-cover-origin="metadata" onError={() => setFallback('')} /> : <span className="yomi-cover-fallback" aria-hidden="true"><FiBookOpen /><span>{manga.title}</span></span>}</div>;
 }
 
 /** One-time native setup without a console window or manual script. */
@@ -838,9 +863,10 @@ export function ReadSetupPage({ openWelcome, onReady, openBooks }: { openWelcome
       setBusy(false);
     }
   }
-  return <main data-page="read-setup" className="tsugi-read-root min-h-dvh px-6 pb-12 pt-12 sm:px-10 lg:px-[5vw]">
+  return <main data-page="read-setup" className="tsugi-read-root yomi-setup min-h-dvh px-6 pb-12 pt-12 sm:px-10 lg:px-[5vw]">
     <MediaNavigation area="read" disabled={busy} />
     <h1 className="my-9 text-4xl font-semibold tracking-tight"><Trans id="Read">Read</Trans></h1>
+    <YomiBanner eyebrow={t({ id: 'Your reading space', message: 'Your reading space' })} title={t({ id: 'A world between pages.', message: 'A world between pages.' })} description={t({ id: 'Set up manga reading or open your local book collection.', message: 'Set up manga reading or open your local book collection.' })} />
     <section className="max-w-2xl space-y-4">
       <h2 className="text-xl font-semibold"><Trans id="Set up reading">Set up reading</Trans></h2>
       <p className="text-[--tsugi-muted]"><Trans id="Tsugi will download and verify its reading engine once. Internet access and a writable application folder are required. No separate Java or manga server installation is needed.">Tsugi will download and verify its reading engine once. Internet access and a writable application folder are required. No separate Java or manga server installation is needed.</Trans></p>

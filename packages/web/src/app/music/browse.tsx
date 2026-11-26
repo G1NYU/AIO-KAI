@@ -2,7 +2,9 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { BiArrowBack, BiDisc, BiPlay } from 'react-icons/bi';
-import { FiPlay, FiSettings, FiPlus, FiCheck } from 'react-icons/fi';
+import { FiPlay, FiPlus, FiCheck, FiArrowRight, FiChevronLeft, FiChevronRight, FiFolder, FiMusic } from 'react-icons/fi';
+import { BrushPlug } from '@/components/tsugi-icons';
+import { LandscapeDecoration } from '@/components/landscape-decoration';
 import {
   catalogTrack,
   type EclipseCatalogDefinition, type EclipseCatalogItem, type EclipseDetail, type EclipseTrack,
@@ -92,7 +94,7 @@ export function MusicCollection({
     <section role="dialog" aria-modal="true" aria-label={t`Music collection`}
       className="tsugi-player-dialog tsugi-music-detail fixed inset-0 z-40 overflow-y-auto">
       <div className="tsugi-music-detail-canvas tsugi-hub-collection min-h-screen w-full px-6 pb-32 pt-14 sm:px-[3vw]">
-        <aside className="tsugi-dashboard-left tsugi-hub-collection-nav"><h2><Trans>Music</Trans></h2><button type="button" className="tsugi-dashboard-nav" onClick={onClose}><BiArrowBack aria-hidden/><span><Trans>Return to music</Trans></span></button><h3><Trans>Collection</Trans></h3><p className="tsugi-dashboard-current">{current.title}</p></aside><div className="tsugi-hub-collection-main">
+        <div className="tsugi-hub-collection-main">
         <button type="button" onClick={nested ? () => setNested(null) : onClose}
           className="tsugi-music-detail-back mb-9 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white/65 hover:bg-white/10">
           <BiArrowBack aria-hidden /> <Trans>Back to music</Trans>
@@ -168,7 +170,7 @@ export function MusicCollection({
 }
 
 export function MusicDiscover({
-  source, onPlay, onFind, recent, onPlayRecent, onConfigure, onLibrary, saving,
+  source, onPlay, onFind, recent, onPlayRecent, onConfigure, onLibrary, onSearch, saving,
 }: {
   source: MusicConnection | undefined;
   onPlay: PlayCollection;
@@ -178,6 +180,7 @@ export function MusicDiscover({
   onPlayRecent(item: RecentMusicPlay): void;
   onConfigure(): void;
   onLibrary(): void;
+  onSearch(): void;
 }) {
   const [shelves, setShelves] = React.useState<Shelf[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -242,58 +245,57 @@ export function MusicDiscover({
   const featured = hero?.item ?? featuredRow?.items[0];
   const recentFromSource = recent.filter((item) => item.sourceId === source?.id);
 
+  const featureHero = <section className="oto-feature" aria-label={t`Featured music`} data-featured={!!featured}>
+    <LandscapeDecoration className="oto-feature-backdrop" fallback="/design/oto/hero-yuna.webp" />
+    <div className="oto-feature-copy">
+      <p className="oto-overline">{featuredRow?.catalog.name || t`A little escape, a little closer`}</p>
+      <h2>{featured?.title || <Trans>A world between notes</Trans>}</h2>
+      <p className="oto-feature-description">{featured?.artist || featured?.album || <Trans>Find a little escape in the music you love.</Trans>}</p>
+      {source && <p className="oto-feature-source"><span aria-hidden />{source.manifest.name}</p>}
+      <div className="oto-feature-actions">
+        <button type="button" className="tsugi-read-action oto-primary" onClick={() => featured && featuredRow ? openCatalogItem(featuredRow, featured) : source ? onSearch() : onConfigure()}>
+          {featured?.type === 'track' ? <FiPlay aria-hidden /> : source ? <FiMusic aria-hidden /> : <FiPlus aria-hidden />}
+          {featured ? featured.type === 'track' ? <Trans>Play</Trans> : <Trans>Explore</Trans> : source ? <Trans>Search music</Trans> : <Trans>Connect a music source</Trans>}
+        </button>
+        <button type="button" className="tsugi-read-action oto-feature-secondary" onClick={onLibrary}><Trans>Open library</Trans><FiArrowRight aria-hidden /></button>
+      </div>
+    </div>
+    {featured?.artworkURL && <div className="oto-feature-cover"><MusicArtwork source={featured.artworkURL} target={768} className="size-full object-cover" /></div>}
+    <span className="oto-feature-japanese" aria-hidden="true" lang="ja"><Trans>夜の向こうへ</Trans></span>
+    {heroItems.length > 1 && <div className="oto-feature-controls">
+      <span>{String(spotlight + 1).padStart(2, '0')} <span aria-hidden>/</span> {String(heroItems.length).padStart(2, '0')}</span>
+      <button type="button" onClick={() => setSpotlight((spotlight + heroItems.length - 1) % heroItems.length)} aria-label={t`Previous featured music`}><FiChevronLeft aria-hidden /></button>
+      <button type="button" onClick={() => setSpotlight((spotlight + 1) % heroItems.length)} aria-label={t`Next featured music`}><FiChevronRight aria-hidden /></button>
+    </div>}
+  </section>;
+
   if (!source) return (
-    <section className="tsugi-hub-empty py-24 text-center">
-      <BiDisc aria-hidden className="mx-auto mb-7 text-6xl text-[--tsugi-muted]" />
-      <h2 className="text-3xl font-semibold"><Trans>Your music starts here</Trans></h2>
-      <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-[--tsugi-muted]">
-        <Trans>Connect a music source to browse albums, playlists and tracks.</Trans>
-      </p>
-      <div className="tsugi-empty-actions">
-        <button type="button" className="tsugi-read-action tsugi-empty-primary" onClick={onConfigure}><FiSettings aria-hidden /><Trans>Manage music sources</Trans></button>
-        <button type="button" className="tsugi-read-action" onClick={onLibrary}><Trans id="Open local library">Open local library</Trans></button>
+    <section aria-label={t`Music discovery`} className="tsugi-hub tsugi-discovery-workspace">
+      {featureHero}
+      <div className="oto-welcome-heading"><p className="oto-overline"><Trans>Make yourself at home</Trans></p><h3><Trans>Your music starts here</Trans></h3></div>
+      <div className="oto-start-grid">
+        <section className="oto-start-card"><FiMusic aria-hidden /><div><h3><Trans>Connect your sound</Trans></h3><p><Trans>Connect a music source to browse albums, playlists and tracks.</Trans></p></div><button type="button" className="tsugi-read-action" onClick={onConfigure}><BrushPlug aria-hidden /><Trans>Manage music sources</Trans><FiArrowRight aria-hidden /></button></section>
+        <section className="oto-start-card"><FiFolder aria-hidden /><div><h3><Trans>Bring your own collection</Trans></h3><p><Trans>Open local audio, import playlists and keep your favourite music close.</Trans></p></div><button type="button" className="tsugi-read-action" onClick={onLibrary}><Trans id="Open local library">Open local library</Trans><FiArrowRight aria-hidden /></button></section>
       </div>
     </section>
   );
 
   return (
     <section aria-label={t`Music discovery`} className="tsugi-hub tsugi-discovery-workspace">
-      <header className="tsugi-discovery-source">
+      <header className="tsugi-discovery-source oto-source-status">
         <span><Trans>Browsing</Trans> <strong>{source.manifest.name}</strong></span>
       </header>
 
       {loading && <p role="status" className="text-sm text-[--tsugi-muted]"><Trans>Loading music…</Trans></p>}
       {error && <p role="alert" className="text-sm text-amber-200">{error}</p>}
 
-      {featured && featuredRow && (
-        <section className="tsugi-spotlight tsugi-music-spotlight" data-art={featured.artworkURL ? 'true' : 'false'}
-          aria-label={t`Featured music`}>
-          {featured.artworkURL && <div className="tsugi-spotlight-backdrop" aria-hidden="true"><MusicArtwork source={featured.artworkURL} className="tsugi-spotlight-image" /></div>}
-          <div className="tsugi-feature-copy tsugi-spotlight-copy">
-            <p className="tsugi-feature-kicker">{featuredRow.catalog.name}</p>
-            <h2 className="line-clamp-3 text-[clamp(1.85rem,3.2vw,3.4rem)] font-semibold leading-tight tracking-[-.045em]">
-              {featured.title}
-            </h2>
-            {(featured.artist || featured.album) && <p className="mt-3 truncate text-sm text-[--tsugi-muted]">{featured.artist || featured.album}</p>}
-            <button type="button" className="tsugi-read-action tsugi-series-primary mt-6 inline-flex w-fit items-center gap-2"
-              onClick={() => openCatalogItem(featuredRow, featured)}>
-              {featured.type === 'track' && <FiPlay aria-hidden />}
-              {featured.type === 'track' ? <Trans>Play</Trans> : <Trans>Explore</Trans>}
-            </button>
-          </div>
-          {featured.artworkURL && (
-            <div className="tsugi-spotlight-cover">
-              <MusicArtwork source={featured.artworkURL} className="size-full object-cover" />
-            </div>
-          )}
-          {heroItems.length > 1 && <div className="tsugi-spotlight-steps" aria-label={t`Featured music`}>{heroItems.map((entry, at) => <button type="button" key={entry.item.id} aria-label={entry.item.title} aria-pressed={spotlight === at} onClick={() => setSpotlight(at)} />)}</div>}
-        </section>
-      )}
+      {featureHero}
 
       {recentFromSource.length > 0 && (
         <section aria-label={t`Recently played`}>
           <div className="mb-5 flex items-center justify-between gap-4">
-            <h3 className="text-2xl font-semibold"><Trans>Recently played</Trans></h3>
+            <h3 className="text-2xl font-semibold"><Trans>Back into your rhythm</Trans></h3>
+            <button type="button" className="oto-text-action" onClick={onLibrary}><Trans>Open library</Trans><FiArrowRight aria-hidden /></button>
           </div>
           <div className="tsugi-recent-music-grid">
             {recentFromSource.slice(0, 12).map((item) => (

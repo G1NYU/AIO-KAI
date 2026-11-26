@@ -4,6 +4,7 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 
 import { BrushDownload, BrushSettings } from '@/components/tsugi-icons';
+import { TsugiBrand } from '@/components/tsugi-brand';
 import { TrackDownload } from './track-download';
 import type { EclipseTrack } from '@/lib/music/eclipse';
 import { parsePlayerTemplate } from '@/lib/music/player-template';
@@ -88,7 +89,7 @@ function Artwork({ track, large = false }: { track: EclipseTrack; large?: boolea
 
 export function Transport({ p, palette, large = false }: { p: MusicPlayerProps; palette: PlayerPalette; large?: boolean }) {
   return (
-    <div className={`flex items-center justify-center ${large ? 'gap-3' : 'gap-1'}`}>
+    <div className={`oto-transport flex items-center justify-center ${large ? 'gap-3' : 'gap-1'}`}>
       <button type="button" onClick={() => p.onShuffle(!p.shuffle)} aria-label={t`Shuffle`}
         aria-pressed={p.shuffle} className={buttonClass}>
         <FiShuffle aria-hidden className={large ? 'text-lg' : 'text-base'} />
@@ -117,7 +118,7 @@ export function Transport({ p, palette, large = false }: { p: MusicPlayerProps; 
 
 export function Timeline({ p, palette }: { p: MusicPlayerProps; palette: PlayerPalette }) {
   return (
-    <div className="flex w-full items-center gap-3 text-xs tabular-nums"
+    <div className="oto-timeline flex w-full items-center gap-3 text-xs tabular-nums"
       style={{color:palette.muted}}>
       <span className="w-10 shrink-0 text-right">{musicTime(p.position)}</span>
       <DotSeeker position={p.position} duration={p.duration} paused={p.paused}
@@ -221,7 +222,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
   return (
     <>
       {!p.expanded && <section aria-label={t`Music player`}
-        className="tsugi-mini-player fixed inset-x-0 bottom-0 z-30"
+        className="tsugi-mini-player oto-mini-player fixed inset-x-0 bottom-0 z-30"
         style={{backgroundColor: palette.surface, borderColor: palette.border}}>
         <div className="tsugi-mini-player-grid">
           <button type="button" onClick={() => p.onExpanded(true)}
@@ -254,6 +255,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
             <div className="tsugi-mini-volume">
               <VolumeControl compact value={p.volume} onChange={p.onVolume} />
             </div>
+            <button type="button" className={`${buttonClass} oto-mini-settings`} aria-label={t`Player settings`} title={t`Player settings`} onClick={() => { p.onExpanded(true); setSettingsOpen(true); }}><BrushSettings aria-hidden /></button>
             <button type="button" onClick={() => p.onExpanded(true)} aria-label={t`Expand player`}
               className={buttonClass}><FiMaximize2 aria-hidden className="text-xl" /></button>
           </div>
@@ -266,7 +268,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
       </section>}
       {p.expanded && (
         <section role="dialog" aria-modal="true" aria-label={t`Now playing`}
-          data-stage={stageId} className="tsugi-player-dialog fixed inset-0 z-50 overflow-y-auto"
+          data-stage={stageId} className="tsugi-player-dialog oto-player fixed inset-0 z-50 overflow-y-auto"
           style={{backgroundColor:palette.canvas}}>
           {stageId === 'imported' && <div aria-hidden className="tsugi-player-ambient" />}
           <div className="tsugi-player-shell flex min-h-dvh w-full flex-col px-[3vw] pb-10 pt-14">
@@ -275,8 +277,9 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                 aria-label={t`Minimise player`} onClick={() => p.onExpanded(false)}>
                 <FiChevronDown aria-hidden className="text-2xl" />
               </button>
+              <div className="tsugi-player-brand"><TsugiBrand className="tsugi-player-signature" /><span className="tsugi-player-section"><Trans>Music</Trans></span></div>
               {showHeader && (
-                <div className="min-w-0 text-center">
+                <div className="oto-player-context min-w-0 text-center">
                   <p className="text-xs font-semibold uppercase tracking-widest text-[--tsugi-muted]">
                     <Trans>Now playing</Trans>
                   </p>
