@@ -47,7 +47,7 @@ public class FixtureSource extends HttpSource {
         SChapter chapter = SChapter.Companion.create();
         chapter.setUrl("/original-comic/chapter-1");
         chapter.setName("Original chapter");
-        chapter.setChapterNumber(1.0f);
+        chapter.setChapter_number(1.0f);
         return Observable.just(List.of(chapter));
     }
 }
