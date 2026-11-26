@@ -563,7 +563,7 @@ mod tests {
         // Only this test bypasses public HTTPS fetching, with authored local
         // bytes. The production method cannot accept this private capability.
         let result = managed.apply_update_with_checkpoint(review).expect("apply original v2 fixture");
-        assert_eq!(result["status"], "updated");
+        assert_eq!(result["status"], "updated", "{}", result["error"].as_str().unwrap_or("No broker error was returned."));
         assert_eq!(result["sha256"], result["installedSha256"]);
         assert_eq!(result["inputFormat"], "jar");
         assert!(result["checkpointId"].is_string());
