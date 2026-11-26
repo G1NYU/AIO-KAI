@@ -15,7 +15,7 @@ export type ReadAction =
   | { kind: 'restore-manga-progress'; id:number; identity:string; changes:MangaProgressPatch[] }
   | { kind: 'assign-category'; mangaId: number; categoryId: number; assigned: boolean }
   | { kind: 'add-store' | 'remove-store'; index: string }
-  | { kind: 'extensions'; offset: number; query?: string; store?: string; language?: string; installed?: boolean; updatesOnly?: boolean }
+  | { kind: 'extensions'; offset: number; query?: string; store?: string; language?: string; installed?: boolean; updatesOnly?: boolean; obsoleteOnly?: boolean; contentWarning?: 'SAFE' | 'MIXED' | 'NSFW' }
   | { kind: 'install-extension' | 'update-extension' | 'uninstall-extension'; package: string }
   | { kind: 'catalogue'; source: string; page: number; mode: 'popular' | 'latest' | 'search'; query?: string }
   | { kind: 'manga' | 'chapter' | 'cover'; id: number }

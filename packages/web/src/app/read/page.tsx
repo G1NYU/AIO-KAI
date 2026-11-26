@@ -15,17 +15,37 @@ import { lookupMissingCover, mayLookUpCover, readCoverFallback, saveCoverFallbac
 import { ReaderSettings } from './reader-settings';
 import { SourceFeed, useSourceFeed } from './source-feed';
 import type { FeedManga } from './source-feed-state';
+import { normalizedContentWarning, sourceLanguages, sourceMatchesFilters, type ContentFilter, type SourceMetadata as Source } from './source-metadata';
 import { MangaTracking, type Tracker } from './tracking';
 import { readReaderPreferences, saveReaderPreferences } from './reader-preferences';
 import { chapterGroups, neighboringChapter, cleanSynopsis, type ReadingChapter as Chapter } from './reader-utils';
 
 type Nodes<T> = { nodes: T[]; totalCount: number };
-type Source = { id: string; name: string; lang: string; displayName?: string; supportsLatest: boolean };
 type Store = { indexUrl: string; name: string };
-type Extension = { storeIndexUrl?: string | null; pkgName: string; name: string; lang: string; versionName: string; isInstalled: boolean; isObsolete: boolean; hasUpdate?: boolean };
+type Extension = { storeIndexUrl?: string | null; pkgName: string; name: string; lang: string; versionName: string; isInstalled: boolean; isObsolete: boolean; hasUpdate?: boolean; contentWarning?: string | null };
 type ExtensionUpdateResult = { package: string; status: 'updated' | 'rolled-back'; versionName: string; checkpointId: string; error?: string };
 type ExtensionUpdateNotice = { package: string; name: string; status: 'updated' | 'rolled-back' | 'failed'; message: string };
 function extensionUpdateLabel(name: string) { return t({ id: 'Select update for {name}', message: `Select update for ${name}` }); }
+function contentWarningLabel(value: unknown) {
+  switch (normalizedContentWarning(value)) {
+    case 'SAFE': return t({ id: 'Not flagged', message: 'Not flagged' });
+    case 'MIXED': return t({ id: 'Mixed content', message: 'Mixed content' });
+    case 'NSFW': return t({ id: '18+ content', message: '18+ content' });
+    default: return t({ id: 'Unknown', message: 'Unknown' });
+  }
+}
+function ContentFilterOptions() {
+  return <><option value=""><Trans id="All content">All content</Trans></option>{(['SAFE', 'MIXED', 'NSFW'] as const).map(value => <option key={value} value={value}>{contentWarningLabel(value)}</option>)}</>;
+}
+function languageLabel(language: string) {
+  if (language === 'all') return t({ id: 'Multilingual', message: 'Multilingual' });
+  if (!language) return t({ id: 'Unknown language', message: 'Unknown language' });
+  try { return new Intl.DisplayNames(['en'], { type: 'language' }).of(language) || language; }
+  catch { return language; }
+}
+function versionLabel(version: string, installed: boolean) {
+  return installed ? t({ id: 'Installed version {version}', message: `Installed version ${version}` }) : t({ id: 'Available version {version}', message: `Available version ${version}` });
+}
 type Manga = { id: number | string; sourceId?: string; categories?: { nodes: { id: number }[] }; title: string; author?: string | null; artist?: string | null; genre?: string[]; thumbnailUrl?: string | null; description?: string | null; inLibrary: boolean; unreadCount?: number; lastReadChapter?: { id: number; name: string; lastPageRead: number; pageCount: number; isRead: boolean; lastReadAt?: number | string } | null };
 type Details = { manga: Manga; chapters: Chapter[] };
 type Catalogue = { mangas: Manga[]; hasNextPage: boolean };
@@ -64,8 +84,12 @@ export function ReadPage({ visible }: {
   const [storeFilter, setStoreFilter] = React.useState('');
   const [appliedFilter, setAppliedFilter] = React.useState('');
   const [extensionLanguage, setExtensionLanguage] = React.useState('');
-  const [extensionState, setExtensionState] = React.useState<'all' | 'installed' | 'available' | 'updates'>('all');
+  const [extensionState, setExtensionState] = React.useState<'all' | 'installed' | 'available' | 'updates' | 'obsolete'>('all');
+  const [extensionContent, setExtensionContent] = React.useState<ContentFilter>('');
   const [sourceFilter, setSourceFilter] = React.useState('');
+  const [sourceLanguage, setSourceLanguage] = React.useState('');
+  const [sourceContent, setSourceContent] = React.useState<ContentFilter>('');
+  const [sourcesLoaded, setSourcesLoaded] = React.useState(false);
   const [libraryFilter, setLibraryFilter] = React.useState('');
   const [librarySort, setLibrarySort] = React.useState<'title' | 'recent'>('title');
   const [libraryView, setLibraryView] = React.useState<'all' | 'reading'>('all');
@@ -155,17 +179,22 @@ export function ReadPage({ visible }: {
     setConfirmDelete(false);
   }
   async function loadSources() {
-    const result = await readRequest<Nodes<Source>>({ kind: 'sources' });
+    setSourcesLoaded(false); setSources([]);
+    const result = await readRequest<Nodes<Source> & { complete: boolean }>({ kind: 'source-inventory' });
+    if (result.complete !== true) throw new Error(t({ id: 'The installed source list is incomplete. Reload installed sources to try again.', message: 'The installed source list is incomplete. Reload installed sources to try again.' }));
+    await loadStores();
     const installed = result.nodes.filter((item) => item.id !== '0');
     setSources(installed);
+    setSourcesLoaded(true);
     setSource((old) => installed.some((item) => item.id === old) ? old : '');
   }
   async function loadStores() {
     setStores((await readRequest<Nodes<Store>>({ kind: 'stores' })).nodes);
   }
-  async function loadExtensions(next = 0, term = appliedFilter, store = storeFilter, language = extensionLanguage, state = extensionState) {
+  async function loadExtensions(next = 0, term = appliedFilter, store = storeFilter, language = extensionLanguage, state = extensionState, content = extensionContent) {
+    setExtensions(null); setSelectedExtensions([]);
     await loadStores();
-    const result = await readRequest<Nodes<Extension>>({ kind: 'extensions', offset: next, query: term || undefined, store: store || undefined, language: language.trim() || undefined, installed: state === 'all' ? undefined : state !== 'available', updatesOnly: state === 'updates' });
+    const result = await readRequest<Nodes<Extension>>({ kind: 'extensions', offset: next, query: term || undefined, store: store || undefined, language: language.trim() || undefined, installed: state === 'all' ? undefined : state !== 'available', updatesOnly: state === 'updates', obsoleteOnly: state === 'obsolete', contentWarning: content || undefined });
     setExtensions(result);
     setSelectedExtensions(previous => previous.filter(pkg => result.nodes.some(extension => extension.pkgName === pkg && extension.isInstalled && extension.hasUpdate && !extension.isObsolete)));
     setOffset(next);
@@ -310,10 +339,13 @@ export function ReadPage({ visible }: {
     setExtensionFailures((old) => { const next = { ...old }; delete next[extension.pkgName]; return next; });
     try {
       await readRequest({ kind: extension.isInstalled ? 'uninstall-extension' : 'install-extension', package: extension.pkgName });
-      await loadExtensions(offset);
     } catch (error) {
       setExtensionFailures((old) => ({ ...old, [extension.pkgName]: error instanceof Error ? error.message : t({ id: "Extension operation failed.", message: "Extension operation failed." }) }));
+      return;
     }
+    // A successful mutation can be followed by a failed list refresh. Keep
+    // that error visible at page level even after stale rows are cleared.
+    await loadExtensions(offset);
   }
   async function updateExtensions(candidates: Extension[]) {
     const batch = candidates.filter(extension => extension.isInstalled && extension.hasUpdate && !extension.isObsolete).slice(0, 100);
@@ -376,6 +408,12 @@ export function ReadPage({ visible }: {
   const selectedCategory = categories.find(item => item.id === categoryId);
   const libraryRows = (libraryView === 'reading' ? continuing : allLibrary).filter(manga => !categoryFilter || categoryContains(manga, categoryFilter)).filter((manga) => (manga.title + ' ' + (manga.author || '')).toLowerCase().includes(libraryFilter.trim().toLowerCase())).sort((a, b) => librarySort === 'recent' ? Number(b.lastReadChapter?.lastReadAt || 0) - Number(a.lastReadChapter?.lastReadAt || 0) : a.title.localeCompare(b.title));
   const rows = tab === 'library' ? libraryRows : browse?.result.mangas || [];
+  const matchingSources = sources.filter(item => sourceMatchesFilters(item, sourceFilter, sourceLanguage, sourceContent));
+  const extensionLanguages = sourceLanguages([
+    ...['en', 'fr', 'es', 'es-419', 'de', 'it', 'pt', 'pt-BR', 'id', 'ja', 'ko', 'zh', 'zh-Hans', 'zh-Hant', 'ar', 'ru', 'nl', 'pl', 'tr', 'uk', 'vi', 'th', 'all', extensionLanguage].map(lang => ({ lang })),
+    ...sources, ...(extensions?.nodes || []),
+  ]);
+  const pageUpdateCount = extensions?.nodes.filter(item => item.isInstalled && item.hasUpdate && !item.isObsolete).length || 0;
   const chapterRows = details ? chapterGroups(details.chapters).map((group) => group.filter((chapter) => (chapter.name + ' ' + (chapter.scanlator || '')).toLowerCase().includes(chapterFilter.toLowerCase()) && (chapterState === 'all' || (chapterState === 'bookmarked' ? chapter.isBookmarked : (chapterState === 'read') === chapter.isRead)))).filter((group) => group.length) : [];
   if (chapterOrder === 'desc') chapterRows.reverse();
   const mangaRow = (manga: Manga, select?: (manga: Manga) => void) => <button className="tsugi-manga-card" key={manga.id} disabled={busy && (!globalSearching || globalStopping)} onClick={() => {
@@ -573,7 +611,7 @@ export function ReadPage({ visible }: {
           {[{ id: 'sources' as const, label: t({ id: "Sources", message: "Sources" }), Icon: FiCompass }, { id: 'feed' as const, label: t({ id: "Feed", message: "Feed" }), Icon: FiGlobe }, { id: 'extensions' as const, label: t({ id: "Extensions", message: "Extensions" }), Icon: FiGrid }, { id: 'search' as const, label: t({ id: "Global search", message: "Global search" }), Icon: FiSearch }].map(({ id, label, Icon }) =>
             <button key={id} disabled={busy} aria-current={browseTab === id ? 'page' : undefined} onClick={() => switchBrowse(id)}><Icon aria-hidden />{label}</button>)}
         </nav>
-        {browseTab === 'feed' ? <SourceFeed feed={feed} busy={busy} onRequest={() => setError('')} renderManga={(items, select) => mangaGrid(items, item => select(item as FeedManga))} onOpen={item => { void run(async () => { await showManga(item); }); }} /> : browseTab === 'extensions' ? <section>
+        {browseTab === 'feed' ? <SourceFeed feed={feed} busy={busy} onRequest={() => setError('')} renderManga={(items, select) => mangaGrid(items, item => select(item as FeedManga))} onOpen={item => { void run(async () => { await showManga(item); }); }} /> : browseTab === 'extensions' ? <section data-ui="extension-browser">
           <div className="mb-5 flex flex-wrap items-center gap-3">
             <h2 className="mr-auto text-xl font-semibold"><Trans id="Extensions">Extensions</Trans></h2>
             <button className="tsugi-read-action" disabled={busy} onClick={() => void run(async () => { await readRequest({ kind: 'refresh-extensions' }); await loadExtensions(); })}><Trans id="Check extension updates">Check extension updates</Trans></button>
@@ -583,11 +621,13 @@ export function ReadPage({ visible }: {
             <select className="tsugi-read-input" aria-label={t({ id: "Repository", message: "Repository" })} value={storeFilter} disabled={busy} onChange={(event) => { const index = event.target.value; setStoreFilter(index); void run(() => loadExtensions(0, filter.trim(), index)); }}>
               <option value=""><Trans id="All repositories">All repositories</Trans></option>{stores.map((store) => <option key={store.indexUrl} value={store.indexUrl}>{store.name}</option>)}
             </select>
-            <select className="tsugi-read-input" aria-label={t({ id: "Extension status", message: "Extension status" })} value={extensionState} disabled={busy} onChange={(event) => { const value = event.target.value as typeof extensionState; setExtensionState(value); void run(() => loadExtensions(0, filter.trim(), storeFilter, extensionLanguage, value)); }}><option value="all"><Trans id="All extensions">All extensions</Trans></option><option value="installed"><Trans id="Installed">Installed</Trans></option><option value="available"><Trans id="Available">Available</Trans></option><option value="updates"><Trans id="Updates available">Updates available</Trans></option></select>
-            <select className="tsugi-read-input" aria-label={t({ id: "Extension language", message: "Extension language" })} value={extensionLanguage} disabled={busy} onChange={(event) => { const value = event.target.value; setExtensionLanguage(value); void run(() => loadExtensions(0, filter.trim(), storeFilter, value)); }}><option value=""><Trans id="All languages">All languages</Trans></option>{['en','fr','es','de','it','pt','id','ja','ko','zh','ar','ru','all'].map((lang) => <option key={lang} value={lang}>{lang === 'all' ? t({ id: "Multilingual", message: "Multilingual" }) : new Intl.DisplayNames(['en'], { type: 'language' }).of(lang) || lang}</option>)}</select>
+            <select className="tsugi-read-input" aria-label={t({ id: "Extension status", message: "Extension status" })} value={extensionState} disabled={busy} onChange={(event) => { const value = event.target.value as typeof extensionState; setExtensionState(value); void run(() => loadExtensions(0, filter.trim(), storeFilter, extensionLanguage, value)); }}><option value="all"><Trans id="All extensions">All extensions</Trans></option><option value="installed"><Trans id="Installed">Installed</Trans></option><option value="available"><Trans id="Available">Available</Trans></option><option value="updates"><Trans id="Updates available">Updates available</Trans></option><option value="obsolete"><Trans id="Obsolete">Obsolete</Trans></option></select>
+            <select className="tsugi-read-input" aria-label={t({ id: "Extension language", message: "Extension language" })} value={extensionLanguage} disabled={busy} onChange={(event) => { const value = event.target.value; setExtensionLanguage(value); void run(() => loadExtensions(0, filter.trim(), storeFilter, value)); }}><option value=""><Trans id="All languages">All languages</Trans></option>{extensionLanguages.map(lang => <option key={lang} value={lang}>{languageLabel(lang)}</option>)}</select>
+            <select className="tsugi-read-input" aria-label={t({ id: 'Extension content', message: 'Extension content' })} value={extensionContent} disabled={busy} onChange={event => { const value = event.target.value as ContentFilter; setExtensionContent(value); void run(() => loadExtensions(0, filter.trim(), storeFilter, extensionLanguage, extensionState, value)); }}><ContentFilterOptions /></select>
             <button className="tsugi-read-action" disabled={busy}><Trans id="Search">Search</Trans></button>
           </form>
-          {extensions && <p className="mb-3 text-sm text-[--tsugi-muted]">{extensions.totalCount.toLocaleString()} <Trans id="matching extensions">matching extensions</Trans></p>}
+          <p className="mb-3 text-xs text-[--tsugi-muted]"><Trans id="Content labels come from extensions. Not flagged does not guarantee suitability.">Content labels come from extensions. Not flagged does not guarantee suitability.</Trans></p>
+          {extensions && <p className="mb-3 flex flex-wrap gap-x-4 text-sm text-[--tsugi-muted]"><span>{extensions.totalCount.toLocaleString()} <Trans id="matching extensions">matching extensions</Trans></span>{pageUpdateCount > 0 && <span><Trans id="{pageUpdateCount} updates on this page">{pageUpdateCount} updates on this page</Trans></span>}</p>}
           {extensionState === 'updates' && <p className="mb-3 text-sm text-[--tsugi-muted]"><Trans id="Each update requires approval in a native window. Updates run one at a time with a recovery copy and stop if an update fails or is cancelled.">Each update requires approval in a native window. Updates run one at a time with a recovery copy and stop if an update fails or is cancelled.</Trans></p>}
           {extensions?.nodes.some(extension => extension.isInstalled && extension.hasUpdate && !extension.isObsolete) && <div className="mb-4 flex flex-wrap items-center gap-3">
             <button className="tsugi-read-action" disabled={busy} onClick={() => setSelectedExtensions(extensions.nodes.filter(extension => extension.isInstalled && extension.hasUpdate && !extension.isObsolete).map(extension => extension.pkgName))}><Trans id="Select updates on this page">Select updates on this page</Trans></button>
@@ -600,9 +640,9 @@ export function ReadPage({ visible }: {
           </section>}
           {!stores.length && !busy && <button className="tsugi-read-action" onClick={() => { setTab('settings'); openSettings('repositories'); }}><Trans id="Add an extension repository">Add an extension repository</Trans></button>}
           {extensions && !extensions.nodes.length && !busy && <p className="py-6 text-[--tsugi-muted]"><Trans id="No matching extensions.">No matching extensions.</Trans></p>}
-          {extensions?.nodes.map((extension) => <div key={extension.pkgName} className="tsugi-read-row flex-wrap">
+          {extensions?.nodes.map((extension) => <div key={extension.pkgName} data-extension-package={extension.pkgName} className="tsugi-read-row flex-wrap">
             {extension.isInstalled && extension.hasUpdate && !extension.isObsolete && <input type="checkbox" aria-label={extensionUpdateLabel(extension.name)} disabled={busy} checked={selectedExtensions.includes(extension.pkgName)} onChange={event => setSelectedExtensions(previous => event.target.checked ? [...previous, extension.pkgName] : previous.filter(pkg => pkg !== extension.pkgName))} />}
-            <span className="min-w-0 flex-1"><span className="block font-medium">{extension.name}{extension.isInstalled && extension.hasUpdate === true && <small className="ms-2 text-[--tsugi-accent]"><Trans id="Update available">Update available</Trans></small>}{extension.isInstalled && extension.isObsolete && <small className="ms-2 text-[--tsugi-muted]"><Trans id="Obsolete">Obsolete</Trans></small>}</span><span className="block break-all text-xs text-[--tsugi-muted]">{extension.lang} · {extension.versionName} · {stores.find((store) => store.indexUrl === extension.storeIndexUrl)?.name || extension.pkgName}</span></span>
+            <span className="min-w-0 basis-56 flex-1"><span className="block break-words font-medium">{extension.name}{extension.isInstalled && extension.hasUpdate === true && !extension.isObsolete && <small className="ms-2 text-[--tsugi-accent]"><Trans id="Update available">Update available</Trans></small>}{extension.isInstalled && extension.isObsolete && <small className="ms-2 text-[--tsugi-muted]"><Trans id="Obsolete">Obsolete</Trans></small>}</span><span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[--tsugi-muted]"><span>{languageLabel(extension.lang)}</span><span>{contentWarningLabel(extension.contentWarning)}</span><span>{versionLabel(extension.versionName, extension.isInstalled)}</span></span><span className="block break-all text-xs text-[--tsugi-muted]">{extension.pkgName}</span><span className="block break-words text-xs text-[--tsugi-muted]"><Trans id="Current repository">Current repository</Trans>: {stores.find(store => store.indexUrl === extension.storeIndexUrl)?.name || t({ id: 'Unknown', message: 'Unknown' })}</span></span>
             {extension.isInstalled && extension.hasUpdate && !extension.isObsolete && <button className="tsugi-read-action" disabled={busy} onClick={() => void run(() => updateExtensions([extension]))}><Trans id="Update">Update</Trans></button>}
             <button className="tsugi-read-action" disabled={busy || (!extension.isInstalled && extension.isObsolete)} onClick={() => void run(() => changeExtension(extension))}>{extension.isInstalled ? t({ id: "Uninstall", message: "Uninstall" }) : t({ id: "Install", message: "Install" })}</button>
             {extensionFailures[extension.pkgName] && <p className="basis-full text-xs text-[--tsugi-muted]" role="alert">{extensionFailures[extension.pkgName]}</p>}
@@ -623,10 +663,20 @@ export function ReadPage({ visible }: {
             {group.error ? <p className="py-3 text-sm text-[--tsugi-muted]">{group.error}</p> : group.result?.mangas.length ? mangaGrid(group.result.mangas) : <p className="py-3 text-sm text-[--tsugi-muted]"><Trans id="No matches.">No matches.</Trans></p>}
             {group.result?.hasNextPage && <button className="tsugi-read-action mt-2" disabled={busy} onClick={() => { setBrowseTab('sources'); setSource(group.source.id); setQuery(globalTerm); setBrowse({ source: group.source.id, query: globalTerm, mode: 'search', page: 1, result: group.result! }); }}><Trans id="More results">More results</Trans></button>}
           </section>)}
-        </section> : !source ? <section>
-          <div className="tsugi-reading-list-header"><h2 className="text-xl font-semibold"><Trans id="Installed sources">Installed sources</Trans></h2><input className="tsugi-read-input" placeholder={t({ id: "Filter installed sources", message: "Filter installed sources" })} aria-label={t({ id: "Filter installed sources", message: "Filter installed sources" })} value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} /></div>
-          {!sources.length && !busy && <div className="py-6"><p className="mb-3 text-[--tsugi-muted]"><Trans id="No installed sources. Install an extension to start browsing.">No installed sources. Install an extension to start browsing.</Trans></p><button className="tsugi-read-action" onClick={() => switchBrowse('extensions')}><Trans id="Browse extensions">Browse extensions</Trans></button></div>}
-          {sources.filter((item) => ((item.displayName || item.name) + ' ' + item.lang).toLowerCase().includes(sourceFilter.toLowerCase())).map((item) => <button key={item.id} className="tsugi-read-row" disabled={busy} onClick={() => { setSource(item.id); setQuery(''); setBrowse(null); void run(() => catalogue('popular', 1, item.id, '')); }}><span className="flex items-center gap-3"><FiGlobe aria-hidden /><span><span className="block font-medium">{item.displayName || item.name}</span><span className="text-sm text-[--tsugi-muted]">{item.lang}</span></span></span><FiChevronRight aria-hidden /></button>)}
+        </section> : !source ? <section data-ui="source-browser">
+          <div className="tsugi-reading-list-header flex-wrap gap-3"><h2 className="mr-auto text-xl font-semibold"><Trans id="Installed sources">Installed sources</Trans></h2><button className="tsugi-read-action" disabled={busy} onClick={() => void run(loadSources)}><Trans id="Reload installed sources">Reload installed sources</Trans></button></div>
+          <div className="tsugi-reading-filters mb-3">
+            <input className="tsugi-read-input grow" maxLength={200} placeholder={t({ id: "Filter installed sources", message: "Filter installed sources" })} aria-label={t({ id: "Filter installed sources", message: "Filter installed sources" })} value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} />
+            <select className="tsugi-read-input" aria-label={t({ id: 'Source language', message: 'Source language' })} value={sourceLanguage} onChange={event => setSourceLanguage(event.target.value)}><option value=""><Trans id="All languages">All languages</Trans></option>{sourceLanguages([...sources, { lang: sourceLanguage }]).map(lang => <option key={lang} value={lang}>{languageLabel(lang)}</option>)}</select>
+            <select className="tsugi-read-input" aria-label={t({ id: 'Source content', message: 'Source content' })} value={sourceContent} onChange={event => setSourceContent(event.target.value as ContentFilter)}><ContentFilterOptions /></select>
+          </div>
+          <p className="mb-3 text-xs text-[--tsugi-muted]"><Trans id="Content labels come from extensions. Not flagged does not guarantee suitability.">Content labels come from extensions. Not flagged does not guarantee suitability.</Trans></p>
+          {sourcesLoaded && <p className="mb-3 text-sm text-[--tsugi-muted]" role="status">{matchingSources.length} / {sources.length} <Trans id="sources shown">sources shown</Trans></p>}
+          {sourcesLoaded && !sources.length && !busy && <div className="py-6"><p className="mb-3 text-[--tsugi-muted]"><Trans id="No installed sources. Install an extension to start browsing.">No installed sources. Install an extension to start browsing.</Trans></p><button className="tsugi-read-action" onClick={() => switchBrowse('extensions')}><Trans id="Browse extensions">Browse extensions</Trans></button></div>}
+          {sourcesLoaded && sources.length > 0 && !matchingSources.length && <p className="py-6 text-[--tsugi-muted]"><Trans id="No sources match these filters.">No sources match these filters.</Trans></p>}
+          {matchingSources.map(item => <button key={item.id} data-source-id={item.id} className="tsugi-read-row gap-3" disabled={busy} onClick={() => { setSource(item.id); setQuery(''); setBrowse(null); void run(() => catalogue('popular', 1, item.id, '')); }}>
+            <FiGlobe className="shrink-0" aria-hidden /><span className="min-w-0 flex-1 text-left"><span className="block break-words font-medium">{item.displayName || item.name}</span><span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[--tsugi-muted]"><span>{languageLabel(item.lang)}</span><span>{contentWarningLabel(item.contentWarning)}</span>{item.supportsLatest && <span><Trans id="Latest supported">Latest supported</Trans></span>}{item.isConfigurable && <span><Trans id="Configurable source">Configurable source</Trans></span>}</span>{item.extension && <><span className="block break-words text-xs text-[--tsugi-muted]">{item.extension.name} · {versionLabel(item.extension.versionName, item.extension.isInstalled)}</span><span className="block break-all text-xs text-[--tsugi-muted]">{item.extension.pkgName}</span>{item.extension.isObsolete ? <span className="text-xs text-[--tsugi-muted]"><Trans id="Obsolete extension">Obsolete extension</Trans></span> : item.extension.hasUpdate && <span className="text-xs text-[--tsugi-accent]"><Trans id="Extension update available">Extension update available</Trans></span>}</>}</span><FiChevronRight className="shrink-0" aria-hidden />
+          </button>)}
         </section> : <section>
           <div className="mb-5 flex flex-wrap items-center gap-3">
             <button className="tsugi-read-action" disabled={busy} onClick={() => { setSource(''); setBrowse(null); }}><FiArrowLeft aria-hidden /><Trans id="Sources">Sources</Trans></button>

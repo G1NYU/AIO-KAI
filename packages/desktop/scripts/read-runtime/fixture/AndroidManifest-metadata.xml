@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.tsugi.fixture" android:versionCode="1" android:versionName="1.6.1">
+    <uses-feature android:name="tachiyomi.extension" />
+    <application android:label="Tachiyomi: Tsugi Metadata Fixture">
+        <meta-data android:name="tachiyomi.extension.class" android:value=".MetadataFixtureFactory" />
+        <meta-data android:name="tachiyomix.name" android:value="Tsugi Metadata Fixture" />
+        <meta-data android:name="tachiyomix.extensionLib" android:value="1.6" />
+        <!-- Installed manifest values use domain ordinals: 1 is MIXED. -->
+        <meta-data android:name="tachiyomix.contentWarning" android:value="1" />
+    </application>
+</manifest>

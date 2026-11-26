@@ -34,7 +34,7 @@ New v2 preference files, and portable archives containing them, are **not compat
 
 ## Native inventory and catalogue contract
 
-The adapter targets [Suwayomi Server v2.4.2373](https://github.com/Suwayomi/Suwayomi-Server/tree/v2.4.2373), pinned at `9f8cc818b5df6d0e7e10e0de415903635d2c04de`. The new fixed `source-inventory` action returns loaded source metadata in `nodes` (`id`, `name`, `lang`, optional `displayName`, and `supportsLatest`), a raw `totalCount`, and `complete: true` only after the bounded scan succeeds. The existing `sources` action is unchanged.
+The adapter targets [Suwayomi Server v2.4.2373](https://github.com/Suwayomi/Suwayomi-Server/tree/v2.4.2373), pinned at `9f8cc818b5df6d0e7e10e0de415903635d2c04de`. The fixed `source-inventory` action returns loaded source metadata in `nodes`, a raw `totalCount`, and `complete: true` only after the bounded scan succeeds. Feed projects only `id`, `name`, `lang`, optional `displayName`, and `supportsLatest`; the additional content/configuration/owning-extension fields support [source management](source-management.md). The existing `sources` action is unchanged.
 
 The inventory scans **at most 1,000 raw database rows**, using 100-row pages at fixed offsets and ascending signed source IDs. Upstream counts and paginates database rows before omitting sources it cannot load. Consequently, a short or empty visible page is not the end, and the number of returned sources can be smaller than `totalCount`. The native response includes local source `0`; Feed filters it out.
 
@@ -46,7 +46,14 @@ Catalogue requests use the existing fixed `fetchSourceManga` mutation with the s
 
 The original Feed fixture installs 101 sources, including ID `9007199254740993`, and supplies distinct Popular and Latest pages. Its packaged runtime test checks inventory across the page boundary and restart, plus unchanged saved library membership, categories, bookmarks and page progress. It uses a separate fixture JAR and disposable data directory, with original PNGs served by its own loopback listener.
 
-Unit coverage exercises empty visible pages followed by later sources, exact IDs, bounds, changing inventories, sequential catalogue dispatch, per-source retry/paging, stop versus reply invalidation, and preference compatibility. The browser helper exercises the real Feed UI against a synthetic native bridge. **Execution of the new fixture against the actual packaged Windows runtime remains pending at this documentation checkpoint.** Local helper tests and cross-compilation do not replace that gate or physical Windows acceptance.
+Unit coverage exercises empty visible pages followed by later sources, exact IDs, bounds, changing inventories, sequential catalogue dispatch, per-source retry/paging, stop versus reply invalidation, and preference compatibility. The browser helper exercises the real Feed UI against a synthetic native bridge.
+
+Implementation checkpoint [c8f8c9b3a69e0ecf137684bbf26859a8bce1dc18](https://github.com/G1NYU/TSUGI/commit/c8f8c9b3a69e0ecf137684bbf26859a8bce1dc18) passed both CI gates:
+
+- [Unified Windows 45785897945](https://github.com/G1NYU/TSUGI/actions/runs/45785897945): 85 native core tests, 277 web tests across 26 suites and the full browser harness passed.
+- [Reader runtime smoke 45785897874](https://github.com/G1NYU/TSUGI/actions/runs/45785897874): 31 focused Reader tests passed, with one subprocess fixture ignored; all seven packaged-runtime cases passed. The Feed case ran against the actual pinned JVM and verified the authored 101-source inventory, exact signed 64-bit IDs, distinct Popular/Latest pages, restart behavior and unchanged saved reading state.
+
+These results establish automated acceptance for this Feed revision. Physical Windows and live-provider acceptance remain open, and no new user test package was produced by these source/runtime gates.
 
 Implementation and test entry points:
 
@@ -56,4 +63,4 @@ Implementation and test entry points:
 - `packages/desktop/scripts/read-runtime/fixture/FeedFixtureFactory.java`, `FeedFixtureSource.java`, and `AndroidManifest-feed.xml`: authored source fixture.
 - `packages/web/tests/source-feed.test.ts`, `source-feed-preferences.test.ts`, and `source-feed-browser.mjs`: state, storage and browser regression coverage.
 
-This slice does not complete the wider B1 roadmap. Source icons, extension-provided source preferences and adult-content filtering remain separate work.
+This slice does not complete the wider B1 roadmap. Richer source/extension metadata and icons, extension-provided source preferences, wider language/adult-content filtering and physical/live-provider acceptance remain separate work.

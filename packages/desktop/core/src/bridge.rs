@@ -67,6 +67,11 @@ pub struct MangaProgressPatch {
     pub page: Option<u32>,
 }
 
+/// Publisher-declared engine metadata, not a per-title safety assessment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ReadContentWarning { Safe, Mixed, Nsfw }
+
 /// Fixed reading operations; the page cannot send arbitrary GraphQL,
 /// local paths, upstream URLs for pages, or authentication credentials.
 #[derive(Debug, Deserialize)]
@@ -93,7 +98,7 @@ pub enum ReadAction {
     AddStore { index: String },
     RemoveStore { index: String },
     RefreshExtensions,
-    Extensions { offset: u32, query: Option<String>, store: Option<String>, language: Option<String>, installed: Option<bool>, #[serde(default)] updates_only: bool },
+    Extensions { offset: u32, query: Option<String>, store: Option<String>, language: Option<String>, installed: Option<bool>, #[serde(default)] updates_only: bool, #[serde(default)] obsolete_only: bool, content_warning: Option<ReadContentWarning> },
     InstallExtension { package: String },
     UpdateExtension { package: String },
     UninstallExtension { package: String },
@@ -118,6 +123,27 @@ pub enum ReadAction {
     TrackerUnbind { manga_id: i32, record_id: i32 },
     TrackerSync { manga_id: i32 },
     ChapterFlags { ids: Vec<i32>, read: Option<bool>, bookmarked: Option<bool> },
+}
+
+#[cfg(test)]
+mod reading_metadata_tests {
+    use super::*;
+
+    #[test]
+    fn extension_metadata_filters_preserve_old_defaults_and_accept_only_known_labels() {
+        let action: ReadAction = serde_json::from_value(serde_json::json!({"kind": "extensions", "offset": 0})).unwrap();
+        assert!(matches!(action, ReadAction::Extensions { updates_only: false, obsolete_only: false, content_warning: None, .. }));
+        for (label, expected) in [("SAFE", ReadContentWarning::Safe), ("MIXED", ReadContentWarning::Mixed), ("NSFW", ReadContentWarning::Nsfw)] {
+            let action: ReadAction = serde_json::from_value(serde_json::json!({"kind": "extensions", "offset": 100,
+                "contentWarning": label, "obsoleteOnly": true})).unwrap();
+            assert!(matches!(action, ReadAction::Extensions { offset: 100, obsolete_only: true, content_warning: Some(value), .. } if value == expected));
+        }
+        for value in [serde_json::json!("safe"), serde_json::json!("UNKNOWN"), serde_json::json!(true), serde_json::json!(0)] {
+            assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind": "extensions", "offset": 0, "contentWarning": value})).is_err());
+        }
+        assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind": "extensions", "offset": 0, "isNsfw": true})).is_err());
+        assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind": "extensions", "offset": 0, "obsoleteOnly": "true"})).is_err());
+    }
 }
 
 /// Managed backup operations accept no arbitrary paths.

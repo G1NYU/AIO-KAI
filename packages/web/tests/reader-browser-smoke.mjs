@@ -10,6 +10,7 @@ import { verifyExtensionUpdatesBrowser } from './extension-updates-browser.mjs';
 import { verifyMihonImportBrowser } from './mihon-import-browser.mjs';
 import { verifyDownloadCleanupBrowser, verifyReaderReleaseBrowser } from './download-cleanup-browser.mjs';
 import { verifySourceFeedBrowser } from './source-feed-browser.mjs';
+import { verifySourceMetadataBrowser } from './source-metadata-browser.mjs';
 import { pathToFileURL } from 'node:url';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -191,7 +192,8 @@ try {
           case 'refresh-extensions': data = { ok: true }; break;
           case 'extensions': data = nodes(state.stores.length && (a.installed === undefined || a.installed === state.installed) && (!a.language || a.language === 'en') && (!a.updatesOnly || (state.installed && state.fixtureHasUpdate)) ? [{ pkgName: 'org.tsugi.fixture', name: 'Original extension', lang: 'en', versionName: '1.6', storeIndexUrl: state.stores[0].indexUrl, isInstalled: state.installed, isObsolete: false, hasUpdate: !!state.fixtureHasUpdate && state.installed }] : []); break;
           case 'install-extension': state.installed = true; data = { ok: true }; break;
-          case 'sources': data = nodes(state.installed ? [{ id: '12345', name: 'Original source', lang: 'en', supportsLatest: true }, ...(state.transferEnabled ? [{ id: '67890', name: 'Replacement source', lang: 'en', supportsLatest: true }] : []), ...(state.searchLayout ? [{ id: '23456', name: 'Additional source', lang: 'fr' }, { id: '34567', name: 'Empty source', lang: 'en' }, { id: '45678', name: 'Unavailable source', lang: 'en' }] : [])] : []); break;
+          case 'sources':
+          case 'source-inventory': data = { ...nodes(state.installed ? [{ id: '12345', name: 'Original source', lang: 'en', supportsLatest: true }, ...(state.transferEnabled ? [{ id: '67890', name: 'Replacement source', lang: 'en', supportsLatest: true }] : []), ...(state.searchLayout ? [{ id: '23456', name: 'Additional source', lang: 'fr', supportsLatest: true }, { id: '34567', name: 'Empty source', lang: 'en', supportsLatest: true }, { id: '45678', name: 'Unavailable source', lang: 'en', supportsLatest: true }] : [])] : []), complete: true }; break;
           case 'catalogue':
             if (a.source === '45678') error = 'Fixture source unavailable';
             else data = { mangas: a.source === '34567' ? [] : a.source === '67890' ? a.query === 'Batch Fixture' ? [batchTitle] : [replacement] : [manga], hasNextPage: false };
@@ -1458,4 +1460,5 @@ try {
   await verifyDownloadCleanupBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyReaderReleaseBrowser({ browser, origin, installDesktopFixture });
   await verifySourceFeedBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifySourceMetadataBrowser({ browser, origin, installDesktopFixture, screenshotDir });
 } finally { await browser.close(); }

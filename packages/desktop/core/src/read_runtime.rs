@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
-use crate::bridge::MangaProgressPatch;
+use crate::bridge::{MangaProgressPatch, ReadContentWarning};
 
 #[path = "read_extension_update.rs"]
 mod extension_update;
@@ -26,6 +26,10 @@ pub use download_cleanup::DownloadCleanupReview;
 #[cfg(test)]
 #[path = "read_feed_tests.rs"]
 mod feed_tests;
+
+#[cfg(test)]
+#[path = "read_metadata_tests.rs"]
+mod metadata_tests;
 
 const VERSION: &str = "v2.4.2373";
 const USER: &str = "tsugi-read";
@@ -400,6 +404,175 @@ fn decode(operation: ReadOperation, reply: Reply) -> Result<Value, &'static str>
     Ok(value)
 }
 
+const EXTENSION_CATALOGUE_INVALID: &str = "Invalid extension catalogue.";
+
+fn metadata_i64(value: &Value) -> Option<i64> {
+    value.as_i64().or_else(|| value.as_str().and_then(|value|
+        value.parse::<i64>().ok().filter(|number| number.to_string() == value)))
+}
+
+fn metadata_content_warning(value: &Value) -> Result<&str, &'static str> {
+    value.as_str().filter(|value| matches!(*value, "SAFE" | "MIXED" | "NSFW")).ok_or(EXTENSION_CATALOGUE_INVALID)
+}
+
+fn extension_metadata(value: &Value) -> Result<Value, &'static str> {
+    let text = |value, limit| source_inventory_text(value, limit).map_err(|_| EXTENSION_CATALOGUE_INVALID);
+    let package = text(&value["pkgName"], 200)?;
+    extension_package(package).map_err(|_| EXTENSION_CATALOGUE_INVALID)?;
+    let store = match value.get("storeIndexUrl") {
+        Some(Value::Null) => None,
+        Some(value) => Some(text(value, 2048)?),
+        None => return Err(EXTENSION_CATALOGUE_INVALID),
+    };
+    Ok(json!({"name": text(&value["name"], 500)?, "pkgName": package,
+        "versionName": text(&value["versionName"], 200)?,
+        "versionCodeLong": metadata_i64(&value["versionCodeLong"]).ok_or(EXTENSION_CATALOGUE_INVALID)?.to_string(),
+        "storeIndexUrl": store,
+        "isInstalled": value["isInstalled"].as_bool().ok_or(EXTENSION_CATALOGUE_INVALID)?,
+        "hasUpdate": value["hasUpdate"].as_bool().ok_or(EXTENSION_CATALOGUE_INVALID)?,
+        "isObsolete": value["isObsolete"].as_bool().ok_or(EXTENSION_CATALOGUE_INVALID)?}))
+}
+
+fn extension_catalogue_request(offset: u32, term: &str, store: Option<&str>, language: Option<&str>, installed: Option<bool>,
+    updates_only: bool, obsolete_only: bool, content_warning: Option<ReadContentWarning>) -> Result<(&'static str, Value), &'static str>
+{
+    if offset > 100_000 || term.chars().count() > 200 || term.chars().any(char::is_control) {
+        return Err("Invalid extension catalogue request.");
+    }
+    if language.is_some_and(|lang| lang.is_empty() || lang.len() > 24 || !lang.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')) {
+        return Err("Invalid extension language.");
+    }
+    let installed = if updates_only || obsolete_only { Some(true) } else { installed };
+    let term = term.trim();
+    let mut variables = json!({"offset": offset, "store": store, "lang": language, "installed": installed,
+        "hasUpdate": updates_only.then_some(true), "isObsolete": obsolete_only.then_some(true), "contentWarning": content_warning});
+    // All conditions are applied to database rows before the engine computes
+    // totalCount and limits the page. "all" is an exact multilingual language
+    // value; omitted language/content filters mean no corresponding condition.
+    // ContentWarning is the pinned enum, not the inconsistent isNsfw adapter.
+    let document = if term.is_empty() {
+        "query TsugiExtensions($offset: Int!, $store: String, $lang: String, $installed: Boolean, $hasUpdate: Boolean, $isObsolete: Boolean, $contentWarning: ContentWarning) { extensions(first: 100, offset: $offset, order: [{ by: PKG_NAME, byType: ASC }], condition: {storeIndexUrl: $store, lang: $lang, isInstalled: $installed, hasUpdate: $hasUpdate, isObsolete: $isObsolete, contentWarning: $contentWarning}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }"
+    } else {
+        variables["term"] = json!(term);
+        "query TsugiExtensions($offset: Int!, $term: String!, $store: String, $lang: String, $installed: Boolean, $hasUpdate: Boolean, $isObsolete: Boolean, $contentWarning: ContentWarning) { extensions(first: 100, offset: $offset, order: [{ by: PKG_NAME, byType: ASC }], condition: {storeIndexUrl: $store, lang: $lang, isInstalled: $installed, hasUpdate: $hasUpdate, isObsolete: $isObsolete, contentWarning: $contentWarning}, filter: {or: [{name: {includesInsensitive: $term}}, {pkgName: {includesInsensitive: $term}}, {lang: {equalTo: $term}}]}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }"
+    };
+    Ok((document, variables))
+}
+
+fn extension_catalogue_page(value: &Value, offset: u32) -> Result<Value, &'static str> {
+    let total = value["totalCount"].as_u64().filter(|total| *total <= i32::MAX as u64).ok_or(EXTENSION_CATALOGUE_INVALID)?;
+    let nodes = value["nodes"].as_array().ok_or(EXTENSION_CATALOGUE_INVALID)?;
+    if nodes.len() > 100 || nodes.len() as u64 > total.saturating_sub(u64::from(offset)) { return Err(EXTENSION_CATALOGUE_INVALID); }
+    let mut rows = Vec::with_capacity(nodes.len());
+    let mut previous = None;
+    for node in nodes {
+        let mut row = extension_metadata(node)?;
+        let package = node["pkgName"].as_str().ok_or(EXTENSION_CATALOGUE_INVALID)?;
+        if previous.is_some_and(|prior| package <= prior) { return Err(EXTENSION_CATALOGUE_INVALID); }
+        previous = Some(package);
+        row["lang"] = json!(source_inventory_text(&node["lang"], 64).map_err(|_| EXTENSION_CATALOGUE_INVALID)?);
+        row["contentWarning"] = json!(metadata_content_warning(&node["contentWarning"])?);
+        row["extensionLib"] = match node.get("extensionLib") {
+            Some(Value::Null) => Value::Null,
+            Some(value) => json!(source_inventory_text(value, 64).map_err(|_| EXTENSION_CATALOGUE_INVALID)?),
+            None => return Err(EXTENSION_CATALOGUE_INVALID),
+        };
+        rows.push(row);
+    }
+    Ok(json!({"nodes": rows, "totalCount": total}))
+}
+
+#[cfg(test)]
+mod extension_metadata_tests {
+    use super::*;
+
+    fn extension(package: &str) -> Value {
+        json!({"pkgName": package, "name": "Original extension", "versionName": "1.6.1", "versionCodeLong": "1",
+            "storeIndexUrl": "https://example.invalid/index.pb", "isInstalled": true, "hasUpdate": true,
+            "isObsolete": false, "lang": "all", "contentWarning": "MIXED", "extensionLib": "1.6"})
+    }
+
+    #[test]
+    fn typed_filters_keep_exact_language_and_combine_installed_status_constraints() {
+        for language in [None, Some("all"), Some("en"), Some("pt-BR")] {
+            for (updates, obsolete) in [(false, false), (true, false), (false, true), (true, true)] {
+                let (_, variables) = extension_catalogue_request(100, " original ", Some("https://example.invalid/index.pb"),
+                    language, Some(false), updates, obsolete, Some(ReadContentWarning::Nsfw)).unwrap();
+                assert_eq!(variables["offset"], 100);
+                assert_eq!(variables["lang"], json!(language));
+                assert_eq!(variables["installed"], updates || obsolete);
+                assert_eq!(variables["hasUpdate"], json!(updates.then_some(true)));
+                assert_eq!(variables["isObsolete"], json!(obsolete.then_some(true)));
+                assert_eq!(variables["contentWarning"], "NSFW");
+                assert_eq!(variables["term"], "original");
+                assert_eq!(variables["store"], "https://example.invalid/index.pb");
+            }
+        }
+        let (_, variables) = extension_catalogue_request(0, "", None, None, None, false, false, None).unwrap();
+        assert!(variables["installed"].is_null() && variables["contentWarning"].is_null());
+        assert!(variables.get("term").is_none());
+    }
+
+    #[test]
+    fn search_remains_data_and_invalid_limits_fail_before_request_dispatch() {
+        let injected = "x\") { preferences { text } } #";
+        let (document, variables) = extension_catalogue_request(0, injected, None, None, None, false, false, None).unwrap();
+        assert!(!document.contains(injected));
+        assert!(!document.contains("isNsfw") && !document.contains("preferences"));
+        assert_eq!(variables["term"], injected);
+        for (offset, term, language) in [(100_001, "valid", None), (0, "bad\nterm", None), (0, "valid", Some("")),
+            (0, "valid", Some("en\"")), (0, "valid", Some("en us"))] {
+            assert!(extension_catalogue_request(offset, term, None, language, None, false, false, None).is_err());
+        }
+        assert!(extension_catalogue_request(0, &"x".repeat(201), None, None, None, false, false, None).is_err());
+    }
+
+    #[test]
+    fn metadata_preserves_exact_versions_and_states_without_returning_unrequested_fields() {
+        let mut original = extension("org.tsugi.fixture");
+        original["versionCodeLong"] = json!(i64::MAX);
+        original["isObsolete"] = json!(true);
+        original["apkUrl"] = json!("https://example.invalid/unrequested.apk");
+        let page = extension_catalogue_page(&json!({"nodes": [original], "totalCount": 101}), 100).unwrap();
+        assert_eq!(page["totalCount"], 101);
+        let row = &page["nodes"][0];
+        assert_eq!(row["versionCodeLong"], "9223372036854775807");
+        assert_eq!(row["versionName"], "1.6.1");
+        assert_eq!(row["isInstalled"], true);
+        assert_eq!(row["hasUpdate"], true);
+        assert_eq!(row["isObsolete"], true);
+        assert_eq!(row["contentWarning"], "MIXED");
+        assert!(row.get("apkUrl").is_none());
+        let mut local = extension("eu.kanade.tachiyomi.source.local");
+        local["versionCodeLong"] = json!(0);
+        local["storeIndexUrl"] = Value::Null;
+        assert_eq!(extension_metadata(&local).unwrap()["versionCodeLong"], "0");
+        assert!(extension_metadata(&local).unwrap()["storeIndexUrl"].is_null());
+    }
+
+    #[test]
+    fn metadata_and_paging_reject_unknown_ratings_ambiguous_versions_duplicates_and_invalid_counts() {
+        for (field, value) in [("contentWarning", Value::Null), ("contentWarning", json!("UNKNOWN")),
+            ("isInstalled", json!("true")), ("versionCodeLong", json!("01")), ("versionCodeLong", json!("9223372036854775808")),
+            ("versionCodeLong", json!(1.5)), ("name", json!("bad\nlabel")), ("name", json!("x".repeat(501))),
+            ("pkgName", json!("../unowned")), ("extensionLib", json!(true))] {
+            let mut row = extension("org.tsugi.fixture"); row[field] = value;
+            assert!(extension_catalogue_page(&json!({"nodes": [row], "totalCount": 1}), 0).is_err());
+        }
+        for total in [json!(-1), json!("1"), json!(1.5), json!(u64::MAX)] {
+            assert!(extension_catalogue_page(&json!({"nodes": [], "totalCount": total}), 0).is_err());
+        }
+        for nodes in [vec![extension("org.tsugi.fixture"), extension("org.tsugi.fixture")],
+            vec![extension("org.tsugi.z"), extension("org.tsugi.a")]] {
+            assert!(extension_catalogue_page(&json!({"nodes": nodes, "totalCount": 2}), 0).is_err());
+        }
+        assert!(extension_catalogue_page(&json!({"nodes": [extension("org.tsugi.fixture")], "totalCount": 1}), 100).is_err());
+        let too_many = (0..101).map(|index| extension(&format!("org.tsugi.fixture{index:03}"))).collect::<Vec<_>>();
+        assert!(extension_catalogue_page(&json!({"nodes": too_many, "totalCount": 101}), 0).is_err());
+        assert!(extension_catalogue_page(&json!({"nodes": [], "totalCount": 101}), 200).is_ok());
+    }
+}
+
 const SOURCE_INVENTORY_LIMIT: u32 = 1000;
 const SOURCE_INVENTORY_PAGE: u32 = 100;
 const SOURCE_INVENTORY_INVALID: &str = "The complete Reader source inventory could not be verified.";
@@ -428,14 +601,15 @@ fn source_inventory_pass(fetch: &mut impl FnMut(u32) -> Result<Value, &'static s
         for node in nodes {
             // Native JSON can represent i64 numbers exactly; every public ID
             // becomes a canonical decimal string before entering JavaScript.
-            let id = node["id"].as_i64().or_else(|| node["id"].as_str().and_then(|value|
-                value.parse::<i64>().ok().filter(|id| id.to_string() == value)))
-                .ok_or(SOURCE_INVENTORY_INVALID)?;
+            let id = metadata_i64(&node["id"]).ok_or(SOURCE_INVENTORY_INVALID)?;
             if previous_id.is_some_and(|previous| id <= previous) { return Err(SOURCE_INVENTORY_CHANGED); }
             previous_id = Some(id);
             let mut row = json!({"id": id.to_string(), "name": source_inventory_text(&node["name"], 500)?,
                 "lang": source_inventory_text(&node["lang"], 64)?,
-                "supportsLatest": node["supportsLatest"].as_bool().ok_or(SOURCE_INVENTORY_INVALID)?});
+                "supportsLatest": node["supportsLatest"].as_bool().ok_or(SOURCE_INVENTORY_INVALID)?,
+                "isConfigurable": node["isConfigurable"].as_bool().ok_or(SOURCE_INVENTORY_INVALID)?,
+                "contentWarning": metadata_content_warning(&node["contentWarning"]).map_err(|_| SOURCE_INVENTORY_INVALID)?,
+                "extension": extension_metadata(&node["extension"]).map_err(|_| SOURCE_INVENTORY_INVALID)?});
             if let Some(display_name) = node.get("displayName").filter(|value| !value.is_null()) {
                 row["displayName"] = json!(source_inventory_text(display_name, 500)?);
             }
@@ -463,7 +637,10 @@ mod source_inventory_tests {
     use super::*;
 
     fn source(id: Value) -> Value {
-        json!({"id": id, "name": "Original source", "lang": "en", "displayName": "Original source (EN)", "supportsLatest": true})
+        json!({"id": id, "name": "Original source", "lang": "en", "displayName": "Original source (EN)",
+            "supportsLatest": true, "isConfigurable": false, "contentWarning": "MIXED",
+            "extension": {"name": "Original extension", "pkgName": "org.tsugi.fixture", "versionName": "1.6.1",
+                "versionCodeLong": "1", "storeIndexUrl": null, "isInstalled": true, "hasUpdate": false, "isObsolete": false}})
     }
 
     #[test]
@@ -551,7 +728,8 @@ mod source_inventory_tests {
     fn inventory_rejects_changes_within_and_between_complete_passes() {
         assert_eq!(complete_source_inventory(|offset| Ok(json!({"nodes": [], "totalCount": if offset == 0 { 101 } else { 100 }}))).unwrap_err(), SOURCE_INVENTORY_CHANGED);
         for (field, change) in [("id", json!(2)), ("name", json!("Changed")), ("lang", json!("fr")),
-            ("displayName", json!("Changed (EN)")), ("supportsLatest", json!(false))] {
+            ("displayName", json!("Changed (EN)")), ("supportsLatest", json!(false)), ("isConfigurable", json!(true)),
+            ("contentWarning", json!("NSFW"))] {
             let mut requests = 0;
             assert_eq!(complete_source_inventory(|_| {
                 requests += 1;
@@ -568,9 +746,33 @@ mod source_inventory_tests {
     }
 
     #[test]
+    fn inventory_projects_owning_extension_metadata_and_rejects_changes_between_scans() {
+        let mut original = source(json!("9007199254740993"));
+        original["extension"]["versionCodeLong"] = json!(i64::MAX);
+        original["extension"]["unrequested"] = json!("must not enter the webview");
+        let result = complete_source_inventory(|_| Ok(json!({"nodes": [original], "totalCount": 1}))).unwrap();
+        let row = &result["nodes"][0];
+        assert_eq!(row["id"], "9007199254740993");
+        assert_eq!(row["contentWarning"], "MIXED");
+        assert_eq!(row["isConfigurable"], false);
+        assert_eq!(row["extension"]["versionCodeLong"], "9223372036854775807");
+        assert!(row["extension"].get("unrequested").is_none());
+        for (field, value) in [("hasUpdate", json!(true)), ("isObsolete", json!(true)), ("versionCodeLong", json!("2")),
+            ("storeIndexUrl", json!("https://example.invalid/index.pb"))] {
+            let mut count = 0;
+            assert_eq!(complete_source_inventory(|_| {
+                let mut row = source(json!(1)); count += 1;
+                if count == 2 { row["extension"][field] = value.clone(); }
+                Ok(json!({"nodes": [row], "totalCount": 1}))
+            }).unwrap_err(), SOURCE_INVENTORY_CHANGED);
+        }
+    }
+
+    #[test]
     fn inventory_requires_bounded_metadata_and_preserves_upstream_failure() {
         for (field, value) in [("name", json!("x".repeat(501))), ("lang", json!("x".repeat(65))),
-            ("displayName", json!("bad\nlabel")), ("supportsLatest", json!("true"))] {
+            ("displayName", json!("bad\nlabel")), ("supportsLatest", json!("true")), ("isConfigurable", Value::Null),
+            ("contentWarning", json!("UNKNOWN")), ("extension", Value::Null)] {
             let mut row = source(json!(1));
             row[field] = value;
             assert!(complete_source_inventory(|_| Ok(json!({"nodes": [row.clone()], "totalCount": 1}))).is_err());
@@ -1344,7 +1546,7 @@ impl ReadRuntime {
     /// fetch is issued; local source 0 remains in the raw inventory contract.
     pub fn source_inventory(&self) -> Result<Value, &'static str> {
         complete_source_inventory(|offset| self.client.document(
-            "query TsugiSourceInventory($offset: Int!) { sources(first: 100, offset: $offset, order: [{ by: ID, byType: ASC }]) { nodes { id name lang displayName supportsLatest } totalCount } }",
+            "query TsugiSourceInventory($offset: Int!) { sources(first: 100, offset: $offset, order: [{ by: ID, byType: ASC }]) { nodes { id name lang displayName supportsLatest contentWarning isConfigurable extension { name pkgName versionName versionCodeLong storeIndexUrl isInstalled hasUpdate isObsolete } } totalCount } }",
             "sources", json!({"offset": offset})))
     }
 
@@ -1482,11 +1684,13 @@ impl ReadRuntime {
     }
 
     pub fn filter_extensions_with_updates(&self, offset: u32, term: &str, store: Option<&str>, language: Option<&str>, installed: Option<bool>, updates_only: bool) -> Result<Value, &'static str> {
-        let installed = if updates_only { Some(true) } else { installed };
-        let has_update = updates_only.then_some(true);
-        if offset > 100_000 || term.chars().count() > 200 || term.chars().any(char::is_control) {
-            return Err("Invalid extension catalogue request.");
-        }
+        self.filter_extensions_with_metadata(offset, term, store, language, installed, updates_only, false, None)
+    }
+
+    pub fn filter_extensions_with_metadata(&self, offset: u32, term: &str, store: Option<&str>, language: Option<&str>, installed: Option<bool>,
+        updates_only: bool, obsolete_only: bool, content_warning: Option<ReadContentWarning>) -> Result<Value, &'static str>
+    {
+        let (document, variables) = extension_catalogue_request(offset, term, store, language, installed, updates_only, obsolete_only, content_warning)?;
         if let Some(index) = store {
             if index.len() > 2048 || index.chars().any(char::is_control)
                 || !self.query(ReadOperation::Stores)?["nodes"].as_array().is_some_and(|nodes| nodes.iter().any(|node| node["indexUrl"] == index))
@@ -1494,40 +1698,8 @@ impl ReadRuntime {
                 return Err("Extension repository is not registered.");
             }
         }
-        if language.is_some_and(|lang| lang.is_empty() || lang.len() > 24 || !lang.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')) {
-            return Err("Invalid extension language.");
-        }
-        let term = term.trim();
-        // Keep the arguments in fixed documents and pass only scalar values.
-        // Kotlin GraphQL input type names are generated, not the Kotlin
-        // class names; avoid coupling this request to those generated names.
-        let (document, variables) = if language.is_some() || installed.is_some() {
-            if term.is_empty() {
-                ("query TsugiExtensions($offset: Int!, $store: String, $lang: String, $installed: Boolean, $hasUpdate: Boolean) { extensions(first: 100, offset: $offset, condition: {storeIndexUrl: $store, lang: $lang, isInstalled: $installed, hasUpdate: $hasUpdate}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
-                 json!({"offset": offset, "store": store, "lang": language, "installed": installed, "hasUpdate": has_update}))
-            } else {
-                ("query TsugiExtensions($offset: Int!, $term: String!, $store: String, $lang: String, $installed: Boolean, $hasUpdate: Boolean) { extensions(first: 100, offset: $offset, condition: {storeIndexUrl: $store, lang: $lang, isInstalled: $installed, hasUpdate: $hasUpdate}, filter: {or: [{name: {includesInsensitive: $term}}, {pkgName: {includesInsensitive: $term}}, {lang: {equalTo: $term}}]}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
-                 json!({"offset": offset, "term": term, "store": store, "lang": language, "installed": installed, "hasUpdate": has_update}))
-            }
-        } else if term.is_empty() && store.is_none() {
-            ("query TsugiExtensions($offset: Int!) { extensions(first: 100, offset: $offset) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
-             json!({"offset": offset}))
-        } else if term.is_empty() {
-            ("query TsugiExtensions($offset: Int!, $store: String!) { extensions(first: 100, offset: $offset, condition: {storeIndexUrl: $store}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
-             json!({"offset": offset, "store": store}))
-        } else if store.is_none() {
-            ("query TsugiExtensions($offset: Int!, $term: String!) { extensions(first: 100, offset: $offset, filter: {or: [{name: {includesInsensitive: $term}}, {pkgName: {includesInsensitive: $term}}, {lang: {equalTo: $term}}]}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
-             json!({"offset": offset, "term": term}))
-        } else {
-            ("query TsugiExtensions($offset: Int!, $term: String!, $store: String!) { extensions(first: 100, offset: $offset, condition: {storeIndexUrl: $store}, filter: {or: [{name: {includesInsensitive: $term}}, {pkgName: {includesInsensitive: $term}}, {lang: {equalTo: $term}}]}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
-             json!({"offset": offset, "term": term, "store": store}))
-        };
         let result = self.client.document(document, "extensions", variables)?;
-        let nodes = result["nodes"].as_array().ok_or("Invalid extension catalogue.")?;
-        if nodes.len() > 100 || !result["totalCount"].is_u64() {
-            return Err("Invalid extension catalogue.");
-        }
-        Ok(result)
+        extension_catalogue_page(&result, offset)
     }
 
     fn extension_record(&self, package: &str) -> Result<Value, &'static str> {

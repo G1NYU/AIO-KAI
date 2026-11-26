@@ -14,6 +14,7 @@ on:
       - 'packages/desktop/core/src/read_download_cleanup.rs'
       - 'packages/desktop/core/src/read_download_cleanup_tests.rs'
       - 'packages/desktop/core/src/read_feed_tests.rs'
+      - 'packages/desktop/core/src/read_metadata_tests.rs'
       - 'packages/desktop/core/src/lib.rs'
       - 'packages/desktop/core/Cargo.toml'
       - 'packages/desktop/Cargo.lock'
@@ -82,6 +83,13 @@ jobs:
           Copy-Item packages/desktop/scripts/read-runtime/fixture/AndroidManifest-feed.xml "$feedClasses/AndroidManifest.xml"
           & "$java/jar.exe" --create --file "$fixtures/tsugi-feed-fixture-v1.6.1.jar" -C $feedClasses .
           if ($LASTEXITCODE -ne 0) { throw 'Original Feed fixture packaging failed' }
+          $metadataClasses = "$env:RUNNER_TEMP/tsugi-read-metadata-fixture-classes"
+          New-Item -ItemType Directory -Force $metadataClasses | Out-Null
+          & "$java/javac.exe" --release 21 -cp "$runtime/bin/Suwayomi-Server.jar" -d $metadataClasses packages/desktop/scripts/read-runtime/fixture/FixtureSource.java packages/desktop/scripts/read-runtime/fixture/DownloadFixtureSource.java packages/desktop/scripts/read-runtime/fixture/MetadataFixtureSource.java packages/desktop/scripts/read-runtime/fixture/MetadataFixtureFactory.java
+          if ($LASTEXITCODE -ne 0) { throw 'Original metadata fixture compilation failed' }
+          Copy-Item packages/desktop/scripts/read-runtime/fixture/AndroidManifest-metadata.xml "$metadataClasses/AndroidManifest.xml"
+          & "$java/jar.exe" --create --file "$fixtures/tsugi-metadata-fixture-v1.6.1.jar" -C $metadataClasses .
+          if ($LASTEXITCODE -ne 0) { throw 'Original metadata fixture packaging failed' }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -107,7 +115,7 @@ jobs:
                 'Failed to fetch extension store', 'Shutting down HikariCP',
                 'Failed to sync preference store', 'AccessDeniedException',
                 'FileSystemException', 'SQLException', 'JdbcSQL', 'NoClassDefFoundError')
-              foreach ($kind in @('library', 'stores', 'extension', 'extension-update', 'download-cleanup-folder', 'download-cleanup-cbz', 'download-cleanup-locked', 'feed')) {
+              foreach ($kind in @('library', 'stores', 'extension', 'extension-update', 'download-cleanup-folder', 'download-cleanup-cbz', 'download-cleanup-locked', 'feed', 'metadata')) {
                 $logs = Join-Path $env:TSUGI_READ_FIXTURE "$kind/logs"
                 if (Test-Path -LiteralPath $logs) {
                   foreach ($marker in $markers) {
