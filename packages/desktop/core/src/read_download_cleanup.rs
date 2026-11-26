@@ -650,7 +650,7 @@ mod unit_tests {
         let page = root.0.join(&relative).join("001.png");
         let modified = fs::metadata(&page).unwrap().modified().unwrap();
         fs::write(&page, b"changed! authored page bytes").unwrap();
-        fs::File::open(&page).unwrap().set_times(fs::FileTimes::new().set_modified(modified)).unwrap();
+        fs::OpenOptions::new().write(true).open(&page).unwrap().set_times(fs::FileTimes::new().set_modified(modified)).unwrap();
         let changed = inspect_download(&root.0, &relative, 1, &verify, true).unwrap().unwrap();
         assert_eq!(original.bytes, changed.bytes);
         assert_eq!(original.entries[0].modified, changed.entries[0].modified);
