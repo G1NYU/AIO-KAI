@@ -23,6 +23,10 @@ pub use extension_update::ExtensionUpdateReview;
 mod download_cleanup;
 pub use download_cleanup::DownloadCleanupReview;
 
+#[cfg(test)]
+#[path = "read_feed_tests.rs"]
+mod feed_tests;
+
 const VERSION: &str = "v2.4.2373";
 const USER: &str = "tsugi-read";
 const MAX_RESPONSE: u64 = 2 * 1024 * 1024;
@@ -394,6 +398,191 @@ fn decode(operation: ReadOperation, reply: Reply) -> Result<Value, &'static str>
         }
     }
     Ok(value)
+}
+
+const SOURCE_INVENTORY_LIMIT: u32 = 1000;
+const SOURCE_INVENTORY_PAGE: u32 = 100;
+const SOURCE_INVENTORY_INVALID: &str = "The complete Reader source inventory could not be verified.";
+const SOURCE_INVENTORY_CHANGED: &str = "Reader sources changed during discovery. Refresh the source inventory again.";
+
+#[derive(PartialEq)]
+struct SourceInventoryPass { nodes: Vec<Value>, total: u32 }
+
+fn source_inventory_text(value: &Value, limit: usize) -> Result<&str, &'static str> {
+    value.as_str().filter(|value| value.len() <= limit * 4 && value.chars().count() <= limit && !value.chars().any(char::is_control))
+        .ok_or(SOURCE_INVENTORY_INVALID)
+}
+
+fn source_inventory_pass(fetch: &mut impl FnMut(u32) -> Result<Value, &'static str>) -> Result<SourceInventoryPass, &'static str> {
+    let mut expected_total = None;
+    let mut offset = 0;
+    let mut previous_id = None;
+    let mut result = Vec::new();
+    loop {
+        let page = fetch(offset)?;
+        let total = page["totalCount"].as_u64().filter(|total| *total <= u64::from(SOURCE_INVENTORY_LIMIT))
+            .ok_or("The Reader source inventory exceeds the supported 1,000-source limit or returned an invalid count.")? as u32;
+        if expected_total.replace(total).is_some_and(|expected| expected != total) { return Err(SOURCE_INVENTORY_CHANGED); }
+        let nodes = page["nodes"].as_array().ok_or(SOURCE_INVENTORY_INVALID)?;
+        if nodes.len() > SOURCE_INVENTORY_PAGE.min(total.saturating_sub(offset)) as usize { return Err(SOURCE_INVENTORY_INVALID); }
+        for node in nodes {
+            // Native JSON can represent i64 numbers exactly; every public ID
+            // becomes a canonical decimal string before entering JavaScript.
+            let id = node["id"].as_i64().or_else(|| node["id"].as_str().and_then(|value|
+                value.parse::<i64>().ok().filter(|id| id.to_string() == value)))
+                .ok_or(SOURCE_INVENTORY_INVALID)?;
+            if previous_id.is_some_and(|previous| id <= previous) { return Err(SOURCE_INVENTORY_CHANGED); }
+            previous_id = Some(id);
+            let mut row = json!({"id": id.to_string(), "name": source_inventory_text(&node["name"], 500)?,
+                "lang": source_inventory_text(&node["lang"], 64)?,
+                "supportsLatest": node["supportsLatest"].as_bool().ok_or(SOURCE_INVENTORY_INVALID)?});
+            if let Some(display_name) = node.get("displayName").filter(|value| !value.is_null()) {
+                row["displayName"] = json!(source_inventory_text(display_name, 500)?);
+            }
+            result.push(row);
+        }
+        // Pinned SourceQuery paginates database rows before mapNotNull omits
+        // unloadable sources. Short or empty visible pages are not the end.
+        offset += SOURCE_INVENTORY_PAGE;
+        if offset >= total { return Ok(SourceInventoryPass { nodes: result, total }); }
+    }
+}
+
+fn complete_source_inventory(mut fetch: impl FnMut(u32) -> Result<Value, &'static str>) -> Result<Value, &'static str> {
+    let first = source_inventory_pass(&mut fetch)?;
+    let second = source_inventory_pass(&mut fetch)?;
+    if first != second { return Err(SOURCE_INVENTORY_CHANGED); }
+    // Complete means every raw page was observed twice with the same visible
+    // rows/count, not that every database source loaded. No transaction token
+    // is available across upstream requests. Preserve the raw database count.
+    Ok(json!({"nodes": second.nodes, "totalCount": second.total, "complete": true}))
+}
+
+#[cfg(test)]
+mod source_inventory_tests {
+    use super::*;
+
+    fn source(id: Value) -> Value {
+        json!({"id": id, "name": "Original source", "lang": "en", "displayName": "Original source (EN)", "supportsLatest": true})
+    }
+
+    #[test]
+    fn sparse_raw_pages_do_not_hide_later_sources_or_round_signed_ids() {
+        for empty_first in [false, true] {
+            let mut requests = Vec::new();
+            let result = complete_source_inventory(|offset| {
+                requests.push(offset);
+                let mut first = source(json!(i64::MIN));
+                first["unrequested"] = json!("must not enter the webview");
+                let nodes = match offset {
+                    0 if !empty_first => vec![first],
+                    100 if empty_first => vec![source(json!("-9007199254740993"))],
+                    200 => vec![source(json!(i64::MAX))],
+                    0 | 100 => Vec::new(),
+                    _ => panic!("inventory requested an invalid raw page"),
+                };
+                Ok(json!({"nodes": nodes, "totalCount": 201}))
+            }).unwrap();
+            assert_eq!(requests, [0, 100, 200, 0, 100, 200]);
+            assert_eq!(result["totalCount"], 201);
+            assert_eq!(result["complete"], true);
+            let rows = result["nodes"].as_array().unwrap();
+            assert_eq!(rows.len(), 2);
+            assert_eq!(rows[0]["id"], if empty_first { "-9007199254740993" } else { "-9223372036854775808" });
+            assert_eq!(rows[1]["id"], "9223372036854775807");
+            assert!(rows.iter().all(|row| row.get("unrequested").is_none()));
+        }
+    }
+
+    #[test]
+    fn empty_inventory_and_local_source_remain_valid_complete_results() {
+        for nodes in [json!([]), json!([source(json!(0))])] {
+            let mut requests = Vec::new();
+            let result = complete_source_inventory(|offset| {
+                requests.push(offset);
+                Ok(json!({"nodes": nodes, "totalCount": nodes.as_array().unwrap().len()}))
+            }).unwrap();
+            assert_eq!(requests, [0, 0]);
+            assert_eq!(result["complete"], true);
+            if !nodes.as_array().unwrap().is_empty() { assert_eq!(result["nodes"][0]["id"], "0"); }
+        }
+    }
+
+    #[test]
+    fn inventory_accepts_the_bound_without_skipping_or_repeating_pages() {
+        let mut requests = Vec::new();
+        let result = complete_source_inventory(|offset| {
+            requests.push(offset);
+            let nodes = (offset..offset + 100).map(|id| source(json!(i64::from(id) - 500))).collect::<Vec<_>>();
+            Ok(json!({"nodes": nodes, "totalCount": 1000}))
+        }).unwrap();
+        assert_eq!(result["nodes"].as_array().unwrap().len(), 1000);
+        assert_eq!(requests, (0..2).flat_map(|_| (0..1000).step_by(100)).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn inventory_rejects_unbounded_invalid_and_overfull_raw_pages() {
+        for count in [json!(1001), json!(-1), json!(1.5), json!("1"), Value::Null] {
+            assert!(complete_source_inventory(|_| Ok(json!({"nodes": [], "totalCount": count}))).is_err());
+        }
+        assert!(complete_source_inventory(|_| Ok(json!({"nodes": [source(json!(1))], "totalCount": 0}))).is_err());
+        assert!(complete_source_inventory(|_| Ok(json!({"nodes": {}, "totalCount": 1}))).is_err());
+        assert!(complete_source_inventory(|offset| {
+            let nodes = if offset == 0 { Vec::new() } else { vec![source(json!(1)), source(json!(2))] };
+            Ok(json!({"nodes": nodes, "totalCount": 101}))
+        }).is_err());
+        let oversized = (0..101).map(|id| source(json!(id))).collect::<Vec<_>>();
+        assert!(complete_source_inventory(|_| Ok(json!({"nodes": oversized, "totalCount": 1000}))).is_err());
+    }
+
+    #[test]
+    fn inventory_rejects_ambiguous_out_of_range_or_nonascending_source_ids() {
+        for id in [Value::Null, json!({}), json!(1.5), json!(u64::MAX), json!("9223372036854775808"),
+            json!("-9223372036854775809"), json!("+1"), json!("01"), json!("-0"), json!("1 ")] {
+            assert!(complete_source_inventory(|_| Ok(json!({"nodes": [source(id.clone())], "totalCount": 1}))).is_err());
+        }
+        for ids in [[json!(0), json!("0")], [json!("2"), json!("1")]] {
+            assert!(complete_source_inventory(|_| Ok(json!({"nodes": ids.iter().cloned().map(source).collect::<Vec<_>>(), "totalCount": 2}))).is_err());
+        }
+        assert!(complete_source_inventory(|offset| Ok(json!({"nodes": [source(json!(if offset == 0 { 2 } else { 1 }))], "totalCount": 101}))).is_err());
+    }
+
+    #[test]
+    fn inventory_rejects_changes_within_and_between_complete_passes() {
+        assert_eq!(complete_source_inventory(|offset| Ok(json!({"nodes": [], "totalCount": if offset == 0 { 101 } else { 100 }}))).unwrap_err(), SOURCE_INVENTORY_CHANGED);
+        for (field, change) in [("id", json!(2)), ("name", json!("Changed")), ("lang", json!("fr")),
+            ("displayName", json!("Changed (EN)")), ("supportsLatest", json!(false))] {
+            let mut requests = 0;
+            assert_eq!(complete_source_inventory(|_| {
+                requests += 1;
+                let mut row = source(json!(1));
+                if requests == 2 { row[field] = change.clone(); }
+                Ok(json!({"nodes": [row], "totalCount": 1}))
+            }).unwrap_err(), SOURCE_INVENTORY_CHANGED);
+        }
+        let mut requests = 0;
+        assert_eq!(complete_source_inventory(|_| {
+            requests += 1;
+            Ok(json!({"nodes": [], "totalCount": if requests == 1 { 1 } else { 0 }}))
+        }).unwrap_err(), SOURCE_INVENTORY_CHANGED);
+    }
+
+    #[test]
+    fn inventory_requires_bounded_metadata_and_preserves_upstream_failure() {
+        for (field, value) in [("name", json!("x".repeat(501))), ("lang", json!("x".repeat(65))),
+            ("displayName", json!("bad\nlabel")), ("supportsLatest", json!("true"))] {
+            let mut row = source(json!(1));
+            row[field] = value;
+            assert!(complete_source_inventory(|_| Ok(json!({"nodes": [row.clone()], "totalCount": 1}))).is_err());
+        }
+        let mut requests = 0;
+        assert_eq!(complete_source_inventory(|offset| {
+            requests += 1;
+            if offset == 100 { return Err("Owned runtime unavailable."); }
+            Ok(json!({"nodes": [], "totalCount": 101}))
+        }).unwrap_err(), "Owned runtime unavailable.");
+        assert_eq!(requests, 2);
+    }
 }
 
 /// The native repository input accepts the current index.pb format and
@@ -1149,6 +1338,14 @@ impl ReadRuntime {
 
     pub fn query(&self, operation: ReadOperation) -> Result<Value, &'static str> {
         self.client.query(operation)
+    }
+
+    /// Bounded discovery of loaded sources. No catalogue, chapter or image
+    /// fetch is issued; local source 0 remains in the raw inventory contract.
+    pub fn source_inventory(&self) -> Result<Value, &'static str> {
+        complete_source_inventory(|offset| self.client.document(
+            "query TsugiSourceInventory($offset: Int!) { sources(first: 100, offset: $offset, order: [{ by: ID, byType: ASC }]) { nodes { id name lang displayName supportsLatest } totalCount } }",
+            "sources", json!({"offset": offset})))
     }
 
     pub fn login_tracker(&self, id: i32, open: impl FnOnce(&str), stop: &AtomicBool) -> Result<Value, &'static str> {

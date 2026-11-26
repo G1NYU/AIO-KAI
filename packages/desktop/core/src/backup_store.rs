@@ -40,6 +40,18 @@ fn scalars(value:&Value,containers:&[&str])->bool {
 fn array(value:&Value,max:usize,valid:impl Fn(&Value)->bool)->bool {
     value.as_array().is_some_and(|rows|rows.len()<=max&&rows.iter().all(valid))
 }
+fn valid_feed_preferences(value:&Value)->bool {
+    if !fields(value,&["version","sources"],&[])||value["version"].as_u64()!=Some(1){return false;}
+    let Some(rows)=value["sources"].as_array().filter(|rows|rows.len()<=8) else{return false;};
+    let mut seen=std::collections::BTreeSet::new();
+    for row in rows {
+        if !fields(row,&["sourceId","mode"],&[])||!matches!(row["mode"].as_str(),Some("popular")|Some("latest")){return false;}
+        let Some(id)=row["sourceId"].as_str() else{return false;};
+        let Ok(number)=id.parse::<i64>() else{return false;};
+        if number==0||number.to_string()!=id||!seen.insert(id){return false;}
+    }
+    true
+}
 fn valid_payload(kind:&str,payload:&str)->bool {
     // The WebView also validates the complete scalar schemas on capture and
     // restore. The native boundary independently checks structure, versions,
@@ -47,11 +59,12 @@ fn valid_payload(kind:&str,payload:&str)->bool {
     let Ok(value)=serde_json::from_str::<Value>(payload) else {return false;};
     let version=value["version"].as_u64();
     match kind {
-        "preferences"=>version==Some(1)&&value["format"]=="tsugi-preferences"&&
+        "preferences"=>(version==Some(1)||version==Some(2))&&value["format"]=="tsugi-preferences"&&
             fields(&value,&["format","version","settings"],&[])&&
-            fields(&value["settings"],&["theme","accent","startup","matrix","layout","audioProfile","reader"],&[])&&
+            fields(&value["settings"],&["theme","accent","startup","matrix","layout","audioProfile","reader"],if version==Some(2){&["feed"]}else{&[]})&&
+            (version!=Some(2)||valid_feed_preferences(&value["settings"]["feed"]))&&
             fields(&value["settings"]["reader"],&["mode","width","gap","rtl","fit","background","focus","autoNext","wheelZoom","resume"],&[])&&
-            scalars(&value["settings"],&["reader"])&&scalars(&value["settings"]["reader"],&[]),
+            scalars(&value["settings"],&["reader","feed"])&&scalars(&value["settings"]["reader"],&[]),
         "music"=>version==Some(1)&&value["format"]=="tsugi-music-library"&&
             fields(&value,&["format","version","playlists"],&[])&&
             array(&value["playlists"],100,|row|
@@ -367,6 +380,22 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
     #[test]
+    fn managed_feed_preferences_roundtrip_preserves_legacy_manual_and_scheduled_archives(){
+        let root=temp();
+        let legacy=fixture();
+        let current=super::feed_schema_tests::fixture();
+        let old=execute(&root,BackupAction::Save{archive:legacy.clone()}).unwrap();
+        let new=execute(&root,BackupAction::Save{archive:current.clone()}).unwrap();
+        let automatic=execute(&root,BackupAction::SaveScheduled{archive:current.clone(),keep:0}).unwrap();
+        for (row,expected) in [(&old,&legacy),(&new,&current),(&automatic["backup"],&current)] {
+            let reopened=execute(&root,BackupAction::Open{name:row["name"].as_str().unwrap().into()}).unwrap();
+            assert_eq!(reopened["archive"].as_str(),Some(expected.as_str()));
+        }
+        assert_eq!(execute(&root,BackupAction::List).unwrap()["backups"].as_array().unwrap().len(),3);
+        assert!(automatic["backup"]["name"].as_str().unwrap().starts_with("tsugi-auto-backup-"));
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
     fn storage_scan_is_read_only_and_reports_separate_groups(){
         let root=temp();
         fs::create_dir(root.join("reading")).unwrap();
@@ -462,5 +491,69 @@ mod tests {
         archive["entries"][0]["sha256"]=json!(sha256(text.as_bytes()));
         archive["entries"][0]["payload"]=json!(text);
         assert!(validate_archive(&archive.to_string()).is_err());
+    }
+}
+
+#[cfg(test)]
+mod feed_schema_tests {
+    use super::*;
+    fn preferences()->Value {
+        json!({"format":"tsugi-preferences","version":2,"settings":{
+            "theme":"mocha","accent":"blue","startup":"auto","matrix":"wave","layout":"default","audioProfile":"flat",
+            "reader":{"mode":"scroll","width":55,"gap":false,"rtl":false,"fit":"width","background":"black","focus":false,"autoNext":false,"wheelZoom":true,"resume":true},
+            "feed":{"version":1,"sources":[{"sourceId":"9007199254740993","mode":"latest"},{"sourceId":"-9223372036854775808","mode":"popular"}]}
+        }})
+    }
+    fn archive(preferences:Value)->String {
+        let sections=[("preferences",preferences),
+            ("music",json!({"format":"tsugi-music-library","version":1,"playlists":[]})),
+            ("books",json!({"format":"tsugi-book-progress","version":1,"books":[]}))];
+        let entries:Vec<_>=sections.into_iter().map(|(kind,value)|{
+            let payload=value.to_string();
+            json!({"kind":kind,"bytes":payload.len(),"sha256":sha256(payload.as_bytes()),"payload":payload})
+        }).collect();
+        json!({"format":"tsugi-portable","version":1,"createdAt":"2026-01-01T00:00:00.000Z","entries":entries}).to_string()
+    }
+    pub(super) fn fixture()->String {archive(preferences())}
+
+    #[test]
+    fn accepts_exact_legacy_and_feed_preferences_with_one_portable_manifest_version(){
+        assert!(validate_archive(&fixture()).is_ok());
+        let mut legacy=preferences();legacy["version"]=json!(1);legacy["settings"].as_object_mut().unwrap().remove("feed");
+        assert!(validate_archive(&archive(legacy.clone())).is_ok());
+        legacy["settings"]["feed"]=json!({"version":1,"sources":[]});
+        assert!(validate_archive(&archive(legacy)).is_err());
+        let mut absent=preferences();absent["settings"].as_object_mut().unwrap().remove("feed");
+        assert!(validate_archive(&archive(absent)).is_err());
+        let mut future=preferences();future["version"]=json!(3);
+        assert!(validate_archive(&archive(future)).is_err());
+    }
+    #[test]
+    fn feed_source_ids_are_exact_unique_signed_64_bit_nonzero_strings(){
+        for id in ["1","-1","9007199254740993","-9007199254740993","9223372036854775807","-9223372036854775808"] {
+            let mut value=preferences();value["settings"]["feed"]["sources"]=json!([{"sourceId":id,"mode":"popular"}]);
+            assert!(validate_archive(&archive(value)).is_ok(),"supported source identity");
+        }
+        for id in ["0","-0","+1","01","-01"," 1","1 ","1.0","1e3","１２","9223372036854775808","-9223372036854775809","https://private.example"] {
+            let mut value=preferences();value["settings"]["feed"]["sources"]=json!([{"sourceId":id,"mode":"latest"}]);
+            assert!(validate_archive(&archive(value)).is_err(),"reject noncanonical identity");
+        }
+        let mut duplicate=preferences();duplicate["settings"]["feed"]["sources"]=json!([{"sourceId":"1","mode":"popular"},{"sourceId":"1","mode":"latest"}]);
+        assert!(validate_archive(&archive(duplicate)).is_err());
+    }
+    #[test]
+    fn feed_payload_rejects_extra_fields_invalid_modes_counts_and_numeric_ids_even_with_valid_hashes(){
+        let mut empty=preferences();empty["settings"]["feed"]["sources"]=json!([]);
+        assert!(validate_archive(&archive(empty)).is_ok());
+        let mut eight=preferences();eight["settings"]["feed"]["sources"]=json!((1..=8).map(|id|json!({"sourceId":id.to_string(),"mode":"popular"})).collect::<Vec<_>>());
+        assert!(validate_archive(&archive(eight.clone())).is_ok());
+        eight["settings"]["feed"]["sources"].as_array_mut().unwrap().push(json!({"sourceId":"9","mode":"latest"}));
+        assert!(validate_archive(&archive(eight)).is_err());
+        for feed in [Value::Null,json!({"version":2,"sources":[]}),json!({"version":1,"sources":[],"token":"fixture-private"}),
+            json!({"version":1,"sources":[{"sourceId":1,"mode":"popular"}]}),json!({"version":1,"sources":[{"sourceId":"1","mode":"search"}]}),
+            json!({"version":1,"sources":[{"sourceId":"1","mode":"popular","url":"https://private.example"}]})] {
+            let mut value=preferences();value["settings"]["feed"]=feed;
+            assert!(validate_archive(&archive(value)).is_err());
+        }
     }
 }

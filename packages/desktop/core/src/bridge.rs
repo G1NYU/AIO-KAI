@@ -75,6 +75,7 @@ pub enum ReadAction {
     Prepare,
     Status,
     Sources,
+    SourceInventory,
     Library,
     LibraryPage { offset: u32 },
     History,

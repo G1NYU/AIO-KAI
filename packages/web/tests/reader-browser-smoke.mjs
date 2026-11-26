@@ -9,6 +9,7 @@ import { verifyRestoreSessionBrowser } from './restore-session-browser.mjs';
 import { verifyExtensionUpdatesBrowser } from './extension-updates-browser.mjs';
 import { verifyMihonImportBrowser } from './mihon-import-browser.mjs';
 import { verifyDownloadCleanupBrowser, verifyReaderReleaseBrowser } from './download-cleanup-browser.mjs';
+import { verifySourceFeedBrowser } from './source-feed-browser.mjs';
 import { pathToFileURL } from 'node:url';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -1456,4 +1457,5 @@ try {
   await verifyMihonImportBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyDownloadCleanupBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyReaderReleaseBrowser({ browser, origin, installDesktopFixture });
+  await verifySourceFeedBrowser({ browser, origin, installDesktopFixture, screenshotDir });
 } finally { await browser.close(); }

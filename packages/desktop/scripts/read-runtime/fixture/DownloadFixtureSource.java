@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import rx.Observable;
 
 /** Original CI-only pages served by this JVM on an ephemeral loopback port. */
-public final class DownloadFixtureSource extends FixtureSource {
+public class DownloadFixtureSource extends FixtureSource {
     private static final byte[] PNG = Base64.getDecoder().decode(
         "iVBORw0KGgoAAAANSUhEUgAAABAAAAAYCAIAAAB8wupbAAAAHUlEQVR4nGOsqF3FQApgIkn1qIZRDaMaRjWQrAEA4jkBz8UryC4AAAAASUVORK5CYII="
     );

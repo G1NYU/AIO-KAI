@@ -58,7 +58,7 @@ export function PreferencesBackupSettings({onApplied,archiveEntry}:{onApplied():
   }
   return <section className="tsugi-app-general" aria-label={t`Preferences backup`}>
     <h3><Trans>Preferences backup</Trans></h3>
-    <p><Trans>Back up built-in appearance, startup, visualizer, sound profile and reader preferences. This is a preferences file only: libraries, downloads, credentials, source URLs and custom Studio layouts are not included.</Trans></p>
+    <p><Trans id="Back up built-in appearance, startup, visualizer, sound profile, reader preferences and Feed source choices. Libraries, downloads, credentials, source URLs and custom Studio layouts are not included.">Back up built-in appearance, startup, visualizer, sound profile, reader preferences and Feed source choices. Libraries, downloads, credentials, source URLs and custom Studio layouts are not included.</Trans></p>
     <div className="flex flex-wrap gap-2">
       <button type="button" className="tsugi-read-action" disabled={busy} onClick={download}><Trans>Export preferences</Trans></button>
       <label className="min-w-0"><span><Trans>Preview preferences restore</Trans></span>
@@ -78,7 +78,9 @@ export function PreferencesBackupSettings({onApplied,archiveEntry}:{onApplied():
         <dt><Trans>Visualizer</Trans></dt><dd>{preview.settings.matrix}</dd>
         <dt><Trans>Player layout</Trans></dt><dd>{preview.settings.layout??t`Keep current layout`}</dd>
         <dt><Trans>Sound profile</Trans></dt><dd>{preview.settings.audioProfile}</dd>
+        <dt><Trans id="Feed source choices">Feed source choices</Trans></dt><dd>{preview.version===2?preview.settings.feed.sources.length:t({id:'Keep current Feed choices',message:'Keep current Feed choices'})}</dd>
       </dl>
+      <p><Trans id="Restoring Feed choices does not install extensions or contact sources. Refresh Feed explicitly when you want new results.">Restoring Feed choices does not install extensions or contact sources. Refresh Feed explicitly when you want new results.</Trans></p>
       <details><summary><Trans>Reader preferences</Trans></summary><pre className="whitespace-pre-wrap break-all text-xs">{JSON.stringify(preview.settings.reader,null,2)}</pre></details>
       <div className="flex flex-wrap gap-2">
         <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void apply()}><Trans>Apply preferences</Trans></button>

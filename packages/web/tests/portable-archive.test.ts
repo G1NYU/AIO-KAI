@@ -39,6 +39,18 @@ describe('portable archive',()=>{
     expect(archive.entries.map(entry=>entry.kind)).toEqual(['preferences','music','books']);
     expect(parsePortableArchive(JSON.stringify(archive))).toEqual(archive);
   });
+  it('keeps the portable manifest version while accepting both old and Feed-aware preference sections',()=>{
+    const legacy=make();
+    const current=createPortableArchive({preferences:{format:'tsugi-preferences',version:2,settings:{...preferences.settings,
+      feed:{version:1,sources:[{sourceId:'9007199254740993',mode:'latest'}]}}},music,books,manga},date);
+    expect(legacy.version).toBe(1);expect(current.version).toBe(1);
+    expect(parsePortableArchive(JSON.stringify(legacy))).toEqual(legacy);
+    expect(parsePortableArchive(JSON.stringify(current))).toEqual(current);
+    expect(JSON.parse(current.entries[0].payload).settings.feed.sources[0].sourceId).toBe('9007199254740993');
+    expect(archiveEntryCounts(current.entries[0])).toEqual({items:8});
+    const invalid=JSON.parse(current.entries[0].payload);invalid.settings.feed.sources[0].token='fixture-secret';
+    expect(()=>parsePortableArchive(JSON.stringify({...current,entries:[rehash(current.entries[0],JSON.stringify(invalid)),...current.entries.slice(1)]}))).toThrow();
+  });
   it('rejects tampering, malformed manifest, unknown sections and missing required sections',()=>{
     const archive=make(),first=archive.entries[0];
     for(const invalid of [{...archive,version:2},{...archive,token:'secret'},{...archive,createdAt:'2026-02-31T00:00:00.000Z'},

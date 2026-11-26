@@ -13,6 +13,8 @@ import { BatchAddWorkspace, MigrationWorkspace } from './collection-transfer';
 import { LandscapeSpotlight } from '@/components/landscape-spotlight';
 import { lookupMissingCover, mayLookUpCover, readCoverFallback, saveCoverFallback } from './cover-fallback';
 import { ReaderSettings } from './reader-settings';
+import { SourceFeed, useSourceFeed } from './source-feed';
+import type { FeedManga } from './source-feed-state';
 import { MangaTracking, type Tracker } from './tracking';
 import { readReaderPreferences, saveReaderPreferences } from './reader-preferences';
 import { chapterGroups, neighboringChapter, cleanSynopsis, type ReadingChapter as Chapter } from './reader-utils';
@@ -39,7 +41,7 @@ function activityDate(value?: number | string) {
   const date = new Date(n < 100000000000 ? n * 1000 : n);
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
-type BrowseTab = 'sources' | 'extensions' | 'search';
+type BrowseTab = 'sources' | 'extensions' | 'search' | 'feed';
 type SettingsPage = 'browse' | 'sources' | 'repositories' | 'reader' | 'trackers' | null;
 type SearchGroup = { source: Source; result?: Catalogue; error?: string };
 type Mode = 'popular' | 'latest' | 'search';
@@ -111,6 +113,7 @@ export function ReadPage({ visible }: {
   const stopExtensionUpdates = React.useRef(false);
   const active = React.useRef(true);
   const openGeneration = React.useRef(0);
+  const feed = useSourceFeed(visible && tab === 'browse' && browseTab === 'feed' && !details && !reader);
 
   async function run(work: () => Promise<void>) {
     if (lock.current) return;
@@ -237,7 +240,7 @@ export function ReadPage({ visible }: {
     setDetails(null); setReader(null); setTab('browse'); setBrowseTab(next); setSource(''); setBrowse(null); setError('');
     content.current?.scrollTo(0, 0);
     if (next === 'extensions') void run(() => loadExtensions());
-    else void run(loadSources);
+    else if (next !== 'feed') void run(loadSources);
   }
   function openSettings(next: SettingsPage) {
     setSettingsPage(next); setError('');
@@ -375,7 +378,8 @@ export function ReadPage({ visible }: {
   const rows = tab === 'library' ? libraryRows : browse?.result.mangas || [];
   const chapterRows = details ? chapterGroups(details.chapters).map((group) => group.filter((chapter) => (chapter.name + ' ' + (chapter.scanlator || '')).toLowerCase().includes(chapterFilter.toLowerCase()) && (chapterState === 'all' || (chapterState === 'bookmarked' ? chapter.isBookmarked : (chapterState === 'read') === chapter.isRead)))).filter((group) => group.length) : [];
   if (chapterOrder === 'desc') chapterRows.reverse();
-  const mangaRow = (manga: Manga) => <button className="tsugi-manga-card" key={manga.id} disabled={busy && (!globalSearching || globalStopping)} onClick={() => {
+  const mangaRow = (manga: Manga, select?: (manga: Manga) => void) => <button className="tsugi-manga-card" key={manga.id} disabled={busy && (!globalSearching || globalStopping)} onClick={() => {
+    if (select) { select(manga); return; }
     if (globalSearching) {
       pendingManga.current = manga;
       stopSearch.current = true;
@@ -384,7 +388,7 @@ export function ReadPage({ visible }: {
     }
     void run(async () => { await showManga(manga); });
   }}><MangaCover manga={manga} fallbackEnabled={visible && tab === 'library' && coverFallback} /><span className="tsugi-manga-title">{manga.title}</span>{!!manga.unreadCount && <span className="tsugi-manga-unread" title={t({ id: "Unread chapters", message: "Unread chapters" })}>{manga.unreadCount}</span>}{manga.author && <span className="truncate text-xs text-[--tsugi-muted]">{manga.author}</span>}</button>;
-  const mangaGrid = (items: Manga[]) => <div className="tsugi-manga-grid">{items.map(mangaRow)}</div>;
+  const mangaGrid = (items: Manga[], select?: (manga: Manga) => void) => <div className="tsugi-manga-grid">{items.map(manga => mangaRow(manga, select))}</div>;
   const settingRow = (label: string, description: string, next: SettingsPage) => <button className="tsugi-read-row" disabled={busy} onClick={() => openSettings(next)}><span><span className="block font-medium">{label}</span><span className="text-sm text-[--tsugi-muted]">{description}</span></span><FiChevronRight aria-hidden /></button>;
 
   return <main data-page="read" className="tsugi-read-root tsugi-read-workspace">
@@ -396,6 +400,7 @@ export function ReadPage({ visible }: {
         <div className="tsugi-pixel-rule" aria-hidden="true" />
         <span className="tsugi-reading-rail-label"><Trans id="Discover">Discover</Trans></span>
         <button title={t({ id: "Browse", message: "Browse" })} aria-current={tab === 'browse' && browseTab === 'sources' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('sources')}><FiCompass aria-hidden /><Trans id="Browse">Browse</Trans></button>
+        <button title={t({ id: "Feed", message: "Feed" })} aria-current={tab === 'browse' && browseTab === 'feed' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('feed')}><FiGlobe aria-hidden /><Trans id="Feed">Feed</Trans></button>
         <button title={t({ id: "Global search", message: "Global search" })} aria-current={tab === 'browse' && browseTab === 'search' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('search')}><FiSearch aria-hidden /><Trans id="Global search">Global search</Trans></button>
         <button title={t({ id: "Extensions", message: "Extensions" })} aria-current={tab === 'browse' && browseTab === 'extensions' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('extensions')}><FiGrid aria-hidden /><Trans id="Extensions">Extensions</Trans></button>
         <div className="tsugi-pixel-rule" aria-hidden="true" />
@@ -405,7 +410,7 @@ export function ReadPage({ visible }: {
     </TsugiRail>
     <div className="tsugi-reading-content" ref={content}>
       <header className="tsugi-reading-header">
-        <div><h1>{details ? t({ id: "Series", message: "Series" }) : tabs.find(item => item.id === tab)?.label ?? (tab === 'settings' ? t({ id: "Settings", message: "Settings" }) : browseTab === 'search' ? t({ id: "Global search", message: "Global search" }) : browseTab === 'extensions' ? t({ id: "Extensions", message: "Extensions" }) : t({ id: "Browse", message: "Browse" }))}</h1>
+        <div><h1>{details ? t({ id: "Series", message: "Series" }) : tabs.find(item => item.id === tab)?.label ?? (tab === 'settings' ? t({ id: "Settings", message: "Settings" }) : browseTab === 'search' ? t({ id: "Global search", message: "Global search" }) : browseTab === 'extensions' ? t({ id: "Extensions", message: "Extensions" }) : browseTab === 'feed' ? t({ id: "Feed", message: "Feed" }) : t({ id: "Browse", message: "Browse" }))}</h1>
           {!details && tab === 'library' && <p className="tsugi-library-summary"><Trans id="Saved titles">Saved titles</Trans> <strong>{allLibrary.length}</strong><span aria-hidden="true"> · </span><Trans id="Unread chapters">Unread chapters</Trans> <strong>{allLibrary.reduce((sum, manga) => sum + (manga.unreadCount || 0), 0)}</strong></p>}
         </div>
         {!(tab === 'browse' && browseTab === 'search' && !details) && <form className="tsugi-reading-global" onSubmit={(event) => { event.preventDefault(); if (!globalQuery.trim() || busy) return; setDetails(null); setTab('browse'); setBrowseTab('search'); void run(async () => { const result = await readRequest<Nodes<Source>>({ kind: 'sources' }); const available = result.nodes.filter((item) => item.id !== '0'); setSources(available); await searchAll(available); }); }}>
@@ -565,10 +570,10 @@ export function ReadPage({ visible }: {
     ) : tab === 'browse' ? (
       <section>
         <nav className="tsugi-read-subnav mb-7" aria-label={t({ id: "Browse sections", message: "Browse sections" })}>
-          {[{ id: 'sources' as const, label: t({ id: "Sources", message: "Sources" }), Icon: FiCompass }, { id: 'extensions' as const, label: t({ id: "Extensions", message: "Extensions" }), Icon: FiGrid }, { id: 'search' as const, label: t({ id: "Global search", message: "Global search" }), Icon: FiSearch }].map(({ id, label, Icon }) =>
+          {[{ id: 'sources' as const, label: t({ id: "Sources", message: "Sources" }), Icon: FiCompass }, { id: 'feed' as const, label: t({ id: "Feed", message: "Feed" }), Icon: FiGlobe }, { id: 'extensions' as const, label: t({ id: "Extensions", message: "Extensions" }), Icon: FiGrid }, { id: 'search' as const, label: t({ id: "Global search", message: "Global search" }), Icon: FiSearch }].map(({ id, label, Icon }) =>
             <button key={id} disabled={busy} aria-current={browseTab === id ? 'page' : undefined} onClick={() => switchBrowse(id)}><Icon aria-hidden />{label}</button>)}
         </nav>
-        {browseTab === 'extensions' ? <section>
+        {browseTab === 'feed' ? <SourceFeed feed={feed} busy={busy} onRequest={() => setError('')} renderManga={(items, select) => mangaGrid(items, item => select(item as FeedManga))} onOpen={item => { void run(async () => { await showManga(item); }); }} /> : browseTab === 'extensions' ? <section>
           <div className="mb-5 flex flex-wrap items-center gap-3">
             <h2 className="mr-auto text-xl font-semibold"><Trans id="Extensions">Extensions</Trans></h2>
             <button className="tsugi-read-action" disabled={busy} onClick={() => void run(async () => { await readRequest({ kind: 'refresh-extensions' }); await loadExtensions(); })}><Trans id="Check extension updates">Check extension updates</Trans></button>
