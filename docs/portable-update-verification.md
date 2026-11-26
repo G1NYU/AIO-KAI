@@ -39,3 +39,15 @@ The first [Windows compile](https://github.com/G1NYU/TSUGI/actions/runs/45898094
 ## Verified published archive
 
 The Windows job at [`ba74025`](https://github.com/G1NYU/TSUGI/commit/ba740253ab4fee2ce5bd69e01c650dc6bab26e21) ([job 140179424454](https://github.com/G1NYU/TSUGI/actions/runs/45898859425/job/140179424454)) passed 170 native tests (18 intentionally ignored), the disposable WebView2 preservation fixture, and verification of the exact official v0.1.0 archive (173235714 bytes; 295750604 unpacked; 440 entries; source commit e8e7140fe20ae265ffae4e559a45f939dd5b243b; published SHA-256 matched). No install, update apply or rollback is enabled. The web job passed typecheck but failed lint on two GIF binary-signature literals; this change marks those non-display literals accordingly. Reactive music browser coverage remains pending.
+
+## Disposable staging probe
+
+A2 adds a disposable verified package extraction/readback diagnostic on top of the previously verified archive validator. It fully verifies the locked source first, pins ordinary local temporary directory ancestors, preflights available disk space, creates an exclusively owned current-user ACL root, creates only reviewed paths with exclusive new-file handles, bounds directory count and decoded bytes, flushes each file, and verifies exact directory/file inventory and SHA-256 readback. The deterministic tree digest includes path, type, size and file digest. Cleanup removes only exclusively created files and empty created directories; an unexpected entry is preserved and reported as incomplete cleanup. New native fixtures cover complete staged archives, readback mismatch, free-space refusal, cancellation and foreign-content preservation. The exact immutable v0.1.0 ZIP probe now exercises disposable extraction as well as read-only verification. This does not authorize downgrade, execution, live installation replacement or migration; a persistent same-volume staging/rollback transaction remains unfinished. No destination path or production bridge action is exposed. The private ACL/handle policy is not a boundary against the current user or privileged code. New Windows CI is required.
+
+Run from packages/desktop on Windows:
+
+```powershell
+cargo run --locked -p aiostreams-desktop-core --example verify_tsugi_package -- --stage-probe <zip> <expected-bytes> <sha256> <source-commit>
+```
+
+The staging diagnostic uses the Windows temporary volume, not the destination application volume. Disk availability is a preflight estimate, not a guarantee; write/flush failures abort. It holds directory/file handles for the stage lifetime. It is not crash-persistent: an abrupt termination can leave an isolated private temporary directory. No generic cleanup of old stages or arbitrary paths is implemented. The tree digest is local verification evidence, not a publisher signature. Actual staged-package CI is pending.

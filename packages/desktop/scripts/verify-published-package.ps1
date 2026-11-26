@@ -1,4 +1,4 @@
-# Read-only acceptance against the immutable v0.1.0 asset selected from the official release.
+# Read-only and disposable extraction acceptance against the immutable official v0.1.0 asset.
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'The package verifier requires Windows.' }
 $bytes = 173235714
@@ -15,6 +15,8 @@ try {
     try {
         cargo run --locked -p aiostreams-desktop-core --example verify_tsugi_package -- $zip $bytes $digest $commit
         if ($LASTEXITCODE -ne 0) { throw 'Published package verification failed' }
+        cargo run --locked -p aiostreams-desktop-core --example verify_tsugi_package -- --stage-probe $zip $bytes $digest $commit
+        if ($LASTEXITCODE -ne 0) { throw 'Published package disposable staging failed' }
     } finally {
         Pop-Location
     }

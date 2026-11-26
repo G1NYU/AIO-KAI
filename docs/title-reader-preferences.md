@@ -11,3 +11,7 @@ The existing portable preference archive still contains only global settings; po
 ## Verification
 
 The native test compares the projected hash to the backup identity and proves raw URL removal and changed-source isolation. Web tests cover defaults, separate titles, current globals after reset, invalid/oversized stores, no eviction and write failure. The integrated Reader settings browser fixture uses a separate second title, changes one scope, reloads, checks History uses the correct title resume policy and resets without touching the global preferences. Actual CI and physical acceptance for this revision remain pending.
+
+## Native and cumulative checkpoint
+
+B4 native source at `58ac30c` passed 171 core tests (18 intentionally ignored), including exact stable hash projection, and the actual WebView2 cache-preservation fixture in [Windows job 140181526435](https://github.com/G1NYU/TSUGI/actions/runs/45899503079/job/140181526435). The first web typecheck caught one missing JSX brace; fixed at [`f51f5a7`](https://github.com/G1NYU/TSUGI/commit/f51f5a7068c1e10eb4a340de16b5727069ae4b5d). The [cumulative correction run 45899762782](https://github.com/G1NYU/TSUGI/actions/runs/45899762782) passed typecheck, lint and regression tests and reached browser smoke; browser/native cumulative completion and real-provider/physical acceptance remain pending at this checkpoint.

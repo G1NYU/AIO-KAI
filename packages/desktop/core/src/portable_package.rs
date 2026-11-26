@@ -2,7 +2,9 @@
 //!
 //! The expected digest and source commit must come from the trusted release
 //! selection. Matching that digest detects corruption, not independent signing.
-//! This module never extracts files, starts executables, or touches app data.
+//! Verification is read-only. The optional diagnostic staging submodule
+//! extracts only into a disposable private directory; neither touches app data
+//! nor executes package contents.
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -13,6 +15,8 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 use zip::{CompressionMethod, ZipArchive};
+mod staging;
+pub use staging::{probe_stage_package, StagingReport};
 
 pub const MAX_PACKAGE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_UNPACKED: u64 = 4 * 1024 * 1024 * 1024;
@@ -495,6 +499,23 @@ mod tests {
         let digest = format!("{:x}", Sha256::digest(&bytes));
         let length = bytes.len() as u64;
         verify(Cursor::new(bytes),length,&digest,COMMIT,&AtomicBool::new(false))
+    }
+
+    #[test]
+    fn stages_complete_package_and_rechecks_every_file() {
+        let bytes = fixture(None,None,COMMIT,false);
+        let digest = format!("{:x}", Sha256::digest(&bytes));
+        let length = bytes.len() as u64;
+        let cancel = AtomicBool::new(false);
+        let first = staging::probe_source(Cursor::new(bytes.clone()),length,&digest,COMMIT,&cancel).unwrap();
+        let second = staging::probe_source(Cursor::new(bytes.clone()),length,&digest,COMMIT,&cancel).unwrap();
+        assert_eq!(first,second,"staged tree identity is independent of disposable directory");
+        assert_eq!(first.files,REQUIRED.len()+DESIGN.len()+FONTS.len());
+        assert!(first.directories > 0);
+        assert_eq!(first.tree_sha256.len(),64);
+        assert_eq!(first.package.sha256,digest);
+        cancel.store(true,Ordering::Relaxed);
+        assert!(staging::probe_source(Cursor::new(bytes),length,&digest,COMMIT,&cancel).is_err());
     }
 
     #[test]

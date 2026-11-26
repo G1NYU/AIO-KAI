@@ -1,5 +1,13 @@
 # TSUGI current development handoff
 
+## 2026-11-26 — A2 verified disposable extraction; B4 native and web checkpoint
+
+B4 native source at `58ac30c` passed 171 core tests (18 intentionally ignored), including exact stable hash projection, and the actual WebView2 cache-preservation fixture in [Windows job 140181526435](https://github.com/G1NYU/TSUGI/actions/runs/45899503079/job/140181526435). The first web typecheck caught one missing JSX brace; fixed at [`f51f5a7`](https://github.com/G1NYU/TSUGI/commit/f51f5a7068c1e10eb4a340de16b5727069ae4b5d). The [cumulative correction run 45899762782](https://github.com/G1NYU/TSUGI/actions/runs/45899762782) passed typecheck, lint and regression tests and reached browser smoke; browser/native cumulative completion and real-provider/physical acceptance remain pending at this checkpoint.
+
+A2 adds a disposable verified package extraction/readback diagnostic on top of the previously verified archive validator. It fully verifies the locked source first, pins ordinary local temporary directory ancestors, preflights available disk space, creates an exclusively owned current-user ACL root, creates only reviewed paths with exclusive new-file handles, bounds directory count and decoded bytes, flushes each file, and verifies exact directory/file inventory and SHA-256 readback. The deterministic tree digest includes path, type, size and file digest. Cleanup removes only exclusively created files and empty created directories; an unexpected entry is preserved and reported as incomplete cleanup. New native fixtures cover complete staged archives, readback mismatch, free-space refusal, cancellation and foreign-content preservation. The exact immutable v0.1.0 ZIP probe now exercises disposable extraction as well as read-only verification. This does not authorize downgrade, execution, live installation replacement or migration; a persistent same-volume staging/rollback transaction remains unfinished. No destination path or production bridge action is exposed. The private ACL/handle policy is not a boundary against the current user or privileged code. New Windows CI is required.
+
+Next: verify the exact staging source, continue the persistent apply/recovery transaction and remaining A1/A2/B3/B4/B5/C/D work. Stable v0.1.0 unchanged; no package or release marker is included. The extra [verify portable package] marker exercises the official archive only.
+
 
 ## 2026-11-26 — B4 cumulative CI syntax correction
 
