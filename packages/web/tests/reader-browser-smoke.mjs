@@ -118,14 +118,16 @@ try {
             else { category = { id: ++state.categorySequence, name: a.name, order: state.categorySequence }; state.categories.push(category); }
             data = { category }; break;
           }
-          case 'assign-category':
-            if (a.mangaId !== 1) throw new Error('Unexpected category assignment');
-            manga.categories.nodes = manga.categories.nodes.filter(item => item.id !== a.categoryId);
-            if (a.assigned) manga.categories.nodes.push({ id: a.categoryId });
-            data = { manga }; break;
+          case 'assign-category': {
+            const target=[manga,replacement,batchTitle].find(item=>Number(item.id)===a.mangaId);
+            if(!target||!state.categories.some(item=>item.id===a.categoryId))throw Error('Unexpected category assignment');
+            target.categories.nodes=target.categories.nodes.filter(item=>item.id!==a.categoryId);
+            if(a.assigned)target.categories.nodes.push({id:a.categoryId});
+            data={manga:target};break;
+          }
           case 'delete-category':
             state.categories = state.categories.filter(item => item.id !== a.id);
-            manga.categories.nodes = manga.categories.nodes.filter(item => item.id !== a.id);
+            for(const target of [manga,replacement,batchTitle])target.categories.nodes=target.categories.nodes.filter(item=>item.id!==a.id);
             data = { category: { id: a.id } }; break;
           case 'history': data = nodes([{ ...chapters[0], lastReadAt: 1760000000000, manga }]); break;
           case 'updates': data = nodes([{ ...chapters[1], fetchedAt: 1760000000000, manga }]); break;
@@ -1051,6 +1053,7 @@ try {
   await page.getByRole('button', { name: 'Copy progress and keep original', exact: true }).click();
   await page.getByText(/Replacement verified. Original retained/).waitFor();
   assert.ok(await page.evaluate(() => window.__readerFixture.requests.some(a => a.kind === 'set-library' && a.id === 3 && a.inLibrary)));
+  assert.ok(await page.evaluate(()=>{const state=window.__readerFixture;const shelf=state.categories.find(row=>row.name==='Recovered shelf');return !!shelf&&state.requests.some(a=>a.kind==='assign-category'&&a.mangaId===3&&a.categoryId===shelf.id&&a.assigned);}), 'migration copies the recovered category');
   assert.equal(await page.evaluate(() => window.__readerFixture.requests.some(a => a.kind === 'set-library' && a.id === 1 && !a.inLibrary)), false);
   await rail.getByRole('button', { name: 'Batch Add', exact: true }).click();
   await page.getByRole('combobox', { name: 'Search source', exact: true }).selectOption('67890');
