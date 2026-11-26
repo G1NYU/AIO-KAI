@@ -1063,12 +1063,26 @@ try {
   await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).click();
   await books.getByRole('button',{name:'Remove from library',exact:true}).click();
   await books.getByRole('button',{name:'Remove saved copy',exact:true}).click();
+  // The card is absent while its details are open, so a detached-card wait
+  // alone does not establish that the asynchronous deletion finished.
+  await books.getByRole('heading',{name:'Your collection',exact:false}).waitFor();
+  await books.locator('.tsugi-library-summary strong').filter({hasText:/^1$/}).waitFor();
   await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).waitFor({state:'detached'});
   await books.getByLabel('Choose ebook files').setInputFiles({name:'Tsugi PDF Fixture.pdf',mimeType:'application/pdf',buffer:pdfFixture()});
-  await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).waitFor();
+  await books.locator('.tsugi-library-summary strong').filter({hasText:/^2$/}).waitFor();
+  await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).getByText('0%',{exact:true}).waitFor();
   await books.getByRole('button',{name:'App settings',exact:true}).click();
+  const freshExportEvent=page.waitForEvent('download');
+  await bookBackup.getByRole('button',{name:'Export book progress',exact:true}).click();
+  const freshExport=await freshExportEvent;
+  const freshData=JSON.parse(await readFile(await freshExport.path(),'utf8'));
+  const freshPdf=freshData.books.find(row=>row.format==='pdf');
+  assert.notEqual(freshPdf.id,pdfProgress.id,'PDF was reimported with a fresh identity');
+  assert.equal(freshPdf.sha256,pdfProgress.sha256,'identical file bytes');
+  assert.equal(freshPdf.progress,null,'newly imported file has no reading progress');
   await bookBackup.locator('input[type=file]').setInputFiles({name:'books.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(bookData))});
   await bookBackup.getByRole('heading',{name:'Book restore preview',exact:true}).waitFor();
+  assert.match(await bookBackup.locator('dl').innerText(),/Ready to restore\s+1/,'restore preview must match exactly one fresh book');
   await bookBackup.getByRole('button',{name:'Restore matched book progress',exact:true}).click();
   await bookBackup.getByText('Matched book metadata and progress restored. Existing files were not replaced.',{exact:true}).waitFor();
   await bookSettings.getByRole('button',{name:'Close',exact:true}).click();
