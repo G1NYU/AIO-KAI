@@ -1,5 +1,5 @@
 import { describe,expect,it } from 'vitest';
-import { parseMangaBackup,snapshotManga,planMangaRestore,type LocalManga } from '../src/lib/backup/manga';
+import { parseMangaBackup,snapshotManga,planMangaRestore,missingTitleSources,type LocalManga } from '../src/lib/backup/manga';
 const hash=(n:number)=>n.toString(16).padStart(64,'0');
 const chapter={id:11,identity:hash(11),name:'Chapter one',isRead:false,isBookmarked:true,lastPageRead:3,pageCount:20,lastReadAt:'100'};
 const original:LocalManga={id:1,identity:hash(1),sourceId:'-9223372036854775808',title:'Original manga',categories:['Reading'],chapters:[chapter,{...chapter,id:12,identity:hash(12),isRead:true,lastReadAt:'200'}]};
@@ -34,4 +34,14 @@ describe('manga progress backup',()=>{
       {...backup,manga:[{...backup.manga[0],chapters:[{...backup.manga[0].chapters[0],url:'https://private.test'}]}]}])
       expect(()=>parseMangaBackup(JSON.stringify(invalid))).toThrow();
   });
+});
+
+it('distinguishes missing sources from an incomplete inventory without rounding source IDs',()=>{
+  const id='9007199254740993';
+  const row={identity:'a'.repeat(64),sourceId:id,title:'Fixture',state:'missing' as const,matched:0,unmatched:0,kept:0,categoryNames:[]};
+  const plan={rows:[row,{...row,sourceId:'0'},row],changes:[]};
+  expect(missingTitleSources(plan,{nodes:[{id:'0'}],totalCount:1})).toEqual([
+    {id,titles:2,status:'missing'},{id:'0',titles:1,status:'installed'}]);
+  expect(missingTitleSources(plan,{nodes:[{id:'0'}],totalCount:2})[0].status).toBe('unknown');
+  expect(missingTitleSources(plan,null)[0].status).toBe('unknown');
 });

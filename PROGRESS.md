@@ -806,3 +806,7 @@ Settings can now review, cancel or remove one bounded batch of disposable video 
 ### 2026-11-26 — A1 fresh destination regression and Windows acceptance candidate
 
 `0033ad6` passed Unified Windows 45765273610 and Reader runtime 45765273648, including native broker startup with the per-installation JVM temp root. The artwork cleanup and fresh-device reconnect guidance are on `8d6b25b` (package run 45765848932). An additional local Playwright check opens the actual exported archive in a second isolated browser context, reviews and applies preferences and matched synthetic manga progress, then reloads and verifies the destination palette. Full browser scenario passed. The test ZIP and physical Windows round-trip are distinct gates. See [Windows recovery acceptance](docs/windows-recovery-acceptance.md) for instructions covering separate portable folders and original data preservation.
+
+### 2026-11-26 — A1 missing-source review
+
+Manga restore groups missing titles by the original signed 64-bit source ID and checks the managed runtime's installed-source inventory. An incomplete listing or unavailable runtime cannot identify an absent source. The review preserves the original decimal ID, distinguishes installed sources from missing titles, and never installs a source, submits a title search or adds a repository. Applies to v1 and v2 manga backups. This change follows the Windows candidate at `8d6b25b`.

@@ -307,6 +307,12 @@ try {
   const savedManga=mangaData.manga.find(row=>row.title==='Tsugi Original Fixture');
   assert.ok(savedManga.identity);
   assert.equal(savedManga.id,undefined);
+  const absentSource={...mangaData,manga:[{...savedManga,identity:'f'.repeat(64),sourceId:'9007199254740993'}]};
+  await mangaBackup.locator('input[type=file]').setInputFiles({name:'missing-source.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(absentSource))});
+  await mangaBackup.getByText('Sources for missing titles',{exact:true}).click();
+  await mangaBackup.getByText('Source 9007199254740993 · Titles: 1',{exact:true}).waitFor();
+  await mangaBackup.getByText('Reconnect the original trusted source.',{exact:true}).waitFor();
+  assert.equal(await mangaBackup.getByRole('button',{name:'Restore matched manga progress'}).isEnabled(),false);
   savedManga.chapters=[{identity:'b'.padStart(64,'0'),name:'Chapter one',isRead:false,isBookmarked:true,lastPageRead:2,pageCount:4,lastReadAt:'100'}];
   await mangaBackup.locator('input[type=file]').setInputFiles({name:'manga.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(mangaData))});
   await mangaBackup.getByRole('heading',{name:'Manga restore preview',exact:true}).waitFor();

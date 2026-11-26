@@ -1,19 +1,20 @@
 import React from 'react';
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
-import { MANGA_BACKUP_LIMIT,collectLocalManga,snapshotManga,parseMangaBackup,planMangaRestore,type MangaRestorePlan } from '@/lib/backup/manga';
+import { MANGA_BACKUP_LIMIT,collectLocalManga,snapshotManga,parseMangaBackup,planMangaRestore,missingTitleSources,type MangaRestorePlan } from '@/lib/backup/manga';
 import { readRequest,supportsReading } from '@/lib/hosts/shell/reading';
 import { applyCategoryRestore,collectLocalCategories,planCategoryRestore,type CategoryRestorePlan } from '@/lib/backup/manga-categories';
 
 export function MangaBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
   const [preview,setPreview]=React.useState<MangaRestorePlan|null>(null);
+  const [reconnect,setReconnect]=React.useState<ReturnType<typeof missingTitleSources>>([]);
   const [categoryPlan,setCategoryPlan]=React.useState<CategoryRestorePlan|null>(null);
   const [busy,setBusy]=React.useState(false);
   const [progress,setProgress]=React.useState('');
   const [notice,setNotice]=React.useState('');
   const [error,setError]=React.useState('');
   const onProgress=(done:number,total:number)=>setProgress(t`Checking local manga: ${done} / ${total}`);
-  const begin=()=>{setPreview(null);setCategoryPlan(null);setNotice('');setError('');setProgress('');setBusy(true);};
+  const begin=()=>{setReconnect([]);setPreview(null);setCategoryPlan(null);setNotice('');setError('');setProgress('');setBusy(true);};
   function activeChapter(){return !!document.querySelector('.tsugi-chapter-reader');}
   async function download(){
     if(activeChapter()){setError(t`Close the current chapter before backing up manga progress.`);return;}
@@ -41,6 +42,10 @@ export function MangaBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
       const categories=await collectLocalCategories();
       const chapters=planMangaRestore(data,local);
       const shelves=planCategoryRestore(data,local,categories);
+      if(chapters.rows.some(row=>row.state==='missing')){
+        const inventory=await readRequest<unknown>({kind:'sources'}).catch(()=>null);
+        setReconnect(missingTitleSources(chapters,inventory));
+      }
       setPreview(chapters);setCategoryPlan(shelves);
     }catch{setError(t`Could not review this manga backup. No reading progress was changed.`);}
     finally{setBusy(false);setProgress('');}
@@ -96,6 +101,15 @@ export function MangaBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
         <dt><Trans>Unmatched chapters</Trans></dt><dd>{preview.rows.reduce((sum,row)=>sum+row.unmatched,0)}</dd>
         <dt><Trans>Newer or incompatible positions kept</Trans></dt><dd>{preview.rows.reduce((sum,row)=>sum+row.kept,0)}</dd>
       </dl>
+      {reconnect.length>0&&<details>
+        <summary><Trans id="Sources for missing titles">Sources for missing titles</Trans></summary>
+        <ul>{reconnect.map(({id,titles,status})=><li key={id} className="tsugi-read-row flex-wrap">
+          <span><Trans id="Source {id} · Titles: {titles}">Source {id} · Titles: {titles}</Trans></span>
+          <small>{status==='installed'?t({id:'Source available. Re-add the original title.',message:'Source available. Re-add the original title.'}):
+            status==='missing'?t({id:'Reconnect the original trusted source.',message:'Reconnect the original trusted source.'}):
+            t({id:'Source availability could not be confirmed.',message:'Source availability could not be confirmed.'})}</small>
+        </li>)}</ul>
+      </details>}
       <div className="max-h-48 overflow-auto">{preview.rows.map(row=><div key={row.identity} className="tsugi-read-row"><span className="min-w-0 break-words">{row.title}{row.categoryNames.length>0&&<small className="block">{row.categoryNames.join(', ')}</small>}</span><small>{row.state==='ready'?t`Ready`:row.state==='missing'?t`Re-add original title`:row.state==='limit'?t`Over limit`:t`Unchanged`}</small></div>)}</div>
       <div className="flex flex-wrap gap-2"><button type="button" className="tsugi-read-action" disabled={busy||!total} onClick={()=>void apply()}><Trans>Restore matched manga progress</Trans></button><button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>{setPreview(null);setCategoryPlan(null);}}><Trans>Cancel manga restore</Trans></button></div>
     </div>}

@@ -7,7 +7,7 @@ export type BackupChapter={identity:string;name:string;isRead:boolean;isBookmark
 export type BackupManga={identity:string;sourceId:string;title:string;categories:string[];chapters:BackupChapter[]};
 export type MangaBackup={format:'tsugi-manga-progress';version:1;manga:BackupManga[]}|{format:'tsugi-manga-progress';version:2;manga:BackupManga[];categories:string[]};
 export type LocalManga=Omit<BackupManga,'chapters'>&{id:number;chapters:(BackupChapter&{id:number})[]};
-export type MangaRestorePlan={rows:{identity:string;title:string;state:'ready'|'missing'|'unchanged'|'limit';matched:number;unmatched:number;kept:number;categoryNames:string[]}[];changes:{id:number;identity:string;changes:MangaProgressPatch[]}[]};
+export type MangaRestorePlan={rows:{identity:string;sourceId:string;title:string;state:'ready'|'missing'|'unchanged'|'limit';matched:number;unmatched:number;kept:number;categoryNames:string[]}[];changes:{id:number;identity:string;changes:MangaProgressPatch[]}[]};
 
 function object(value:unknown):Record<string,unknown>{
   if(!value||typeof value!=='object'||Array.isArray(value))throw Error('object');
@@ -110,7 +110,7 @@ export function planMangaRestore(backup:MangaBackup,local:LocalManga[]):MangaRes
   const plan:MangaRestorePlan={rows:[],changes:[]};
   for(const row of verified.manga){
     const target=targets.get(row.identity);
-    const report:MangaRestorePlan['rows'][number]={identity:row.identity,title:row.title,state:'missing',matched:0,unmatched:0,kept:0,categoryNames:row.categories};
+    const report:MangaRestorePlan['rows'][number]={identity:row.identity,sourceId:row.sourceId,title:row.title,state:'missing',matched:0,unmatched:0,kept:0,categoryNames:row.categories};
     plan.rows.push(report);
     if(!target||target.sourceId!==row.sourceId){report.unmatched=row.chapters.length;continue;}
     const current=new Map(target.chapters.map(c=>[c.identity,c]));
@@ -133,4 +133,27 @@ export function planMangaRestore(backup:MangaBackup,local:LocalManga[]):MangaRes
     if(changes.length)plan.changes.push({id:target.id,identity:target.identity,changes});
   }
   return plan;
+}
+
+/** Source IDs are signed 64-bit decimal strings, including the local-source ID 0.
+ * The runtime currently returns at most 100 sources, so absence is conclusive
+ * only for a complete, valid inventory.
+ */
+export function missingTitleSources(plan:MangaRestorePlan, inventory:unknown) {
+  const counts=new Map<string,number>();
+  for(const row of plan.rows){
+    if(row.state==='missing')counts.set(row.sourceId,(counts.get(row.sourceId)??0)+1);
+  }
+  const installed=new Set<string>();
+  let complete=false;
+  try {
+    const raw=object(inventory);
+    if(Array.isArray(raw.nodes) && raw.nodes.length<=100){
+      for(const item of raw.nodes)installed.add(long(object(item).id));
+      complete=integer(raw.totalCount)===raw.nodes.length && installed.size===raw.nodes.length;
+    }
+  } catch { complete=false; }
+  return Array.from(counts,([id,titles])=>({
+    id,titles,status:installed.has(id)?'installed' as const:complete?'missing' as const:'unknown' as const,
+  }));
 }
