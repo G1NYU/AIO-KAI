@@ -38,3 +38,7 @@ CI, real libmpv decoding of live public SoundCloud formats, and provider
 latency/availability on the affected desktop remain separate gates. A
 successful synthetic browser fixture does not prove live streaming. No
 comparison with the interrupted worktree's recorded timing is claimed.
+
+## Published verification checkpoints
+
+The corrected native SoundCloud integrated browser fixture passed in [Unified run 45897205036](https://github.com/G1NYU/TSUGI/actions/runs/45897205036): native source, incremental results, cancellation, stale reply refusal, public target and export isolation. Web typecheck, lint, regression tests (36 test files) and combined browser smoke passed. Actual live SoundCloud playback and speed remain unverified. [Vault run 45896416797](https://github.com/G1NYU/TSUGI/actions/runs/45896416797) and [Reader run 45896416839](https://github.com/G1NYU/TSUGI/actions/runs/45896416839) passed.

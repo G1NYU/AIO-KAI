@@ -21,3 +21,7 @@ It compiles the desktop example using the existing locked Tao/Wry/WebView2 depen
 Microsoft's [WebView2 clear-browsing-data API](https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/icorewebview2profile2) reports category completion, not a reviewed file list or an exact reclaimed byte count. Even a passing probe does not justify deleting WebView2 files directly, clearing all DOM/site data, or claiming that a reviewed number of bytes was freed. Production cleanup remains a separate A1 acceptance item. Real portable data and physical-machine acceptance remain distinct.
 
 The HTML JavaScript was syntax-checked and the locally inspected blob matched the staged source. Local Chromium navigation was blocked by administrator policy; it did not exercise the COM API or establish a passing browser result. Windows CI is the actual integration gate.
+
+## Verified Windows result
+
+The disposable WebView2 fixture at `18ef6ed` passed the actual Windows runtime in [job 140173949511](https://github.com/G1NYU/TSUGI/actions/runs/45897205036/job/140173949511), including cold/warm/restart HTTP request counts 1/1/2, protected data checks and interrupted/unknown exit 2 followed by a preservation check. The same job passed all 164 native core tests, with 18 intentionally ignored. Production cleanup and physical mixed-media recovery remain open.

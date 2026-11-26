@@ -22,3 +22,5 @@ base64 = "0.22"
 getrandom = "0.4"
 sha2 = "0.10"
 flate2 = "1"
+crc32fast = "1"
+zip = { version = "8.6", default-features = false, features = ["deflate"] }

@@ -151,6 +151,10 @@ jobs:
       - name: Verify disposable WebView2 disk-cache preservation
         shell: pwsh
         run: ./packages/desktop/scripts/verify-webview-cache.ps1
+      - name: Verify immutable published portable archive
+        if: contains(github.event.head_commit.message, '[verify portable package]')
+        shell: pwsh
+        run: ./packages/desktop/scripts/verify-published-package.ps1
       - name: Live TorBox authentication rejection probe (no account or submission)
         if: contains(github.event.head_commit.message, '[live vault smoke]')
         working-directory: packages/desktop
@@ -397,6 +401,8 @@ jobs:
             run_id = $env:GITHUB_RUN_ID
             run_attempt = $env:GITHUB_RUN_ATTEMPT
             ref = $env:GITHUB_REF
+            package_format = 1
+            architecture = 'windows-x64'
           }
           if ((git rev-parse HEAD).Trim() -ne $build.commit) { throw 'Package source revision mismatch' }
           $build | ConvertTo-Json | Set-Content -Path stage/BUILD-INFO.json -Encoding utf8
