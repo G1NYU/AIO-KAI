@@ -1,5 +1,10 @@
 # TSUGI current development handoff
 
+## Execution interruption — unpublished follow-up
+
+The execution workspace became unavailable while preparing the next repair batch for publication. GitHub was rechecked: application source remains at `ae07661555ba7377ca516a53370949c30d8d149f`; the locally verified 46-file repair batch has **not** reached the branch or a new Windows package. The unread indicator, reactive seek/custom mascot and WebView2 preservation fixture are also awaiting integration. [Exact recovery state](docs/workspace-recovery-2026-11-26.md) records local commit/tree identities, completed verification, isolated worktrees, incomplete updater work and the recovery sequence. Do not interpret the local results as published Windows validation. Execution/source access must be restored before implementation can safely continue.
+
+
 Updated: 2026-11-26. Repository: [G1NYU/TSUGI](https://github.com/G1NYU/TSUGI). Development branch: `feature/tsugi-read-runtime`. Stable `v0.1.0` is unchanged.
 
 This focused handoff records the current candidate. The existing `PROGRESS.md` remains the published historical record; this update leaves that history unchanged.

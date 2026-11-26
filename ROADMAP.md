@@ -1,5 +1,10 @@
 # Tsugi — Music and application polish roadmap
 
+## Active execution interruption
+
+The user authorized completion of the remaining roadmap and added an unread Chapter updates indicator, reactive music seeking and a custom audio-reactive mascot. Those focused changes were implemented and checked in isolated worktrees, but are **not integrated or published**. The latest 46-file SoundCloud/UI/disk-import repair batch is likewise locally verified but unpublished because execution access became unavailable during upload preparation. [The recovery checkpoint](docs/workspace-recovery-2026-11-26.md) distinguishes completed local work, pending Windows/integration gates and unfinished features. The published application source remains `ae07661555ba7377ca516a53370949c30d8d149f`; no additional roadmap milestone or new build is claimed.
+
+
 Baseline: consolidated Windows x64 build [68b75f1](https://github.com/G1NYU/TSUGI/commit/68b75f1772eba86b9e3ac8973086d177df0d650d), [successful packaging run 45620044358](https://github.com/G1NYU/TSUGI/actions/runs/45620044358). User confirmed core functionality on the physical desktop; the new priorities are performance and visual polish. Work in the order below, validate each milestone, and preserve the existing working providers, reading runtime, video playback and download paths.
 
 ## Current delivery priority — 2026-11-26
