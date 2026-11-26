@@ -3,6 +3,7 @@ import { capturePreferencesBackup, parsePreferencesBackup, MAX_PREFERENCES_BACKU
 import { captureMusicBackup, parseMusicBackup, MUSIC_BACKUP_LIMIT, type MusicBackup } from './music';
 import { captureBookBackup, parseBookBackup, BOOK_BACKUP_LIMIT, type BookBackup } from './books';
 import { collectLocalManga, snapshotManga, parseMangaBackup, MANGA_BACKUP_LIMIT, type MangaBackup } from './manga';
+import { collectLocalCategories } from './manga-categories';
 
 export const PORTABLE_ARCHIVE_LIMIT = 24 * 1024 * 1024;
 const limits={preferences:MAX_PREFERENCES_BACKUP_BYTES,music:MUSIC_BACKUP_LIMIT,books:BOOK_BACKUP_LIMIT,manga:MANGA_BACKUP_LIMIT} as const;
@@ -77,7 +78,9 @@ export async function capturePortableArchive(includeManga:boolean,onProgress?:(k
   let manga:MangaBackup|undefined;
   if(includeManga){
     onProgress?.('manga',0,0);
-    manga=snapshotManga(await collectLocalManga((done,total)=>onProgress?.('manga',done,total)));
+    const local=await collectLocalManga((done,total)=>onProgress?.('manga',done,total));
+    const categories=await collectLocalCategories();
+    manga=snapshotManga(local,categories.map(row=>row.name));
   }
   return createPortableArchive({preferences,music,books,manga});
 }

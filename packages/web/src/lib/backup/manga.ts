@@ -5,7 +5,7 @@ const MAX_TITLES=1000, MAX_CHAPTERS=100000, MAX_TITLE_CHAPTERS=10000, MAX_PATCHE
 const HASH=/^[a-f\d]{64}$/;
 export type BackupChapter={identity:string;name:string;isRead:boolean;isBookmarked:boolean;lastPageRead:number;pageCount:number;lastReadAt:string};
 export type BackupManga={identity:string;sourceId:string;title:string;categories:string[];chapters:BackupChapter[]};
-export type MangaBackup={format:'tsugi-manga-progress';version:1;manga:BackupManga[]};
+export type MangaBackup={format:'tsugi-manga-progress';version:1;manga:BackupManga[]}|{format:'tsugi-manga-progress';version:2;manga:BackupManga[];categories:string[]};
 export type LocalManga=Omit<BackupManga,'chapters'>&{id:number;chapters:(BackupChapter&{id:number})[]};
 export type MangaRestorePlan={rows:{identity:string;title:string;state:'ready'|'missing'|'unchanged'|'limit';matched:number;unmatched:number;kept:number;categoryNames:string[]}[];changes:{id:number;identity:string;changes:MangaProgressPatch[]}[]};
 
@@ -57,15 +57,29 @@ function parseManga(raw:unknown,native:boolean):BackupManga|LocalManga{
 }
 export function parseMangaBackup(text:string):MangaBackup{
   if(new TextEncoder().encode(text).length>MANGA_BACKUP_LIMIT)throw Error('size');
-  const root=object(JSON.parse(text));exact(root,['format','version','manga']);
-  if(root.format!=='tsugi-manga-progress'||root.version!==1||!Array.isArray(root.manga)||root.manga.length>MAX_TITLES)throw Error('format');
+  const root=object(JSON.parse(text));
+  if(root.format!=='tsugi-manga-progress'||(root.version!==1&&root.version!==2)||!Array.isArray(root.manga)||root.manga.length>MAX_TITLES)throw Error('format');
+  exact(root,['format','version','manga',...(root.version===2?['categories']:[])]);
   const manga=distinct(root.manga.map(x=>parseManga(x,false)),x=>x.identity);
   if(manga.reduce((sum,row)=>sum+row.chapters.length,0)>MAX_CHAPTERS)throw Error('chapter-count');
+  if(root.version===2){
+    if(!Array.isArray(root.categories)||root.categories.length>100)throw Error('categories');
+    const categories=distinct(root.categories.map(x=>label(x,80)),x=>x);
+    const names=new Set(categories);
+    if(manga.some(row=>row.categories.some(name=>!names.has(name))))throw Error('category-snapshot-changed');
+    return {format:'tsugi-manga-progress',version:2,manga,categories};
+  }
   return {format:'tsugi-manga-progress',version:1,manga};
 }
-export function snapshotManga(local:LocalManga[]):MangaBackup{
+export function snapshotManga(local:LocalManga[],categories?:string[]):MangaBackup{
   const manga=local.map(({id:_id,chapters,...row})=>({...row,chapters:chapters.filter(c=>c.isRead||c.isBookmarked||c.lastPageRead>0||c.lastReadAt!=='0').map(({id:_chapterId,...chapter})=>chapter)}));
-  return parseMangaBackup(JSON.stringify({format:'tsugi-manga-progress',version:1,manga}));
+  return parseMangaBackup(JSON.stringify(categories===undefined?{format:'tsugi-manga-progress',version:1,manga}:{format:'tsugi-manga-progress',version:2,manga,categories}));
+}
+export async function loadLocalManga(id:number):Promise<LocalManga>{
+  const {readRequest}=await import('../hosts/shell/reading');
+  const row=parseManga(await readRequest<unknown>({kind:'backup-manga',id}),true);
+  if(row.id!==id)throw Error('manga-changed');
+  return row;
 }
 export async function collectLocalManga(onProgress?:(done:number,total:number)=>void):Promise<LocalManga[]>{
   const {readRequest}=await import('../hosts/shell/reading');
@@ -84,8 +98,8 @@ export async function collectLocalManga(onProgress?:(done:number,total:number)=>
   distinct(ids,x=>x);
   const local:LocalManga[]=[];let chapterCount=0;
   for(const id of ids){
-    const row=parseManga(await readRequest<unknown>({kind:'backup-manga',id}),true);
-    if(row.id!==id||(chapterCount+=row.chapters.length)>MAX_CHAPTERS)throw Error('snapshot-limit');
+    const row=await loadLocalManga(id);
+    if((chapterCount+=row.chapters.length)>MAX_CHAPTERS)throw Error('snapshot-limit');
     local.push(row);onProgress?.(local.length,ids.length);
   }
   return distinct(local,x=>x.identity);

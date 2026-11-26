@@ -133,7 +133,7 @@ try {
             const item=[manga,{id:2,sourceId:'12345',title:'ZZ Missing Fixture'},replacement,batchTitle].find(m=>Number(m.id)===a.id);
             if(!item)throw Error('Missing backup fixture');
             const hash=n=>n.toString(16).padStart(64,'0');
-            data={id:a.id,identity:hash(a.id),sourceId:item.sourceId,title:item.title,categories:[],chapters:a.id===1?[{id:11,identity:hash(11),name:'Chapter one',isRead:false,isBookmarked:!!state.backupBookmarked,lastPageRead:state.backupPage||0,pageCount:4,lastReadAt:'0'}]:[]};
+            data={id:a.id,identity:hash(a.id),sourceId:item.sourceId,title:item.title,categories:state.categories.filter(category=>item.categories?.nodes.some(node=>node.id===category.id)).map(category=>category.name),chapters:a.id===1?[{id:11,identity:hash(11),name:'Chapter one',isRead:false,isBookmarked:!!state.backupBookmarked,lastPageRead:state.backupPage||0,pageCount:4,lastReadAt:'0'}]:[]};
             break;
           }
           case 'restore-manga-progress': {
@@ -278,6 +278,8 @@ try {
   assert.equal(mangaExported.suggestedFilename(),'tsugi-manga-progress.json');
   const mangaData=JSON.parse(await readFile(await mangaExported.path(),'utf8'));
   assert.equal(mangaData.format,'tsugi-manga-progress');
+  assert.equal(mangaData.version,2);
+  assert.deepEqual(mangaData.categories,[]);
   const savedManga=mangaData.manga.find(row=>row.title==='Tsugi Original Fixture');
   assert.ok(savedManga.identity);
   assert.equal(savedManga.id,undefined);
@@ -313,6 +315,18 @@ try {
   await musicBackup.getByRole('button',{name:'Cancel music restore',exact:true}).click();
   await portable.getByRole('button',{name:'Close portable backup',exact:true}).click();
   console.log('PASS: validated portable archive and explicit per-domain restore review.');
+  const shelfData={...mangaData,categories:['Recovered shelf','Empty shelf'],manga:mangaData.manga.map(row=>({...row,categories:row.identity===savedManga.identity?['Recovered shelf']:[],chapters:[]}))};
+  await mangaBackup.locator('input[type=file]').setInputFiles({name:'shelves.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(shelfData))});
+  await mangaBackup.getByRole('heading',{name:'Category restore preview',exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>window.__readerFixture.categories.length),0,'category preview must not write');
+  await mangaBackup.getByRole('button',{name:'Restore matched categories',exact:true}).click();
+  await mangaBackup.getByRole('status').filter({hasText:'Created 2 categories, added 1 assignments'}).waitFor();
+  assert.deepEqual(await page.evaluate(()=>window.__readerFixture.categories.map(row=>row.name)),['Recovered shelf','Empty shelf']);
+  await mangaBackup.locator('input[type=file]').setInputFiles({name:'shelves.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(shelfData))});
+  await mangaBackup.getByRole('heading',{name:'Category restore preview',exact:true}).waitFor();
+  assert.equal(await mangaBackup.getByRole('button',{name:'Restore matched categories',exact:true}).isEnabled(),false,'reimport is idempotent');
+  await mangaBackup.getByRole('button',{name:'Cancel manga restore',exact:true}).click();
+  console.log('PASS: reviewed shelf recovery preserves empty shelves and is idempotent.');
 
   await bootSettings.getByRole('button', { name: 'Default', exact: true }).click();
   await bootSettings.getByRole('button', { name: 'Silver', exact: true }).click();
