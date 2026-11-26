@@ -23,7 +23,7 @@ import { normalizedContentWarning, sourceLanguages, sourceMatchesFilters, type C
 import { SourceSettings } from './source-settings';
 import { SourceIcon } from './source-icon';
 import { MangaTracking, type Tracker } from './tracking';
-import { readReaderPreferences, saveReaderPreferences } from './reader-preferences';
+import { readEffectiveReaderPreferences, readReaderPreferences, saveReaderPreferences, isReaderIdentity } from './reader-preferences';
 import { chapterGroups, neighboringChapter, cleanSynopsis, type ReadingChapter } from './reader-utils';
 import { YomiBanner } from './yomi-banner';
 import { BrushHeading } from '@/components/brush-heading';
@@ -56,11 +56,11 @@ function languageLabel(language: string) {
 function versionLabel(version: string, installed: boolean) {
   return installed ? t({ id: 'Installed version {version}', message: `Installed version ${version}` }) : t({ id: 'Available version {version}', message: `Available version ${version}` });
 }
-type Manga = { id: number | string; sourceId?: string; categories?: { nodes: { id: number }[] }; title: string; author?: string | null; artist?: string | null; genre?: string[]; thumbnailUrl?: string | null; description?: string | null; inLibrary: boolean; unreadCount?: number; lastReadChapter?: { id: number; name: string; lastPageRead: number; pageCount: number; isRead: boolean; lastReadAt?: number | string } | null };
+type Manga = { id: number | string; sourceId?: string; readerIdentity?: string; categories?: { nodes: { id: number }[] }; title: string; author?: string | null; artist?: string | null; genre?: string[]; thumbnailUrl?: string | null; description?: string | null; inLibrary: boolean; unreadCount?: number; lastReadChapter?: { id: number; name: string; lastPageRead: number; pageCount: number; isRead: boolean; lastReadAt?: number | string } | null };
 type Chapter = ReadingChapter & { isDownloaded?: boolean };
 type Details = { manga: Manga; chapters: Chapter[] };
 type Catalogue = { mangas: Manga[]; hasNextPage: boolean };
-type Reader = { chapter: Chapter; count: number; index: number; session: string };
+type Reader = { chapter: Chapter; count: number; index: number; session: string; identity?: string };
 type Tab = 'library' | 'history' | 'updates' | 'downloads' | 'categories' | 'migrate' | 'batch' | 'browse' | 'settings';
 type Category = { id: number; name: string; order: number };
 type Activity = Chapter & { manga: Manga; lastReadAt?: number | string; fetchedAt?: number | string; uploadDate?: number | string };
@@ -354,19 +354,19 @@ export function ReadPage({ visible }: {
     const data = await showManga(entry.manga, true);
     const target = data.chapters.find(chapter => chapter.id === entry.id);
     if (!target) throw new Error(t({ id: "This saved chapter is no longer available.", message: "This saved chapter is no longer available." }));
-    await openChapter(target);
+    await openChapter(target, data.manga);
   }
   async function resumeManga(manga: Manga) {
     const data = await showManga(manga);
     const last = data.chapters.find((chapter) => chapter.id === manga.lastReadChapter?.id);
     const target = last && !last.isRead ? last : last ? neighboringChapter(data.chapters, last, 1) || last : firstChapter(data.chapters);
-    if (target) await openChapter(target);
+    if (target) await openChapter(target, data.manga);
   }
   function firstChapter(chapters: Chapter[]) {
     const groups = chapterGroups(chapters);
     return chapters.find((chapter) => !chapter.isRead && chapter.lastPageRead > 0) || groups.find((group) => group.some((chapter) => !chapter.isRead))?.find((chapter) => !chapter.isRead) || groups[0]?.[0];
   }
-  async function openChapter(chapter: Chapter) {
+  async function openChapter(chapter: Chapter, manga: Manga) {
     if (!active.current) return;
     const generation = ++openGeneration.current;
     const result = await readRequest<{ pageCount: number; session: string }>({ kind: 'chapter', id: chapter.id });
@@ -379,8 +379,9 @@ export function ReadPage({ visible }: {
       if (!active.current || generation !== openGeneration.current) return;
       throw new Error(t({ id: "This chapter has no supported pages.", message: "This chapter has no supported pages." }));
     }
-    const index = chapter.isRead || !readReaderPreferences().resume ? 0 : Math.max(0, Math.min(chapter.lastPageRead || 0, result.pageCount - 1));
-    setReader({ chapter, count: result.pageCount, index, session: result.session });
+    const identity = isReaderIdentity(manga.readerIdentity) ? manga.readerIdentity : undefined;
+    const index = chapter.isRead || !readEffectiveReaderPreferences(identity).resume ? 0 : Math.max(0, Math.min(chapter.lastPageRead || 0, result.pageCount - 1));
+    setReader({ chapter, count: result.pageCount, index, session: result.session, identity });
   }
   async function changeChapters(ids: number[], patch: { read?: boolean; bookmarked?: boolean }) {
     if (!ids.length) return;
@@ -416,7 +417,7 @@ export function ReadPage({ visible }: {
       const data = await showManga({ id: result.mangaId, title: result.title, inLibrary: true }, true);
       const chapter = firstChapter(data.chapters);
       if (!chapter) throw new Error(t({ id: 'The local comic has no available chapter yet. Refresh the library or choose the same CBZ again for a fresh review.', message: 'The local comic has no available chapter yet. Refresh the library or choose the same CBZ again for a fresh review.' }));
-      await openChapter(chapter);
+      await openChapter(chapter, data.manga);
     });
   }
   async function changeExtension(extension: Extension) {
@@ -468,10 +469,10 @@ export function ReadPage({ visible }: {
       }
     }
   }
-  if (reader && details) return <ChapterReader key={reader.session} title={details.manga.title} visible={visible} onMusic={desktopArea?.openMusic} onAppSettings={desktopArea?.openSettings}
+  if (reader && details) return <ChapterReader key={reader.session} title={details.manga.title} identity={reader.identity} visible={visible} onMusic={desktopArea?.openMusic} onAppSettings={desktopArea?.openSettings}
     chapter={reader.chapter} session={reader.session} count={reader.count} start={reader.index} chapters={details.chapters}
     previous={neighboringChapter(details.chapters, reader.chapter, -1)} next={neighboringChapter(details.chapters, reader.chapter, 1)}
-    onClose={() => setReader(null)} onChapter={(chapter) => { setReader(null); void run(() => openChapter(chapter)); }}
+    onClose={() => setReader(null)} onChapter={(chapter) => { setReader(null); void run(() => openChapter(chapter, details.manga)); }}
     onSaved={(index, finished) => setDetails((old) => old ? { ...old, chapters: old.chapters.map((chapter) =>
       chapter.id === reader.chapter.id ? { ...chapter, lastPageRead: index, isRead: chapter.isRead || finished } : chapter) } : old)} />;
 
@@ -571,7 +572,7 @@ export function ReadPage({ visible }: {
           {details.manga.genre?.length ? <div className="my-3 flex flex-wrap gap-2 text-xs text-[--tsugi-muted]">{details.manga.genre.map((genre) => <span className="tsugi-manga-genre" key={genre}>{genre}</span>)}</div> : null}
           <div className="tsugi-series-actions flex flex-wrap gap-3">
             <button className="tsugi-read-action" disabled={busy} onClick={() => void run(async () => { const inLibrary = !details.manga.inLibrary; await readRequest({ kind: 'set-library', id: Number(details.manga.id), inLibrary }); setDetails({ ...details, manga: { ...details.manga, inLibrary } }); })}>{details.manga.inLibrary ? t({ id: "Remove from library", message: "Remove from library" }) : t({ id: "Add to library", message: "Add to library" })}</button>
-            {details.chapters.length > 0 && <button className="tsugi-read-action tsugi-series-primary" disabled={busy} onClick={() => void run(() => openChapter(firstChapter(details.chapters)!))}><FiBookOpen aria-hidden /><Trans id="Start or resume reading">Start or resume reading</Trans></button>}
+            {details.chapters.length > 0 && <button className="tsugi-read-action tsugi-series-primary" disabled={busy} onClick={() => void run(() => openChapter(firstChapter(details.chapters)!, details.manga))}><FiBookOpen aria-hidden /><Trans id="Start or resume reading">Start or resume reading</Trans></button>}
             <button className="tsugi-read-action" aria-expanded={trackingOpen} disabled={busy} onClick={() => setTrackingOpen(!trackingOpen)}><Trans id="Tracking">Tracking</Trans></button>
           </div>
         </div>
@@ -594,7 +595,7 @@ export function ReadPage({ visible }: {
         const first = group[0];
         const chapterRow = (chapter: Chapter) => <div className="tsugi-chapter-list-item" key={chapter.id} data-read-state={chapter.isRead ? 'read' : chapter.lastPageRead > 0 ? 'resume' : 'unread'}>
           <input type="checkbox" checked={selectedChapters.includes(chapter.id)} disabled={busy} aria-label={t({ id: "Select chapter", message: "Select chapter" }) + ' ' + chapter.name} onChange={(event) => setSelectedChapters((ids) => event.target.checked ? [...ids, chapter.id] : ids.filter((id) => id !== chapter.id))} />
-          <button className="tsugi-read-row tsugi-chapter-row" disabled={busy} onClick={() => void run(() => openChapter(chapter))}><span><span className="block font-medium">{chapter.name}</span><span className="text-xs text-[--tsugi-muted]">{chapter.scanlator || (group.length > 1 ? t({ id: "Unknown translation group", message: "Unknown translation group" }) : '')}</span></span><span className="text-right text-xs text-[--tsugi-muted]">{chapter.isDownloaded === true && <span className="block" data-chapter-downloaded={chapter.id}><Trans id="Downloaded">Downloaded</Trans></span>}{chapter.isRead ? t({ id: "Read", message: "Read" }) : chapter.lastPageRead > 0 ? t({ id: "Resume", message: "Resume" }) : t({ id: "Unread", message: "Unread" })}</span></button>
+          <button className="tsugi-read-row tsugi-chapter-row" disabled={busy} onClick={() => void run(() => openChapter(chapter, details.manga))}><span><span className="block font-medium">{chapter.name}</span><span className="text-xs text-[--tsugi-muted]">{chapter.scanlator || (group.length > 1 ? t({ id: "Unknown translation group", message: "Unknown translation group" }) : '')}</span></span><span className="text-right text-xs text-[--tsugi-muted]">{chapter.isDownloaded === true && <span className="block" data-chapter-downloaded={chapter.id}><Trans id="Downloaded">Downloaded</Trans></span>}{chapter.isRead ? t({ id: "Read", message: "Read" }) : chapter.lastPageRead > 0 ? t({ id: "Resume", message: "Resume" }) : t({ id: "Unread", message: "Unread" })}</span></button>
           <button className="tsugi-reader-icon" disabled={busy} aria-pressed={!!chapter.isBookmarked} aria-label={chapter.isBookmarked ? t({ id: "Remove bookmark", message: "Remove bookmark" }) : t({ id: "Bookmark chapter", message: "Bookmark chapter" })} onClick={() => void run(() => changeChapters([chapter.id], { bookmarked: !chapter.isBookmarked }))}><FiBookmark aria-hidden /></button>
         </div>;
         return group.length === 1 ? chapterRow(first) : <details key={first.id} className="tsugi-chapter-versions"><summary><span className="font-medium">{first.name}</span><span className="text-xs text-[--tsugi-muted]">{group.length} <Trans id="versions">versions</Trans></span></summary><div className="pl-5">{group.map(chapterRow)}</div></details>;

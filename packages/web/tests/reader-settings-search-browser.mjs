@@ -8,7 +8,8 @@ function installReaderSettingsSearchFixture() {
   if (window.top !== window) return;
   localStorage.setItem('tsugi-onboarding-complete-v1', 'true');
   localStorage.setItem('tsugi-startup-area-v1', JSON.stringify('read'));
-  localStorage.setItem('tsugi-reader-preferences', JSON.stringify({
+  window.__readerFixture.titleSettingsFixture = true;
+  if (localStorage.getItem('tsugi-reader-preferences') === null) localStorage.setItem('tsugi-reader-preferences', JSON.stringify({
     mode: 'single', width: 65, gap: true, rtl: false, fit: 'height',
     background: 'graphite', focus: false, autoNext: false, wheelZoom: true, resume: true,
   }));
@@ -149,6 +150,65 @@ export async function verifyReaderSettingsSearchBrowser({ browser, origin, insta
     await page.keyboard.press('Escape');
     await settings.waitFor({ state: 'hidden' });
     assert.equal(await reader.isVisible(), true, 'the next Escape retains the existing close-settings behavior');
+
+    // A source+title hash, not a database row ID, scopes a complete snapshot.
+    const global = await preferences(), globalWrites = await writes();
+    const key = 'tsugi-title-reader-preferences-v1';
+    const scope = () => settings.getByRole('checkbox', { name: 'Use settings for this title', exact: true });
+    const openSettings = async () => {
+      await reader.getByRole('button',{name:'Reader settings',exact:true}).click();
+      await settings.waitFor();
+    };
+    const closeReader = async () => {
+      await reader.getByRole('button',{name:'Chapters',exact:true}).click();
+      await reader.waitFor({state:'hidden'});
+    };
+    const titleStore = () => page.evaluate(key=>JSON.parse(localStorage.getItem(key)),key);
+    await openSettings();
+    await scope().check();
+    await page.waitForFunction(()=>document.querySelector('.tsugi-chapter-reader')?.dataset.preferenceScope==='title');
+    await section('Pages').click();
+    await settings.getByRole('button',{name:'Spread Two pages',exact:true}).click();
+    await section('Controls').click();
+    await settings.getByRole('checkbox',{name:/Resume reading/}).uncheck();
+    await page.waitForFunction(()=>document.querySelector('.tsugi-chapter-reader')?.dataset.mode==='spread');
+    assert.deepEqual(await preferences(),global);
+    assert.equal(await writes(),globalWrites);
+    assert.deepEqual(await titleStore(),{version:1,titles:[{identity:'1'.padStart(64,'0'),preferences:{...global,mode:'spread',resume:false}}]});
+    await closeReader();
+
+    // A real page reload and another title must not inherit the first override.
+    await page.reload({waitUntil:'domcontentloaded'});
+    await rail.getByRole('button',{name:'Library',exact:true}).click();
+    await read.locator('.tsugi-manga-card').filter({hasText:'Second reader fixture'}).click();
+    await read.getByRole('button',{name:'Start or resume reading',exact:true}).click();
+    await reader.waitFor();
+    assert.equal(await reader.getAttribute('data-preference-scope'),'global');
+    assert.equal(await reader.getAttribute('data-mode'),global.mode);
+    await closeReader();
+
+    // History opens through an async cached details lookup. It must apply the
+    // selected title's resume policy rather than a previous React render.
+    await rail.getByRole('button',{name:'History',exact:true}).click();
+    const history=read.locator('.tsugi-reader-activity-row').filter({hasText:'Tsugi Original Fixture'});
+    await history.click();
+    await reader.waitFor();
+    assert.equal(await reader.getAttribute('data-preference-scope'),'title');
+    assert.equal(await reader.getAttribute('data-mode'),'spread');
+    assert.equal(await reader.getByRole('slider',{name:'Jump to page',exact:true}).inputValue(),'0');
+    await openSettings();
+    assert.equal(await scope().isChecked(),true);
+    await settings.getByRole('button',{name:'Reset to global settings',exact:true}).click();
+    assert.equal(await scope().isChecked(),false);
+    assert.equal(await titleStore(),null);
+    assert.deepEqual(await preferences(),global);
+    await closeReader();
+    await rail.getByRole('button',{name:'History',exact:true}).click();
+    await history.click();
+    await reader.waitFor();
+    assert.equal(await reader.getAttribute('data-preference-scope'),'global');
+    assert.equal(await reader.getByRole('slider',{name:'Jump to page',exact:true}).inputValue(),'2');
+    console.log('PASS: title-scoped reader settings persist across reload, isolate titles, use the History target resume policy and reset to global without global writes.');
     assert.deepEqual(errors, []);
     console.log('PASS: localized Reader settings search across groups, hint matching, preserved values/tabs, keyboard clear/no-results, tonal layout and live chapter editing without provider requests.');
   } finally { await page.close(); }

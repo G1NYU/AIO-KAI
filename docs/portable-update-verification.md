@@ -35,3 +35,7 @@ Before apply: verified release selection, bounded download and private staging, 
 ## Initial native build correction
 
 The first [Windows compile](https://github.com/G1NYU/TSUGI/actions/runs/45898094868/job/140176884281) reported that ZIP 8.6 returns an optional data offset. Compare it to Some(entry.data), not the raw integer. This preserves the requirement that the decoder and bounded central/local directory review agree. The compile, six tests and exact stable archive probe are being rerun by cumulative CI; this is not verified package acceptance yet.
+
+## Verified published archive
+
+The Windows job at [`ba74025`](https://github.com/G1NYU/TSUGI/commit/ba740253ab4fee2ce5bd69e01c650dc6bab26e21) ([job 140179424454](https://github.com/G1NYU/TSUGI/actions/runs/45898859425/job/140179424454)) passed 170 native tests (18 intentionally ignored), the disposable WebView2 preservation fixture, and verification of the exact official v0.1.0 archive (173235714 bytes; 295750604 unpacked; 440 entries; source commit e8e7140fe20ae265ffae4e559a45f939dd5b243b; published SHA-256 matched). No install, update apply or rollback is enabled. The web job passed typecheck but failed lint on two GIF binary-signature literals; this change marks those non-display literals accordingly. Reactive music browser coverage remains pending.

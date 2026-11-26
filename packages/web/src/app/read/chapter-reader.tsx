@@ -8,10 +8,11 @@ import { TsugiMediaIcon } from '@/components/tsugi-brand';
 import { closeReadingChapter, readImage, readRequest } from '@/lib/hosts/shell/reading';
 import { readerWindow, nextPageIndex, visibleReadingPage, chapterGroups, type ReadingChapter } from './reader-utils';
 import { ReaderSettings } from './reader-settings';
-import { readReaderPreferences, saveReaderPreferences, READER_DEFAULTS } from './reader-preferences';
+import { readReaderPreferences, saveReaderPreferences, readTitleReaderPreferences, saveTitleReaderPreferences, READER_DEFAULTS, type ReaderPreferences } from './reader-preferences';
 
 type Props = {
   title: string;
+  identity?: string;
   visible: boolean;
   onMusic?: () => void;
   onAppSettings?: () => void;
@@ -27,8 +28,31 @@ type Props = {
   onSaved(index: number, finished: boolean): void;
 };
 type Page = { url: string; ratio?: number; shown?: boolean; error?: string };
-export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter, session, count, start, chapters, previous, next, onClose, onChapter, onSaved }: Props) {
-  const [preferences, setPreferences] = React.useState(readReaderPreferences);
+export function ChapterReader({ title, identity, visible, onMusic, onAppSettings, chapter, session, count, start, chapters, previous, next, onClose, onChapter, onSaved }: Props) {
+  const [scope, setScope] = React.useState(() => {
+    const local = readTitleReaderPreferences(identity);
+    return { enabled: local !== null, value: local ?? readReaderPreferences() };
+  });
+  const preferences = scope.value;
+  const scopeRef = React.useRef(scope);
+  const [preferenceError, setPreferenceError] = React.useState(false);
+  // Persist only explicit interactions, not mount/effect replay. A stable
+  // callback keeps keyboard/wheel updates in the current scope.
+  const setPreferences = React.useCallback((action: React.SetStateAction<ReaderPreferences>) => {
+    const current = scopeRef.current;
+    const value = typeof action === 'function' ? action(current.value) : action;
+    const saved = current.enabled ? saveTitleReaderPreferences(identity, value) : saveReaderPreferences(value);
+    if (!saved) { setPreferenceError(true); return; }
+    const next = { enabled: current.enabled, value };
+    scopeRef.current = next; setScope(next); setPreferenceError(false);
+  }, [identity]);
+  function changeScope(enabled: boolean) {
+    if (!identity || enabled === scopeRef.current.enabled) return;
+    const value = readReaderPreferences();
+    if (!saveTitleReaderPreferences(identity, enabled ? value : null)) { setPreferenceError(true); return; }
+    const next = { enabled, value };
+    scopeRef.current = next; setScope(next); setPreferenceError(false);
+  }
   const [settings, setSettings] = React.useState(false);
   const [chapterMenu, setChapterMenu] = React.useState(false);
   const [chapterQuery, setChapterQuery] = React.useState('');
@@ -69,8 +93,11 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
   const generation = React.useRef(0);
 
   React.useEffect(() => {
-    saveReaderPreferences(preferences);
-  }, [preferences]);
+    if (!visible) return;
+    const local = readTitleReaderPreferences(identity);
+    const next = { enabled: local !== null, value: local ?? readReaderPreferences() };
+    scopeRef.current = next; setScope(next);
+  }, [visible, identity]);
 
   React.useEffect(() => {
     const current = ++releaseGeneration.current;
@@ -348,8 +375,8 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
   const canFinish = (preferences.mode === 'scroll' ? readAtEnd : index === count - 1 || (preferences.mode === 'spread' && index + 1 === count - 1)) && !!pages[count - 1]?.shown;
   const menuGroups = chapterGroups(chapters).filter((group) => group.some((item) => (item.name + ' ' + (item.scanlator || '')).toLowerCase().includes(chapterQuery.toLowerCase())));
   if (chapterDescending) menuGroups.reverse();
-  return <section className="tsugi-chapter-reader yomi-chapter-reader" data-active={visible ? 'true' : 'false'} data-mode={preferences.mode} data-fit={preferences.mode === 'scroll' ? 'width' : preferences.fit} data-background={preferences.background}
-    data-focus={preferences.focus && !settings && !chapterMenu && !chromeVisible && !closing && !saveError ? 'hidden' : 'visible'}
+  return <section className="tsugi-chapter-reader yomi-chapter-reader" data-active={visible ? 'true' : 'false'} data-mode={preferences.mode} data-fit={preferences.mode === 'scroll' ? 'width' : preferences.fit} data-background={preferences.background} data-preference-scope={scope.enabled ? 'title' : 'global'}
+    data-focus={preferences.focus && !settings && !chapterMenu && !chromeVisible && !closing && !saveError && !preferenceError ? 'hidden' : 'visible'}
     data-focus-enabled={preferences.focus && !settings && !chapterMenu ? 'true' : 'false'}
     onPointerMove={(event) => {
       if (!preferences.focus) return;
@@ -382,7 +409,8 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
           </div>)}
         </div>
       </div>
-      {settings && <aside className="tsugi-chapter-settings"><ReaderSettings value={preferences} onChange={setPreferences} onClose={() => setSettings(false)} /></aside>}
+      {settings && <aside className="tsugi-chapter-settings"><ReaderSettings value={preferences} onChange={setPreferences} onClose={() => setSettings(false)}
+        titleScope={identity ? { enabled: scope.enabled, onChange: changeScope } : undefined} /></aside>}
       {chapterMenu && <aside className="tsugi-chapter-settings tsugi-reader-chapter-menu">
         <h3 className="font-semibold"><Trans id="Chapters">Chapters</Trans></h3>
         <input className="tsugi-read-input" value={chapterQuery} onChange={(event) => setChapterQuery(event.target.value)} placeholder={t({ id: "Find a chapter", message: "Find a chapter" })} aria-label={t({ id: "Find a chapter", message: "Find a chapter" })} />
@@ -401,6 +429,7 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
       {canFinish && <button className="tsugi-read-action" disabled={closing} onClick={() => leave(next ? () => onChapter(next) : onClose, true)}>{next ? t({ id: "Finish and continue", message: "Finish and continue" }) : t({ id: "Finish chapter", message: "Finish chapter" })}</button>}
       {closing ? <span className="text-xs"><Trans id="Saving progress…">Saving progress…</Trans></span> : lastSaved !== null && <span className="text-xs text-[--tsugi-muted]"><Trans id="Progress saved">Progress saved</Trans></span>}
     </footer>
+    {preferenceError && <div className="tsugi-read-error" role="alert"><Trans id="Could not confirm that reader preferences were saved. Active settings were kept.">Could not confirm that reader preferences were saved. Active settings were kept.</Trans> <button className="tsugi-read-action" onClick={() => setPreferenceError(false)}><Trans id="Dismiss">Dismiss</Trans></button></div>}
     {saveError && <div className="tsugi-read-error" role="alert">{saveError} <button className="tsugi-read-action" onClick={() => { failedSave.current = false; setSaveError(''); }}><Trans id="Retry">Retry</Trans></button><button className="tsugi-read-action" onClick={onClose}><Trans id="Exit without saving">Exit without saving</Trans></button></div>}
   </section>;
 }

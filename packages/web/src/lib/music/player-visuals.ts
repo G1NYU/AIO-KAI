@@ -32,6 +32,7 @@ export function mascotImageInfo(bytes: Uint8Array): MascotImageInfo | null {
       bytes[4] === 13 && bytes[5] === 10 && bytes[6] === 26 && bytes[7] === 10 &&
       view.getUint32(8) === 13 && ascii(bytes,12,'IHDR')) {
     result = { type:'image/png', width:view.getUint32(16), height:view.getUint32(20) };
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- binary GIF signatures, not display text
   } else if (ascii(bytes,0,'GIF87a') || ascii(bytes,0,'GIF89a')) {
     result = { type:'image/gif', width:view.getUint16(6,true), height:view.getUint16(8,true) };
   } else if (bytes.length >= 25 && ascii(bytes,0,'RIFF') && ascii(bytes,8,'WEBP') &&

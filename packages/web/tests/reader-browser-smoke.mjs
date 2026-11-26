@@ -63,7 +63,8 @@ try {
     const chapters = [{ id: 11, name: 'Chapter 1', chapterNumber: 1, scanlator: 'Original', isRead: false, lastPageRead: 0, pageCount: 4 }, { id: 12, name: 'Chapter 2', chapterNumber: 2, scanlator: 'Original', isRead: false, lastPageRead: 0, pageCount: 4 }];
     manga.categories = { nodes: [] };
     manga.sourceId = '12345';
-    const replacement = { id: '3', sourceId: '67890', title: 'Tsugi Original Fixture', author: 'Tsugi', inLibrary: false, categories: { nodes: [] } };
+    manga.readerIdentity = '1'.padStart(64,'0');
+    const replacement = { id: '3', sourceId: '67890', readerIdentity: '3'.padStart(64,'0'), title: 'Tsugi Original Fixture', author: 'Tsugi', inLibrary: false, categories: { nodes: [] } };
     const replacementChapters = [{ id: 31, name: 'Chapter 1', chapterNumber: 1, isRead: false, isBookmarked: false, lastPageRead: 0, pageCount: 4 }];
     const batchTitle = { id: '4', sourceId: '67890', title: 'Batch Fixture', author: 'Tsugi', inLibrary: false, categories: { nodes: [] } };
     const state = window.__readerFixture = { requests: [], lastPath: '', serial: 0, installed: false, stores: [], progress: [], nativeMessages: [], nativeRequest: null, vaultJobs: [], vaultRequests: [], categories: [], categorySequence: 0, updateChecks: 0 };
@@ -155,7 +156,7 @@ try {
         let data;
         let error = null;
         switch (a.kind) {
-          case 'library': data = nodes([state.heroFeatured ? {...manga,lastReadChapter:{...chapters[0],lastReadAt:200}} : manga, { id: '2', title: 'ZZ Missing Fixture', author: 'Tsugi', inLibrary: true, unreadCount: 0, ...(state.heroFeatured?{lastReadChapter:{...chapters[0],id:21,lastReadAt:100}}:{}) }, ...[replacement, batchTitle].filter(item => item.inLibrary)]); break;
+          case 'library': data = nodes([state.heroFeatured ? {...manga,lastReadChapter:{...chapters[0],lastReadAt:200}} : manga, { id: '2', title: 'ZZ Missing Fixture', author: 'Tsugi', inLibrary: true, unreadCount: 0, ...(state.heroFeatured?{lastReadChapter:{...chapters[0],id:21,lastReadAt:100}}:{}) }, ...(state.titleSettingsFixture ? [{...replacement,title:'Second reader fixture',inLibrary:true}] : [replacement, batchTitle].filter(item => item.inLibrary))]); break;
           case 'set-library': {
             const target = [manga, replacement, batchTitle].find(item => Number(item.id) === a.id);
             if (!target) throw new Error('Unknown saved title');
@@ -179,7 +180,7 @@ try {
             state.categories = state.categories.filter(item => item.id !== a.id);
             for(const target of [manga,replacement,batchTitle])target.categories.nodes=target.categories.nodes.filter(item=>item.id!==a.id);
             data = { category: { id: a.id } }; break;
-          case 'history': data = nodes([{ ...chapters[0], lastReadAt: 1760000000000, manga }]); break;
+          case 'history': data = nodes([{ ...chapters[0], ...(state.titleSettingsFixture?{lastPageRead:2,isRead:false}:{}), lastReadAt: 1760000000000, manga }]); break;
           case 'updates': data = nodes([{ ...chapters[1], fetchedAt: 1760000000000, manga }]); break;
           case 'backup-manga': {
             const item=[manga,{id:2,sourceId:'12345',title:'ZZ Missing Fixture'},replacement,batchTitle].find(m=>Number(m.id)===a.id);
@@ -195,7 +196,7 @@ try {
             if(change.page!==undefined)state.backupPage=change.page;
             data={confirmed:1,total:1,complete:true};break;
           }
-          case 'cached-manga': data = a.id === 3 ? { manga: replacement, chapters: replacementChapters } : a.id === 4 ? { manga: batchTitle, chapters: [] } : { manga, chapters }; break;
+          case 'cached-manga': data = a.id === 3 ? { manga: state.titleSettingsFixture?{...replacement,title:'Second reader fixture',inLibrary:true}:replacement, chapters: replacementChapters } : a.id === 4 ? { manga: batchTitle, chapters: [] } : { manga, chapters: state.titleSettingsFixture ? [{...chapters[0],lastPageRead:2,isRead:false},chapters[1]] : chapters }; break;
           case 'start-library-update': state.updateChecks++; data = { jobsInfo: { isRunning: true, totalJobs: 1, finishedJobs: 0, skippedCategoriesCount: 0, skippedMangasCount: 0 } }; break;
           case 'library-update-status': data = { jobsInfo: { isRunning: false, totalJobs: state.updateChecks ? 1 : 0, finishedJobs: state.updateChecks ? 1 : 0, skippedCategoriesCount: 0, skippedMangasCount: 0 } }; break;
           case 'trackers': data = nodes([{ id: 1, name: 'MyAnimeList', isLoggedIn: !!state.trackerConnected, supportsReadingDates: true, supportsPrivateTracking: false }]); break;
@@ -218,7 +219,7 @@ try {
             if (a.source === '45678') error = 'Fixture source unavailable';
             else data = { mangas: a.source === '34567' ? [] : a.source === '67890' ? a.query === 'Batch Fixture' ? [batchTitle] : [replacement] : [manga], hasNextPage: false };
             break;
-          case 'manga': data = a.id === 3 ? { manga: replacement, chapters: replacementChapters } : { manga, chapters }; break;
+          case 'manga': data = a.id === 3 ? { manga: state.titleSettingsFixture?{...replacement,title:'Second reader fixture',inLibrary:true}:replacement, chapters: replacementChapters } : { manga, chapters }; break;
           case 'chapter':
             state.activeChapter = { id: a.id, session: 'chapter-' + ++state.serial };
             data = { ...state.activeChapter, pageCount: state.invalidChapterPages ? 0 : 4 };

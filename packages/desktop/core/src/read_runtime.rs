@@ -1828,12 +1828,13 @@ impl ReadRuntime {
         if id <= 0 {
             return Err("Invalid manga identifier.");
         }
-        let value = self.client.slow().mutation(
-            "mutation TsugiManga($input: FetchMangaAndChaptersInput!) { fetchMangaAndChapters(input: $input) { manga { id sourceId title author artist description genre thumbnailUrl inLibrary } chapters { id name mangaId chapterNumber sourceOrder scanlator pageCount isRead isBookmarked lastPageRead isDownloaded } } }",
+        let mut value = self.client.slow().mutation(
+            "mutation TsugiManga($input: FetchMangaAndChaptersInput!) { fetchMangaAndChapters(input: $input) { manga { id sourceId url title author artist description genre thumbnailUrl inLibrary } chapters { id name mangaId chapterNumber sourceOrder scanlator pageCount isRead isBookmarked lastPageRead isDownloaded } } }",
             "fetchMangaAndChapters",
             json!({ "id": id, "fetchManga": true, "fetchChapters": true }),
         )?;
         downloads::validate_chapter_download_flags(&value["chapters"])?;
+        if let Some(manga) = value.get_mut("manga") { project_reader_identity(manga); }
         Ok(value)
     }
 
@@ -1852,12 +1853,13 @@ impl ReadRuntime {
     pub fn cached_manga(&self, id: i32) -> Result<Value, &'static str> {
         if id <= 0 { return Err("Invalid manga identifier."); }
         let mut manga = self.client.document(
-            "query TsugiCachedManga($id: Int!) { manga(id: $id) { id sourceId title author artist description genre thumbnailUrl inLibrary categories { nodes { id } } chapters { nodes { id name mangaId chapterNumber sourceOrder scanlator pageCount isRead isBookmarked lastPageRead isDownloaded } } } }",
+            "query TsugiCachedManga($id: Int!) { manga(id: $id) { id sourceId url title author artist description genre thumbnailUrl inLibrary categories { nodes { id } } chapters { nodes { id name mangaId chapterNumber sourceOrder scanlator pageCount isRead isBookmarked lastPageRead isDownloaded } } } }",
             "manga", json!({"id": id}))?;
         let chapters = manga.as_object_mut().and_then(|value| value.remove("chapters"))
             .and_then(|value| value.get("nodes").cloned())
             .filter(Value::is_array).ok_or("Invalid cached chapters.")?;
         downloads::validate_chapter_download_flags(&chapters)?;
+        project_reader_identity(&mut manga);
         Ok(json!({"manga": manga, "chapters": chapters}))
     }
 
@@ -2083,6 +2085,20 @@ fn backup_identity(domain: &str, first: &str, second: &str) -> String {
     hash.finalize().iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
+// Stable across chapters, native numeric-ID reuse, and source metadata refresh.
+// Raw extension URLs (which can contain credentials) never reach the renderer.
+fn project_reader_identity(manga: &mut Value) {
+    let identity = backup_long(&manga["sourceId"]).ok().and_then(|source|
+        backup_url(&manga["url"]).ok().map(|url| backup_identity("tsugi-manga-v1", &source.to_string(), url)));
+    if let Some(row) = manga.as_object_mut() {
+        row.remove("url");
+        row.remove("readerIdentity");
+        if let Some(identity) = identity {
+            row.insert("readerIdentity".into(), json!(identity));
+        }
+    }
+}
+
 fn backup_page_count(value: &Value) -> Result<i32, &'static str> {
     // Pinned Suwayomi uses -1 until chapter pages have been fetched. No other
     // negative value, fraction, string or out-of-range count is valid.
@@ -2223,6 +2239,28 @@ mod tests {
             "categories": {"nodes": [{"id": 1, "name": "Reading"}], "totalCount": 1},
             "chapters": {"nodes": [{"id": 9, "url": "https://private.example/chapter-token", "name": "Chapter 1",
                 "pageCount": 20, "lastPageRead": 2, "isRead": false, "isBookmarked": false, "lastReadAt": "12"}], "totalCount": 1}})
+    }
+
+    #[test]
+    fn reader_identity_matches_backup_and_never_exposes_source_url() {
+        let raw = backup_fixture();
+        let expected = project_manga_backup(&raw, 7).unwrap()["identity"].clone();
+        let mut details = raw.clone();
+        project_reader_identity(&mut details);
+        assert_eq!(details["readerIdentity"], expected);
+        assert!(details.get("url").is_none());
+        let mut other = raw.clone();
+        other["sourceId"] = json!("2");
+        project_reader_identity(&mut other);
+        assert_ne!(other["readerIdentity"], expected);
+        let mut changed_id = raw.clone();
+        changed_id["id"] = json!(8);
+        project_reader_identity(&mut changed_id);
+        assert_eq!(changed_id["readerIdentity"], expected);
+        let mut bad = json!({"sourceId":"invalid", "url":"https://private.example/secret",
+            "readerIdentity":"forged"});
+        project_reader_identity(&mut bad);
+        assert!(bad.get("url").is_none() && bad.get("readerIdentity").is_none());
     }
 
     #[test]

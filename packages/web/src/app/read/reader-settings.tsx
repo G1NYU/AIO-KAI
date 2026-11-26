@@ -5,8 +5,9 @@ import { FiBookOpen, FiColumns, FiFile, FiLayers, FiMinus, FiPlus, FiX } from 'r
 import { READER_DEFAULTS, type ReaderPreferences } from './reader-preferences';
 import { findReaderSettings } from './reader-settings-search';
 
-type Props = { value: ReaderPreferences; onChange(value: ReaderPreferences): void; onClose?: () => void };
-export function ReaderSettings({ value, onChange, onClose }: Props) {
+type Props = { value: ReaderPreferences; onChange(value: ReaderPreferences): void; onClose?: () => void;
+  titleScope?: { enabled: boolean; onChange(enabled: boolean): void } };
+export function ReaderSettings({ value, onChange, onClose, titleScope }: Props) {
   const [section, setSection] = React.useState<'pages' | 'look' | 'controls'>('pages');
   const [query, setQuery] = React.useState('');
   const search = React.useRef<HTMLInputElement>(null);
@@ -24,7 +25,7 @@ export function ReaderSettings({ value, onChange, onClose }: Props) {
     { id: 'continuous', section: 'controls', text: [t({ id: 'Continuous reading', message: 'Continuous reading' }), t({ id: 'Open the next chapter after reaching the end of a scroll chapter.', message: 'Open the next chapter after reaching the end of a scroll chapter.' })] },
     { id: 'wheel', section: 'controls', text: [t({ id: 'Ctrl + scroll to zoom', message: 'Ctrl + scroll to zoom' }), t({ id: 'Adjust page width without opening settings.', message: 'Adjust page width without opening settings.' })] },
     { id: 'shortcuts', section: 'controls', text: [t({ id: 'Keyboard shortcuts', message: 'Keyboard shortcuts' }), t({ id: 'Page navigation', message: 'Page navigation' }), t({ id: 'Scroll', message: 'Scroll' }), t({ id: 'Focus mode', message: 'Focus mode' }), t({ id: 'Settings', message: 'Settings' }), t({ id: 'Close panel or reader', message: 'Close panel or reader' }), t({ id: 'Esc', message: 'Esc' })] },
-    { id: 'reset', section: 'all', text: [t({ id: 'Reset reader defaults', message: 'Reset reader defaults' })] },
+    { id: 'reset', section: 'all', text: [titleScope?.enabled ? t({ id: 'Reset to global settings', message: 'Reset to global settings' }) : t({ id: 'Reset reader defaults', message: 'Reset reader defaults' })] },
   ];
   const searching = query.trim().length > 0;
   const matches = new Set(findReaderSettings(groups.map(group => ({ ...group, text: [...group.text, tabs.find(tab => tab.id === group.section)?.label || ''] })), query));
@@ -34,6 +35,13 @@ export function ReaderSettings({ value, onChange, onClose }: Props) {
   const toggle = (id: string, label: string, description: string, checked: boolean, update: (next: boolean) => void, disabled = false) => <label data-reader-setting={id} className="tsugi-reader-setting-toggle"><span><strong>{label}</strong><small>{description}</small></span><input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => update(event.target.checked)} /></label>;
   return <div className="tsugi-reader-settings-content" data-ui="reader-settings">
     <div className="tsugi-reader-settings-title"><FiBookOpen aria-hidden /><h3><Trans id="Reader settings">Reader settings</Trans></h3>{onClose && <button className="tsugi-reader-icon" onClick={onClose} aria-label={t({ id: "Close settings", message: "Close settings" })}><FiX /></button>}</div>
+    {titleScope && <div className="mb-2 space-y-2" data-ui="reader-preference-scope">
+      <label className="flex items-center justify-between gap-3 text-sm font-medium">
+        <span><Trans id="Use settings for this title">Use settings for this title</Trans></span>
+        <input type="checkbox" checked={titleScope.enabled} onChange={event => titleScope.onChange(event.target.checked)} style={{ accentColor: 'var(--tsugi-accent)' }} />
+      </label>
+      <p className="text-xs text-[--tsugi-muted]">{titleScope.enabled ? <Trans id="Changes apply only to this title. Turn off to inherit current global settings.">Changes apply only to this title. Turn off to inherit current global settings.</Trans> : <Trans id="Changes apply to all titles using global reader settings.">Changes apply to all titles using global reader settings.</Trans>}</p>
+    </div>}
     <div className="flex min-w-0 flex-wrap gap-2">
       <input ref={search} type="text" role="searchbox" className="tsugi-read-input min-w-0 flex-1" value={query} maxLength={120} aria-label={t({ id: 'Search reader settings', message: 'Search reader settings' })} placeholder={t({ id: 'Search reader settings', message: 'Search reader settings' })} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape' && query) { event.preventDefault(); event.stopPropagation(); clearSearch(); } }} />
       {query && <button type="button" className="tsugi-reader-icon shrink-0" aria-label={t({ id: 'Clear settings search', message: 'Clear settings search' })} onClick={clearSearch}><FiX aria-hidden /></button>}
@@ -50,6 +58,6 @@ export function ReaderSettings({ value, onChange, onClose }: Props) {
     {show('continuous') && toggle('continuous', t({ id: "Continuous reading", message: "Continuous reading" }), t({ id: "Open the next chapter after reaching the end of a scroll chapter.", message: "Open the next chapter after reaching the end of a scroll chapter." }), value.autoNext, (autoNext) => change({ autoNext }))}
     {show('wheel') && toggle('wheel', t({ id: "Ctrl + scroll to zoom", message: "Ctrl + scroll to zoom" }), t({ id: "Adjust page width without opening settings.", message: "Adjust page width without opening settings." }), value.wheelZoom, (wheelZoom) => change({ wheelZoom }))}
     {show('shortcuts') && <div data-reader-setting="shortcuts" className="tsugi-reader-setting-group"><h4><Trans id="Keyboard shortcuts">Keyboard shortcuts</Trans></h4><dl className="tsugi-reader-shortcuts"><dt><Trans id="Page navigation">Page navigation</Trans></dt><dd>← / →</dd><dt><Trans id="Scroll">Scroll</Trans></dt><dd>↑ / ↓</dd><dt><Trans id="Focus mode">Focus mode</Trans></dt><dd>F</dd><dt><Trans id="Settings">Settings</Trans></dt><dd>S</dd><dt><Trans id="Close panel or reader">Close panel or reader</Trans></dt><dd><Trans id="Esc">Esc</Trans></dd></dl></div>}
-    {show('reset') && <button data-reader-setting="reset" className="tsugi-reader-link" onClick={() => onChange(READER_DEFAULTS)}><Trans id="Reset reader defaults">Reset reader defaults</Trans></button>}
+    {show('reset') && <button data-reader-setting="reset" className="tsugi-reader-link" onClick={() => titleScope?.enabled ? titleScope.onChange(false) : onChange(READER_DEFAULTS)}>{titleScope?.enabled ? <Trans id="Reset to global settings">Reset to global settings</Trans> : <Trans id="Reset reader defaults">Reset reader defaults</Trans>}</button>
   </div>;
 }

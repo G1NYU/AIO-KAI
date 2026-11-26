@@ -116,3 +116,7 @@ captured. Existing archives remain supported; older application builds that
 do not recognize this added public identity reject archives containing it.
 Native SoundCloud playback/search use a separate temporary owner-only
 directory outside portable data, and are not included in managed backups.
+
+### Per-title reader settings (B4)
+
+The local `tsugi-title-reader-preferences-v1` store contains only bounded typed preference snapshots keyed by the existing native manga identity hash, never raw extension URLs. It defaults to inheritance; explicit reset removes only the selected override. The current portable preference schema captures the global reader preferences only, not these local per-title snapshots. A future reviewed merge must map stable identity and retain unknown titles rather than importing runtime row IDs. No changes to current archive schemas or recovery behavior are claimed.
