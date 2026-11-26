@@ -1,5 +1,14 @@
 # TSUGI current development handoff
 
+## 2026-11-26 continuation: unread Chapter updates indicator
+
+The active original roadmap milestone remains **A1** (backup, recovery and storage). A2's actual updater is unfinished, B1-B5/C1-C3 remain partial or planned, and D1-D5 remain later scope.
+
+After the earlier workspace interruption, the first separately recoverable UI request was implemented on branch `feature/tsugi-read-runtime` in commit `da9da6882eff41d0f0a24b792eeaaa5ce4880fbb`: Read's Chapter updates entry shows a subtle notification dot and accessible unread count when the reader service confirms unread updates. Active Read views refresh on relevant state changes; errors preserve the last known count, and viewing updates does not clear it. The code is published; [Unified Windows CI run 45887151780](https://github.com/G1NYU/TSUGI/actions/runs/45887151780) was still running when this record was written, so no pass or Windows package is claimed. A real-library acceptance check remains.
+
+The earlier 46-file SoundCloud/UI/Batch Add repair batch and the isolated reactive seek/mascot and WebView2 preservation work **remain unpublished** after the execution workspace disappeared. The original worktrees are not mounted in the resumed container; their local test results cannot be transferred into a claim of validated source. Preserve and reconstruct those changes against the current remote head, perform complete checks, and do not overwrite the recovery checkpoint. The last verified portable candidate remains `60fc65f`; stable `v0.1.0` is unchanged.
+
+
 ## Execution interruption — unpublished follow-up
 
 The execution workspace became unavailable while preparing the next repair batch for publication. GitHub was rechecked: application source remains at `ae07661555ba7377ca516a53370949c30d8d149f`; the locally verified 46-file repair batch has **not** reached the branch or a new Windows package. The unread indicator, reactive seek/custom mascot and WebView2 preservation fixture are also awaiting integration. [Exact recovery state](docs/workspace-recovery-2026-11-26.md) records local commit/tree identities, completed verification, isolated worktrees, incomplete updater work and the recovery sequence. Do not interpret the local results as published Windows validation. Execution/source access must be restored before implementation can safely continue.
