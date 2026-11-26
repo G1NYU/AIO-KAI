@@ -552,6 +552,68 @@ mod tests {
     use super::*;
     use super::super::tests::FixtureStore;
 
+    const ORIGINAL_SOURCE_PREFERENCE: &str = "tsugi-ci-original-source-preference";
+    const UPDATED_SOURCE_PREFERENCE: &str = "tsugi-ci-v2-source-preference";
+
+    // Fixed, test-only documents. The production bridge exposes no preference
+    // document or arbitrary setting write. Never print preference responses.
+    fn fixture_source_preference(managed: &ReadRuntime) -> Value {
+        managed.client.document(
+            "query TsugiFixtureSourcePreference($id: LongString!) { source(id: $id) { id preferences { __typename ... on EditTextPreference { key currentValue } } } }",
+            "source", json!({"id": "12345"}),
+        ).expect("read the original configurable source setting")
+    }
+
+    fn fixture_preference_matches(value: &Value, expected: &str) -> bool {
+        value["preferences"].as_array().is_some_and(|preferences| preferences.len() == 1
+            && preferences[0]["__typename"] == "EditTextPreference"
+            && preferences[0]["key"] == "fixture_secret"
+            && preferences[0]["currentValue"] == expected)
+    }
+
+    fn seed_fixture_source_preference(managed: &ReadRuntime, value: &str) {
+        // Source.setSourcePreference requires the positional screen to be
+        // initialized by an earlier source.preferences query.
+        let source = fixture_source_preference(managed);
+        assert!(source["id"] == "12345" && source["preferences"].as_array().is_some_and(|rows| rows.len() == 1),
+            "the original source must expose exactly one authored setting");
+        let result = managed.client.document(
+            "mutation TsugiFixtureSetSourcePreference($input: UpdateSourcePreferenceInput!) { updateSourcePreference(input: $input) { preferences { __typename ... on EditTextPreference { key currentValue } } } }",
+            "updateSourcePreference", json!({"input": {"source": "12345", "change": {"position": 0, "editTextState": value}}}),
+        ).expect("set only the synthetic original source value");
+        assert!(fixture_preference_matches(&result, value), "the runtime must acknowledge the synthetic setting without exposing its value");
+    }
+
+    fn fixture_preference_file(path: &Path) -> Option<Vec<u8>> {
+        let file = match fs::File::open(path) {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
+            Err(_) => panic!("could not read the isolated source preference fixture"),
+        };
+        let mut bytes = Vec::new();
+        file.take(16 * 1024 + 1).read_to_end(&mut bytes).expect("read bounded original source setting");
+        assert!(bytes.len() <= 16 * 1024, "the authored settings fixture must remain bounded");
+        Some(bytes)
+    }
+
+    fn fixture_xml_contains(bytes: &[u8], value: &str) -> bool {
+        bytes.starts_with(b"<?xml") && bytes.windows(b"</properties>".len()).any(|part| part == b"</properties>")
+            && bytes.windows(value.len()).any(|part| part == value.as_bytes())
+    }
+
+    fn wait_for_fixture_preference(path: &Path, value: &str) -> Vec<u8> {
+        // Preference.saveNewValue uses asynchronous apply(). A GraphQL reply
+        // alone is not evidence that the real settings XML reached disk.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(bytes) = fixture_preference_file(path) {
+                if fixture_xml_contains(&bytes, value) { return bytes; }
+            }
+            assert!(Instant::now() < deadline, "the JVM did not persist the synthetic preference within the bounded wait");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
     #[test]
     fn extension_upload_cookies_accept_only_the_pinned_private_session_pair() {
         const SESSION: &str = "JSESSIONID=node0123456789.node0; Path=/; HttpOnly; SameSite=Strict";
@@ -659,6 +721,7 @@ mod tests {
     fn packaged_runtime_extension_update() {
         let runtime = PathBuf::from(std::env::var_os("TSUGI_READ_RUNTIME").unwrap());
         let data = PathBuf::from(std::env::var_os("TSUGI_READ_FIXTURE").unwrap()).join("extension-update");
+        assert!(!data.try_exists().expect("inspect isolated extension update fixture root"), "extension update requires a fresh isolated directory");
         let fixture = |version| fs::read(runtime.join(format!("test-fixtures/tsugi-fixture-v1.6.{version}.jar"))).unwrap();
         let store = FixtureStore::with_jar(Some(fixture(1)));
         let mut managed = ReadRuntime::start(&runtime, &data).expect("start update fixture");
@@ -674,6 +737,20 @@ mod tests {
         let category = managed.save_category(None, "Update fixture").unwrap();
         let category_id = number(&category["category"]["id"]).unwrap() as i32;
         managed.assign_category(manga, category_id, true).unwrap();
+
+        let preference_file = data.join("settings/source_12345.xml");
+        let new_preference_file = data.join("settings/source_54321.xml");
+        assert!(fixture_preference_matches(&fixture_source_preference(&managed), ""), "the new authored source starts with its empty setting");
+        seed_fixture_source_preference(&managed, ORIGINAL_SOURCE_PREFERENCE);
+        let original_preference_hash = digest(&wait_for_fixture_preference(&preference_file, ORIGINAL_SOURCE_PREFERENCE));
+        managed.shutdown().unwrap();
+        drop(managed);
+        managed = ReadRuntime::start(&runtime, &data).expect("restart the runtime after flushing the authored setting");
+        assert!(fixture_preference_matches(&fixture_source_preference(&managed), ORIGINAL_SOURCE_PREFERENCE),
+            "a fresh JVM must read the synthetic setting from its real XML store");
+        assert!(digest(&fixture_preference_file(&preference_file).unwrap()) == original_preference_hash,
+            "reading the saved source setting must preserve its exact bytes");
+        assert!(!new_preference_file.try_exists().unwrap(), "the incompatible source must not exist before updating");
 
         // A harmless multipart status request proves the engine still enforces
         // its CSRF guard. This sends no file and performs no extension change.
@@ -718,6 +795,17 @@ mod tests {
         assert!(result["checkpointId"].is_string());
         assert_eq!(managed.extension_record("org.tsugi.fixture").unwrap()["versionName"], "1.6.2");
         assert_eq!(managed.update_invariants(&source_ids).unwrap(), before);
+        assert!(fixture_preference_matches(&fixture_source_preference(&managed), ORIGINAL_SOURCE_PREFERENCE),
+            "a successful update must preserve existing source settings");
+        assert!(digest(&fixture_preference_file(&preference_file).unwrap()) == original_preference_hash,
+            "the successful v2 update must preserve the existing settings file");
+        let v2_artifact_hash = managed.installed_artifact_hash(&managed.extension_record("org.tsugi.fixture").unwrap()).unwrap();
+
+        // Change the authored value under v2 so recovery must use the latest
+        // checkpoint, rather than accidentally replaying the earlier v1 copy.
+        seed_fixture_source_preference(&managed, UPDATED_SOURCE_PREFERENCE);
+        let v2_preference_hash = digest(&wait_for_fixture_preference(&preference_file, UPDATED_SOURCE_PREFERENCE));
+        assert!(v2_preference_hash != original_preference_hash, "v2 has an independently changed synthetic setting");
 
         store.replace_jar(3, fixture(3));
         managed.refresh_extensions().unwrap();
@@ -728,17 +816,43 @@ mod tests {
         let review = managed.build_update_review(installed.clone(), managed.update_store(&installed).unwrap(), fixture(3)).unwrap();
         let result = managed.apply_update_with_checkpoint(review).expect("recover incompatible source update");
         assert_eq!(result["status"], "rolled-back");
+        assert_eq!(result["error"], "The update changed a saved source, library or progress identity.");
         assert_eq!(managed.extension_record("org.tsugi.fixture").unwrap()["versionName"], "1.6.2");
+        assert!(managed.installed_artifact_hash(&managed.extension_record("org.tsugi.fixture").unwrap()).unwrap() == v2_artifact_hash,
+            "rollback must restore the exact successful v2 artifact");
         assert_eq!(managed.update_invariants(&source_ids).unwrap(), before);
+        let recovery = data.join("extension-recovery/pending");
+        let displaced_old = fixture_preference_file(&recovery.join("displaced/settings/source_12345.xml"))
+            .expect("retain evidence of the actual v3 existing-setting write");
+        let displaced_new = fixture_preference_file(&recovery.join("displaced/settings/source_54321.xml"))
+            .expect("retain evidence of the actual v3 new-setting write");
+        assert!(fixture_xml_contains(&displaced_old, "tsugi-ci-rejected-old-source-preference"),
+            "the loaded v3 must have really changed the old source setting before rollback");
+        assert!(fixture_xml_contains(&displaced_new, "tsugi-ci-rejected-new-source-preference"),
+            "the loaded v3 must have really created a new source settings file before rollback");
+        assert!(digest(&fixture_preference_file(&recovery.join("snapshot/settings/source_12345.xml")).unwrap()) == v2_preference_hash,
+            "the recovery snapshot must contain the latest v2 settings bytes");
+        assert!(digest(&fixture_preference_file(&preference_file).unwrap()) == v2_preference_hash,
+            "rollback must restore the exact old source settings file");
+        assert!(!new_preference_file.try_exists().unwrap(), "rollback must remove a settings file absent from the checkpoint");
+        assert!(fixture_preference_matches(&fixture_source_preference(&managed), UPDATED_SOURCE_PREFERENCE),
+            "the recovered JVM must expose the restored v2 source value");
         assert!(managed.catalogue("12345", 1, CatalogueMode::Popular).is_ok(), "restored executable source works");
         managed.shutdown().unwrap();
         drop(managed);
         let mut managed = ReadRuntime::start(&runtime, &data).unwrap();
         assert_eq!(managed.extension_record("org.tsugi.fixture").unwrap()["versionName"], "1.6.2");
+        assert!(managed.installed_artifact_hash(&managed.extension_record("org.tsugi.fixture").unwrap()).unwrap() == v2_artifact_hash,
+            "the restored v2 artifact must survive another restart");
         assert_eq!(managed.update_invariants(&source_ids).unwrap(), before);
+        assert!(fixture_preference_matches(&fixture_source_preference(&managed), UPDATED_SOURCE_PREFERENCE),
+            "the restored source value must survive another JVM restart");
+        assert!(digest(&fixture_preference_file(&preference_file).unwrap()) == v2_preference_hash,
+            "the restored settings bytes must survive another JVM restart");
+        assert!(!new_preference_file.try_exists().unwrap(), "the rejected source's new file must remain absent after restart");
         managed.shutdown().unwrap();
         drop(managed);
         fs::remove_dir_all(data).unwrap();
-        eprintln!("PASS: exact reviewed v2 update preserved source/library/chapter/category state; incompatible v3 rolled back and v2 survived restart.");
+        eprintln!("PASS: exact reviewed v2 update preserved source/library/chapter/category state and real JVM settings; incompatible v3 settings writes were proven, rolled back exactly, and restored v2 state survived restart.");
     }
 }

@@ -8,7 +8,9 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-const ROOTS: [&str; 4] = ["database.mv.db", "extensions", "android-compat", "server.conf"];
+const ROOTS_V1: [&str; 4] = ["database.mv.db", "extensions", "android-compat", "server.conf"];
+const ROOTS_V2: [&str; 5] = ["database.mv.db", "extensions", "android-compat", "server.conf", "settings"];
+const CURRENT_VERSION: u32 = 2;
 const MAX_ENTRIES: usize = 20_000;
 const MAX_FILE: u64 = 512 * 1024 * 1024;
 const MAX_TOTAL: u64 = 2 * 1024 * 1024 * 1024;
@@ -27,6 +29,12 @@ struct Entry { path: String, kind: Kind, bytes: u64, sha256: String }
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Manifest { version: u32, id: String, entries: Vec<Entry> }
+
+// Legacy checkpoints never captured root/settings. Replaying one must leave
+// that live directory untouched rather than interpreting it as a missing root.
+fn roots(version: u32) -> Option<&'static [&'static str]> {
+    match version { 1 => Some(&ROOTS_V1), 2 => Some(&ROOTS_V2), _ => None }
+}
 
 /// A verified, immutable pre-update copy. Dropping it intentionally leaves the
 /// pending journal: startup recovery must handle a crash at any later step.
@@ -80,15 +88,20 @@ fn verify_privacy(paths: &[&Path]) -> Result<(), &'static str> {
     Ok(())
 }
 
+fn verify_roots_privacy(data: &Path, roots: &[&str]) -> Result<(), &'static str> {
+    let paths: Vec<PathBuf> = roots.iter().map(|name| data.join(name)).collect();
+    verify_privacy(&paths.iter().map(PathBuf::as_path).collect::<Vec<_>>())
+}
+
 fn safe_component(value: &str) -> bool {
     !value.is_empty() && value.len() <= 255 && value != "." && value != ".."
         && !value.ends_with(['.', ' '])
         && !value.chars().any(|ch| ch.is_control() || matches!(ch, '/' | '\\' | ':' | '<' | '>' | '"' | '|' | '?' | '*'))
 }
 
-fn valid_path(path: &str) -> bool {
+fn valid_path(path: &str, roots: &[&str]) -> bool {
     path.len() <= 1024 && path.split('/').count() <= 32 && path.split('/').all(safe_component)
-        && ROOTS.contains(&path.split('/').next().unwrap_or_default())
+        && roots.contains(&path.split('/').next().unwrap_or_default())
 }
 
 fn digest_file(path: &Path, expected: u64) -> Result<String, &'static str> {
@@ -112,11 +125,11 @@ fn digest_file(path: &Path, expected: u64) -> Result<String, &'static str> {
     Ok(format!("{:x}", hash.finalize()))
 }
 
-fn collect(root: &Path, relative: &str, entries: &mut Vec<Entry>, total: &mut u64) -> Result<(), &'static str> {
-    if entries.len() >= MAX_ENTRIES || !valid_path(relative) { return Err(INVALID); }
+fn collect(root: &Path, relative: &str, roots: &[&str], entries: &mut Vec<Entry>, total: &mut u64) -> Result<(), &'static str> {
+    if entries.len() >= MAX_ENTRIES || !valid_path(relative, roots) { return Err(INVALID); }
     let path = root.join(relative);
     let Some(meta) = metadata(&path)? else {
-        if !ROOTS.contains(&relative) { return Err(INVALID); }
+        if !roots.contains(&relative) { return Err(INVALID); }
         entries.push(Entry { path: relative.into(), kind: Kind::Missing, bytes: 0, sha256: String::new() });
         return Ok(());
     };
@@ -134,33 +147,45 @@ fn collect(root: &Path, relative: &str, entries: &mut Vec<Entry>, total: &mut u6
             children.push(name);
         }
         children.sort();
-        for child in children { collect(root, &format!("{relative}/{child}"), entries, total)?; }
+        for child in children { collect(root, &format!("{relative}/{child}"), roots, entries, total)?; }
     }
     Ok(())
 }
 
-fn inventory(root: &Path) -> Result<Vec<Entry>, &'static str> {
+fn inventory(root: &Path, roots: &[&str]) -> Result<Vec<Entry>, &'static str> {
     directory(root)?;
     let mut entries = Vec::new();
     let mut total = 0;
-    for name in ROOTS { collect(root, name, &mut entries, &mut total)?; }
+    for name in roots { collect(root, name, roots, &mut entries, &mut total)?; }
     entries.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(entries)
 }
 
+fn snapshot_inventory(root: &Path, roots: &[&str]) -> Result<Vec<Entry>, &'static str> {
+    directory(root)?;
+    // A live data directory has other legitimate roots, but a recovery copy
+    // must contain only the roots recorded by this manifest version.
+    for child in fs::read_dir(root).map_err(|_| IO_ERROR)? {
+        let name = child.map_err(|_| IO_ERROR)?.file_name().into_string().map_err(|_| INVALID)?;
+        if !roots.contains(&name.as_str()) { return Err(INVALID); }
+    }
+    inventory(root, roots)
+}
+
 fn valid_manifest(manifest: &Manifest) -> bool {
-    if manifest.version != 1 || manifest.id.len() != 32
+    let Some(roots) = roots(manifest.version) else { return false; };
+    if manifest.id.len() != 32
         || !manifest.id.bytes().all(|ch| ch.is_ascii_digit() || (b'a'..=b'f').contains(&ch))
-        || manifest.entries.len() < ROOTS.len() || manifest.entries.len() > MAX_ENTRIES { return false; }
+        || manifest.entries.len() < roots.len() || manifest.entries.len() > MAX_ENTRIES { return false; }
     let mut seen = BTreeMap::new();
     let mut total = 0u64;
     let mut previous = "";
     for entry in &manifest.entries {
-        if !valid_path(&entry.path) || entry.path.as_str() <= previous { return false; }
+        if !valid_path(&entry.path, roots) || entry.path.as_str() <= previous { return false; }
         previous = &entry.path;
         if let Some((parent, _)) = entry.path.rsplit_once('/') {
             if seen.get(parent) != Some(&Kind::Directory) { return false; }
-        } else if !ROOTS.contains(&entry.path.as_str()) { return false; }
+        } else if !roots.contains(&entry.path.as_str()) { return false; }
         match entry.kind {
             Kind::Missing if entry.path.contains('/') || entry.bytes != 0 || !entry.sha256.is_empty() => return false,
             Kind::Directory if entry.bytes != 0 || !entry.sha256.is_empty() => return false,
@@ -173,9 +198,9 @@ fn valid_manifest(manifest: &Manifest) -> bool {
         }
         seen.insert(entry.path.as_str(), entry.kind.clone());
     }
-    ROOTS.iter().all(|root| seen.contains_key(root))
+    roots.iter().all(|root| seen.contains_key(root))
         && ["database.mv.db", "server.conf"].iter().all(|name| seen.get(name) != Some(&Kind::Directory))
-        && ["extensions", "android-compat"].iter().all(|name| seen.get(name) != Some(&Kind::File))
+        && ["extensions", "android-compat", "settings"].iter().all(|name| seen.get(name) != Some(&Kind::File))
 }
 
 fn write_new(path: &Path, bytes: &[u8]) -> Result<(), &'static str> {
@@ -256,8 +281,10 @@ impl ReadCheckpoint {
     pub fn id(&self) -> &str { &self.manifest.id }
 
     fn verify(&self) -> Result<(), &'static str> {
+        if !valid_manifest(&self.manifest) { return Err(INVALID); }
+        let roots = roots(self.manifest.version).ok_or(INVALID)?;
         verify_privacy(&[&self.pending])?;
-        if inventory(&self.pending.join("snapshot"))? != self.manifest.entries { return Err(INVALID); }
+        if snapshot_inventory(&self.pending.join("snapshot"), roots)? != self.manifest.entries { return Err(INVALID); }
         Ok(())
     }
 
@@ -286,19 +313,21 @@ impl ReadCheckpoint {
     pub fn rollback(self) -> Result<(), &'static str> {
         if self.accepted()? { return Err("A completed extension checkpoint cannot be replayed."); }
         self.verify()?;
+        let roots = roots(self.manifest.version).ok_or(INVALID)?;
         // Fully materialize and verify the replacement before moving anything
         // out of live storage. Re-entry discards only an incomplete staging copy.
         let stage = self.pending.join("restore");
         remove_transaction(&stage)?;
         fs::create_dir(&stage).map_err(|_| IO_ERROR)?;
         copy_entries(&self.pending.join("snapshot"), &stage, &self.manifest.entries)?;
-        if inventory(&stage)? != self.manifest.entries { return Err(INVALID); }
+        if snapshot_inventory(&stage, roots)? != self.manifest.entries { return Err(INVALID); }
         // Refuse redirected/unbounded live paths before the first replacement.
-        inventory(&self.data)?;
+        verify_roots_privacy(&self.data, roots)?;
+        inventory(&self.data, roots)?;
         let displaced = self.pending.join("displaced");
         if metadata(&displaced)?.is_none() { fs::create_dir(&displaced).map_err(|_| IO_ERROR)?; }
         directory(&displaced)?;
-        for root in ROOTS {
+        for root in roots {
             let original = self.data.join(root);
             let old = displaced.join(root);
             remove_transaction(&old)?;
@@ -306,15 +335,15 @@ impl ReadCheckpoint {
             let replacement = stage.join(root);
             if metadata(&replacement)?.is_some() { fs::rename(&replacement, &original).map_err(|_| IO_ERROR)?; }
         }
-        if inventory(&self.data)? != self.manifest.entries { return Err(INVALID); }
+        if inventory(&self.data, roots)? != self.manifest.entries { return Err(INVALID); }
         self.accept()
     }
 }
 
 pub fn create(data: &Path) -> Result<ReadCheckpoint, &'static str> {
     let (data, root) = store(data, true)?.ok_or(IO_ERROR)?;
-    let sources: Vec<PathBuf> = ROOTS.iter().map(|name| data.join(name)).collect();
-    verify_privacy(&sources.iter().map(PathBuf::as_path).collect::<Vec<_>>())?;
+    let roots = roots(CURRENT_VERSION).ok_or(INVALID)?;
+    verify_roots_privacy(&data, roots)?;
     let pending = root.join("pending");
     if metadata(&pending)?.is_some() {
         let prior = open_checkpoint(data.clone(), pending.clone())?;
@@ -327,13 +356,13 @@ pub fn create(data: &Path) -> Result<ReadCheckpoint, &'static str> {
     fs::create_dir(&stage).map_err(|_| IO_ERROR)?;
     let snapshot = stage.join("snapshot");
     fs::create_dir(&snapshot).map_err(|_| IO_ERROR)?;
-    let entries = inventory(&data)?;
+    let entries = inventory(&data, roots)?;
     let mut nonce = [0u8; 16];
     getrandom::fill(&mut nonce).map_err(|_| IO_ERROR)?;
-    let manifest = Manifest { version: 1, id: nonce.iter().map(|byte| format!("{byte:02x}")).collect(), entries };
+    let manifest = Manifest { version: CURRENT_VERSION, id: nonce.iter().map(|byte| format!("{byte:02x}")).collect(), entries };
     if !valid_manifest(&manifest) { return Err(INVALID); }
     copy_entries(&data, &snapshot, &manifest.entries)?;
-    if inventory(&snapshot)? != manifest.entries || inventory(&data)? != manifest.entries { return Err(INVALID); }
+    if snapshot_inventory(&snapshot, roots)? != manifest.entries || inventory(&data, roots)? != manifest.entries { return Err(INVALID); }
     let bytes = serde_json::to_vec(&manifest).map_err(|_| INVALID)?;
     if bytes.len() as u64 > MAX_MANIFEST { return Err(INVALID); }
     write_new(&stage.join("manifest.json"), &bytes)?;
@@ -372,34 +401,67 @@ mod tests {
             fs::create_dir(root.join("android-compat")).unwrap();
             fs::create_dir(root.join("android-compat/shared_prefs")).unwrap();
             fs::write(root.join("android-compat/shared_prefs/preferences.xml"), b"pending file deletion metadata").unwrap();
+            fs::create_dir(root.join("settings")).unwrap();
+            fs::write(root.join("settings/source_12345.xml"), b"synthetic original source preference").unwrap();
+            fs::write(root.join("settings/source_67890.xml"), b"synthetic retained source preference").unwrap();
             Self(root)
         }
     }
     impl Drop for Fixture { fn drop(&mut self) { let _ = fs::remove_dir_all(&self.0); } }
 
+    fn legacy_checkpoint(data: &Path) -> ReadCheckpoint {
+        // Write the exact legacy shape, without reinterpreting its uncaptured
+        // settings directory as an absent root in the old manifest.
+        let mut checkpoint = create(data).unwrap();
+        checkpoint.manifest.version = 1;
+        checkpoint.manifest.entries = inventory(data, &ROOTS_V1).unwrap();
+        remove_transaction(&checkpoint.pending.join("snapshot/settings")).unwrap();
+        assert!(valid_manifest(&checkpoint.manifest));
+        fs::write(checkpoint.pending.join("manifest.json"), serde_json::to_vec(&checkpoint.manifest).unwrap()).unwrap();
+        checkpoint
+    }
+
     #[test]
     fn interrupted_update_restores_database_extensions_preferences_and_absent_roots() {
-        let fixture = Fixture::new(); let original = inventory(&fixture.0).unwrap();
+        let fixture = Fixture::new(); let original = inventory(&fixture.0, &ROOTS_V2).unwrap();
         let checkpoint = create(&fixture.0).unwrap(); let id = checkpoint.id().to_owned(); drop(checkpoint);
         fs::write(fixture.0.join("database.mv.db"), b"new incompatible DB").unwrap();
         fs::remove_file(fixture.0.join("extensions/old.jar")).unwrap();
         fs::write(fixture.0.join("extensions/new.jar"), b"candidate").unwrap();
         fs::write(fixture.0.join("server.conf"), b"new config").unwrap();
         fs::write(fixture.0.join("android-compat/shared_prefs/preferences.xml"), b"changed").unwrap();
+        fs::write(fixture.0.join("settings/source_12345.xml"), b"synthetic candidate preference").unwrap();
+        fs::remove_file(fixture.0.join("settings/source_67890.xml")).unwrap();
+        fs::write(fixture.0.join("settings/candidate.xml"), b"synthetic candidate-only preference").unwrap();
         assert_eq!(recover_pending(&fixture.0).unwrap(), Some(id));
-        assert_eq!(inventory(&fixture.0).unwrap(), original);
+        assert_eq!(inventory(&fixture.0, &ROOTS_V2).unwrap(), original);
         assert_eq!(recover_pending(&fixture.0).unwrap(), None);
+    }
+
+    #[test]
+    fn new_checkpoints_capture_v2_and_remove_previously_absent_settings() {
+        let fixture = Fixture::new(); fs::remove_dir_all(fixture.0.join("settings")).unwrap();
+        let checkpoint = create(&fixture.0).unwrap();
+        assert_eq!(checkpoint.manifest.version, 2);
+        assert!(checkpoint.manifest.entries.iter().any(|entry| entry.path == "settings" && entry.kind == Kind::Missing));
+        fs::create_dir(fixture.0.join("settings")).unwrap();
+        fs::write(fixture.0.join("settings/source_12345.xml"), b"synthetic newly created preference").unwrap();
+        drop(checkpoint);
+        assert!(recover_pending(&fixture.0).unwrap().is_some());
+        assert!(metadata(&fixture.0.join("settings")).unwrap().is_none());
     }
 
     #[test]
     fn successful_update_survives_restart_and_next_checkpoint() {
         let fixture = Fixture::new(); let checkpoint = create(&fixture.0).unwrap();
         fs::write(fixture.0.join("database.mv.db"), b"new compatible DB").unwrap();
+        fs::write(fixture.0.join("settings/source_12345.xml"), b"synthetic accepted preference").unwrap();
+        let accepted = inventory(&fixture.0, &ROOTS_V2).unwrap();
         checkpoint.commit().unwrap();
         assert_eq!(recover_pending(&fixture.0).unwrap(), None);
-        assert_eq!(fs::read(fixture.0.join("database.mv.db")).unwrap(), b"new compatible DB");
+        assert_eq!(inventory(&fixture.0, &ROOTS_V2).unwrap(), accepted);
         let next = create(&fixture.0).unwrap(); next.rollback().unwrap();
-        assert_eq!(fs::read(fixture.0.join("database.mv.db")).unwrap(), b"new compatible DB");
+        assert_eq!(inventory(&fixture.0, &ROOTS_V2).unwrap(), accepted);
     }
 
     #[test]
@@ -414,14 +476,73 @@ mod tests {
 
     #[test]
     fn recovery_restarts_after_interrupted_root_replacement() {
-        let fixture = Fixture::new(); let original = inventory(&fixture.0).unwrap();
+        let fixture = Fixture::new(); let original = inventory(&fixture.0, &ROOTS_V2).unwrap();
         let checkpoint = create(&fixture.0).unwrap();
         let displaced = checkpoint.pending.join("displaced"); fs::create_dir(&displaced).unwrap();
         fs::rename(fixture.0.join("database.mv.db"), displaced.join("database.mv.db")).unwrap();
         fs::write(fixture.0.join("extensions/partial.jar"), b"half applied").unwrap();
         drop(checkpoint);
         assert!(recover_pending(&fixture.0).unwrap().is_some());
-        assert_eq!(inventory(&fixture.0).unwrap(), original);
+        assert_eq!(inventory(&fixture.0, &ROOTS_V2).unwrap(), original);
+    }
+
+    #[test]
+    fn recovery_restarts_before_and_after_settings_replacement() {
+        for replacement_installed in [false, true] {
+            let fixture = Fixture::new(); let original = inventory(&fixture.0, &ROOTS_V2).unwrap();
+            let checkpoint = create(&fixture.0).unwrap();
+            fs::write(fixture.0.join("settings/source_12345.xml"), b"synthetic candidate preference").unwrap();
+            let displaced = checkpoint.pending.join("displaced"); fs::create_dir(&displaced).unwrap();
+            fs::rename(fixture.0.join("settings"), displaced.join("settings")).unwrap();
+            if replacement_installed {
+                let stage = checkpoint.pending.join("restore"); fs::create_dir(&stage).unwrap();
+                copy_entries(&checkpoint.pending.join("snapshot"), &stage, &checkpoint.manifest.entries).unwrap();
+                fs::rename(stage.join("settings"), fixture.0.join("settings")).unwrap();
+            }
+            drop(checkpoint);
+            assert!(recover_pending(&fixture.0).unwrap().is_some());
+            assert_eq!(inventory(&fixture.0, &ROOTS_V2).unwrap(), original);
+        }
+    }
+
+    #[test]
+    fn legacy_recovery_preserves_uncaptured_live_settings_and_replays_old_roots() {
+        for settings_present in [false, true] {
+            let fixture = Fixture::new(); let original = inventory(&fixture.0, &ROOTS_V1).unwrap();
+            let checkpoint = legacy_checkpoint(&fixture.0);
+            fs::remove_dir_all(fixture.0.join("settings")).unwrap();
+            if settings_present {
+                fs::create_dir(fixture.0.join("settings")).unwrap();
+                fs::write(fixture.0.join("settings/source_12345.xml"), b"synthetic current preference").unwrap();
+                fs::write(fixture.0.join("settings/new.xml"), b"synthetic uncaptured preference").unwrap();
+            }
+            let settings_before: Vec<Entry> = inventory(&fixture.0, &ROOTS_V2).unwrap().into_iter()
+                .filter(|entry| entry.path == "settings" || entry.path.starts_with("settings/")).collect();
+            // A v1 process may have stopped after moving one of its old roots.
+            let displaced = checkpoint.pending.join("displaced"); fs::create_dir(&displaced).unwrap();
+            fs::rename(fixture.0.join("database.mv.db"), displaced.join("database.mv.db")).unwrap();
+            fs::write(fixture.0.join("extensions/partial.jar"), b"half applied").unwrap();
+            let id = checkpoint.id().to_owned(); drop(checkpoint);
+            assert_eq!(recover_pending(&fixture.0).unwrap(), Some(id));
+            assert_eq!(inventory(&fixture.0, &ROOTS_V1).unwrap(), original);
+            let settings_after: Vec<Entry> = inventory(&fixture.0, &ROOTS_V2).unwrap().into_iter()
+                .filter(|entry| entry.path == "settings" || entry.path.starts_with("settings/")).collect();
+            assert_eq!(settings_after, settings_before);
+            assert_eq!(recover_pending(&fixture.0).unwrap(), None);
+        }
+    }
+
+    #[test]
+    fn accepted_legacy_checkpoint_allows_a_new_v2_checkpoint() {
+        let fixture = Fixture::new(); let checkpoint = legacy_checkpoint(&fixture.0);
+        fs::write(fixture.0.join("settings/source_12345.xml"), b"synthetic accepted legacy preference").unwrap();
+        checkpoint.commit().unwrap();
+        assert_eq!(recover_pending(&fixture.0).unwrap(), None);
+        let expected = inventory(&fixture.0, &ROOTS_V2).unwrap();
+        let checkpoint = create(&fixture.0).unwrap(); assert_eq!(checkpoint.manifest.version, 2);
+        fs::write(fixture.0.join("settings/source_12345.xml"), b"synthetic next candidate preference").unwrap();
+        checkpoint.rollback().unwrap();
+        assert_eq!(inventory(&fixture.0, &ROOTS_V2).unwrap(), expected);
     }
 
     #[test]
@@ -436,12 +557,38 @@ mod tests {
     fn path_traversal_duplicate_paths_and_wrong_root_types_reject() {
         let fixture = Fixture::new(); let mut checkpoint = create(&fixture.0).unwrap();
         checkpoint.manifest.entries[0].path = "../outside".into(); assert!(!valid_manifest(&checkpoint.manifest));
-        checkpoint.manifest.entries = inventory(&fixture.0).unwrap();
+        checkpoint.manifest.entries = inventory(&fixture.0, &ROOTS_V2).unwrap();
         checkpoint.manifest.entries.push(checkpoint.manifest.entries[0].clone()); assert!(!valid_manifest(&checkpoint.manifest));
-        checkpoint.manifest.entries = inventory(&fixture.0).unwrap();
+        checkpoint.manifest.entries = inventory(&fixture.0, &ROOTS_V2).unwrap();
         let db = checkpoint.manifest.entries.iter_mut().find(|entry| entry.path == "database.mv.db").unwrap();
         db.kind = Kind::Directory; db.bytes = 0; db.sha256.clear(); assert!(!valid_manifest(&checkpoint.manifest));
-        for path in ["extensions/../secret", "extensions\\..\\secret", "extensions/a:stream", "extensions/name.", "/extensions/test"] { assert!(!valid_path(path)); }
+        for path in ["extensions/../secret", "extensions\\..\\secret", "extensions/a:stream", "extensions/name.", "/extensions/test"] { assert!(!valid_path(path, &ROOTS_V2)); }
+    }
+
+    #[test]
+    fn manifest_version_selects_exact_roots_and_preserves_settings_shape_validation() {
+        let fixture = Fixture::new(); let checkpoint = create(&fixture.0).unwrap();
+        let original = checkpoint.manifest.entries.clone();
+        for version in [0, 3, u32::MAX] {
+            let manifest = Manifest { version, id: checkpoint.id().into(), entries: original.clone() };
+            assert!(!valid_manifest(&manifest));
+        }
+        let mut manifest = Manifest { version: 1, id: checkpoint.id().into(), entries: original.clone() };
+        assert!(!valid_manifest(&manifest)); // v1 cannot claim settings coverage.
+        manifest.entries.retain(|entry| entry.path != "settings" && !entry.path.starts_with("settings/"));
+        assert!(valid_manifest(&manifest));
+        manifest.version = 2; assert!(!valid_manifest(&manifest));
+        manifest.entries = original.clone();
+        manifest.entries.retain(|entry| !entry.path.starts_with("settings/"));
+        let settings = manifest.entries.iter_mut().find(|entry| entry.path == "settings").unwrap();
+        settings.kind = Kind::File; settings.sha256 = "0".repeat(64);
+        assert!(!valid_manifest(&manifest));
+        manifest.entries = original.clone();
+        manifest.entries.retain(|entry| entry.path != "settings");
+        assert!(!valid_manifest(&manifest));
+        manifest.entries = original;
+        manifest.entries.iter_mut().find(|entry| entry.path == "settings/source_12345.xml").unwrap().sha256 = "g".repeat(64);
+        assert!(!valid_manifest(&manifest));
     }
 
     #[test]
@@ -449,6 +596,33 @@ mod tests {
         let fixture = Fixture::new(); let checkpoint = create(&fixture.0).unwrap();
         fs::write(checkpoint.pending.join("snapshot/extensions/unrecorded.jar"), b"extra").unwrap();
         assert!(checkpoint.rollback().is_err());
+    }
+
+    #[test]
+    fn unrecorded_snapshot_roots_fail_for_both_versions_before_live_replacement() {
+        for version in [1, 2] {
+            let fixture = Fixture::new();
+            let checkpoint = if version == 1 { legacy_checkpoint(&fixture.0) } else { create(&fixture.0).unwrap() };
+            let extra = if version == 1 { "settings" } else { "unrecorded" };
+            fs::create_dir(checkpoint.pending.join("snapshot").join(extra)).unwrap();
+            fs::write(fixture.0.join("database.mv.db"), b"current database").unwrap();
+            let original = inventory(&fixture.0, &ROOTS_V2).unwrap();
+            assert!(checkpoint.rollback().is_err());
+            assert_eq!(inventory(&fixture.0, &ROOTS_V2).unwrap(), original);
+            assert!(recover_pending(&fixture.0).is_err());
+        }
+    }
+
+    #[test]
+    fn same_size_settings_corruption_rejects_recovery_before_live_replacement() {
+        let fixture = Fixture::new(); let checkpoint = create(&fixture.0).unwrap();
+        let copy = checkpoint.pending.join("snapshot/settings/source_12345.xml");
+        let mut bytes = fs::read(&copy).unwrap(); bytes[0] ^= 1; fs::write(copy, bytes).unwrap();
+        fs::write(fixture.0.join("settings/source_12345.xml"), b"synthetic current preference").unwrap();
+        let original = inventory(&fixture.0, &ROOTS_V2).unwrap();
+        assert!(checkpoint.rollback().is_err());
+        assert_eq!(inventory(&fixture.0, &ROOTS_V2).unwrap(), original);
+        assert!(recover_pending(&fixture.0).is_err());
     }
 
     #[cfg(windows)]
@@ -460,6 +634,37 @@ mod tests {
         let user = CurrentUser::get().unwrap();
         create_public_fixture(&snapshot.join("public"), &user);
         assert!(checkpoint.rollback().is_err());
+        assert!(recover_pending(&fixture.0).is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn weakened_source_settings_permissions_refuse_capture_and_live_replacement() {
+        use crate::read_runtime::private_storage::{CurrentUser, create_public_fixture};
+        let fixture = Fixture::new(); let user = CurrentUser::get().unwrap();
+        let public = fixture.0.join("settings/public"); create_public_fixture(&public, &user);
+        fs::write(public.join("synthetic.xml"), b"synthetic exposed preference").unwrap();
+        assert!(create(&fixture.0).is_err());
+        fs::remove_dir_all(&public).unwrap();
+        let checkpoint = create(&fixture.0).unwrap();
+        create_public_fixture(&public, &user);
+        fs::write(public.join("synthetic.xml"), b"synthetic changed permissions").unwrap();
+        let before = inventory(&fixture.0, &ROOTS_V2).unwrap();
+        assert!(checkpoint.rollback().is_err());
+        assert_eq!(inventory(&fixture.0, &ROOTS_V2).unwrap(), before);
+        assert!(metadata(&fixture.0.join("extension-recovery/pending/displaced")).unwrap().is_none());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn weakened_snapshot_settings_permissions_refuse_restore() {
+        use crate::read_runtime::private_storage::{CurrentUser, create_public_fixture};
+        let fixture = Fixture::new(); let checkpoint = create(&fixture.0).unwrap();
+        let user = CurrentUser::get().unwrap();
+        create_public_fixture(&checkpoint.pending.join("snapshot/settings/public"), &user);
+        let before = inventory(&fixture.0, &ROOTS_V2).unwrap();
+        assert!(checkpoint.rollback().is_err());
+        assert_eq!(inventory(&fixture.0, &ROOTS_V2).unwrap(), before);
         assert!(recover_pending(&fixture.0).is_err());
     }
 
@@ -475,5 +680,27 @@ mod tests {
         let copy = checkpoint.pending.join("snapshot/database.mv.db"); fs::remove_file(&copy).unwrap();
         symlink(fixture.0.join("database.mv.db"), &copy).unwrap();
         assert!(checkpoint.rollback().is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn redirected_settings_source_live_and_snapshot_paths_are_rejected() {
+        use std::os::unix::fs::symlink;
+        let fixture = Fixture::new();
+        fs::remove_dir_all(fixture.0.join("settings")).unwrap();
+        symlink(fixture.0.join("android-compat"), fixture.0.join("settings")).unwrap();
+        assert!(create(&fixture.0).is_err());
+        fs::remove_file(fixture.0.join("settings")).unwrap();
+        fs::create_dir(fixture.0.join("settings")).unwrap();
+        let checkpoint = create(&fixture.0).unwrap();
+        fs::remove_dir(fixture.0.join("settings")).unwrap();
+        symlink(fixture.0.join("android-compat"), fixture.0.join("settings")).unwrap();
+        let pending = checkpoint.pending.clone();
+        assert!(checkpoint.rollback().is_err());
+        fs::remove_file(fixture.0.join("settings")).unwrap();
+        fs::create_dir(fixture.0.join("settings")).unwrap();
+        fs::remove_dir(pending.join("snapshot/settings")).unwrap();
+        symlink(fixture.0.join("settings"), pending.join("snapshot/settings")).unwrap();
+        assert!(recover_pending(&fixture.0).is_err());
     }
 }

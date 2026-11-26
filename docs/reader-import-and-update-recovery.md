@@ -64,10 +64,15 @@ Before applying, the broker stops Java while retaining the exclusive private-sto
 - `extensions`
 - `android-compat`, including preferences used for deferred extension-file deletion
 - `server.conf`, if present
+- `settings`, including the pinned engine's actual `source_<id>.xml` preference files
+
+New private checkpoints use manifest **version 2**, adding the real `settings` directory to the original four roots. Version 1 checkpoints remain recoverable using only their recorded roots; their uncaptured live `settings` directory is left untouched. A legacy copy cannot reconstruct source preferences it never saved. Unknown versions, omitted required roots and unrecorded snapshot roots are refused.
+
+This is backward recovery compatibility, not downgrade support. Older checkpoint-aware builds that accept only v1 reject retained v2 checkpoints, even accepted ones. Do not reuse newer Reader data with an older application build expecting it to understand the newer recovery record. This private format is separate from the portable archive and preferences-export versions.
 
 The private checkpoint stays under the Reader data directory's `extension-recovery` folder. It can contain credentials from the managed runtime. It is never included in portable archives or uploaded, and Windows ownership/DACL checks cover both the protected root and inherited private descendants. Symlinks and reparse points are refused. The copy has a bounded manifest, per-file hashes, a 20,000-entry limit, 512 MiB per file and 2 GiB total.
 
-After upload, the broker cleanly stops and restarts Java, then checks runtime health, installed version/artifact, complete source identity and saved manga/library/category/chapter state before accepting the checkpoint. A failed check stops Java and restores the previous database, extensions, preferences and configuration before restarting. A pending checkpoint is recovered under the storage lock before the next startup validates `server.conf` or launches Java, including an interruption between configuration-file replacement steps.
+After upload, the broker cleanly stops and restarts Java, then checks runtime health, installed version/artifact, complete source identity and saved manga/library/category/chapter state before accepting the checkpoint. A failed check stops Java and restores the previous recorded database, extensions, settings and configuration before restarting. The selected live roots pass private-permission checks before hashing or replacement; v2 also removes settings files created after its checkpoint. A pending checkpoint is recovered under the storage lock before the next startup validates `server.conf` or launches Java, including an interruption between configuration-file replacement steps.
 
 The snapshot remains immutable through recovery. Restoring it first builds and verifies a separate replacement, then replaces fixed roots; an interruption during replacement retries from the same snapshot. A successful update retains its private copy until the next update. If copy integrity or private permissions cannot be verified, Reader stays stopped with an explicit recovery error.
 
@@ -78,6 +83,6 @@ This recovery does not sandbox trusted executable extensions or protect against 
 - Web: selected Vitest workflow suite, including `restore-session.test.ts` and `mihon-backup.test.ts`.
 - Browser: `reader-browser-smoke.mjs`, which invokes restore-session, matched Mihon import and extension-update helpers alongside existing playback, book, Movie, Vault and visual regressions.
 - Native: `read_checkpoint::tests`, `read_runtime` storage/ACL tests and extension-review tests.
-- Pinned runtime: original v1.6.1 → v1.6.2 fixture update, then an incompatible v1.6.3 source-ID change that must restore the previous executable source and library/progress/category state.
+- Pinned runtime: original v1.6.1 → v1.6.2 fixture update, then an incompatible v1.6.3 source-ID change that must restore the previous executable source and library/progress/category state. The configurable fixture seeds a synthetic value through the actual preference API, verifies XML persistence and JVM restart, then has the rejected version change existing settings and create a new file. Displaced files prove those writes occurred; exact restored hashes, removal of the new file and another restart verify recovery.
 
 The development workflows validate source and publish synthetic UI screenshots. Normal development commits do not build a new Windows test ZIP or publish a release.
