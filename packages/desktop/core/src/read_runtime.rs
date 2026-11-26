@@ -31,6 +31,9 @@ pub use crate::bridge::SourcePreferenceValue;
 #[path = "read_icons.rs"]
 mod icons;
 
+#[path = "read_downloads.rs"]
+mod downloads;
+
 #[cfg(test)]
 #[path = "read_feed_tests.rs"]
 mod feed_tests;
@@ -1724,6 +1727,7 @@ impl ReadRuntime {
     }
 
     pub fn review_extension(&self, package: &str) -> Result<ExtensionReview, &'static str> {
+        self.require_empty_download_queue()?;
         let metadata = self.extension_record(package)?;
         if metadata["isInstalled"] != false || metadata["isObsolete"] != false {
             return Err("Extension is already installed or obsolete.");
@@ -1762,6 +1766,7 @@ impl ReadRuntime {
     }
 
     pub fn uninstall_extension(&self, package: &str) -> Result<Value, &'static str> {
+        self.require_empty_download_queue()?;
         let current = self.extension_record(package)?;
         if current["isInstalled"] != true {
             return Err("Extension is not installed.");
@@ -1771,6 +1776,7 @@ impl ReadRuntime {
 
     fn mutate_extension(&self, package: &str, install: bool) -> Result<Value, &'static str> {
         extension_package(package)?;
+        self.require_empty_download_queue()?;
         let patch = if install { json!({"install": true}) } else { json!({"uninstall": true}) };
         self.client.slow().mutation(
             "mutation TsugiChangeExtension($input: UpdateExtensionInput!) { updateExtension(input: $input) { extension { pkgName isInstalled versionName } } }",
@@ -1801,11 +1807,13 @@ impl ReadRuntime {
         if id <= 0 {
             return Err("Invalid manga identifier.");
         }
-        self.client.slow().mutation(
-            "mutation TsugiManga($input: FetchMangaAndChaptersInput!) { fetchMangaAndChapters(input: $input) { manga { id sourceId title author artist description genre thumbnailUrl inLibrary } chapters { id name mangaId chapterNumber sourceOrder scanlator pageCount isRead isBookmarked lastPageRead } } }",
+        let value = self.client.slow().mutation(
+            "mutation TsugiManga($input: FetchMangaAndChaptersInput!) { fetchMangaAndChapters(input: $input) { manga { id sourceId title author artist description genre thumbnailUrl inLibrary } chapters { id name mangaId chapterNumber sourceOrder scanlator pageCount isRead isBookmarked lastPageRead isDownloaded } } }",
             "fetchMangaAndChapters",
             json!({ "id": id, "fetchManga": true, "fetchChapters": true }),
-        )
+        )?;
+        downloads::validate_chapter_download_flags(&value["chapters"])?;
+        Ok(value)
     }
 
     /// Read persisted metadata and chapters without contacting the extension.
@@ -1823,11 +1831,12 @@ impl ReadRuntime {
     pub fn cached_manga(&self, id: i32) -> Result<Value, &'static str> {
         if id <= 0 { return Err("Invalid manga identifier."); }
         let mut manga = self.client.document(
-            "query TsugiCachedManga($id: Int!) { manga(id: $id) { id sourceId title author artist description genre thumbnailUrl inLibrary categories { nodes { id } } chapters { nodes { id name mangaId chapterNumber sourceOrder scanlator pageCount isRead isBookmarked lastPageRead } } } }",
+            "query TsugiCachedManga($id: Int!) { manga(id: $id) { id sourceId title author artist description genre thumbnailUrl inLibrary categories { nodes { id } } chapters { nodes { id name mangaId chapterNumber sourceOrder scanlator pageCount isRead isBookmarked lastPageRead isDownloaded } } } }",
             "manga", json!({"id": id}))?;
         let chapters = manga.as_object_mut().and_then(|value| value.remove("chapters"))
             .and_then(|value| value.get("nodes").cloned())
             .filter(Value::is_array).ok_or("Invalid cached chapters.")?;
+        downloads::validate_chapter_download_flags(&chapters)?;
         Ok(json!({"manga": manga, "chapters": chapters}))
     }
 

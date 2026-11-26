@@ -25,6 +25,8 @@ export type ReadAction =
   | { kind: 'manga' | 'chapter' | 'cover'; id: number }
   | { kind: 'close-chapter'; chapterId: number; session: string }
   | { kind: 'download-cleanup-candidates'; offset: number }
+  | { kind: 'download-status' | 'pause-downloads' | 'resume-downloads' }
+  | { kind: 'enqueue-downloads' | 'cancel-downloads' | 'retry-downloads'; ids: number[] }
   | { kind: 'review-download-cleanup'; ids: number[] }
   | { kind: 'apply-download-cleanup' | 'cancel-download-cleanup'; reviewId: string }
   | { kind: 'set-library'; id: number; inLibrary: boolean }

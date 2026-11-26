@@ -311,6 +311,7 @@ impl ReadRuntime {
     }
 
     pub fn review_extension_update(&self, package: &str) -> Result<ExtensionUpdateReview, &'static str> {
+        self.require_empty_download_queue()?;
         extension_package(package)?;
         self.refresh_extensions()?;
         let installed = self.extension_record(package)?;
@@ -382,6 +383,7 @@ impl ReadRuntime {
     /// Revalidate the repository and re-download its candidate before stopping
     /// the runtime; install the exact reviewed bytes only after a checkpoint.
     pub fn apply_reviewed_extension_update(&mut self, review: ExtensionUpdateReview) -> Result<Value, &'static str> {
+        self.require_empty_download_queue()?;
         self.refresh_extensions()?;
         self.recheck_update(&review)?;
         let fresh = download_candidate(&review.download, review.suffix)?;
@@ -392,10 +394,12 @@ impl ReadRuntime {
     }
 
     fn apply_update_with_checkpoint(&mut self, review: ExtensionUpdateReview) -> Result<Value, &'static str> {
+        self.require_empty_download_queue()?;
         self.recheck_update(&review)?;
         self.reject_update_artifact_collision(&review)?;
         let sources = self.verified_extension_sources(&review.installed)?;
         let before = self.update_invariants(&sources)?;
+        self.require_empty_download_queue()?;
         self.shutdown()?;
         let checkpoint = match crate::read_checkpoint::create(&self.data_path) {
             Ok(checkpoint) => checkpoint,
@@ -407,6 +411,7 @@ impl ReadRuntime {
         let checkpoint_id = checkpoint.id().to_owned();
         let applied = (|| {
             self.restart_after_stop()?;
+            self.require_empty_download_queue()?;
             self.recheck_update(&review)?;
             if self.update_invariants(&sources)? != before { return Err("Saved extension state changed before the update."); }
             self.reject_update_artifact_collision(&review)?;
@@ -415,6 +420,7 @@ impl ReadRuntime {
             // actual startup loader before accepting the recovery checkpoint.
             self.shutdown()?;
             self.restart_after_stop()?;
+            self.require_empty_download_queue()?;
             let updated = self.extension_record(&review.package)?;
             if updated["isInstalled"] != true || updated["versionName"] != review.manifest.version_name
                 || number(&updated["versionCodeLong"])? != review.manifest.version_code

@@ -322,6 +322,12 @@ fn execute(
             reader.apply_reviewed_source_preference(change)
         }
         ReadAction::DownloadCleanupCandidates { offset } => reader.download_cleanup_candidates(offset),
+        ReadAction::DownloadStatus => reader.download_status(),
+        ReadAction::EnqueueDownloads { ids } => { *cleanup = None; *preferences = None; reader.enqueue_downloads(&ids) },
+        ReadAction::CancelDownloads { ids } => { *cleanup = None; *preferences = None; reader.cancel_downloads(&ids) },
+        ReadAction::RetryDownloads { ids } => { *cleanup = None; *preferences = None; reader.retry_downloads(&ids) },
+        ReadAction::PauseDownloads => reader.pause_downloads(),
+        ReadAction::ResumeDownloads => { *cleanup = None; *preferences = None; reader.resume_downloads() },
         ReadAction::ReviewDownloadCleanup { ids } => {
             *cleanup = None;
             if chapter.is_some() { return Err("Close the open manga chapter before reviewing downloaded media."); }
@@ -407,6 +413,7 @@ fn execute(
                 return Err("Extension update cancelled.");
             }
             if stopped.load(Ordering::Acquire) { return Err("Reading is closing."); }
+            reader.require_empty_download_queue()?;
             *chapter = None;
             if let Ok(mut cache) = cache.lock() { *cache = None; }
             reader.apply_reviewed_extension_update(review)
@@ -415,9 +422,11 @@ fn execute(
             if package.len() > 200 || package.chars().any(char::is_control) {
                 return Err("Invalid extension package.");
             }
+            reader.require_empty_download_queue()?;
             if !confirm(owner, "Tsugi extension removal", &format!("Uninstall {package}?")) {
                 return Err("Extension removal cancelled.");
             }
+            reader.require_empty_download_queue()?;
             *chapter = None;
             if let Ok(mut cache) = cache.lock() { *cache = None; }
             reader.uninstall_extension(&package)

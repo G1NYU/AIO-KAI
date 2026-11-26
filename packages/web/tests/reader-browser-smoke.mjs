@@ -15,6 +15,7 @@ import { verifySourceSettingsBrowser } from './source-settings-browser.mjs';
 import { verifySourceIconsBrowser } from './source-icons-browser.mjs';
 import { verifyReaderSettingsSearchBrowser } from './reader-settings-search-browser.mjs';
 import { verifySupportSummaryBrowser } from './support-summary-browser.mjs';
+import { verifyReaderDownloadsBrowser } from './reader-downloads-browser.mjs';
 import { verifyVaultBookImportsBrowser } from './vault-book-import-browser.mjs';
 import { pathToFileURL } from 'node:url';
 import { mkdir, readFile } from 'node:fs/promises';
@@ -1474,4 +1475,5 @@ try {
   await verifyReaderSettingsSearchBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyVaultBookImportsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifySupportSummaryBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyReaderDownloadsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
 } finally { await browser.close(); }

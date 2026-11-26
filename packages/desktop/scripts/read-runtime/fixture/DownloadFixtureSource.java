@@ -22,6 +22,7 @@ public class DownloadFixtureSource extends FixtureSource {
     private static final AtomicInteger IMAGE_REQUESTS = new AtomicInteger();
     private static final Object IMAGE_GATE = new Object();
     private static volatile boolean paused;
+    private static volatile boolean failImages;
     private static final int PORT = startPages();
 
     @Override public String getName() { return "Tsugi Download Fixture"; }
@@ -95,6 +96,9 @@ public class DownloadFixtureSource extends FixtureSource {
                     IMAGE_GATE.notifyAll();
                 }
                 respond(socket, 200, "text/plain", new byte[0]);
+            } else if (method.equals("POST") && (path.equals("/fixture/fail") || path.equals("/fixture/recover"))) {
+                failImages = path.endsWith("fail");
+                respond(socket, 200, "text/plain", new byte[0]);
             } else if (method.equals("GET") && path.equals("/fixture/requests")) {
                 respond(socket, 200, "text/plain", Integer.toString(IMAGE_REQUESTS.get()).getBytes(StandardCharsets.US_ASCII));
             } else if (method.equals("GET") && path.matches("/original-comic/chapter-[123]/page-[12]\\.png")) {
@@ -107,7 +111,8 @@ public class DownloadFixtureSource extends FixtureSource {
                 // Keep the queue observable while enqueueChapterDownloads
                 // installs its upstream update-flow subscription.
                 Thread.sleep(150);
-                respond(socket, 200, "image/png", PNG);
+                if (failImages) respond(socket, 503, "text/plain", new byte[0]);
+                else respond(socket, 200, "image/png", PNG);
             } else {
                 respond(socket, 404, "text/plain", new byte[0]);
             }
@@ -117,7 +122,8 @@ public class DownloadFixtureSource extends FixtureSource {
     }
 
     private static void respond(Socket socket, int status, String type, byte[] bytes) throws IOException {
-        String header = "HTTP/1.1 " + status + (status == 200 ? " OK" : " Not Found") + "\r\n"
+        String reason = status == 200 ? " OK" : status == 503 ? " Service Unavailable" : " Not Found";
+        String header = "HTTP/1.1 " + status + reason + "\r\n"
             + "Content-Type: " + type + "\r\nContent-Length: " + bytes.length
             + "\r\nConnection: close\r\nCache-Control: no-store\r\n\r\n";
         socket.getOutputStream().write(header.getBytes(StandardCharsets.US_ASCII));

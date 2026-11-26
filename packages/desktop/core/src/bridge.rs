@@ -116,6 +116,12 @@ pub enum ReadAction {
     SetLibrary { id: i32, in_library: bool },
     Chapter { id: i32 },
     CloseChapter { chapter_id: i32, session: String },
+    DownloadStatus,
+    EnqueueDownloads { ids: Vec<i32> },
+    CancelDownloads { ids: Vec<i32> },
+    RetryDownloads { ids: Vec<i32> },
+    PauseDownloads,
+    ResumeDownloads,
     Page { chapter_id: i32, index: usize },
     Progress { chapter_id: i32, index: usize, finished: bool },
     DownloadCleanupCandidates { offset: u32 },
@@ -162,6 +168,21 @@ mod reading_metadata_tests {
             assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":"apply-source-preference","reviewId":"a".repeat(32),"controlId":"b".repeat(32),"value":value})).is_err());
         }
         assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":"source-preferences","source":"12345","key":"private"})).is_err());
+    }
+
+    #[test]
+    fn chapter_download_bridge_exposes_only_fixed_controls_and_integer_ids() {
+        for kind in ["download-status", "pause-downloads", "resume-downloads"] {
+            assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":kind})).is_ok());
+            assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":kind,"url":"https://example.invalid"})).is_err());
+        }
+        for kind in ["enqueue-downloads", "cancel-downloads", "retry-downloads"] {
+            assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":kind,"ids":[1,2147483647]})).is_ok());
+            for ids in [serde_json::json!(["1"]),serde_json::json!([1.5]),serde_json::json!([true]),serde_json::json!([2147483648u64])] {
+                assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":kind,"ids":ids})).is_err());
+            }
+            assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":kind,"ids":[1],"deleteFiles":true})).is_err());
+        }
     }
 }
 
