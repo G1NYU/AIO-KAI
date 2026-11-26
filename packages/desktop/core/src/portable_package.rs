@@ -416,7 +416,7 @@ fn verify<R: Read + Seek>(mut source: R, expected_bytes: u64, expected_sha256: &
         let method = if entry.method == 0 { CompressionMethod::Stored } else { CompressionMethod::Deflated };
         if file.name() != entry.name || file.size() != entry.size || file.compressed_size() != entry.compressed ||
             file.crc32() != entry.crc || file.compression() != method || file.is_dir() != entry.directory ||
-            file.data_start() != entry.data {
+            file.data_start() != Some(entry.data) {
             return Err("ZIP parser and reviewed entry disagree.");
         }
         let capture = if entry.name == "BUILD-INFO.json" { MAX_BUILD_INFO as usize }
