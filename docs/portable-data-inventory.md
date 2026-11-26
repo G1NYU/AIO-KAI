@@ -71,7 +71,7 @@ Settings requests a detailed scan of the same app-data root. Older requests reta
 | Row | Directory relative to app data | Boundary |
 |---|---|---|
 | Downloaded manga chapters | `reading/downloads/mangas` | Default chapter download tree from pinned Suwayomi v2.4.2373. Thumbnails, local-source manga and custom external download paths are excluded from this row. |
-| Reader cache | `reading/cache` | Runtime cache inside the managed Reader data root. System temporary storage is outside this scan. |
+| Reader browser data | `reading/cache` | Browser/session data inside the managed Reader data root; not a disposable image-cache estimate. System temporary storage is outside this scan. |
 | WebView disk cache | `WebView2/EBWebView/Default/Cache` | Recognized default-profile HTTP cache directory. Other layouts, IndexedDB book blobs, site storage and unrecognized cache directories stay in the WebView total. |
 
 The native worker shares the original traversal budgets across subcategories. A skipped parent can make subsidiary counts partial. Directory names classify measured files for display only. They do not establish that files are disposable, unmodified, idle, or safe to remove. Installed binaries and external folders remain unmeasured.
@@ -80,10 +80,10 @@ The native worker shares the original traversal budgets across subcategories. A 
 
 | Candidate | Owner and verified scope | Requirement before offering cleanup |
 |---|---|---|
-| Reader cache | Pinned Suwayomi uses `reading/cache/kcef` as an embedded browser profile. Its WebviewMutation clears cookies along with cache. | Preserve source sessions. The aggregate Reader cache size cannot be offered as reclaimable space. |
+| Reader browser data | Pinned Suwayomi uses `reading/cache/kcef` as an embedded browser profile. Its WebviewMutation clears cookies along with cache. | Preserve source sessions. The aggregate Reader browser-data size cannot be offered as reclaimable space. |
 | Cached chapter pages and thumbnails | Pinned ImageMutation calls `ImageResponse.clearImages`, which recursively removes a directory under the JVM temporary Tachidesk root. Upstream defaults to a shared temporary root. Tsugi now passes a private per-installation JVM temp directory to its managed launcher. | Measure only the two image subdirectories beneath the isolated root. Coordinate with the running reader, reject redirects and revalidate before deletion. |
 | Downloaded chapters | The offline chapter directory contains persistent media. | Use the owning runtime's per-chapter removal contract after verifying identity, pin state, in-use readers, and current transfer state. |
-| WebView disk cache | WebView2 distinguishes DiskCache from IndexedDB, cookies and other profile data. Its API operates on a profile, while A1.9b measures one recognized directory. | Verify the active profile, measure exactly the reviewed scope, recheck on apply and verify book payloads, preferences and sessions after operation. |
+| WebView disk cache | WebView2 distinguishes DiskCache from IndexedDB, cookies and other profile data. Its API operates on a profile, while A1.9b measures one recognized directory. | Verify the active profile/category and preservation across cleanup/restart. The API does not satisfy an exact-file/byte review; keep cleanup unavailable until its scope and accounting contract is established. Observed directory sizes are not verified removed-byte counts. |
 
 The storage inventory alone authorizes no cleanup. Test deletion on disposable Windows profiles, including a changed target between review and apply, before exposing a destructive action.
 
@@ -96,3 +96,11 @@ The global storage panel offers a bounded review of up to 500 persisted Movies &
 The [temporary Reader image cleanup](reader-image-cache-cleanup.md) implements the next ownership-review item: exact regular-file reviews beneath private `reading/runtime-temp/Tachidesk/manga-cache` and `thumbnails`. It keeps downloaded chapters and permanent covers, `reading/cache/kcef` browser/session storage, source settings, database metadata and unrelated temp files. The renderer receives only logical totals and an opaque review ID. A native confirmation, stopped JVM, retained private storage lock, complete fingerprint recheck and pinned Windows handles bound removal to the reviewed files. Partial or unknown results and failed restarts remain explicit.
 
 These temporary image bytes remain in the aggregate Reader runtime row. The detailed `reading/cache` row is labelled **Reader browser data**, because it can contain source sessions and is not disposable image storage. No storage schema or generic cache deletion was added. The exact image review has independent bounds and never cleans legacy shared system temp. Windows-runtime verification and remaining physical acceptance are recorded in [HANDOFF.md](../HANDOFF.md).
+
+### Next WebView disk-cache verification
+
+A read-only audit of the pinned `wry 0.57.0` and `webview2-com 0.39.1` bindings confirms that a selective operation needs no new dependency. WebView2's [browsing-data kinds](https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/webview2-idl#corewebview2_browsing_data_kinds) separate `DISK_CACHE` from cookies, IndexedDB, localStorage and service workers. Do not use wry's all-browsing-data convenience method for this feature.
+
+The [profile cleanup API](https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/icorewebview2profile2) reports asynchronous completion, not an exact reviewed-file set or reclaimed-byte total. The current `Default/Cache` scan is only an observation and cannot authorize directory deletion or prove that it matches the active profile's whole disk-cache category. Validate the actual environment and profile paths: WebView2 configuration can override the requested user-data directory. Execute COM calls and completion handling on the [UI event loop](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/threading-model), not the backup worker thread.
+
+Next implementation gate: an actual disposable Windows WebView2 profile containing original cached HTTP assets, ebook Blob/cover/progress data, preferences, IndexedDB records and synthetic cookies. Verify only `DISK_CACHE` is requested, wait for the real completion callback, then prove cache refetch and preservation immediately and after restart. Cover unsupported interfaces, changed profiles, cancellation and interrupted close. Any eventual UI must distinguish category-wide completion from observed size changes; it must not inherit Reader's exact-file removal claim. This audit adds no cleanup command or user-data mutation.
