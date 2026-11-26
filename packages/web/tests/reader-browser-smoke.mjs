@@ -634,7 +634,7 @@ try {
   await search.getByRole('textbox',{name:'Global manga search',exact:true}).fill('Tsugi');
   await search.getByRole('button',{name:'Search',exact:true}).click();
   await search.getByRole('heading',{name:'Original source',exact:true}).waitFor();
-  await search.locator('.tsugi-search-result-count').getByText('1 results',{exact:true}).waitFor();
+  await search.getByText('Results: 1',{exact:true}).waitFor();
   assert.equal(await search.locator('.tsugi-manga-card').count(),1);
   assert.equal(await search.locator('progress').getAttribute('value'),'1');
   await capture('03-reader-global-search');
