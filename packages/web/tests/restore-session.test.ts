@@ -1,15 +1,18 @@
 import { afterEach,beforeEach,describe,expect,it,vi } from 'vitest';
 
-const mock=vi.hoisted(()=>({capture:vi.fn(),save:vi.fn(),open:vi.fn(),managed:vi.fn(),reader:vi.fn()}));
+const mock=vi.hoisted(()=>({capture:vi.fn(),save:vi.fn(),saveScheduled:vi.fn(),open:vi.fn(),managed:vi.fn(),reader:vi.fn()}));
 vi.mock('../src/lib/backup/archive',async original=>({...await original<typeof import('../src/lib/backup/archive')>(),capturePortableArchive:mock.capture}));
-vi.mock('../src/lib/backup/managed-archive',()=>({saveManagedArchive:mock.save,openManagedArchive:mock.open,supportsManagedBackups:mock.managed}));
+vi.mock('../src/lib/backup/managed-archive',()=>({saveManagedArchive:mock.save,saveScheduledArchive:mock.saveScheduled,openManagedArchive:mock.open,supportsManagedBackups:mock.managed}));
 vi.mock('../src/lib/hosts/shell/reading',()=>({supportsReading:mock.reader}));
 
 import { createPortableArchive,type PortableArchive } from '../src/lib/backup/archive';
 import type { PreferencesBackup } from '../src/lib/backup/preferences';
 import type { MangaBackup } from '../src/lib/backup/manga';
-import { RESTORE_SESSION_KEY,finishRestoreSession,parseRestoreSession,prepareMangaRestore,prepareRestoreSession,readRestoreSessionState,
+import { RESTORE_SESSION_KEY,RESTORE_SESSION_LOCK,finishRestoreSession,parseRestoreSession,prepareMangaRestore,prepareRestoreSession,readRestoreSessionState,
   resumeRestoreSession,reviewRestoreRecovery,reviewRestoreSection,restoreSessionBusy,restoreSessionMatches,runRestoreSection,type RestoreSession } from '../src/lib/backup/restore-session';
+
+import { runScheduledBackup } from '../src/lib/backup/scheduled-runner';
+import { BACKUP_SCHEDULE_KEY,defaultSchedule,readBackupSchedule } from '../src/lib/backup/schedule';
 
 const preferences:PreferencesBackup={format:'tsugi-preferences',version:1,settings:{theme:'mocha',accent:'blue',startup:'auto',matrix:'wave',layout:'default',audioProfile:'flat',reader:{mode:'scroll',width:55,gap:false,rtl:false,fit:'width',background:'black',focus:false,autoNext:false,wheelZoom:true,resume:true}}};
 const manga:MangaBackup={format:'tsugi-manga-progress',version:2,manga:[],categories:['Reading']};
@@ -37,7 +40,9 @@ function encode(session:RestoreSession){values.set(RESTORE_SESSION_KEY,JSON.stri
 beforeEach(()=>{
   vi.resetAllMocks();values.clear();copies.clear();nextCopy=0;held=false;rejectWrite=()=>false;
   vi.stubGlobal('localStorage',storage);
-  vi.stubGlobal('navigator',{locks:{request:async(_name:string,_options:unknown,callback:(lock:object|null)=>Promise<unknown>)=>{
+  vi.stubGlobal('navigator',{locks:{request:async(name:string,options:unknown,callback:(lock:object|null)=>Promise<unknown>)=>{
+    expect(name).toBe(RESTORE_SESSION_LOCK);
+    expect(options).toEqual({ifAvailable:true});
     if(held)return callback(null);
     held=true;
     try{return await callback({});}finally{held=false;}
@@ -259,5 +264,103 @@ describe('verified portable restore session',()=>{
     const state=readRestoreSessionState();expect(state.kind).toBe('invalid');
     await expect(prepareRestoreSession(make())).rejects.toThrow('restore-invalid');
     await finishRestoreSession(state.token!);expect(readRestoreSessionState().kind).toBe('empty');expect(copies.size).toBe(2);
+  });
+});
+
+describe('scheduled backup and restore coordination',()=>{
+  function setDueSchedule(){
+    const due={...defaultSchedule(),cadence:'daily' as const,keep:7 as const,dueMs:Date.now()-1000};
+    values.set(BACKUP_SCHEDULE_KEY,JSON.stringify(due));
+    return due;
+  }
+
+  beforeEach(()=>{
+    vi.stubGlobal('window',{dispatchEvent:vi.fn()});
+    vi.stubGlobal('document',{visibilityState:'visible',querySelector:()=>null});
+    mock.saveScheduled.mockResolvedValue({retentionIncomplete:false});
+  });
+
+  it('defers capture and retention while a restore checkpoint is open, then resumes when it is finished',async()=>{
+    const due=setDueSchedule();
+    await prepareRestoreSession(make(false));
+    mock.capture.mockClear();
+    await runScheduledBackup();
+    expect(mock.capture).not.toHaveBeenCalled();
+    expect(mock.saveScheduled).not.toHaveBeenCalled();
+    expect(readBackupSchedule()).toEqual(due);
+    await finishRestoreSession(ready().token);
+    await runScheduledBackup();
+    expect(mock.saveScheduled).toHaveBeenCalledTimes(1);
+    expect(mock.saveScheduled).toHaveBeenCalledWith(make(false),7);
+    expect(readBackupSchedule().result).toBe('saved');
+    expect(copies.size).toBe(2);
+  });
+
+  it('defers without advancing the schedule if a record is invalid or coordination is unavailable',async()=>{
+    const due=setDueSchedule(),encoded=values.get(BACKUP_SCHEDULE_KEY);
+    values.set(RESTORE_SESSION_KEY,'invalid');
+    await runScheduledBackup();
+    expect(values.get(RESTORE_SESSION_KEY)).toBe('invalid');
+    expect(readBackupSchedule()).toEqual(due);
+    values.delete(RESTORE_SESSION_KEY);
+    held=true;
+    await runScheduledBackup();
+    held=false;
+    expect(readBackupSchedule()).toEqual(due);
+    vi.stubGlobal('navigator',{locks:{request:async()=>{throw Error('denied');}}});
+    await runScheduledBackup();
+    expect(readBackupSchedule()).toEqual(due);
+    vi.stubGlobal('navigator',{});
+    await runScheduledBackup();
+    expect(readBackupSchedule()).toEqual(due);
+    vi.stubGlobal('localStorage',{getItem:()=>{throw Error('blocked');}});
+    await runScheduledBackup();
+    expect(values.get(BACKUP_SCHEDULE_KEY)).toBe(encoded);
+    expect(mock.capture).not.toHaveBeenCalled();
+    expect(mock.saveScheduled).not.toHaveBeenCalled();
+  });
+
+  it('defers during restore preparation before its journal exists',async()=>{
+    const due=setDueSchedule();
+    let release!:(archive:PortableArchive)=>void;
+    mock.capture.mockImplementationOnce(()=>new Promise<PortableArchive>(resolve=>{release=resolve;}));
+    const restoring=prepareRestoreSession(make(false));
+    await vi.waitFor(()=>expect(release).toBeTypeOf('function'));
+    expect(readRestoreSessionState().kind).toBe('empty');
+    await runScheduledBackup();
+    expect(readBackupSchedule()).toEqual(due);
+    expect(mock.capture).toHaveBeenCalledTimes(1);
+    expect(mock.saveScheduled).not.toHaveBeenCalled();
+    release(make(false));await restoring;
+    expect(readRestoreSessionState().kind).toBe('ready');
+  });
+
+  it('holds the shared lock until the scheduled native save and retention finish',async()=>{
+    setDueSchedule();
+    let release!:()=>void;
+    mock.saveScheduled.mockImplementationOnce(()=>new Promise<{retentionIncomplete:boolean}>(resolve=>{
+      release=()=>resolve({retentionIncomplete:false});
+    }));
+    const saving=runScheduledBackup();
+    await vi.waitFor(()=>expect(release).toBeTypeOf('function'));
+    await expect(prepareRestoreSession(make(false))).rejects.toThrow('restore-busy');
+    await runScheduledBackup();
+    expect(mock.saveScheduled).toHaveBeenCalledTimes(1);
+    release();await saving;
+    expect(readBackupSchedule().result).toBe('saved');
+    await prepareRestoreSession(make(false));
+    expect(readRestoreSessionState().kind).toBe('ready');
+  });
+
+  it('rechecks the journal after capture and refuses an unexpected concurrent record change',async()=>{
+    setDueSchedule();
+    mock.capture.mockImplementationOnce(async()=>{
+      values.set(RESTORE_SESSION_KEY,'changed');
+      return make(false);
+    });
+    await runScheduledBackup();
+    expect(mock.saveScheduled).not.toHaveBeenCalled();
+    expect(values.get(RESTORE_SESSION_KEY)).toBe('changed');
+    expect(readBackupSchedule().result).toBe('failed');
   });
 });

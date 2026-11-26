@@ -1,18 +1,21 @@
 import { capturePortableArchive } from './archive';
 import { saveScheduledArchive,supportsManagedBackups } from './managed-archive';
 import { supportsReading } from '../hosts/shell/reading';
+import { RESTORE_SESSION_KEY,RESTORE_SESSION_LOCK } from './restore-session';
 import { beginAttempt,finishAttempt,readBackupSchedule,sameAttempt,scheduleIsDue,writeBackupSchedule } from './schedule';
 
 let running=false;
 function blocked(){
-  return document.visibilityState==='hidden'||!!document.querySelector('dialog[open], [data-ui="tsugi-book-reader"], .tsugi-chapter-reader');
+  if(document.visibilityState==='hidden'||document.querySelector('dialog[open], [data-ui="tsugi-book-reader"], .tsugi-chapter-reader'))return true;
+  // An unfinished or unreadable restore record is not a consistent backup
+  // baseline. Never rotate older copies while recovery remains unresolved.
+  try{return localStorage.getItem(RESTORE_SESSION_KEY)!==null;}catch{return true;}
 }
-export async function runScheduledBackup(){
-  if(running||!supportsManagedBackups()||blocked())return;
+async function attemptScheduledBackup(){
+  if(blocked())return;
   const state=readBackupSchedule();
   if(!scheduleIsDue(state,Date.now()))return;
   const started=beginAttempt(state,Date.now());
-  running=true;
   try{
     writeBackupSchedule(started);
     if(started.includeManga&&!supportsReading())throw Error('reader-unavailable');
@@ -29,7 +32,20 @@ export async function runScheduledBackup(){
       if(sameAttempt(readBackupSchedule(),started))
         writeBackupSchedule(finishAttempt(started,Date.now(),'failed'));
     }catch{/* Blocked storage cannot safely retain or start another policy. */}
-  }finally{running=false;}
+  }
+}
+export async function runScheduledBackup(){
+  if(running||!supportsManagedBackups()||blocked()||!navigator.locks)return;
+  if(!scheduleIsDue(readBackupSchedule(),Date.now()))return;
+  running=true;
+  try{
+    // Use the same origin-wide lock as restore preparation and application.
+    // A busy lock defers a due attempt without advancing its schedule.
+    await navigator.locks.request(RESTORE_SESSION_LOCK,{ifAvailable:true},async lock=>{
+      if(lock)await attemptScheduledBackup();
+    });
+  }catch{/* An unavailable lock service must not permit an unguarded backup. */}
+  finally{running=false;}
 }
 export function startScheduledBackups(){
   if(!supportsManagedBackups())return;

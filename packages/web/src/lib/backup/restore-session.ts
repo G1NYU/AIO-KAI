@@ -10,7 +10,7 @@ import { supportsReading } from '../hosts/shell/reading';
 export const RESTORE_SESSION_KEY='tsugi-portable-restore-session-v1';
 export const RESTORE_SESSION_EVENT='tsugi-restore-session-change';
 const RECORD_LIMIT=8192;
-const LOCK='tsugi-portable-restore';
+export const RESTORE_SESSION_LOCK='tsugi-portable-restore';
 const NAME=/^tsugi-backup-\d{13}-[a-f\d]{32}\.json$/;
 const HASH=/^[a-f\d]{64}$/;
 const UUID=/^[a-f\d]{8}-[a-f\d]{4}-4[a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/;
@@ -116,7 +116,7 @@ async function locked<T>(work:()=>Promise<T>,required=true):Promise<T>{
     if(required)throw new RestoreSessionError('unavailable');
     return execute();
   }
-  return navigator.locks.request(LOCK,{ifAvailable:true},async lock=>{
+  return navigator.locks.request(RESTORE_SESSION_LOCK,{ifAvailable:true},async lock=>{
     if(!lock)throw new RestoreSessionError('busy');
     return execute();
   });
