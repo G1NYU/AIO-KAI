@@ -216,13 +216,61 @@ fn save_scheduled(dir:&Path,text:&str,keep:usize)->Result<Value,&'static str>{
     Ok(json!({"backup":backup,"removed":removed,"retentionIncomplete":incomplete}))
 }
 pub fn execute(root:&Path,action:BackupAction)->Result<Value,&'static str>{
+    if matches!(&action,BackupAction::Storage){return storage_usage(root);}
     let dir=directory(root)?;
     match action {
+        BackupAction::Storage=>unreachable!("storage handled before backup directory creation"),
         BackupAction::List=>Ok(json!({"folder":dir.to_string_lossy(),"backups":list(&dir)?})),
         BackupAction::Save{archive}=>save(&dir,&archive,false),
         BackupAction::SaveScheduled{archive,keep}=>save_scheduled(&dir,&archive,keep),
         BackupAction::Open{name}=>Ok(json!({"archive":read_archive(&dir,&name)?})),
     }
+}
+
+// Logical file lengths only. Bounded metadata traversal, no file reads,
+// no following symlinks/junctions, no cleanup or external folder discovery.
+const STORAGE_LIMIT:usize=50_000;
+const STORAGE_DEPTH:usize=32;
+const STORAGE_KEYS:[&str;6]=["backups","reader","webview","logs","downloads","other"];
+#[derive(Default)]
+struct Usage { bytes:u64, files:u64, skipped:u64, incomplete:bool }
+fn scan_usage(path:&Path,depth:usize,budget:&mut usize,usage:&mut Usage){
+    if *budget==0||depth>STORAGE_DEPTH {usage.incomplete=true;return;}
+    *budget-=1;
+    let Ok(meta)=fs::symlink_metadata(path) else {usage.skipped+=1;usage.incomplete=true;return;};
+    if reparse(&meta){usage.skipped+=1;usage.incomplete=true;return;}
+    if meta.is_file(){
+        usage.bytes=usage.bytes.saturating_add(meta.len()).min(9_007_199_254_740_991);
+        usage.files+=1;
+    }else if meta.is_dir(){
+        let Ok(entries)=fs::read_dir(path) else {usage.skipped+=1;usage.incomplete=true;return;};
+        for entry in entries{
+            if *budget==0 {usage.incomplete=true;break;}
+            match entry {
+                Ok(child)=>scan_usage(&child.path(),depth+1,budget,usage),
+                Err(_)=>{*budget-=1;usage.skipped+=1;usage.incomplete=true;}
+            }
+        }
+    }else{usage.skipped+=1;usage.incomplete=true;}
+}
+fn storage_usage(root:&Path)->Result<Value,&'static str>{
+    let root=root.canonicalize().map_err(|_|"App data folder unavailable.")?;
+    let entries=fs::read_dir(&root).map_err(|_|"Could not inspect app data.")?;
+    let mut groups:[Usage;6]=std::array::from_fn(|_|Usage::default());
+    let mut budgets=[STORAGE_LIMIT;6];
+    let mut root_incomplete=false;
+    for (index,entry) in entries.enumerate(){
+        if index>=MAX_DIRECTORY_ENTRIES{root_incomplete=true;break;}
+        let Ok(entry)=entry else {root_incomplete=true;continue;};
+        let name=entry.file_name().to_string_lossy().to_ascii_lowercase();
+        let kind=match name.as_str(){"backups"=>0,"reading"=>1,"webview2"=>2,"logs"=>3,"downloads"=>4,_=>5};
+        scan_usage(&entry.path(),0,&mut budgets[kind],&mut groups[kind]);
+    }
+    let rows:Vec<_>=STORAGE_KEYS.iter().zip(groups).map(|(key,row)|json!({
+        "kind":key,"bytes":row.bytes,"files":row.files,"skipped":row.skipped,
+        "complete":!root_incomplete&&!row.incomplete
+    })).collect();
+    Ok(json!({"rows":rows}))
 }
 
 #[cfg(test)]
@@ -267,6 +315,30 @@ mod tests {
         assert!(execute(&root,BackupAction::Open{name:"unrelated.json".into()}).is_err());
         fs::write(dir.join(name),"damaged").unwrap();
         assert!(execute(&root,BackupAction::Open{name:name.into()}).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn storage_scan_is_read_only_and_reports_separate_groups(){
+        let root=temp();
+        fs::create_dir(root.join("reading")).unwrap();
+        fs::write(root.join("reading").join("fixture"),b"1234").unwrap();
+        fs::create_dir(root.join("WebView2")).unwrap();
+        fs::write(root.join("WebView2").join("fixture"),b"abc").unwrap();
+        fs::write(root.join("settings.json"),b"ab").unwrap();
+        let report=execute(&root,BackupAction::Storage).unwrap();
+        let rows=report["rows"].as_array().unwrap();
+        assert_eq!(rows.len(),6);
+        assert_eq!(rows[1]["bytes"],4);
+        assert_eq!(rows[2]["bytes"],3);
+        assert_eq!(rows[5]["bytes"],2);
+        assert!(rows.iter().all(|row|row["complete"]==true));
+        assert!(!root.join("backups").exists());
+        assert_eq!(fs::read(root.join("reading").join("fixture")).unwrap(),b"1234");
+        let mut budget=0;
+        let mut usage=Usage::default();
+        scan_usage(&root,0,&mut budget,&mut usage);
+        assert!(usage.incomplete);
+        assert_eq!(usage.files,0);
         fs::remove_dir_all(root).unwrap();
     }
     #[test]

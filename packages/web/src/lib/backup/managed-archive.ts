@@ -2,7 +2,7 @@ import { appBridge,ask } from '../hosts/shell/bridge';
 import { parsePortableArchive,PORTABLE_ARCHIVE_LIMIT,type PortableArchive } from './archive';
 export type ManagedBackup={name:string;createdMs:number;bytes:number;readable:boolean};
 export type ManagedBackupList={folder:string;backups:ManagedBackup[]};
-type Action={kind:'list'}|{kind:'save';archive:string}|{kind:'save-scheduled';archive:string;keep:number}|{kind:'open';name:string};
+type Action={kind:'storage'}|{kind:'list'}|{kind:'save';archive:string}|{kind:'save-scheduled';archive:string;keep:number}|{kind:'open';name:string};
 const NAME=/^tsugi-(?:auto-)?backup-(\d{13})-[a-f\d]{32}\.json$/;
 function object(value:unknown):Record<string,unknown>{
   if(!value||typeof value!=='object'||Array.isArray(value))throw Error('backup-response');
@@ -64,4 +64,26 @@ export async function saveScheduledArchive(archive:PortableArchive,keep:0|3|7|14
     !Number.isInteger(row.removed)||row.removed<0||row.removed>499||
     typeof row.retentionIncomplete!=='boolean')throw Error('backup-write-unconfirmed');
   return {backup,removed:row.removed,retentionIncomplete:row.retentionIncomplete};
+}
+
+export const STORAGE_KINDS=['backups','reader','webview','logs','downloads','other'] as const;
+export type StorageKind=typeof STORAGE_KINDS[number];
+export type StorageRow={kind:StorageKind;bytes:number;files:number;skipped:number;complete:boolean};
+export function parseStorageUsage(value:unknown):StorageRow[]{
+  const root=object(value);exact(root,['rows']);
+  if(!Array.isArray(root.rows)||root.rows.length!==STORAGE_KINDS.length)throw Error('storage-response');
+  const seen=new Set<StorageKind>();
+  const integer=(n:unknown):n is number=>typeof n==='number'&&Number.isSafeInteger(n)&&n>=0;
+  const rows=root.rows.map(value=>{
+    const row=object(value);exact(row,['kind','bytes','files','skipped','complete']);
+    if(!STORAGE_KINDS.includes(row.kind as StorageKind)||seen.has(row.kind as StorageKind)||
+      !integer(row.bytes)||!integer(row.files)||!integer(row.skipped)||typeof row.complete!=='boolean'||
+      (row.complete&&row.skipped!==0))throw Error('storage-response');
+    const kind=row.kind as StorageKind;seen.add(kind);
+    return {kind,bytes:row.bytes,files:row.files,skipped:row.skipped,complete:row.complete};
+  });
+  return STORAGE_KINDS.map(kind=>rows.find(row=>row.kind===kind)!);
+}
+export async function inspectManagedStorage():Promise<StorageRow[]>{
+  return parseStorageUsage(await request({kind:'storage'}));
 }

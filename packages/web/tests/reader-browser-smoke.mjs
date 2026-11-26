@@ -54,7 +54,8 @@ try {
             const name=(a.kind==='save-scheduled'?'tsugi-auto-backup-':'tsugi-backup-')+createdMs+'-'+(backups.length+1).toString(16).padStart(32,'0')+'.json';
             const row={name,createdMs,bytes:new TextEncoder().encode(a.archive).length,readable:true};
             backups.push({row,archive:a.archive});data=a.kind==='save-scheduled'?{backup:row,removed:0,retentionIncomplete:false}:row;
-          }else if(a.kind==='list')data={folder:'C:/Fixture/data/backups',backups:backups.map(item=>item.row)};
+          }else if(a.kind==='storage')data={rows:['backups','reader','webview','logs','downloads','other'].map((kind,i)=>({kind,bytes:1024*(i+1),files:1,skipped:i===2?1:0,complete:i!==2}))};
+          else if(a.kind==='list')data={folder:'C:/Fixture/data/backups',backups:backups.map(item=>item.row)};
           else if(a.kind==='open'){
             const item=backups.find(item=>item.row.name===a.name);
             if(item)data={archive:item.archive};else error='missing';
@@ -357,6 +358,13 @@ try {
   await portable.getByRole('alert').filter({hasText:'Could not verify this managed backup.'}).waitFor();
   assert.equal(await portable.getByRole('heading',{name:'Portable backup preview',exact:true}).count(),0);
   console.log('PASS: managed backup bridge save, list, reopen and damaged copy rejection.');
+  const storage=bootSettings.getByRole('region',{name:'Storage management',exact:true});
+  await storage.getByRole('button',{name:'Scan app storage',exact:true}).click();
+  await storage.getByText('App data measured',{exact:true}).waitFor();
+  await storage.getByText('Partial scan',{exact:false}).waitFor();
+  assert.equal(await storage.locator('progress').count(),6);
+  assert.equal(await page.evaluate(()=>window.__readerFixture.managedBackups.length),1,'storage scan does not modify backups');
+  console.log('PASS: read-only storage inventory exposes partial results.');
   await portable.getByRole('combobox',{name:'Backup frequency'}).selectOption('daily');
   await portable.getByRole('combobox',{name:'Scheduled copy retention'}).selectOption('7');
   await page.evaluate(()=>{const key='tsugi-backup-schedule-v1';const state=JSON.parse(localStorage.getItem(key));localStorage.setItem(key,JSON.stringify({...state,dueMs:Date.now()-1}));window.dispatchEvent(new Event('focus'));});

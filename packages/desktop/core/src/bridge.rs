@@ -118,6 +118,7 @@ pub enum ReadAction {
 #[serde(tag="kind",rename_all="kebab-case",deny_unknown_fields)]
 pub enum BackupAction {
     List,
+    Storage,
     Save { archive: String },
     SaveScheduled { archive: String, keep: usize },
     Open { name: String },

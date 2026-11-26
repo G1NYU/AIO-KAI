@@ -15,6 +15,7 @@ import { MusicBackupSettings } from './music-backup-settings';
 import { BookBackupSettings } from './book-backup-settings';
 import { MangaBackupSettings } from './manga-backup-settings';
 import { PortableArchiveSettings } from './portable-archive-settings';
+import { StorageUsageSettings } from './storage-usage-settings';
 import type { ArchiveKind, PortableArchive } from '@/lib/backup/archive';
 
 const IMPORT_COLORS_KEY = 'tsugi-global-import-colors-v1';
@@ -183,6 +184,7 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
     <MusicBackupSettings archiveEntry={archived('music')} />
     <BookBackupSettings archiveEntry={archived('books')} />
     <MangaBackupSettings archiveEntry={archived('manga')} />
+    <StorageUsageSettings />
     <section className="tsugi-app-about" aria-label={t`About Tsugi`}>
       <h3 className="font-semibold text-[--tsugi-ink]"><Trans>About Tsugi</Trans></h3>
       {bridge?.version && <p><Trans>Version</Trans> · {bridge.version}</p>}
