@@ -177,14 +177,17 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
     </section>
     <GlobalAppearanceSettings />
     <PortableArchiveSettings archive={archive} onArchive={setArchive} />
-    <PreferencesBackupSettings archiveEntry={archived('preferences')} onApplied={()=>{
-      setStartup(readStartupArea()); setLayout(readPlayerStage().id); setMatrix(readMatrixMode());
-      announce(readPlayerTheme()); notifyEclipseAppearance();
-      window.dispatchEvent(new Event('tsugi-player-preferences-change'));
-    }} />
-    <MusicBackupSettings archiveEntry={archived('music')} />
-    <BookBackupSettings archiveEntry={archived('books')} />
-    <MangaBackupSettings archiveEntry={archived('manga')} />
+    {/* Closing or replacing an archive invalidates every unconfirmed section review. */}
+    <React.Fragment key={archive?.entries.map(entry=>entry.sha256).join(':')??'standalone'}>
+      <PreferencesBackupSettings archiveEntry={archived('preferences')} onApplied={()=>{
+        setStartup(readStartupArea()); setLayout(readPlayerStage().id); setMatrix(readMatrixMode());
+        announce(readPlayerTheme()); notifyEclipseAppearance();
+        window.dispatchEvent(new Event('tsugi-player-preferences-change'));
+      }} />
+      <MusicBackupSettings archiveEntry={archived('music')} />
+      <BookBackupSettings archiveEntry={archived('books')} />
+      <MangaBackupSettings archiveEntry={archived('manga')} />
+    </React.Fragment>
     <StorageUsageSettings />
     <TsugiReleaseSettings />
     <section className="tsugi-app-about" aria-label={t`About Tsugi`}>

@@ -376,8 +376,8 @@ try {
   await page.waitForFunction(()=>document.documentElement.dataset.tsugiTheme==='carbon');
   await musicBackup.getByRole('button',{name:'Review archived music',exact:true}).click();
   await musicBackup.getByRole('heading',{name:'Music restore preview',exact:true}).waitFor();
-  await musicBackup.getByRole('button',{name:'Cancel music restore',exact:true}).click();
   await portable.getByRole('button',{name:'Close portable backup',exact:true}).click();
+  assert.equal(await musicBackup.getByRole('button',{name:'Merge music library',exact:true}).count(),0,'closing an archive invalidates outstanding section reviews');
   console.log('PASS: validated portable archive and explicit per-domain restore review.');
   const shelfData={...mangaData,categories:['Recovered shelf','Empty shelf'],manga:mangaData.manga.map(row=>({...row,categories:row.identity===savedManga.identity?['Recovered shelf']:[],chapters:[]}))};
   await mangaBackup.locator('input[type=file]').setInputFiles({name:'shelves.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(shelfData))});
