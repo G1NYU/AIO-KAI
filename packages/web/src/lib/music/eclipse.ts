@@ -102,6 +102,23 @@ export function safeHttpsUrl(value: unknown): string | undefined {
   }
 }
 
+/**
+ * Curated desktop suggestions, not a restriction on manually connected addons.
+ * These four registry entries currently require iOS credentials, have an
+ * unreachable setup route, or return HLS that TSUGI's music player cannot
+ * decode. Keep saved and manually entered source URLs unchanged.
+ */
+const unavailableDesktopStoreIds = new Set([
+  'com.eclipse.community.ytmusic',
+  'com.eclipse.community.soundcloud.eclipse',
+  'com.eclipse.community.soundcloud',
+  'com.eclipse.community.ytmusic.ricky',
+]);
+
+export function desktopStoreSuggestions(entries: EclipseStoreEntry[]): EclipseStoreEntry[] {
+  return entries.filter(entry => !unavailableDesktopStoreIds.has(entry.id));
+}
+
 export function parseStoreRegistry(value: unknown): EclipseStoreEntry[] {
   if (!record(value) || !Array.isArray(value.addons)) {
     throw new Error('The Eclipse addon store returned an invalid registry.');

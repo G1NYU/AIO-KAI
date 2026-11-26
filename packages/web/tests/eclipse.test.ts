@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   addonEndpoint, loadAddon, loadStore, manifestUrlFor, parseManifest,
-  parseStoreRegistry, parseStream, parseTracks, resolveTrack, safeHttpsUrl, searchAddon,
+  parseStoreRegistry, desktopStoreSuggestions, parseStream, parseTracks, resolveTrack, safeHttpsUrl, searchAddon,
   parseCatalogItems, catalogTrack, loadCatalog, loadDetail, parseDetail, parseSearchResults,
 } from '../src/lib/music/eclipse';
 
@@ -20,6 +20,27 @@ describe('Eclipse public addon compatibility', () => {
       { id: 'bad', name: 'Code', setupUrl: 'javascript:alert(1)' },
     ] }).map(({ id }) => id)).toEqual(['one', 'two']);
     expect(() => parseStoreRegistry({})).toThrow('invalid registry');
+  });
+
+  it('does not recommend known desktop-incompatible community sources, but keeps the full registry available', () => {
+    const ids = [
+      'com.eclipse.community.ytmusic',
+      'com.eclipse.community.soundcloud.eclipse',
+      'com.eclipse.community.soundcloud',
+      'com.eclipse.community.ytmusic.ricky',
+      'com.eclipse.community.ultramax',
+      'com.eclipse.community.internetarchive',
+      'private.custom.addon',
+    ];
+    const all = parseStoreRegistry({ addons: ids.map(id => ({
+      id, name: id, setupUrl: 'https://addons.example/setup',
+    })) });
+    expect(all.map(({ id }) => id)).toEqual(ids);
+    expect(desktopStoreSuggestions(all).map(({ id }) => id)).toEqual([
+      'com.eclipse.community.ultramax',
+      'com.eclipse.community.internetarchive',
+      'private.custom.addon',
+    ]);
   });
 
   it('preserves personal URL paths while rejecting unsafe schemes', () => {

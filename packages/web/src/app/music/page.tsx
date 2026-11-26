@@ -7,7 +7,7 @@ import { Trans } from '@lingui/react/macro';
 
 
 import {
-  loadAddon, loadStore, manifestUrlFor,
+  loadAddon, loadStore, desktopStoreSuggestions, manifestUrlFor,
   type EclipseCatalogItem, type EclipseStoreEntry, type EclipseTrack,
 } from '@/lib/music/eclipse';
 import {
@@ -404,7 +404,7 @@ export function MusicPage({
     setStoreError('');
     setStoreLoading(true);
     loadStore(controller.signal).then(items => {
-      if (!controller.signal.aborted) setStore(items);
+      if (!controller.signal.aborted) setStore(desktopStoreSuggestions(items));
     }).catch((error: unknown) => {
       if (!controller.signal.aborted) setStoreError((error as Error).message);
     }).finally(() => {
