@@ -50,7 +50,7 @@ export function PreferencesBackupSettings({onApplied}:{onApplied():void}) {
     <div className="flex flex-wrap gap-2">
       <button type="button" className="tsugi-read-action" disabled={busy} onClick={download}><Trans>Export preferences</Trans></button>
       <label className="min-w-0"><span><Trans>Preview preferences restore</Trans></span>
-        <input type="file" accept=".json,application/json" className="tsugi-read-input w-full" disabled={busy} onChange={event=>{
+        <input type="file" accept=".json,application/json" className="tsugi-read-input w-full min-w-0 max-w-full" disabled={busy} onChange={event=>{
           const file=event.target.files?.[0];event.target.value='';void load(file);
         }}/>
       </label>

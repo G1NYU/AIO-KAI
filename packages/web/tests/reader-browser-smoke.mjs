@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { pdfFixture, epubFixture } from './ebook-fixtures.mjs';
 import { pathToFileURL } from 'node:url';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 const { chromium } = await import(pathToFileURL(process.env.TSUGI_READER_PLAYWRIGHT).href);
 const origin = 'http://127.0.0.1:4179';
@@ -233,6 +233,13 @@ try {
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('tsugi-startup-area-v1'))), 'music');
   await startup.selectOption('auto');
   const prefs=bootSettings.getByRole('region',{name:'Preferences backup',exact:true});
+  const downloadEvent=page.waitForEvent('download');
+  await prefs.getByRole('button',{name:'Export preferences',exact:true}).click();
+  const exported=await downloadEvent;
+  assert.equal(exported.suggestedFilename(),'tsugi-preferences.json');
+  const exportedPrefs=JSON.parse(await readFile(await exported.path(),'utf8'));
+  assert.equal(exportedPrefs.format,'tsugi-preferences');
+  assert.equal(exportedPrefs.settings.theme,'mocha');
   const file={format:'tsugi-preferences',version:1,settings:{theme:'carbon',accent:'amber',startup:'auto',matrix:'wave',layout:'default',audioProfile:'flat',reader:{mode:'scroll',width:55,gap:false,rtl:false,fit:'width',background:'black',focus:false,autoNext:false,wheelZoom:true,resume:true}}};
   await prefs.locator('input[type=file]').setInputFiles({name:'preferences.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(file))});
   await prefs.getByRole('heading',{name:'Restore preview',exact:true}).waitFor();
