@@ -63,4 +63,4 @@ Implementation and test entry points:
 - `packages/desktop/scripts/read-runtime/fixture/FeedFixtureFactory.java`, `FeedFixtureSource.java`, and `AndroidManifest-feed.xml`: authored source fixture.
 - `packages/web/tests/source-feed.test.ts`, `source-feed-preferences.test.ts`, and `source-feed-browser.mjs`: state, storage and browser regression coverage.
 
-This slice does not complete the wider B1 roadmap. Richer source/extension metadata and icons, extension-provided source preferences, wider language/adult-content filtering and physical/live-provider acceptance remain separate work.
+This slice is part of the wider B1 roadmap. The subsequent [source-management batch](source-management.md) adds source/extension metadata and language/content filters; [supported source settings](source-settings.md) documents the separate switch, checkbox and single-choice editor. Native icons, additional preference types and physical/live-provider acceptance remain open.
