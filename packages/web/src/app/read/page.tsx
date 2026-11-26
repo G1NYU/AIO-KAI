@@ -15,6 +15,8 @@ import { lookupMissingCover, mayLookUpCover, readCoverFallback, saveCoverFallbac
 import { ReaderSettings } from './reader-settings';
 import { ReaderDownloads, DownloadFeedback, useReaderDownloads } from './reader-downloads';
 import { MAX_DOWNLOAD_SELECTION } from './reader-downloads-state';
+import { LocalComicImport, useLocalComicImport } from './local-comic-import';
+import type { LocalComicResult } from './local-comic-import-state';
 import { SourceFeed, useSourceFeed } from './source-feed';
 import type { FeedManga } from './source-feed-state';
 import { normalizedContentWarning, sourceLanguages, sourceMatchesFilters, type ContentFilter, type SourceMetadata as Source } from './source-metadata';
@@ -135,6 +137,7 @@ export function ReadPage({ visible }: {
   const [chapterState, setChapterState] = React.useState<'all' | 'unread' | 'read' | 'bookmarked'>('all');
   const [selectedChapters, setSelectedChapters] = React.useState<number[]>([]);
   const [downloadSelectionAttempted, setDownloadSelectionAttempted] = React.useState(false);
+  const [localImportOpen, setLocalImportOpen] = React.useState(false);
   const [trackers, setTrackers] = React.useState<Nodes<Tracker> | null>(null);
   const [trackingOpen, setTrackingOpen] = React.useState(false);
   const [extensionFailures, setExtensionFailures] = React.useState<Record<string, string>>({});
@@ -153,6 +156,7 @@ export function ReadPage({ visible }: {
     finally { lock.current = false; if (active.current) setBusy(false); }
   }, []);
   const downloads = useReaderDownloads(visible && tab === 'downloads' && !details && !reader, serializedRequest);
+  const localImport = useLocalComicImport(serializedRequest);
 
   async function run(work: () => Promise<void>) {
     if (lock.current) return;
@@ -371,6 +375,15 @@ export function ReadPage({ visible }: {
     setDownloadSelectionAttempted(true);
     if (await downloads.controller.change({ kind: 'enqueue-downloads', ids })) setSelectedChapters([]);
     await run(() => refreshChapterDownloads(mangaId));
+  }
+  function openImportedComic(result: Extract<LocalComicResult, { mangaId: number }>) {
+    setLocalImportOpen(false); setTab('library');
+    void run(async () => {
+      const data = await showManga({ id: result.mangaId, title: result.title, inLibrary: true }, true);
+      const chapter = firstChapter(data.chapters);
+      if (!chapter) throw new Error(t({ id: 'The local comic has no available chapter yet. Refresh the library or choose the same CBZ again for a fresh review.', message: 'The local comic has no available chapter yet. Refresh the library or choose the same CBZ again for a fresh review.' }));
+      await openChapter(chapter);
+    });
   }
   async function changeExtension(extension: Extension) {
     setExtensionFailures((old) => { const next = { ...old }; delete next[extension.pkgName]; return next; });
@@ -751,7 +764,7 @@ export function ReadPage({ visible }: {
       </section>}
       <div className="tsugi-library-controls">
       {categories.length > 0 && <nav className="tsugi-library-shelves" aria-label={t({ id: "Library categories", message: "Library categories" })}><button type="button" aria-current={!categoryFilter ? 'page' : undefined} onClick={() => setCategoryFilter(0)}><Trans id="All shelves">All shelves</Trans></button>{categories.map(category => <button type="button" key={category.id} aria-current={categoryFilter === category.id ? 'page' : undefined} onClick={() => setCategoryFilter(category.id)}>{category.name}</button>)}<button type="button" disabled={busy} onClick={() => switchTab('categories')}><FiPlus aria-hidden /><Trans id="Manage categories">Manage categories</Trans></button></nav>}
-      <div className="tsugi-reading-list-header"><nav className="tsugi-read-subnav" aria-label={t({ id: "Library view", message: "Library view" })}><button aria-current={libraryView === 'all' ? 'page' : undefined} onClick={() => setLibraryView('all')}><Trans id="All manga">All manga</Trans></button><button aria-current={libraryView === 'reading' ? 'page' : undefined} onClick={() => setLibraryView('reading')}><Trans id="In progress">In progress</Trans></button></nav><div className="tsugi-reading-filters"><input className="tsugi-read-input" placeholder={t({ id: "Find in library", message: "Find in library" })} aria-label={t({ id: "Find in library", message: "Find in library" })} value={libraryFilter} onChange={(event) => setLibraryFilter(event.target.value)} /><select className="tsugi-read-input" aria-label={t({ id: "Library sort", message: "Library sort" })} value={librarySort} onChange={(event) => setLibrarySort(event.target.value as typeof librarySort)}><option value="title"><Trans id="Title">Title</Trans></option><option value="recent"><Trans id="Recently read">Recently read</Trans></option></select><button className="tsugi-read-action" disabled={busy} onClick={() => void run(loadLibrary)} aria-label={t({ id: "Refresh library", message: "Refresh library" })}><FiRefreshCw aria-hidden /></button></div></div>
+      <div className="tsugi-reading-list-header"><nav className="tsugi-read-subnav" aria-label={t({ id: "Library view", message: "Library view" })}><button aria-current={libraryView === 'all' ? 'page' : undefined} onClick={() => setLibraryView('all')}><Trans id="All manga">All manga</Trans></button><button aria-current={libraryView === 'reading' ? 'page' : undefined} onClick={() => setLibraryView('reading')}><Trans id="In progress">In progress</Trans></button></nav><div className="tsugi-reading-filters"><input className="tsugi-read-input" placeholder={t({ id: "Find in library", message: "Find in library" })} aria-label={t({ id: "Find in library", message: "Find in library" })} value={libraryFilter} onChange={(event) => setLibraryFilter(event.target.value)} /><select className="tsugi-read-input" aria-label={t({ id: "Library sort", message: "Library sort" })} value={librarySort} onChange={(event) => setLibrarySort(event.target.value as typeof librarySort)}><option value="title"><Trans id="Title">Title</Trans></option><option value="recent"><Trans id="Recently read">Recently read</Trans></option></select><button className="tsugi-read-action" disabled={busy} onClick={() => { setLocalImportOpen(true); void localImport.controller.begin(); }}><FiPlus aria-hidden /><Trans id="Import CBZ">Import CBZ</Trans></button><button className="tsugi-read-action" disabled={busy} onClick={() => void run(loadLibrary)} aria-label={t({ id: "Refresh library", message: "Refresh library" })}><FiRefreshCw aria-hidden /></button></div></div>
       </div>
       {!allLibrary.length && !busy && <div className="tsugi-reading-empty"><FiBookOpen aria-hidden /><h2><Trans id="Your library is empty">Your library is empty</Trans></h2><p><Trans id="Browse a source to add manga and keep your reading progress in one place.">Browse a source to add manga and keep your reading progress in one place.</Trans></p><div className="tsugi-empty-actions"><button className="tsugi-read-action tsugi-empty-primary" onClick={() => switchTab('browse')}><Trans id="Browse sources">Browse sources</Trans></button><button className="tsugi-read-action" onClick={() => switchBrowse('extensions')}><Trans id="Extensions">Extensions</Trans></button></div></div>}
       {!!allLibrary.length && !rows.length && !busy && <p className="py-8 text-[--tsugi-muted]"><Trans id="No manga match your filters.">No manga match your filters.</Trans></p>}
@@ -761,6 +774,7 @@ export function ReadPage({ visible }: {
     </section>}
     </div>
     {sourceSettings && <SourceSettings key={sourceSettings.id} source={sourceSettings} busy={busy} request={serializedRequest} onClose={() => setSourceSettings(null)} />}
+    {localImportOpen && <LocalComicImport localImport={localImport} busy={busy} onClose={() => setLocalImportOpen(false)} onImported={() => run(loadLibrary)} onOpen={openImportedComic} />}
   </main>;
 }
 

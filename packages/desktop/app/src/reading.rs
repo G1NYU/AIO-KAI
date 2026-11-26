@@ -13,7 +13,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use aiostreams_desktop_core::bridge::{Outbound, ReadAction};
-use aiostreams_desktop_core::read_runtime::{CatalogueMode, ChapterPages, DownloadCleanupReview, SourcePreferencesReview, ReadJob, ReadOperation, ReadRuntime};
+use aiostreams_desktop_core::read_runtime::{CatalogueMode, ChapterPages, DownloadCleanupReview, LocalImportReview, SourcePreferencesReview, ReadJob, ReadOperation, ReadRuntime};
 use serde_json::{Value, json};
 
 use crate::Args;
@@ -163,6 +163,7 @@ impl Worker {
             let mut chapter = None;
             let mut cleanup = None;
             let mut preferences = None;
+            let mut local_import = None;
             let mut serial = 0u64;
             while !stopped.load(Ordering::Acquire) {
                 let (request, action) = match rx.recv_timeout(Duration::from_millis(100)) {
@@ -182,12 +183,13 @@ impl Worker {
                     if preparing {
                         return Ok(json!({"ready": true}));
                     }
-                    execute(reader.as_mut().unwrap(), &mut chapter, &mut cleanup, &mut preferences, &images, &mut serial, owner, &stopped, action)
+                    execute(reader.as_mut().unwrap(), &mut chapter, &mut cleanup, &mut preferences, &mut local_import, &images, &mut serial, owner, &stopped, action)
                 })();
                 if !stopped.load(Ordering::Acquire) {
                     answer(&reply, request, result);
                 }
             }
+            drop(local_import.take());
             if let Some(mut reader) = reader {
                 if let Err(error) = reader.shutdown() {
                     log::warn!("Reading shutdown: {error}");
@@ -269,6 +271,31 @@ fn confirm_store(owner: isize, index: &str) -> bool {
     confirm(owner, "Tsugi reading repository", &format!("Register this reading repository?\n\n{index}\n\nOnly add repositories you trust. Registering a store does not install its extensions."))
 }
 
+fn choose_cbz(owner: isize) -> Result<Option<PathBuf>, &'static str> {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStringExt;
+    use windows_sys::Win32::UI::Controls::Dialogs::{
+        CommDlgExtendedError, GetOpenFileNameW, OPENFILENAMEW, OFN_DONTADDTORECENT,
+        OFN_FILEMUSTEXIST, OFN_NOCHANGEDIR, OFN_NODEREFERENCELINKS, OFN_PATHMUSTEXIST,
+    };
+    let filter = "CBZ comic archives\0*.cbz\0\0".encode_utf16().collect::<Vec<_>>();
+    let title = "Choose a local CBZ comic\0".encode_utf16().collect::<Vec<_>>();
+    let mut path = vec![0u16; 32768];
+    let mut dialog = OPENFILENAMEW { lStructSize: std::mem::size_of::<OPENFILENAMEW>() as u32,
+        hwndOwner: owner as _, lpstrFilter: filter.as_ptr(), lpstrTitle: title.as_ptr(),
+        lpstrFile: path.as_mut_ptr(), nMaxFile: path.len() as u32,
+        Flags: OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | OFN_DONTADDTORECENT | OFN_NODEREFERENCELINKS,
+        ..Default::default() };
+    // SAFETY: the fixed buffers outlive this modal call; the API is bounded by nMaxFile.
+    if unsafe { GetOpenFileNameW(&mut dialog) } == 0 {
+        // A cancelled picker is distinct from a Windows dialog failure.
+        return if unsafe { CommDlgExtendedError() } == 0 { Ok(None) } else { Err("The CBZ file picker could not be opened.") };
+    }
+    let length = path.iter().position(|unit| *unit == 0).ok_or("The CBZ file selection is invalid.")?;
+    if length == 0 { return Err("The CBZ file selection is invalid."); }
+    Ok(Some(OsString::from_wide(&path[..length]).into()))
+}
+
 fn stage_image(cache: &Cache, serial: &mut u64, image: aiostreams_desktop_core::read_runtime::PageImage) -> Result<Value, &'static str> {
     *serial = serial.checked_add(1).ok_or("Reading image counter exhausted.")?;
     let path = format!("{PAGE_PREFIX}{serial}");
@@ -283,6 +310,7 @@ fn execute(
     chapter: &mut Option<(i32, String, ChapterPages)>,
     cleanup: &mut Option<DownloadCleanupReview>,
     preferences: &mut Option<SourcePreferencesReview>,
+    local_import: &mut Option<LocalImportReview>,
     cache: &Cache,
     serial: &mut u64,
     owner: isize,
@@ -291,6 +319,33 @@ fn execute(
 ) -> Result<Value, &'static str> {
     match action {
         ReadAction::Prepare => Err("Invalid reading setup state."),
+        ReadAction::BeginLocalImport {} => {
+            *local_import = None;
+            let Some(path) = choose_cbz(owner)? else { return Ok(json!({"cancelled": true})); };
+            if stopped.load(Ordering::Acquire) { return Err("Reading is closing."); }
+            let review = reader.review_local_import(&path, stopped)?;
+            let preview = review.preview(); *local_import = Some(review); Ok(preview)
+        }
+        ReadAction::CancelLocalImport { review_id } => {
+            if review_id.len() != 32 || !review_id.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {
+                return Err("The CBZ import review expired or changed. Choose the archive again.");
+            }
+            let cancelled = local_import.as_ref().is_some_and(|review| review.id() == review_id);
+            if cancelled { *local_import = None; }
+            Ok(json!({"reviewId": review_id, "cancelled": cancelled}))
+        }
+        ReadAction::ApplyLocalImport { review_id } => {
+            if !local_import.as_ref().is_some_and(|review| review.id() == review_id) {
+                return Err("The CBZ import review expired or changed. Choose the archive again.");
+            }
+            let review = local_import.take().unwrap();
+            if !confirm(owner, "Tsugi local comic import", review.description()) {
+                return Ok(json!({"reviewId": review_id, "status": "cancelled"}));
+            }
+            if stopped.load(Ordering::Acquire) { return Err("Reading is closing."); }
+            *cleanup = None; *preferences = None;
+            reader.apply_local_import(review)
+        }
         ReadAction::SourcePreferences { source } => {
             *preferences = None;
             if chapter.is_some() { return Err("Close the open manga chapter before loading source settings."); }

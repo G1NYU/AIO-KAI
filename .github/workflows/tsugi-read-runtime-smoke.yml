@@ -15,6 +15,8 @@ on:
       - 'packages/desktop/core/src/read_download_cleanup_tests.rs'
       - 'packages/desktop/core/src/read_downloads.rs'
       - 'packages/desktop/core/src/read_downloads_tests.rs'
+      - 'packages/desktop/core/src/read_local_import.rs'
+      - 'packages/desktop/core/src/read_local_import_tests.rs'
       - 'packages/desktop/core/src/read_feed_tests.rs'
       - 'packages/desktop/core/src/read_metadata_tests.rs'
       - 'packages/desktop/core/src/read_icons.rs'
@@ -54,6 +56,19 @@ jobs:
           New-Item -ItemType Directory -Force $destination | Out-Null
           & $javac --release 21 -d $destination packages/desktop/scripts/read-runtime/TsugiReadLauncher.java
           if ($LASTEXITCODE -ne 0) { throw 'Tsugi reading launcher compilation failed' }
+          if (@(Get-ChildItem -LiteralPath $destination -Filter '*.class' -File -Recurse).Count -ne 1) {
+            throw 'Reading setup copies one launcher class; update its explicit asset contract before adding companion classes'
+          }
+      - name: Validate bounded CBZ import and author local comic fixtures
+        run: |
+          $java = Join-Path $env:JAVA_HOME_21_X64 'bin'
+          $runtime = "$env:RUNNER_TEMP/tsugi-read-runtime"
+          $classes = "$env:RUNNER_TEMP/tsugi-cbz-fixture-classes"
+          New-Item -ItemType Directory -Force $classes | Out-Null
+          & "$java/javac.exe" --release 21 -cp "$runtime/launcher" -d $classes packages/desktop/scripts/read-runtime/TsugiCbzImportTest.java
+          if ($LASTEXITCODE -ne 0) { throw 'Local comic validation fixture compilation failed' }
+          & "$java/java.exe" -Xmx384m -Djava.awt.headless=true -cp "$runtime/launcher;$classes" TsugiCbzImportTest "$runtime/test-fixtures"
+          if ($LASTEXITCODE -ne 0) { throw 'Bounded local comic validation failed' }
       - name: Compile original test-only extension against pinned runtime
         run: |
           $java = Join-Path $env:JAVA_HOME_21_X64 'bin'
@@ -127,7 +142,7 @@ jobs:
                 'Failed to fetch extension store', 'Shutting down HikariCP',
                 'Failed to sync preference store', 'AccessDeniedException',
                 'FileSystemException', 'SQLException', 'JdbcSQL', 'NoClassDefFoundError')
-              foreach ($kind in @('library', 'stores', 'extension', 'extension-update', 'download-cleanup-folder', 'download-cleanup-cbz', 'download-cleanup-locked', 'download-actions', 'feed', 'metadata', 'source-settings')) {
+              foreach ($kind in @('library', 'stores', 'extension', 'extension-update', 'download-cleanup-folder', 'download-cleanup-cbz', 'download-cleanup-locked', 'download-actions', 'local-import', 'feed', 'metadata', 'source-settings')) {
                 $logs = Join-Path $env:TSUGI_READ_FIXTURE "$kind/logs"
                 if (Test-Path -LiteralPath $logs) {
                   foreach ($marker in $markers) {

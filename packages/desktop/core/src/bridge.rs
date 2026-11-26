@@ -122,6 +122,9 @@ pub enum ReadAction {
     RetryDownloads { ids: Vec<i32> },
     PauseDownloads {},
     ResumeDownloads {},
+    BeginLocalImport {},
+    ApplyLocalImport { review_id: String },
+    CancelLocalImport { review_id: String },
     Page { chapter_id: i32, index: usize },
     Progress { chapter_id: i32, index: usize, finished: bool },
     DownloadCleanupCandidates { offset: u32 },
@@ -182,6 +185,21 @@ mod reading_metadata_tests {
                 assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":kind,"ids":ids})).is_err());
             }
             assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":kind,"ids":[1],"deleteFiles":true})).is_err());
+        }
+    }
+
+    #[test]
+    fn local_import_bridge_accepts_only_native_picker_and_review_capability() {
+        assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":"begin-local-import"})).is_ok());
+        for extra in ["path", "url", "archive", "title"] {
+            let mut value = serde_json::json!({"kind":"begin-local-import"});
+            value[extra] = serde_json::json!("untrusted");
+            assert!(serde_json::from_value::<ReadAction>(value).is_err());
+        }
+        for kind in ["apply-local-import", "cancel-local-import"] {
+            assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":kind,"reviewId":"a".repeat(32)})).is_ok());
+            assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":kind,"reviewId":42})).is_err());
+            assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":kind,"reviewId":"a".repeat(32),"path":"C:/outside.cbz"})).is_err());
         }
     }
 }

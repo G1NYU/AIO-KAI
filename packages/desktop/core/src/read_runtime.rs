@@ -34,6 +34,10 @@ mod icons;
 #[path = "read_downloads.rs"]
 mod downloads;
 
+#[path = "read_local_import.rs"]
+mod local_import;
+pub use local_import::LocalImportReview;
+
 #[cfg(test)]
 #[path = "read_feed_tests.rs"]
 mod feed_tests;
@@ -1448,6 +1452,7 @@ impl ReadRuntime {
             .map_err(|_| "Could not allocate reading port.")?
             .port();
         let storage = ReadStorage::open(&data, port)?;
+        local_import::remove_abandoned_stages(&data);
         drop(listener);
         let (child, client, job) = Self::spawn(&runtime, &data, &storage, port)?;
         let mut managed = Self {
@@ -1796,11 +1801,19 @@ impl ReadRuntime {
             CatalogueMode::Search(query) if !query.trim().is_empty() && query.chars().count() <= 200 => ("SEARCH", Some(query)),
             CatalogueMode::Search(_) => return Err("Invalid reading search."),
         };
-        self.client.slow().mutation(
-            "mutation TsugiCatalogue($input: FetchSourceMangaInput!) { fetchSourceManga(input: $input) { hasNextPage mangas { id sourceId title author thumbnailUrl inLibrary } } }",
+        if source == "0" { self.preflight_local_import_catalogue(query)?; }
+        let mut result = self.client.slow().mutation(
+            "mutation TsugiCatalogue($input: FetchSourceMangaInput!) { fetchSourceManga(input: $input) { hasNextPage mangas { id sourceId url title author thumbnailUrl inLibrary } } }",
             "fetchSourceManga",
             json!({ "source": source, "page": page, "type": kind, "query": query }),
-        )
+        )?;
+        if source == "0" { self.complete_local_import_catalogue(&mut result, query)?; }
+        // URL is used only for native local-import ownership checks. Preserve
+        // the existing public catalogue shape for local and provider results.
+        for row in result["mangas"].as_array_mut().ok_or("Invalid reading catalogue response.")? {
+            row.as_object_mut().ok_or("Invalid reading catalogue response.")?.remove("url");
+        }
+        Ok(result)
     }
 
     pub fn manga(&self, id: i32) -> Result<Value, &'static str> {

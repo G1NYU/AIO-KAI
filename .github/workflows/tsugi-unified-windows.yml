@@ -45,7 +45,7 @@ jobs:
       - name: Verify pinned ebook engine preparation
         run: pnpm -F @aiostreams/web prepare:ebooks
       - name: Desktop navigation and music regression tests
-        run: pnpm exec vitest run packages/web/tests/reader-utils.test.ts packages/web/tests/desktop-area.test.ts packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts packages/web/tests/player-template.test.ts packages/web/tests/player-layout.test.ts packages/web/tests/music-feature-pack.test.ts packages/web/tests/music-lyrics.test.ts packages/web/tests/music-history.test.ts packages/web/tests/eclipse-appearance.test.ts packages/web/tests/music-library.test.ts packages/web/tests/audio-profiles.test.ts packages/web/tests/preferences-backup.test.ts packages/web/tests/music-backup.test.ts packages/web/tests/book-backup.test.ts packages/web/tests/manga-backup.test.ts packages/web/tests/portable-archive.test.ts packages/web/tests/manga-categories.test.ts packages/web/tests/managed-archive.test.ts packages/web/tests/backup-schedule.test.ts packages/web/tests/tsugi-release.test.ts packages/web/tests/restore-session.test.ts packages/web/tests/mihon-backup.test.ts packages/web/tests/download-cleanup.test.ts packages/web/tests/source-feed-preferences.test.ts packages/web/tests/source-feed.test.ts packages/web/tests/source-metadata.test.ts packages/web/tests/reader-settings-search.test.ts packages/web/tests/support-summary.test.ts packages/web/tests/reader-downloads.test.ts
+        run: pnpm exec vitest run packages/web/tests/reader-utils.test.ts packages/web/tests/desktop-area.test.ts packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts packages/web/tests/player-template.test.ts packages/web/tests/player-layout.test.ts packages/web/tests/music-feature-pack.test.ts packages/web/tests/music-lyrics.test.ts packages/web/tests/music-history.test.ts packages/web/tests/eclipse-appearance.test.ts packages/web/tests/music-library.test.ts packages/web/tests/audio-profiles.test.ts packages/web/tests/preferences-backup.test.ts packages/web/tests/music-backup.test.ts packages/web/tests/book-backup.test.ts packages/web/tests/manga-backup.test.ts packages/web/tests/portable-archive.test.ts packages/web/tests/manga-categories.test.ts packages/web/tests/managed-archive.test.ts packages/web/tests/backup-schedule.test.ts packages/web/tests/tsugi-release.test.ts packages/web/tests/restore-session.test.ts packages/web/tests/mihon-backup.test.ts packages/web/tests/download-cleanup.test.ts packages/web/tests/source-feed-preferences.test.ts packages/web/tests/source-feed.test.ts packages/web/tests/source-metadata.test.ts packages/web/tests/reader-settings-search.test.ts packages/web/tests/support-summary.test.ts packages/web/tests/reader-downloads.test.ts packages/web/tests/local-comic-import.test.ts
       - name: Browser interaction smoke (no desktop packaging)
         run: |
           npm install --prefix "$RUNNER_TEMP/tsugi-reader-browser" --no-audit --no-fund --no-save playwright@1.58.2
@@ -255,6 +255,9 @@ jobs:
           $launcher = New-Item -ItemType Directory -Force "$current/read-launcher"
           & "$env:JAVA_HOME_21_X64/bin/javac.exe" --release 21 -d $launcher packages/desktop/scripts/read-runtime/TsugiReadLauncher.java
           if ($LASTEXITCODE -ne 0) { throw 'Reading launcher compilation failed' }
+          if (@(Get-ChildItem -LiteralPath $launcher -Filter '*.class' -File -Recurse).Count -ne 1) {
+            throw 'Reading setup copies one launcher class; update its explicit asset contract before adding companion classes'
+          }
           Copy-Item packages/desktop/scripts/fetch-read-tools.ps1 $launcher
           Copy-Item LICENSE $stage
       - uses: actions/upload-artifact@v7
