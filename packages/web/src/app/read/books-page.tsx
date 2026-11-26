@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '@lingui/core/macro';
+import { toast } from 'sonner';
 import { Trans } from '@lingui/react/macro';
 import { TsugiRail } from '@/components/shell/tsugi-rail';
 import { BrushBook, BrushPlus, BrushSearch, BrushRefresh, BrushHistory, BrushGrid, BrushRight, BrushBack } from '@/components/tsugi-icons';
@@ -73,6 +74,20 @@ export function BooksPage() {
     catch { setError(t`Could not open the saved book.`); }
     finally { setBusy(false); }
   }
+  const handledResume = useRef<unknown>(null);
+  useEffect(() => {
+    const target = actions?.resumeTarget;
+    if (target?.kind !== 'book' || loading || busy || handledResume.current === target) return;
+    handledResume.current = target;
+    actions?.consumeResume?.(target);
+    if (active) {
+      if (active.entry.id !== target.id) toast.info(t`Close the current book before opening another from Up next.`);
+      return;
+    }
+    const entry = books.find(book => book.id === target.id);
+    if (!entry) { setError(t`The saved book file is missing.`); return; }
+    void open(entry);
+  }, [actions?.resumeTarget, loading, busy, books, active]);
   async function deleteCopy(entry: BookEntry) {
     setBusy(true); setError('');
     try { await removeBook(entry.id); setDetails(null); setConfirm(false); await refresh(); }

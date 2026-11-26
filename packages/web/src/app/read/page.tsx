@@ -1,5 +1,6 @@
 import { BrushBack as FiArrowLeft, BrushBook as FiBookOpen, BrushRight as FiChevronRight, BrushCompass as FiCompass, BrushGrid as FiGrid, BrushSearch as FiSearch, BrushSettings as FiSettings, BrushHistory as FiClock, BrushRefresh as FiRefreshCw, BrushBookmark as FiBookmark, BrushFolder as FiFolder, BrushBell as FiBell, BrushPlus as FiPlus, BrushCheck as FiCheck, BrushMigrate as FiRepeat } from '@/components/tsugi-icons';
 import React from 'react';
+import { toast } from 'sonner';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { MediaNavigation } from '@/components/shell/media-navigation';
@@ -356,6 +357,27 @@ export function ReadPage({ visible }: {
     if (!target) throw new Error(t({ id: "This saved chapter is no longer available.", message: "This saved chapter is no longer available." }));
     await openChapter(target, data.manga);
   }
+  const handledResume = React.useRef<unknown>(null);
+  React.useEffect(() => {
+    const target = desktopArea?.resumeTarget;
+    if (!visible || busy || lock.current || target?.kind !== 'manga' || handledResume.current === target) return;
+    handledResume.current = target;
+    desktopArea?.consumeResume?.(target);
+    // Do not replace a mounted chapter or release its native capability.
+    if (reader) {
+      if (reader.chapter.id !== target.chapterId || Number(details?.manga.id) !== target.mangaId) toast.info(t`Close the current chapter before opening another from Up next.`);
+      return;
+    }
+    void run(async () => {
+      const history = await readRequest<Nodes<Activity>>({kind:'history'});
+      const entry = history.nodes.find(item => Number(item.id) === target.chapterId && Number(item.manga.id) === target.mangaId &&
+        item.manga.title === target.title && item.name === target.chapter);
+      if (!entry || entry.isRead) throw new Error(t`This saved chapter is no longer available.`);
+      setTab('history');
+      setHistory(history);
+      await openActivity(entry);
+    });
+  }, [visible, busy, desktopArea?.resumeTarget, reader]);
   async function resumeManga(manga: Manga) {
     const data = await showManga(manga);
     const last = data.chapters.find((chapter) => chapter.id === manga.lastReadChapter?.id);

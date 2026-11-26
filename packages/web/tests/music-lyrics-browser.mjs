@@ -181,7 +181,7 @@ export async function verifyMusicLyricsBrowser({browser,origin,installDesktopFix
       {id:'title',kind:'songTitle',visible:true,transform:{x:.5,y:.12,width:.7,height:.1}},
       {id:'lyrics',kind:'lyricsInline',visible:true,transform:{x:.5,y:.45,width:.7,height:.4}},
     ]};
-    await settings.locator('input[type=file]').setInputFiles({name:'original-lyrics.eclipseplayer',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(template))});
+    await settings.locator('input[accept=".eclipseplayer,application/json"]').setInputFiles({name:'original-lyrics.eclipseplayer',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(template))});
     const studio=page.locator('[data-ui="tsugi-studio-viewport"]');
     await studio.getByRole('button',{name:'Show lyrics',exact:true}).click();
     await studio.getByRole('button',{name:'Adjust lyrics timing',exact:true}).click();

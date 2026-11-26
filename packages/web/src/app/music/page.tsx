@@ -42,6 +42,7 @@ import { BrushCompass, BrushSearch, BrushMusicLibrary, BrushDownload, BrushHisto
 import { useDesktopArea } from '@/lib/desktop-area';
 import { MusicCollection, MusicDiscover, type PlayCollection } from './browse';
 import type { TrendingRecording } from '@/lib/music/discovery';
+import { musicResumeRows, type ResumeRow } from '@/lib/up-next';
 import { makeRecentPlay, mergeRecentPlays, readRecentPlays, storeRecentPlays, type RecentMusicPlay } from '@/lib/music/history';
 
 const SAVED_PLAYLIST_ID = 'tsugi-saved-tracks';
@@ -57,6 +58,7 @@ export function MusicPage({
   libraryRequest = 0,
   vaultAudio = null,
   onVaultAudioImported,
+  onResumeRows,
 }: {
   openVideo(): void;
   openWelcome(): void;
@@ -66,6 +68,7 @@ export function MusicPage({
   libraryRequest?: number;
   vaultAudio?: File | null;
   onVaultAudioImported?: () => void;
+  onResumeRows?: (rows: ResumeRow[]) => void;
 }) {
   const desktopArea = useDesktopArea();
   const lastVaultAudio = React.useRef<File | null>(null);
@@ -592,7 +595,7 @@ export function MusicPage({
         bridge.send({ type: 'music-audio-load', request: id, url: stream.url, volume: volumeRef.current });
       } else {
         startBrowserAudio(stream.url, request, 'cors');
-        setRecent((current) => mergeRecentPlays(current, makeRecentPlay(source.id, track)));
+        setRecent((current) => mergeRecentPlays(current, makeRecentPlay(source.id, track, Date.now())));
       }
     } catch (error) {
       if (request === playbackRequest.current) {
@@ -834,6 +837,32 @@ export function MusicPage({
     }
   }
 
+  // Report metadata only; the playback queue and URLs remain in this mounted player.
+  React.useEffect(() => {
+    onResumeRows?.(musicResumeRows(recent, connections.map(source => source.id),
+      playing && !resolving && !playError ? {sourceId:playingSourceId, track:playing} : undefined));
+  }, [recent, connections, playing, playingSourceId, resolving, playError, onResumeRows]);
+
+  const handledResume = React.useRef<unknown>(null);
+  React.useEffect(() => {
+    const target = desktopArea?.resumeTarget;
+    if (!visible || !playbackAllowed || target?.kind !== 'music' || handledResume.current === target) return;
+    handledResume.current = target;
+    desktopArea?.consumeResume?.(target);
+    // Opening the current player must never replace its queue or reset position.
+    if (playing?.id === target.trackId && playingSourceId === target.sourceId && !playError) return;
+    const source = connections.find(item => item.id === target.sourceId);
+    const entry = recent.find(item => item.sourceId === target.sourceId && item.track.id === target.trackId);
+    setTab('library');
+    if (!source || !entry) {
+      setLibraryError(t`Connect the original music source to play this track.`);
+      return;
+    }
+    setLibraryError('');
+    setQueue([entry.track]);
+    void play(entry.track, 0, source, true);
+  }, [visible, playbackAllowed, desktopArea?.resumeTarget]);
+
   function next(auto = false) {
     const local = playingSourceId === LOCAL_SOURCE;
     const source = connections.find((item) => item.id === playingSourceId);
@@ -955,7 +984,7 @@ export function MusicPage({
     setPaused(message.status !== 'playing');
     if (message.status === 'playing' && !current.recorded) {
       current.recorded = true;
-      setRecent(previous => mergeRecentPlays(previous, makeRecentPlay(current.sourceId, current.track)));
+      setRecent(previous => mergeRecentPlays(previous, makeRecentPlay(current.sourceId, current.track, Date.now())));
     }
     if (message.status === 'ended') {
       nativeAudio.current = null;

@@ -1,6 +1,8 @@
+import React from 'react';
+import { UpNext } from './up-next';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiSettings } from 'react-icons/fi';
+import { FiClock, FiSettings } from 'react-icons/fi';
 import { TsugiBrand, TsugiMediaIcon } from '@/components/tsugi-brand';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { FirstBootAppearance } from './first-boot-appearance';
@@ -10,6 +12,7 @@ export function DesktopLandingPage({ openVideo, openMusic, openRead, openVault }
   openVideo(): void; openMusic(): void; openRead?: () => void; openVault?: () => void;
 }) {
   const desktopArea = useDesktopArea();
+  const [upNextOpen, setUpNextOpen] = React.useState(false);
   const sections = [
     { id: 'video' as const, label: t({ id: "Movies & TV", message: "Movies & TV" }), open: openVideo },
     { id: 'music' as const, label: t({ id: "Music", message: "Music" }), open: openMusic },
@@ -18,7 +21,9 @@ export function DesktopLandingPage({ openVideo, openMusic, openRead, openVault }
   ];
   return <main data-page="desktop-landing" className="tsugi-landing tsugi-index">
     {openVault && <FirstBootAppearance />}
+    {desktopArea?.openResume && <UpNext open={upNextOpen} onClose={()=>setUpNextOpen(false)}/>}
     <header className="tsugi-index-header">
+      {desktopArea?.openResume && <button type="button" className="tsugi-category-link" onClick={()=>setUpNextOpen(true)}><FiClock aria-hidden/><Trans>Up next</Trans></button>}
       {desktopArea && <button type="button" className="tsugi-category-link" onClick={desktopArea.openSettings}><FiSettings aria-hidden /><Trans id="App settings">App settings</Trans></button>}
     </header>
     <div className="tsugi-index-body">

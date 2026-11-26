@@ -6,6 +6,7 @@ import { pdfFixture, epubFixture } from './ebook-fixtures.mjs';
 import { verifyAppSeparatorsBrowser } from './app-separators-browser.mjs';
 import { verifyMoviesLayoutBrowser } from './movies-layout-browser.mjs';
 import { verifyMusicAudioBrowser } from './music-audio-browser.mjs';
+import { verifyUpNextBrowser } from './up-next-browser.mjs';
 import { verifyMusicReactivityBrowser } from './music-reactivity-browser.mjs';
 import { verifyMusicArtworkBrowser } from './music-artwork-browser.mjs';
 import { verifyMusicPlayerLayoutBrowser } from './music-player-layout-browser.mjs';
@@ -1572,6 +1573,7 @@ try {
   await verifyMoviesLayoutBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyMusicAudioBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyMusicReactivityBrowser({ browser, origin, installDesktopFixture });
+  await verifyUpNextBrowser({ browser, origin, installDesktopFixture });
   await verifyMusicArtworkBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyMusicPlayerLayoutBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyMusicLyricsBrowser({ browser, origin, installDesktopFixture, screenshotDir });

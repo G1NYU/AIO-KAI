@@ -30,6 +30,13 @@ describe('Tsugi recent listening', () => {
     expect(JSON.stringify([...saved.values()])).not.toContain('secret.test');
     expect(readRecentPlays()).toEqual([item]);
   });
+  it('preserves a valid optional played-at timestamp without importing arbitrary fields', () => {
+    saved.set('aiostreams-desktop-music-remember-v1', 'true');
+    const item=makeRecentPlay('one',{id:'song',title:'One',artist:'A'},1760000000000);
+    storeRecentPlays([item],true);
+    expect(readRecentPlays()).toEqual([item]);
+    expect(makeRecentPlay('one',item.track,NaN).playedAt).toBeUndefined();
+  });
   it('removes recorded history when source persistence is disabled', () => {
     saved.set('aiostreams-desktop-music-remember-v1', 'true');
     storeRecentPlays([makeRecentPlay('one', { id:'a', title:'A', artist:'B' })], true);

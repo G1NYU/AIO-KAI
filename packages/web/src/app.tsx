@@ -53,6 +53,7 @@ import { InputSetup } from './components/shell/input-setup';
 import { CrashReportDialog } from './components/shell/crash-report';
 import { SplashEnd } from './lib/splash';
 import { DesktopAreaContext, initialDesktopArea, readStartupArea, allowsMusicPlayback, type DesktopArea } from './lib/desktop-area';
+import type { ResumeRow, ResumeTarget } from './lib/up-next';
 import { DesktopLandingPage } from './app/desktop-landing/page';
 import { MusicPage } from './app/music/page';
 import { VaultPage } from './app/vault/page';
@@ -152,28 +153,38 @@ function Standalone() {
   const [area, setArea] = React.useState<DesktopArea>(() =>
     initialDesktopArea(desktop, !!currentServer(), reading || books, desktop ? readStartupArea() : 'auto')
   );
+  const [resumeTarget, setResumeTarget] = React.useState<ResumeTarget | null>(null);
+  const [musicResumeRows, setMusicResumeRows] = React.useState<ResumeRow[]>([]);
+  const consumeResume = React.useCallback((target: ResumeTarget) => setResumeTarget(current => current === target ? null : current), []);
   const [globalSettings, setGlobalSettings] = React.useState(false);
   const [readVisited, setReadVisited] = React.useState(area === 'read');
   const openSettings = React.useCallback(() => setGlobalSettings(true), []);
   const [readMode, setReadMode] = React.useState<'manga' | 'books'>(reading ? 'manga' : 'books');
-  const openRead = React.useCallback(() => { setReadVisited(true); setArea('read'); }, []);
-  const openBooks = React.useCallback(() => { setReadMode('books'); setArea('read'); }, []);
-  const openManga = React.useCallback(() => { setReadMode('manga'); setReadVisited(true); setArea('read'); }, []);
+  const openRead = React.useCallback(() => { setResumeTarget(null); setReadVisited(true); setArea('read'); }, []);
+  const openBooks = React.useCallback(() => { setResumeTarget(null); setReadMode('books'); setArea('read'); }, []);
+  const openManga = React.useCallback(() => { setResumeTarget(null); setReadMode('manga'); setReadVisited(true); setArea('read'); }, []);
   const [musicLibraryRequest, setMusicLibraryRequest] = React.useState(0);
-  const openMusic = React.useCallback(() => setArea('music'), []);
-  const openLocalMusic = React.useCallback(() => { setMusicLibraryRequest(value => value + 1); setArea('music'); }, []);
+  const openMusic = React.useCallback(() => { setResumeTarget(null); setArea('music'); }, []);
+  const openLocalMusic = React.useCallback(() => { setResumeTarget(null); setMusicLibraryRequest(value => value + 1); setArea('music'); }, []);
   const [vaultAudio, setVaultAudio] = React.useState<File | null>(null);
-  const openLocalAudio = React.useCallback((file: File) => { setVaultAudio(file); setMusicLibraryRequest(value => value + 1); setArea('music'); }, []);
+  const openLocalAudio = React.useCallback((file: File) => { setResumeTarget(null); setVaultAudio(file); setMusicLibraryRequest(value => value + 1); setArea('music'); }, []);
   const clearVaultAudio = React.useCallback(() => setVaultAudio(null), []);
   const [vaultTrack, setVaultTrack] = React.useState<{id:string;title:string} | null>(null);
-  const openVault = React.useCallback(() => { setVaultTrack(null); setArea('vault'); }, []);
-  const openVaultMusic = React.useCallback((track: {id:string;title:string}) => { setVaultTrack(track); setArea('vault'); }, []);
-  const openVideo = React.useCallback(() => { setReadVisited(false); setArea('video'); }, []);
-  const openWelcome = React.useCallback(() => setArea('welcome'), []);
+  const openVault = React.useCallback(() => { setResumeTarget(null); setVaultTrack(null); setArea('vault'); }, []);
+  const openVaultMusic = React.useCallback((track: {id:string;title:string}) => { setResumeTarget(null); setVaultTrack(track); setArea('vault'); }, []);
+  const openVideo = React.useCallback(() => { setResumeTarget(null); setReadVisited(false); setArea('video'); }, []);
+  const openWelcome = React.useCallback(() => { setResumeTarget(null); setArea('welcome'); }, []);
   const openVideoDownloads = React.useCallback(() => { openVideo(); navigate(to.downloads); }, [openVideo]);
+  const openResume = React.useCallback((target: ResumeTarget) => {
+    if (target.kind === 'book' && books) openBooks();
+    else if (target.kind === 'manga' && reading && readerReady) openManga();
+    else if (target.kind === 'music') openMusic();
+    else return;
+    setResumeTarget({...target});
+  }, [books, reading, readerReady, openBooks, openManga, openMusic]);
   const areaActions = React.useMemo(
-    () => ({ openWelcome, openMusic, openVideo, openSettings, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead: reading || books ? openRead : undefined, openBooks: books ? openBooks : undefined, openManga: reading ? openManga : undefined }),
-    [openWelcome, openMusic, openVideo, openSettings, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead, reading, books, openBooks, openManga]
+    () => ({ openWelcome, openMusic, openVideo, openSettings, openResume, resumeTarget, consumeResume, musicResumeRows, readerReady, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead: reading || books ? openRead : undefined, openBooks: books ? openBooks : undefined, openManga: reading ? openManga : undefined }),
+    [openWelcome, openMusic, openVideo, openSettings, openResume, resumeTarget, consumeResume, musicResumeRows, readerReady, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead, reading, books, openBooks, openManga]
   );
   // Who's watching, asked across the saved servers.
   const [picking, setPicking] = React.useState(() => {
@@ -329,6 +340,7 @@ function Standalone() {
             libraryRequest={musicLibraryRequest}
             vaultAudio={vaultAudio}
             onVaultAudioImported={clearVaultAudio}
+            onResumeRows={setMusicResumeRows}
             openVideo={openVideo}
             openWelcome={openWelcome}
           />

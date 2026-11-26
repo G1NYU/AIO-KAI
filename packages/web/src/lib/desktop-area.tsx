@@ -1,5 +1,6 @@
 import React from 'react';
 import { storage } from './storage';
+import type { ResumeRow, ResumeTarget } from './up-next';
 
 /** A desktop-only mode above the AIOStreams (Jellyfin) session boundary. */
 export type DesktopArea = 'welcome' | 'video' | 'music' | 'read' | 'vault';
@@ -17,6 +18,11 @@ export type DesktopAreaActions = {
   openLocalMusic?: () => void;
   openLocalAudio?: (file: File) => void;
   openVideoDownloads?: () => void;
+  openResume?: (target: ResumeTarget) => void;
+  resumeTarget?: ResumeTarget | null;
+  consumeResume?: (target: ResumeTarget) => void;
+  musicResumeRows?: ResumeRow[];
+  readerReady?: boolean;
 };
 
 export const DesktopAreaContext =

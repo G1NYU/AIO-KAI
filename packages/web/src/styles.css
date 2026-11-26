@@ -3243,3 +3243,15 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   outline:2px solid var(--tsugi-focus);
   outline-offset:-2px;
 }
+
+/* Cross-media resume is an opt-in modal, not a startup network dependency. */
+.tsugi-up-next-tools { display:flex; gap:8px; align-items:center; margin:12px 0; flex-wrap:wrap; }
+.tsugi-up-next-list { display:grid; gap:0; }
+.tsugi-up-next-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 0; border-bottom:1px solid var(--tsugi-line); }
+.tsugi-up-next-row h3 { font-size:1rem; font-weight:650; color:var(--tsugi-ink); overflow-wrap:anywhere; }
+.tsugi-up-next-row p,.tsugi-up-next-note { color:var(--tsugi-muted); font-size:.8rem; overflow-wrap:anywhere; }
+.tsugi-up-next-type { color:var(--tsugi-accent); font-weight:650; font-size:.75rem; }
+.tsugi-up-next-row progress { display:block; max-width:100%; width:160px; height:5px; margin-top:8px; accent-color:var(--tsugi-accent); }
+.tsugi-up-next-actions { display:flex; gap:6px; flex:none; }
+.tsugi-up-next-note { margin-top:14px; }
+@media(max-width:520px) { .tsugi-up-next-row { align-items:flex-start; flex-direction:column; gap:8px; } }
