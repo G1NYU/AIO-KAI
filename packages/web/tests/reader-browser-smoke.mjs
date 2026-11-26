@@ -547,6 +547,7 @@ try {
   await hero.getByText('Nekos API',{exact:true}).waitFor();
   await hero.getByText('Kitsu',{exact:true}).waitFor({timeout:26000}); // automatic 20-second rotation
   assert.ok(heroRequests.includes('kitsu-image')&&heroRequests.includes('kitsu-image-2')&&heroRequests.includes('nekos'));
+  await page.locator('.tsugi-library-controls').waitFor();
   await capture('03-reading-library');
   const remoteCount=heroRequests.length;
   await page.evaluate(()=>window.__readerFixture.heroFeatured=true);
@@ -618,6 +619,17 @@ try {
   await page.getByRole('combobox', { name: 'Extension language' }).selectOption('en');
   await page.getByRole('combobox', { name: 'Extension status' }).selectOption('installed');
   await page.getByRole('button', { name: 'Uninstall', exact: true }).waitFor();
+  await rail.getByRole('button', { name: 'Global search', exact: true }).click();
+  const search=page.locator('.tsugi-global-search-workspace');
+  await search.waitFor();
+  assert.equal(await page.getByRole('textbox',{name:'Global manga search',exact:true}).count(),1,'one global search input');
+  await search.getByRole('textbox',{name:'Global manga search',exact:true}).fill('Tsugi');
+  await search.getByRole('button',{name:'Search',exact:true}).click();
+  await search.getByRole('heading',{name:'Original source',exact:true}).waitFor();
+  await search.locator('.tsugi-search-result-count').getByText('1 results',{exact:true}).waitFor();
+  assert.equal(await search.locator('.tsugi-manga-card').count(),1);
+  assert.equal(await search.locator('progress').getAttribute('value'),'1');
+  await capture('03-reader-global-search');
   await rail.getByRole('button', { name: 'Browse', exact: true }).click();
   await page.getByRole('button', { name: /Original source/ }).click();
   await page.locator('.tsugi-manga-card').first().click();

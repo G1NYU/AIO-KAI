@@ -52,10 +52,10 @@ Baseline: [official v0.1.0](https://github.com/G1NYU/TSUGI/releases/tag/v0.1.0);
 
 | ID | Priority | Milestone | Initial state |
 |---|---|---|---|
-| A1 | P0 | Portable backup, restore, storage management | In progress: domain recovery validated; unified archive pending CI; durable backups/storage open |
+| A1 | P0 | Portable backup, restore, storage management | In progress: domain recovery, unified archive, managed copies and scheduling validated; storage inventory and full recovery open |
 | A2 | P0 | Safe Tsugi-native application updates | Planned |
 | B1 | P1 | Extension updates and source management | Partial; first Reader priority |
-| B2 | P1 | Native Mihon backup and CSV migration/import | Partial; existing title-only batch import |
+| B2 | P1 | Native Mihon backup and CSV migration/import | Partial; existing title-only batch import; `.tachibk` not yet supported |
 | B3 | P1 | Offline manga, CBZ and storage policy | Planned |
 | B4 | P1 | Daily reading workflow and per-title controls | Partial |
 | B5 | P1 | Tracker sync and source migration | Partial |
@@ -161,3 +161,7 @@ Acceptance: presence disabled/cleared, lock recovery, capture limitation documen
 ### Cycle II implementation checkpoint
 
 A1.1 preferences-only export/preview/restore implemented as a bounded first slice, pending validation. It is not a full portable backup. See [data ownership inventory and upstream research](docs/portable-data-inventory.md). A1 remains in progress; A2 and B1 mutations are not started.
+
+### Reader visual follow-up (user review)
+
+Tighten global search and library: one search field, meaningful per-source headings/counts, compact responsive cover shelves and unified collection filters. Preserve source-specific results and the existing cover loading/fallback logic. Keep B2 native Mihon backup migration as an explicit separate milestone.

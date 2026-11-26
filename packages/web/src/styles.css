@@ -2997,3 +2997,41 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 :root[data-host='desktop'] .tsugi-spotlight-source-cover .tsugi-manga-cover { position:relative; width:100%; height:100%; aspect-ratio:auto; border:0; border-radius:0; background:transparent; }
 :root[data-host='desktop'] .tsugi-spotlight-source-cover .tsugi-manga-cover:not(:has(img)) { visibility:hidden; }
 :root[data-host='desktop'] .tsugi-spotlight-source-cover .tsugi-manga-cover img { object-position:center 25%; }
+
+/* Reader discovery: compact source shelves and one dedicated search console.
+   No changes to cover loading, navigation, provider order or reader viewport. */
+.tsugi-global-search-workspace,.tsugi-library-workspace { min-width:0; }
+.tsugi-search-console { display:grid; gap:14px; padding:18px 20px; margin-bottom:22px; background:var(--tsugi-surface); border:1px solid var(--tsugi-line); border-radius:var(--tsugi-radius-control,8px); }
+.tsugi-search-intro h2 { font-size:clamp(19px,1.7vw,26px); font-weight:650; letter-spacing:-.035em; }
+.tsugi-search-intro p { margin-top:3px; color:var(--tsugi-muted); font-size:13px; }
+.tsugi-search-form { display:flex; flex-wrap:wrap; gap:8px; max-width:860px; }
+.tsugi-search-form .tsugi-read-input { flex:1 1 220px; min-width:0; background:var(--tsugi-canvas); }
+.tsugi-search-form .tsugi-read-action { min-height:40px; }
+.tsugi-search-status { display:flex; align-items:center; flex-wrap:wrap; gap:10px 18px; color:var(--tsugi-muted); font-size:12px; font-variant-numeric:tabular-nums; }
+.tsugi-search-status strong { color:var(--tsugi-ink); font-weight:600; overflow-wrap:anywhere; }
+.tsugi-search-status progress { width:clamp(80px,15vw,180px); height:4px; accent-color:var(--tsugi-accent); }
+.tsugi-search-source { padding:14px 0 20px; margin-bottom:4px; border-bottom:1px solid var(--tsugi-line); }
+.tsugi-search-source-header { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:0 0 12px; }
+.tsugi-search-source-label { display:flex; align-items:center; flex-wrap:wrap; gap:9px; min-width:0; }
+.tsugi-search-source-label > svg { color:var(--tsugi-muted); flex:none; }
+.tsugi-search-source-label h3 { font-weight:650; font-size:17px; letter-spacing:-.02em; overflow-wrap:anywhere; }
+.tsugi-search-language,.tsugi-search-result-count { color:var(--tsugi-muted); font-size:11px; font-variant-numeric:tabular-nums; }
+.tsugi-search-language { padding:3px 6px; background:var(--tsugi-surface); border-radius:3px; }
+.tsugi-search-result-count { flex:none; }
+.tsugi-search-source[data-result-state="empty"],.tsugi-search-source[data-result-state="error"] { padding-bottom:7px; }
+.tsugi-search-source .tsugi-manga-grid,.tsugi-library-workspace .tsugi-manga-grid { grid-template-columns:repeat(auto-fill,minmax(min(100%,128px),1fr)); gap:18px 14px; }
+.tsugi-search-source .tsugi-manga-card,.tsugi-library-workspace .tsugi-manga-card { gap:5px; width:100%; align-self:start; }
+.tsugi-search-source .tsugi-manga-title,.tsugi-library-workspace .tsugi-manga-title { font-size:13px; line-height:1.35; }
+.tsugi-search-source .tsugi-manga-card:focus-visible,.tsugi-library-workspace .tsugi-manga-card:focus-visible { outline:2px solid var(--tsugi-focus); outline-offset:3px; }
+.tsugi-library-controls { background:var(--tsugi-surface); border:1px solid var(--tsugi-line); border-radius:var(--tsugi-radius-control,8px); padding:10px 12px; margin-bottom:20px; }
+.tsugi-library-controls .tsugi-library-shelves { margin:0 0 10px; padding-bottom:10px; border-bottom:1px solid var(--tsugi-line); }
+.tsugi-library-controls .tsugi-library-shelves button:not([aria-current]) { background:var(--tsugi-canvas); }
+.tsugi-library-controls .tsugi-reading-list-header { margin:0; }
+.tsugi-library-controls .tsugi-reading-filters .tsugi-read-input { background:var(--tsugi-canvas); }
+.tsugi-library-workspace .tsugi-library-grid-heading { border-bottom:1px solid var(--tsugi-line); padding-bottom:10px; }
+@media(max-width:680px) {
+  .tsugi-search-console { padding:14px 12px; }
+  .tsugi-search-source .tsugi-manga-grid,.tsugi-library-workspace .tsugi-manga-grid { grid-template-columns:repeat(auto-fill,minmax(min(100%,104px),1fr)); gap:14px 10px; }
+  .tsugi-library-controls .tsugi-reading-filters { width:100%; }
+  .tsugi-library-controls .tsugi-reading-filters input { flex:1; min-width:0; }
+}
