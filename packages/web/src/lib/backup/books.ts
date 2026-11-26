@@ -1,6 +1,6 @@
 import { sha256 } from '@noble/hashes/sha2.js';
-import { bookMetadataSnapshot, getBookFile, listBooks, type BookMetadataChange, type BookMetadataSnapshot } from '../../app/read/book-library';
-import { MAX_BOOK_BYTES, validBookProgress, type BookEntry, type BookFormat, type BookPosition } from '../../app/read/book-guards';
+import type { BookMetadataChange, BookMetadataSnapshot } from '../../app/read/book-library';
+import { MAX_BOOK_BYTES, validBookProgress, type BookFormat, type BookPosition } from '../../app/read/book-guards';
 
 export const BOOK_BACKUP_LIMIT=2*1024*1024;
 const MAX_BOOKS=1000;
@@ -32,7 +32,7 @@ function parseProgress(format:BookFormat,value:unknown):BookProgress|null{
   if(value===null)return null;
   const raw=object(value);exact(raw,['position','fraction','lastReadAt']);
   const progress=validBookProgress(format,raw.position,raw.fraction);
-  if(!progress)throw new Error('progress');
+  if(!progress||(typeof progress.position==='string'&&/[\x00-\x1f\x7f]|:\/\//.test(progress.position)))throw new Error('progress');
   return {...progress,lastReadAt:timestamp(raw.lastReadAt)};
 }
 export function parseBookBackup(text:string):BookBackup{
@@ -66,7 +66,9 @@ export async function fingerprintBook(blob:Blob):Promise<string>{
     return Array.from(hash.digest(),n=>n.toString(16).padStart(2,'0')).join('');
   }finally{reader.releaseLock();}
 }
-async function localFingerprints(books:BookEntry[],onProgress?:(done:number,total:number)=>void):Promise<LocalBookFingerprint[]>{
+async function localFingerprints(onProgress?:(done:number,total:number)=>void):Promise<LocalBookFingerprint[]>{
+  const {bookMetadataSnapshot,getBookFile,listBooks}=await import('../../app/read/book-library');
+  const books=await listBooks();
   if(books.length>MAX_BOOKS)throw new Error('book-count');
   const out:LocalBookFingerprint[]=[];
   for(const book of books){
@@ -82,7 +84,7 @@ function localProgress(book:BookMetadataSnapshot):BookProgress|null{
   return parseProgress(book.format,{position:book.position,fraction:book.fraction,lastReadAt:book.lastReadAt??0});
 }
 export async function captureBookBackup(onProgress?:(done:number,total:number)=>void):Promise<BookBackup>{
-  const local=await localFingerprints(await listBooks(),onProgress);
+  const local=await localFingerprints(onProgress);
   const books=local.map(({metadata:book,sha256})=>({
     id:book.id,name:book.name,title:book.title,format:book.format,size:book.size,sha256,progress:localProgress(book),
   }));
@@ -132,5 +134,5 @@ export function planBookRestore(backup:BookBackup,local:LocalBookFingerprint[]):
   return {rows,changes};
 }
 export async function previewBookRestore(backup:BookBackup,onProgress?:(done:number,total:number)=>void):Promise<BookRestorePlan>{
-  return planBookRestore(backup,await localFingerprints(await listBooks(),onProgress));
+  return planBookRestore(backup,await localFingerprints(onProgress));
 }

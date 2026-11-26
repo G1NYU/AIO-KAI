@@ -1072,6 +1072,7 @@ try {
   await bookBackup.getByRole('button',{name:'Restore matched book progress',exact:true}).click();
   await bookBackup.getByText('Matched book metadata and progress restored. Existing files were not replaced.',{exact:true}).waitFor();
   await bookSettings.getByRole('button',{name:'Close',exact:true}).click();
+  await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).getByText('100%',{exact:true}).waitFor();
   await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).click();
   await books.getByRole('button',{name:'Resume reading',exact:true}).click();
   await bookReader.getByRole('spinbutton').waitFor();

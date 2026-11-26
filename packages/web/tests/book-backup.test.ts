@@ -33,7 +33,8 @@ describe('book progress backups',()=>{
     expect(parseBookBackup(JSON.stringify(backup))).toEqual(backup);
     for(const invalid of [{...backup,token:'secret'},{...backup,books:[book,book]},
       {...backup,books:[{...book,progress:{...book.progress,position:0}}]},
-      {...backup,books:[{...book,name:'../Original.pdf'}]}])
+      {...backup,books:[{...book,name:'../Original.pdf'}]},
+      {...backup,books:[{...book,format:'epub',name:'Original.epub',progress:{position:'epubcfi(https://private.test/token)',fraction:.5,lastReadAt:100}}]}])
       expect(()=>parseBookBackup(JSON.stringify(invalid))).toThrow();
     expect(()=>parseBookBackup(' '.repeat(BOOK_BACKUP_LIMIT+1))).toThrow();
   });
