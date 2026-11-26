@@ -1,10 +1,11 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { applyPreferencesBackup, capturePreferencesBackup, MAX_PREFERENCES_BACKUP_BYTES, parsePreferencesBackup, type PreferencesBackup } from '@/lib/backup/preferences';
+import { applyPreferencesBackup, capturePreferencesBackup, MAX_PREFERENCES_BACKUP_BYTES, parsePreferencesBackup, preferenceRestoreBaseline, type PreferencesBackup } from '@/lib/backup/preferences';
 
 export function PreferencesBackupSettings({onApplied,archiveEntry}:{onApplied():void;archiveEntry?:string}) {
-  const [preview,setPreview]=React.useState<PreferencesBackup|null>(null);
+  const [review,setReview]=React.useState<{file:PreferencesBackup; baseline:ReadonlyMap<string,string|null>}|null>(null);
+  const preview=review?.file;
   const [notice,setNotice]=React.useState('');
   const [error,setError]=React.useState('');
   const [busy,setBusy]=React.useState(false);
@@ -22,22 +23,26 @@ export function PreferencesBackupSettings({onApplied,archiveEntry}:{onApplied():
     } catch {setError(t`Could not export preferences. Check device storage.`);}
   }
   async function load(file:File|undefined) {
-    setPreview(null);setNotice('');setError('');
+    setReview(null);setNotice('');setError('');
     if(!file)return;
     setBusy(true);
     try {
       if(file.size>MAX_PREFERENCES_BACKUP_BYTES)throw new Error('size');
-      setPreview(parsePreferencesBackup(await file.text()));
+      const parsed=parsePreferencesBackup(await file.text());
+      setReview({file:parsed,baseline:preferenceRestoreBaseline(parsed)});
     } catch {setError(t`Invalid or unsupported Tsugi preferences file. Nothing was changed.`);}
     finally {setBusy(false);}
   }
   function apply() {
-    if(!preview)return;
+    if(!review)return;
     setError('');setNotice('');
-    const outcome=applyPreferencesBackup(preview);
+    const outcome=applyPreferencesBackup(review.file,review.baseline);
     if(outcome==='applied'){
-      setPreview(null);onApplied();
+      setReview(null);onApplied();
       setNotice(t`Preferences restored. Reopen the reader or player, or restart Tsugi if necessary, to apply every setting.`);
+    } else if(outcome==='stale'){
+      setReview(null);
+      setError(t({id:'Preferences changed after review. Preview the file again before restoring.',message:'Preferences changed after review. Preview the file again before restoring.'}));
     } else {
       setError(outcome==='rollback-failed'
         ?t`Storage blocked recovery. Some preferences may have changed. Export or review the current settings before retrying.`
@@ -70,7 +75,7 @@ export function PreferencesBackupSettings({onApplied,archiveEntry}:{onApplied():
       <details><summary><Trans>Reader preferences</Trans></summary><pre className="whitespace-pre-wrap break-all text-xs">{JSON.stringify(preview.settings.reader,null,2)}</pre></details>
       <div className="flex flex-wrap gap-2">
         <button type="button" className="tsugi-read-action" onClick={apply}><Trans>Apply preferences</Trans></button>
-        <button type="button" className="tsugi-read-action" onClick={()=>setPreview(null)}><Trans>Cancel restore</Trans></button>
+        <button type="button" className="tsugi-read-action" onClick={()=>setReview(null)}><Trans>Cancel restore</Trans></button>
       </div>
     </div>}
     {error&&<p role="alert">{error}</p>}

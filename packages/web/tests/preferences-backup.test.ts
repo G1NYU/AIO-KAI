@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyPreferencesBackup, capturePreferencesBackup, parsePreferencesBackup, MAX_PREFERENCES_BACKUP_BYTES } from '../src/lib/backup/preferences';
+import { applyPreferencesBackup, capturePreferencesBackup, parsePreferencesBackup, preferenceRestoreBaseline, MAX_PREFERENCES_BACKUP_BYTES } from '../src/lib/backup/preferences';
 
 const values=new Map<string,string>();
 function fakeStorage(fail?:string) {
@@ -36,6 +36,24 @@ describe('Tsugi preferences backup',()=>{
     expect(capturePreferencesBackup()).toEqual(file);
     expect(values.get('jellyfin_credentials')).toBe('fixture-secret');
     expect(values.get('tsugi-independent-playlists-v1')).toBe('fixture-playlist');
+  });
+  it('refuses a stale restore before writing, including changed local-only palette state',()=>{
+    const file=capturePreferencesBackup();
+    file.settings.theme='mocha';
+    const review=preferenceRestoreBaseline(file);
+    values.set('tsugi-global-import-colors-v1','true');
+    const before=[...values];
+    expect(applyPreferencesBackup(file,review)).toBe('stale');
+    expect([...values]).toEqual(before);
+    expect(applyPreferencesBackup(file,preferenceRestoreBaseline(file))).toBe('applied');
+  });
+  it('allows an unrelated layout change when the archive keeps the current layout',()=>{
+    const file=capturePreferencesBackup();
+    file.settings.layout=null;
+    const review=preferenceRestoreBaseline(file);
+    values.set('tsugi-desktop-player-stage-v1','{"id":"junction"}');
+    expect(applyPreferencesBackup(file,review)).toBe('applied');
+    expect(values.get('tsugi-desktop-player-stage-v1')).toBe('{"id":"junction"}');
   });
   it('rejects unknown fields, wrong version, malformed values and oversized files',()=>{
     const file=capturePreferencesBackup();

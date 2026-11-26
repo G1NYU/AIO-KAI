@@ -331,6 +331,11 @@ try {
   await prefs.getByRole('button',{name:'Review archived preferences',exact:true}).click();
   await prefs.getByRole('heading',{name:'Restore preview',exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>document.documentElement.dataset.tsugiTheme),'sumi','archive review does not change preferences');
+  await startup.selectOption('music');
+  await prefs.getByRole('button',{name:'Apply preferences',exact:true}).click();
+  await prefs.getByRole('alert').filter({hasText:'Preferences changed after review'}).waitFor();
+  assert.equal(await startup.inputValue(),'music','stale restore preserves the newer startup preference');
+  await prefs.getByRole('button',{name:'Review archived preferences',exact:true}).click();
   await prefs.getByRole('button',{name:'Apply preferences',exact:true}).click();
   await page.waitForFunction(()=>document.documentElement.dataset.tsugiTheme==='carbon');
   await musicBackup.getByRole('button',{name:'Review archived music',exact:true}).click();

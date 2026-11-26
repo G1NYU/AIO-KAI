@@ -60,10 +60,16 @@ export function capturePreferencesBackup(): PreferencesBackup {
   }};
 }
 
+/** Kept in memory for a single review. Raw values never enter an export. */
+export function preferenceRestoreBaseline(backup: PreferencesBackup): ReadonlyMap<string, string | null> {
+  const targets = Object.values(keys).filter(key => key !== keys.layout || backup.settings.layout !== null);
+  return new Map(targets.map(key => [key, localStorage.getItem(key)]));
+}
+
 /** Apply only a validated preferences file. On an ordinary write failure,
  * restore the original raw values; report explicitly if storage also blocks rollback.
  * This is not a full app transaction or protection against process termination. */
-export function applyPreferencesBackup(backup: PreferencesBackup): 'applied' | 'unchanged' | 'rollback-failed' {
+export function applyPreferencesBackup(backup: PreferencesBackup, baseline?: ReadonlyMap<string, string | null>): 'stale' | 'applied' | 'unchanged' | 'rollback-failed' {
   const {settings:p}=parsePreferencesBackup(JSON.stringify(backup));
   const writes: [string,string][]=[
     [keys.theme,JSON.stringify(p.theme)],[keys.accent,JSON.stringify(p.accent)],
@@ -74,6 +80,9 @@ export function applyPreferencesBackup(backup: PreferencesBackup): 'applied' | '
   try {
     if(p.layout!==null) writes.push([keys.layout,JSON.stringify({id:p.layout,imported:readPlayerStage().imported})]);
     const previous=writes.map(([key])=>[key,localStorage.getItem(key)] as const);
+    if (baseline && previous.some(([key, value]) => !baseline.has(key) || baseline.get(key) !== value)) {
+      return 'stale';
+    }
     let completed=0;
     try {
       for(const [key,value] of writes){localStorage.setItem(key,value);completed++;}
