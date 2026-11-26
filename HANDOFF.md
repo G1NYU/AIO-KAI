@@ -4,6 +4,16 @@ Updated: 2026-11-26. Repository: [G1NYU/TSUGI](https://github.com/G1NYU/TSUGI). 
 
 This focused handoff records the current candidate. The existing `PROGRESS.md` remains the published historical record; this update leaves that history unchanged.
 
+## Development while the Windows candidate is under review
+
+The user is testing the verified `60fc65f` candidate below and authorized continuation of the existing roadmap. The final requested feature additions are now recorded as D3 (anime introduction), D4 (direct Stremio addons without requiring AIOStreams) and D5 (Refract/MDBList). They join the previously approved D1/D2 later work; no further speculative feature expansion is planned. The Refract reference is the user's `RE-Harbor` branch `feature/refract-upstream` at `1b72d2887ffa08520ac5b11a78ec5a56beabd890`. [ROADMAP.md](ROADMAP.md) records the inspected implementation and official API references, initial scopes and acceptance boundaries.
+
+The next implemented A1 slice is [reviewed temporary Reader image cleanup](docs/reader-image-cache-cleanup.md). It inventories only the managed JVM's two temporary page/thumbnail roots, keeps the storage lock across shutdown and restart, revalidates the complete review and removes individually pinned files. Saved downloads, permanent covers, reading metadata and browser/session storage are excluded. The Settings review uses plain count rows, explicit cancellation/confirmation, exact accounting and separate partial/unknown/restart-failure feedback. The older session-bearing cache row is now labelled **Reader browser data**.
+
+Local verification: **407 web tests across 36 files**, full web typecheck and ESLint, pinned ebook preparation, localization extraction and standalone production build passed. The new focused browser helper passed cancellation, stale/expired/partial/uncertain outcomes, lock/reader/restore guards, restart failure, singular/plural labels and desktop/390px geometry; both screenshots were visually reviewed. Seven production-module filesystem tests passed on Linux; Windows-target core, core tests and desktop application compilation passed. Independent native and web reviews are clean after stale-cancellation and partial-accounting corrections.
+
+Actual Windows sharing/ACL/junction execution and the new packaged-JVM cleanup/regeneration test remain the final CI gate for this source slice. This continuation intentionally carries no package or release marker: the downloadable candidate remains `60fc65f`, and stable `v0.1.0` remains unchanged. A1 still needs physical mixed-media round-trip acceptance and the remaining recovery/storage work; live-provider and user-backup acceptance remain open.
+
 ## Source and publication
 
 The candidate is a development portable ZIP. Stable release publication remains outside this candidate; its commit carries only the package marker.
@@ -68,4 +78,4 @@ Extract the complete inner ZIP into a new writable folder, retain the working in
 
 Mihon supports the documented reconstruction fields; it does not import account credentials, source preferences, extension code, absent local media or reading durations. A user-approved physical backup import remains pending. Discord presence is implemented, default off and scoped by media/privacy settings; live acceptance requires a registered public TSUGI Application ID and a running Discord client.
 
-Continue the reliability/recovery roadmap after candidate acceptance; see [ROADMAP.md](ROADMAP.md). D1 (Books/Manga YouTube AI-story catalogue) and D2 (TorBox cached music discovery exposed through an Eclipse JSON source) remain requested later work, not implemented features. Their existing investigation notes and API limitations remain in the roadmap.
+Continue the reliability/recovery roadmap while the user tests the candidate; see [ROADMAP.md](ROADMAP.md). D1 (Books/Manga YouTube AI-story catalogue), D2 (TorBox cached music discovery exposed through an Eclipse JSON source), D3 (anime introduction), D4 (direct Stremio addons) and D5 (Refract/MDBList) remain later work, not implemented features. Their investigation notes, scope and API limitations remain in the roadmap.

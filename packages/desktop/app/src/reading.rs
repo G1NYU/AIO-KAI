@@ -13,7 +13,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use aiostreams_desktop_core::bridge::{Outbound, ReadAction};
-use aiostreams_desktop_core::read_runtime::{CatalogueMode, ChapterPages, DownloadCleanupReview, LocalImportReview, MihonImportReview, SourcePreferencesReview, ReadJob, ReadOperation, ReadRuntime};
+use aiostreams_desktop_core::read_runtime::{CatalogueMode, ChapterPages, DownloadCleanupReview, ImageCacheCleanupReview, LocalImportReview, MihonImportReview, SourcePreferencesReview, ReadJob, ReadOperation, ReadRuntime};
 use serde_json::{Value, json};
 
 use crate::Args;
@@ -162,6 +162,7 @@ impl Worker {
             let mut reader = None;
             let mut chapter = None;
             let mut cleanup = None;
+            let mut image_cleanup = None;
             let mut preferences = None;
             let mut local_import = None;
             let mut mihon_import = None;
@@ -184,7 +185,7 @@ impl Worker {
                     if preparing {
                         return Ok(json!({"ready": true}));
                     }
-                    execute(reader.as_mut().unwrap(), &mut chapter, &mut cleanup, &mut preferences, &mut local_import, &mut mihon_import, &images, &mut serial, owner, &stopped, action)
+                    execute(reader.as_mut().unwrap(), &mut chapter, &mut cleanup, &mut image_cleanup, &mut preferences, &mut local_import, &mut mihon_import, &images, &mut serial, owner, &stopped, action)
                 })();
                 if !stopped.load(Ordering::Acquire) {
                     answer(&reply, request, result);
@@ -310,6 +311,7 @@ fn execute(
     reader: &mut ReadRuntime,
     chapter: &mut Option<(i32, String, ChapterPages)>,
     cleanup: &mut Option<DownloadCleanupReview>,
+    image_cleanup: &mut Option<ImageCacheCleanupReview>,
     preferences: &mut Option<SourcePreferencesReview>,
     local_import: &mut Option<LocalImportReview>,
     mihon_import: &mut Option<MihonImportReview>,
@@ -433,6 +435,35 @@ fn execute(
             if stopped.load(Ordering::Acquire) { return Err("Reading is closing."); }
             if chapter.is_some() { return Err("Close the open manga chapter before removing downloaded media."); }
             reader.apply_reviewed_download_cleanup(review)
+        }
+        ReadAction::ReviewImageCacheCleanup {} => {
+            *image_cleanup = None;
+            if chapter.is_some() { return Err("Close the open manga chapter before reviewing cached images. No images were removed."); }
+            let review = reader.review_image_cache_cleanup()?;
+            let preview = review.preview();
+            *image_cleanup = Some(review);
+            Ok(preview)
+        }
+        ReadAction::CancelImageCacheCleanup { review_id } => {
+            if !image_cleanup.as_ref().is_some_and(|review| review.id() == review_id) {
+                return Err("The Reader image cache review is no longer available. Review the cache again. No images were removed.");
+            }
+            *image_cleanup = None;
+            Ok(json!({"reviewId": review_id, "status": "cancelled"}))
+        }
+        ReadAction::ApplyImageCacheCleanup { review_id } => {
+            let review = image_cleanup.take().filter(|review| review.id() == review_id)
+                .ok_or("The Reader image cache review is no longer available. Review the cache again. No images were removed.")?;
+            if chapter.is_some() { return Err("Close the open manga chapter before clearing cached images. No images were removed."); }
+            if !confirm(owner, "Tsugi Reader image cache cleanup", review.description()) {
+                return Ok(json!({"reviewId": review_id, "status": "cancelled"}));
+            }
+            if stopped.load(Ordering::Acquire) { return Err("Reading is closing. No images were removed."); }
+            // These process-bound reviews cannot survive the intentional JVM
+            // restart. Never leave an old staged image or capability usable.
+            *cleanup = None; *preferences = None; *local_import = None; *mihon_import = None;
+            if let Ok(mut cache) = cache.lock() { *cache = None; }
+            reader.apply_reviewed_image_cache_cleanup(review)
         }
         ReadAction::Status => reader.query(ReadOperation::Status),
         ReadAction::Sources => reader.query(ReadOperation::Sources),

@@ -4,6 +4,7 @@ import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
 import { inspectManagedStorage,supportsManagedBackups,type StorageKind,type StorageRow } from '@/lib/backup/managed-archive';
 import { DownloadCleanupSettings } from './download-cleanup-settings';
+import { ReaderCacheCleanupSettings } from './reader-cache-cleanup-settings';
 
 function size(bytes:number){
   if(bytes<1024)return bytes+' B';
@@ -17,7 +18,7 @@ function label(kind:StorageKind,detailed:boolean){
     case 'reader':return detailed?t({id:'Other Reader data',message:'Other Reader data'}):t`Manga runtime data and downloads`;
     case 'webview':return detailed?t({id:'WebView profile and local books',message:'WebView profile and local books'}):t`WebView data, books and cache`;
     case 'readerChapters':return t({id:'Downloaded manga chapters',message:'Downloaded manga chapters'});
-    case 'readerCache':return t({id:'Reader cache',message:'Reader cache'});
+    case 'readerCache':return t({id:'Reader browser data',message:'Reader browser data'});
     case 'webCache':return t({id:'WebView disk cache',message:'WebView disk cache'});
     case 'logs':return t`Logs`;
     case 'downloads':return t`Downloads inside app data`;
@@ -92,6 +93,7 @@ export function StorageUsageSettings(){
       <p><Trans id="Choose a cleanup below to review which files can be removed.">Choose a cleanup below to review which files can be removed.</Trans></p>
     </div>}
     <ArtworkCleanup onRemoved={invalidate} />
+    <ReaderCacheCleanupSettings onChanged={invalidate} />
     <DownloadCleanupSettings onChanged={invalidate} />
   </section>;
 }

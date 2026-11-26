@@ -13,6 +13,8 @@ on:
       - 'packages/desktop/core/src/read_checkpoint.rs'
       - 'packages/desktop/core/src/read_download_cleanup.rs'
       - 'packages/desktop/core/src/read_download_cleanup_tests.rs'
+      - 'packages/desktop/core/src/read_image_cache.rs'
+      - 'packages/desktop/core/src/read_image_cache_cleanup_tests.rs'
       - 'packages/desktop/core/src/read_downloads.rs'
       - 'packages/desktop/core/src/read_downloads_tests.rs'
       - 'packages/desktop/core/src/read_local_import.rs'
@@ -97,6 +99,13 @@ jobs:
           Copy-Item packages/desktop/scripts/read-runtime/fixture/AndroidManifest-downloads.xml "$downloadClasses/AndroidManifest.xml"
           & "$java/jar.exe" --create --file "$fixtures/tsugi-download-fixture-v1.6.1.jar" -C $downloadClasses .
           if ($LASTEXITCODE -ne 0) { throw 'Original download fixture packaging failed' }
+          $cacheClasses = "$env:RUNNER_TEMP/tsugi-read-image-cache-fixture-classes"
+          New-Item -ItemType Directory -Force $cacheClasses | Out-Null
+          & "$java/javac.exe" --release 21 -cp "$runtime/bin/Suwayomi-Server.jar" -d $cacheClasses packages/desktop/scripts/read-runtime/fixture/FixtureSource.java packages/desktop/scripts/read-runtime/fixture/DownloadFixtureSource.java packages/desktop/scripts/read-runtime/fixture/CacheFixtureSource.java
+          if ($LASTEXITCODE -ne 0) { throw 'Original image-cache fixture compilation failed' }
+          Copy-Item packages/desktop/scripts/read-runtime/fixture/AndroidManifest-image-cache.xml "$cacheClasses/AndroidManifest.xml"
+          & "$java/jar.exe" --create --file "$fixtures/tsugi-image-cache-fixture-v1.6.1.jar" -C $cacheClasses .
+          if ($LASTEXITCODE -ne 0) { throw 'Original image-cache fixture packaging failed' }
           $feedClasses = "$env:RUNNER_TEMP/tsugi-read-feed-fixture-classes"
           New-Item -ItemType Directory -Force $feedClasses | Out-Null
           & "$java/javac.exe" --release 21 -cp "$runtime/bin/Suwayomi-Server.jar" -d $feedClasses packages/desktop/scripts/read-runtime/fixture/FixtureSource.java packages/desktop/scripts/read-runtime/fixture/DownloadFixtureSource.java packages/desktop/scripts/read-runtime/fixture/FeedFixtureSource.java packages/desktop/scripts/read-runtime/fixture/FeedFixtureFactory.java
@@ -143,7 +152,7 @@ jobs:
                 'Failed to fetch extension store', 'Shutting down HikariCP',
                 'Failed to sync preference store', 'AccessDeniedException',
                 'FileSystemException', 'SQLException', 'JdbcSQL', 'NoClassDefFoundError')
-              foreach ($kind in @('library', 'stores', 'extension', 'extension-update', 'download-cleanup-folder', 'download-cleanup-cbz', 'download-cleanup-locked', 'download-actions', 'local-import', 'mihon-import', 'feed', 'metadata', 'source-settings')) {
+              foreach ($kind in @('library', 'stores', 'extension', 'extension-update', 'download-cleanup-folder', 'download-cleanup-cbz', 'download-cleanup-locked', 'image-cache', 'download-actions', 'local-import', 'mihon-import', 'feed', 'metadata', 'source-settings')) {
                 $logs = Join-Path $env:TSUGI_READ_FIXTURE "$kind/logs"
                 if (Test-Path -LiteralPath $logs) {
                   foreach ($marker in $markers) {

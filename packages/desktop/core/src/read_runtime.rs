@@ -23,6 +23,10 @@ pub use extension_update::ExtensionUpdateReview;
 mod download_cleanup;
 pub use download_cleanup::DownloadCleanupReview;
 
+#[path = "read_image_cache.rs"]
+mod image_cache;
+pub use image_cache::ImageCacheCleanupReview;
+
 #[path = "read_source_preferences.rs"]
 mod source_preferences;
 pub use source_preferences::{SourcePreferencesReview, SourcePreferenceChangeReview};

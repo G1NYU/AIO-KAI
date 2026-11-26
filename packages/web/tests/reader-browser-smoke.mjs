@@ -17,6 +17,7 @@ import { verifyMihonReconstructionBrowser } from './mihon-reconstruction-browser
 import { verifyDiscordPresenceBrowser } from './discord-presence-browser.mjs';
 import { verifyYouTubeSessionBrowser } from './youtube-session-browser.mjs';
 import { verifyDownloadCleanupBrowser, verifyReaderReleaseBrowser } from './download-cleanup-browser.mjs';
+import { verifyReaderCacheCleanupBrowser } from './reader-cache-cleanup-browser.mjs';
 import { verifySourceFeedBrowser } from './source-feed-browser.mjs';
 import { verifySourceMetadataBrowser } from './source-metadata-browser.mjs';
 import { verifySourceSettingsBrowser } from './source-settings-browser.mjs';
@@ -1551,6 +1552,7 @@ try {
   await verifyMihonReconstructionBrowser({ browser, origin, installDesktopFixture });
   await verifyDiscordPresenceBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyDownloadCleanupBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyReaderCacheCleanupBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyReaderReleaseBrowser({ browser, origin, installDesktopFixture });
   await verifySourceFeedBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifySourceMetadataBrowser({ browser, origin, installDesktopFixture, screenshotDir });

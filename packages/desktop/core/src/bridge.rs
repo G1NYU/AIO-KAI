@@ -161,6 +161,9 @@ pub enum ReadAction {
     ReviewDownloadCleanup { ids: Vec<i32> },
     ApplyDownloadCleanup { review_id: String },
     CancelDownloadCleanup { review_id: String },
+    ReviewImageCacheCleanup {},
+    ApplyImageCacheCleanup { review_id: String },
+    CancelImageCacheCleanup { review_id: String },
     Trackers,
     TrackerLogin { id: i32 },
     TrackerLogout { id: i32 },
@@ -175,6 +178,23 @@ pub enum ReadAction {
 #[cfg(test)]
 mod reading_metadata_tests {
     use super::*;
+
+    #[test]
+    fn image_cache_cleanup_bridge_accepts_only_review_capabilities() {
+        assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":"review-image-cache-cleanup"})).is_ok());
+        for extra in ["path", "url", "downloadedThumbnails", "cachedPages", "deleteFiles"] {
+            let mut input = serde_json::json!({"kind":"review-image-cache-cleanup"});
+            input[extra] = serde_json::json!(true);
+            assert!(serde_json::from_value::<ReadAction>(input).is_err());
+        }
+        for kind in ["apply-image-cache-cleanup", "cancel-image-cache-cleanup"] {
+            assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":kind,"reviewId":"a".repeat(32)})).is_ok());
+            for invalid in [serde_json::json!({"kind":kind}), serde_json::json!({"kind":kind,"reviewId":3}),
+                serde_json::json!({"kind":kind,"reviewId":"a".repeat(32),"path":"C:/outside"})] {
+                assert!(serde_json::from_value::<ReadAction>(invalid).is_err());
+            }
+        }
+    }
 
     #[test]
     fn extension_metadata_filters_preserve_old_defaults_and_accept_only_known_labels() {
