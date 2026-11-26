@@ -1,6 +1,6 @@
 import { afterEach,beforeEach,describe,expect,it,vi } from 'vitest';
 import { captureMusicBackup,parseMusicBackup,previewMusicMerge,applyMusicMerge,planMusicMerge,MUSIC_BACKUP_LIMIT } from '../src/lib/backup/music';
-import { YOUTUBE_MUSIC_ID } from '../src/lib/music/connections';
+import { YOUTUBE_MUSIC_ID, SOUNDCLOUD_MUSIC_ID } from '../src/lib/music/connections';
 const KEY='tsugi-independent-playlists-v1';
 const id='11111111-2222-4333-8444-555555555555';
 const values=new Map<string,string>();
@@ -71,5 +71,22 @@ describe('credential-free music backup',()=>{
     const before=values.get(KEY)!;vi.stubGlobal('localStorage',{getItem:()=>before,setItem:()=>{throw new Error('quota');}});
     expect(applyMusicMerge(backup,before)).toBe('blocked');
     expect(values.get(KEY)).toBe(before);
+  });
+});
+
+describe('SoundCloud public track backup',()=>{
+  it('retains numeric identity without private URLs and merges exact tracks idempotently',()=>{
+    const track={id:'123456789',sourceId:SOUNDCLOUD_MUSIC_ID,title:'Public song',artist:'Artist',artworkURL:'https://private.test/token'};
+    values.set(KEY,JSON.stringify([{...list,tracks:[track,{...track,id:'123?secret_token=private'}]}]));
+    const backup=captureMusicBackup(),encoded=JSON.stringify(backup);
+    expect(encoded).not.toMatch(/private|secret_token|artworkURL/);
+    expect(backup.playlists[0].tracks[0]).toMatchObject({id:track.id,sourceId:SOUNDCLOUD_MUSIC_ID});
+    expect(backup.playlists[0].tracks[1].sourceId).toBeUndefined();
+    values.delete(KEY);
+    const preview=previewMusicMerge(backup);
+    expect(applyMusicMerge(backup,preview.baseline)).toBe('applied');
+    expect(previewMusicMerge(backup).duplicates).toBe(2);
+    const invalid={...backup,playlists:[{...backup.playlists[0],tracks:[{...track,id:'01',artworkURL:undefined}]}]};
+    expect(()=>parseMusicBackup(JSON.stringify(invalid))).toThrow();
   });
 });

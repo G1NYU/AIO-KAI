@@ -12,12 +12,15 @@ import {
 } from '@/lib/music/eclipse';
 import {
   readMusicSources, remembersMusicSources, saveMusicSources, youtubeMusicConnection, YOUTUBE_MUSIC_ID,
+  soundcloudMusicConnection, SOUNDCLOUD_MUSIC_ID, nativeMusicKind, nativeMusicSourceId,
   type MusicConnection,
 } from '@/lib/music/connections';
 import { providerFor } from '@/lib/music/providers';
 import { stableMediaDuration } from '@/lib/music/lyrics';
 import { nativeYouTubeTarget, nextNativeYouTubeTarget, shouldPrefetchNativeTrack } from '@/lib/music/youtube-music';
 import { supportsYouTubeMusic } from '@/lib/hosts/shell/youtube-music';
+import { supportsSoundCloudMusic } from '@/lib/hosts/shell/soundcloud-music';
+import { publicSoundCloudId } from '@/lib/music/soundcloud';
 import { appBridge, type ShellMessage } from '@/lib/hosts/shell/bridge';
 import { MusicPlayer, type RepeatMode } from './player';
 import { MusicArtwork } from './music-artwork';
@@ -155,6 +158,19 @@ export function MusicPage({
   const volumeRef = React.useRef(volume);
   volumeRef.current = volume;
   const generation = React.useRef(0);
+  const searchAbort = React.useRef<AbortController | null>(null);
+
+  function cancelSearch() {
+    searchAbort.current?.abort();
+    searchAbort.current = null;
+  }
+
+  function beginSearch() {
+    cancelSearch();
+    const controller = new AbortController();
+    searchAbort.current = controller;
+    return { controller, request: ++generation.current };
+  }
 
   function disposeBrowserGraph() {
     if (graphResume.current) clearTimeout(graphResume.current.timer);
@@ -283,7 +299,7 @@ export function MusicPage({
   React.useEffect(() => {
     const current = nativeAudio.current;
     const bridge = appBridge();
-    if (!current || bridge?.platform !== 'windows' || !playbackAllowed || resolving) return;
+    if (!current || current.sourceId !== YOUTUBE_MUSIC_ID || bridge?.platform !== 'windows' || !playbackAllowed || resolving) return;
     const url = nextNativeYouTubeTarget(queue, queueIndex, shuffle, repeat);
     const previous = prefetchSent.current;
     if (previous?.request === current.request && previous.url === url) return;
@@ -387,7 +403,7 @@ export function MusicPage({
   React.useEffect(() => {
     if (!playbackAllowed) {
       // Stop native music before entering the native video environment.
-      if (nativeAudio.current || playingSourceId === YOUTUBE_MUSIC_ID) {
+      if (nativeAudio.current || nativeMusicSourceId(playingSourceId)) {
         ++playbackRequest.current;
         stopNativeAudio();
         setResolving(false);
@@ -412,10 +428,11 @@ export function MusicPage({
     });
     return () => { controller.abort(); };
   }, [storeRevision]);
-  React.useEffect(() => () => { generation.current++; }, []);
+  React.useEffect(() => () => { generation.current++; searchAbort.current?.abort(); }, []);
 
   async function connect(event: React.FormEvent) {
     event.preventDefault();
+    cancelSearch();
     const request = ++generation.current;
     setConnecting(true);
     setSearching(false);
@@ -455,10 +472,19 @@ export function MusicPage({
     setSettingsOpen(false);
   }
 
+  function connectSoundCloudMusic() {
+    if (!supportsSoundCloudMusic()) return;
+    const source = soundcloudMusicConnection();
+    setConnections(previous => previous.some(item => item.id === source.id) ? previous : [...previous, source]);
+    switchSource(source.id);
+    setTab('search');
+    setSettingsOpen(false);
+  }
+
   async function search(event: React.FormEvent) {
     event.preventDefault();
     if (!activeSource || !query.trim()) return;
-    const request = ++generation.current;
+    const { controller, request } = beginSearch();
     setSearching(true);
     setConnecting(false);
     setResolving(false);
@@ -466,14 +492,17 @@ export function MusicPage({
     setTracks([]);
     setCollections([]);
     try {
-      const result = await providerFor(activeSource).search(query.trim());
+      const result = await providerFor(activeSource).search(query.trim(), controller.signal, partial => {
+        if (request === generation.current && !controller.signal.aborted) setTracks(partial.tracks);
+      });
       if (request === generation.current) {
         setTracks(result.tracks);
         setCollections([...result.albums, ...result.artists, ...result.playlists]);
       }
     } catch (error) {
-      if (request === generation.current) setSearchError((error as Error).message);
+      if (request === generation.current && !controller.signal.aborted) setSearchError((error as Error).message);
     } finally {
+      if (searchAbort.current === controller) searchAbort.current = null;
       if (request === generation.current) setSearching(false);
     }
   }
@@ -488,26 +517,32 @@ export function MusicPage({
     setCollections([]);
     setSearchError('');
     if (!source) return;
-    const request = ++generation.current;
+    const { controller, request } = beginSearch();
     setSearching(true);
     try {
-      const result = await providerFor(source).search(term);
+      const result = await providerFor(source).search(term, controller.signal, partial => {
+        if (request === generation.current && !controller.signal.aborted) setTracks(partial.tracks);
+      });
       if (request === generation.current) {
         setTracks(result.tracks);
         setCollections([...result.albums, ...result.artists, ...result.playlists]);
       }
     } catch (reason) {
-      if (request === generation.current)
+      if (request === generation.current && !controller.signal.aborted)
         setSearchError(reason instanceof Error ? reason.message : t`Search failed.`);
     } finally {
+      if (searchAbort.current === controller) searchAbort.current = null;
       if (request === generation.current) setSearching(false);
     }
   }
 
   async function play(track: EclipseTrack, at: number, source: MusicConnection, fromQueue = false) {
     const request = ++playbackRequest.current;
-    const advance = source.kind === 'youtube-music' && appBridge()?.platform === 'windows'
-      && !!appBridge()?.nativeMusicAudio && /^[\w-]{11}$/.test(track.id) && playbackAllowedRef.current;
+    if (searchAbort.current) { ++generation.current; cancelSearch(); }
+    const validNative = source.kind === 'youtube-music' ? /^[\w-]{11}$/.test(track.id)
+      : source.kind === 'soundcloud' && publicSoundCloudId(track.id);
+    const advance = validNative && playingSourceId === source.id && appBridge()?.platform === 'windows'
+      && !!appBridge()?.nativeMusicAudio && playbackAllowedRef.current;
     stopNativeAudio(advance);
     clearBrowserAudio();
     releaseFolderURL();
@@ -527,6 +562,7 @@ export function MusicPage({
     setQuality('');
     setResolving(true);
     try {
+      if (source.kind === 'soundcloud' && !supportsSoundCloudMusic()) throw new Error(t`Native music playback is unavailable in this build.`);
       // Windows already resolves the public watch target in the native worker.
       // Avoid an unnecessary bridge worker and round trip on the hot path.
       const stream = source.kind === 'youtube-music' && appBridge()?.platform === 'windows'
@@ -541,7 +577,7 @@ export function MusicPage({
         return;
       }
       setQuality(stream.quality ?? stream.format ?? '');
-      if (source.kind === 'youtube-music') {
+      if (nativeMusicKind(source.kind)) {
         const bridge = appBridge();
         if (!bridge?.nativeMusicAudio) throw new Error(t`Native music playback is unavailable in this build.`);
         const id = 'music-audio-' + request;
@@ -551,7 +587,7 @@ export function MusicPage({
           setResolving(false);
           setPaused(true);
           setPlayError(t`Native music playback timed out.`);
-        }, 50_000);
+        }, source.kind === 'soundcloud' ? 125_000 : 50_000);
         nativeAudio.current = { request: id, sourceId: source.id, track, recorded: false, timer };
         bridge.send({ type: 'music-audio-load', request: id, url: stream.url, volume: volumeRef.current });
       } else {
@@ -722,7 +758,7 @@ export function MusicPage({
       return;
     }
     const exactSource = connections.find((source) => source.id === entry.sourceId);
-    if (!exactSource && entry.sourceId && !entry.artist) {
+    if (!exactSource && entry.sourceId && (!entry.artist || entry.sourceId === SOUNDCLOUD_MUSIC_ID)) {
       setLibraryError(t`Connect the original music source to play this track.`);
       return;
     }
@@ -738,8 +774,11 @@ export function MusicPage({
       void play(selected, 0, source, true);
       return;
     }
+    const { controller, request } = beginSearch();
+    setSearching(false);
     try {
-      const result = await providerFor(source).search(entry.artist + ' ' + entry.title);
+      const result = await providerFor(source).search(entry.artist + ' ' + entry.title, controller.signal);
+      if (request !== generation.current || controller.signal.aborted) return;
       const match = result.tracks.find(track =>
         entry.isrc && track.isrc === entry.isrc) ??
         result.tracks.find(track => normalized(track.title) === normalized(entry.title) &&
@@ -751,7 +790,10 @@ export function MusicPage({
       setQueue([match]);
       void play(match, 0, source, true);
     } catch {
-      setLibraryError(t`Could not search the active music source for this saved track.`);
+      if (request === generation.current && !controller.signal.aborted)
+        setLibraryError(t`Could not search the active music source for this saved track.`);
+    } finally {
+      if (searchAbort.current === controller) searchAbort.current = null;
     }
   }
 
@@ -773,7 +815,7 @@ export function MusicPage({
       return;
     }
     const source = connections.find(item => item.id === playingSourceId);
-    if (playing && source?.kind === 'youtube-music' && !resolving) {
+    if (playing && nativeMusicKind(source?.kind) && source && !resolving) {
       void play(playing, queueIndex, source, true);
       return;
     }
@@ -797,7 +839,7 @@ export function MusicPage({
     const source = connections.find((item) => item.id === playingSourceId);
     if ((!source && !local) || !queue.length) return;
     if (auto && repeat === 'one') {
-      if (source?.kind === 'youtube-music' && playing) {
+      if (source && nativeMusicKind(source.kind) && playing) {
         void play(playing, queueIndex, source, true);
         return;
       }
@@ -846,6 +888,7 @@ export function MusicPage({
   }
 
   function switchSource(id: string) {
+    cancelSearch();
     ++generation.current;
     setSelectedId(id);
     setTracks([]);
@@ -859,6 +902,8 @@ export function MusicPage({
   }
 
   function removeSource(id: string) {
+    cancelSearch();
+    setSearching(false);
     ++generation.current;
     setConnections((previous) => previous.filter((source) => source.id !== id));
     setRecent((previous) => previous.filter((entry) => entry.sourceId !== id));
@@ -1035,6 +1080,9 @@ export function MusicPage({
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-6 py-3 text-sm disabled:opacity-50">
                 <BiSearch aria-hidden />{searching ? <Trans>Searching…</Trans> : <Trans>Search</Trans>}
               </button>
+              {searching && activeSource?.kind === 'soundcloud' && <button type="button" className="tsugi-read-action" onClick={() => {
+                ++generation.current; cancelSearch(); setSearching(false);
+              }}><Trans>Cancel search</Trans></button>}
             </form>
             {searchError && <p role="alert" className="text-sm text-red-300">{searchError}</p>}
             {saveNotice && <p role="status" className="text-sm text-[--tsugi-muted]">{saveNotice}</p>}
@@ -1148,6 +1196,7 @@ export function MusicPage({
                 <h3 id="music-source-heading"><Trans>Connect a music source</Trans></h3>
                 <p className="text-sm text-[--tsugi-muted]"><Trans>Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device.</Trans></p>
                 {supportsYouTubeMusic() && !connections.some(source => source.id === YOUTUBE_MUSIC_ID) && <button type="button" className="tsugi-library-action" onClick={connectYouTubeMusic}><FiPlus aria-hidden /> <Trans>Connect YouTube Music</Trans></button>}
+                {supportsSoundCloudMusic() && !connections.some(source => source.id === SOUNDCLOUD_MUSIC_ID) && <button type="button" className="tsugi-library-action" onClick={connectSoundCloudMusic}><FiPlus aria-hidden /> <Trans>Connect SoundCloud</Trans></button>}
                 <form onSubmit={connect} className="tsugi-source-form">
                   <input aria-label={t`Eclipse addon manifest URL`} type="url" required autoComplete="off" spellCheck={false}
                     value={manifestInput} onChange={e => setManifestInput(e.target.value)} placeholder="https://example.com/manifest.json" />
@@ -1202,11 +1251,11 @@ export function MusicPage({
           connections.find((item) => item.id === playingSourceId)?.manifest.name ?? '',
         queue, index: queueIndex, paused, loading: resolving, error: playError,
         position, duration, mediaDuration, volume, quality, expanded, shuffle, repeat,
-        audioProfile, eqEnabled, eqAvailable: (playingSourceId === LOCAL_SOURCE && browserPlayback?.mode !== 'direct') || (playingSourceId === YOUTUBE_MUSIC_ID && appBridge()?.platform === 'windows' && !!appBridge()?.nativeMusicAudio), eqError,
+        audioProfile, eqEnabled, eqAvailable: (playingSourceId === LOCAL_SOURCE && browserPlayback?.mode !== 'direct') || (nativeMusicSourceId(playingSourceId) && appBridge()?.platform === 'windows' && !!appBridge()?.nativeMusicAudio), eqError,
         analyser: eqGraph.current?.element === audioRef.current ? matrixAnalyser : null,
         visualizerUnavailable: browserPlayback?.mode === 'direct',
-        nativeMeter: playingSourceId === YOUTUBE_MUSIC_ID ? nativeMeter : undefined,
-        nativeMeterAvailable: playingSourceId === YOUTUBE_MUSIC_ID && nativeMeterAvailable,
+        nativeMeter: nativeMusicSourceId(playingSourceId) ? nativeMeter : undefined,
+        nativeMeterAvailable: nativeMusicSourceId(playingSourceId) && nativeMeterAvailable,
         onMatrixActive: setMatrixWanted,
         isFavorite: !!playing && !!playlists.find(list => list.id === SAVED_PLAYLIST_ID)
           ?.tracks.some(track => track.id === playing.id && track.sourceId === playingSourceId),

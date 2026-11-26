@@ -104,3 +104,15 @@ A read-only audit of the pinned `wry 0.57.0` and `webview2-com 0.39.1` bindings 
 The [profile cleanup API](https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/icorewebview2profile2) reports asynchronous completion, not an exact reviewed-file set or reclaimed-byte total. The current `Default/Cache` scan is only an observation and cannot authorize directory deletion or prove that it matches the active profile's whole disk-cache category. Validate the actual environment and profile paths: WebView2 configuration can override the requested user-data directory. Execute COM calls and completion handling on the [UI event loop](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/threading-model), not the backup worker thread.
 
 Next implementation gate: an actual disposable Windows WebView2 profile containing original cached HTTP assets, ebook Blob/cover/progress data, preferences, IndexedDB records and synthetic cookies. Verify only `DISK_CACHE` is requested, wait for the real completion callback, then prove cache refetch and preservation immediately and after restart. Cover unsupported interfaces, changed profiles, cancellation and interrupted close. Any eventual UI must distinguish category-wide completion from observed size changes; it must not inherit Reader's exact-file removal claim. This audit adds no cleanup command or user-data mutation.
+
+### Public SoundCloud identity follow-up
+
+Music metadata backups now admit the fixed built-in SoundCloud source ID
+`f9cf487e-67c9-4e29-a626-6db1cd1e1ec2` only with a canonical positive decimal
+track ID within the unsigned 64-bit range. Identity matching is scoped by the
+provider ID; arbitrary addon IDs, private track tokens, stream URLs and
+artwork URLs remain excluded. No audio bytes or account credentials are
+captured. Existing archives remain supported; older application builds that
+do not recognize this added public identity reject archives containing it.
+Native SoundCloud playback/search use a separate temporary owner-only
+directory outside portable data, and are not included in managed backups.

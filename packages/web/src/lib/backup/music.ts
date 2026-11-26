@@ -1,5 +1,6 @@
 import type { MusicPlaylist, SavedMusicTrack, SavedCollectionIdentity } from '../music/library';
-import { YOUTUBE_MUSIC_ID } from '../music/connections';
+import { YOUTUBE_MUSIC_ID, SOUNDCLOUD_MUSIC_ID } from '../music/connections';
+import { publicSoundCloudId } from '../music/soundcloud';
 
 export const MUSIC_BACKUP_LIMIT = 4 * 1024 * 1024;
 const KEY = 'tsugi-independent-playlists-v1';
@@ -47,8 +48,9 @@ function trackFields(raw:Record<string,unknown>) {
   const isrc=typeof raw.isrc==='string'&&/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/i.test(raw.isrc)?raw.isrc:undefined;
   return {title,artist,...(album?{album}:{}),...(typeof duration==='number'?{duration}:{}),...(isrc?{isrc}:{})};
 }
-function publicTrack(raw:Record<string,unknown>):boolean {
-  return raw.sourceId===YOUTUBE_MUSIC_ID&&typeof raw.id==='string'&&VIDEO.test(raw.id);
+function publicTrackSource(raw:Record<string,unknown>):string|undefined {
+  if(raw.sourceId===YOUTUBE_MUSIC_ID&&typeof raw.id==='string'&&VIDEO.test(raw.id))return YOUTUBE_MUSIC_ID;
+  if(raw.sourceId===SOUNDCLOUD_MUSIC_ID&&publicSoundCloudId(raw.id))return SOUNDCLOUD_MUSIC_ID;
 }
 function portableId(id:string,index:number) {
   // Saved tracks has a fixed non-UUID list id; use a fixed UUID namespace.
@@ -56,7 +58,8 @@ function portableId(id:string,index:number) {
 }
 function project(raw:unknown,id:string,index:number):SavedMusicTrack {
   const t=obj(raw), fields=trackFields(t);
-  if(publicTrack(t))return {...fields,id:t.id as string,sourceId:YOUTUBE_MUSIC_ID};
+  const sourceId=publicTrackSource(t);
+  if(sourceId)return {...fields,id:t.id as string,sourceId};
   // Non-native provider IDs, artwork and source URLs may be bearer-like.
   // A metadata-only entry uses title/artist/ISRC matching at playback time.
   return {...fields,artist:fields.artist||'—',id:portableId(id,index)};
@@ -119,7 +122,8 @@ export function parseMusicBackup(data:string):MusicBackup {
       const raw=obj(value);allowed(raw,['id','title','artist','album','duration','isrc','sourceId']);
       const fields=trackFields(raw);
       if(raw.isrc!==undefined&&!fields.isrc)throw new Error('isrc');
-      if(publicTrack(raw))return {...fields,id:raw.id as string,sourceId:YOUTUBE_MUSIC_ID};
+      const sourceId=publicTrackSource(raw);
+      if(sourceId)return {...fields,id:raw.id as string,sourceId};
       if(raw.sourceId!==undefined||raw.id!==portableId(id,index)||!fields.artist.trim())throw new Error('track-id');
       return {...fields,id:raw.id};
     });
@@ -131,7 +135,7 @@ function sameCollection(a:SavedCollectionIdentity|undefined,b:SavedCollectionIde
   return !!a&&!!b&&a.id===b.id&&a.sourceId===b.sourceId&&a.type===b.type;
 }
 function metadata(t:SavedMusicTrack) {const f=trackFields(obj(t));return JSON.stringify([f.title,f.artist||'—',f.album??'',f.isrc??'']);}
-function identity(t:SavedMusicTrack) {return t.sourceId===YOUTUBE_MUSIC_ID&&VIDEO.test(t.id)?'yt:'+t.id:'meta:'+metadata(t);}
+function identity(t:SavedMusicTrack) {const sourceId=publicTrackSource(obj(t));return sourceId?'native:'+sourceId+':'+t.id:'meta:'+metadata(t);}
 
 /** Merge only: no current collections or tracks are deleted or overwritten.
  * Counts reflect multiplicity, so intentional repeated tracks stay ordered. */
@@ -154,7 +158,7 @@ export function planMusicMerge(backup:MusicBackup,current=readRaw()):MusicMerge 
       const queue=map.get(key);if(queue)queue.push(index);else map.set(key,[index]);
     };
     target.tracks.forEach((t,index)=>{
-      if(t.sourceId===YOUTUBE_MUSIC_ID&&VIDEO.test(t.id))push(native,identity(t),index);
+      if(publicTrackSource(obj(t)))push(native,identity(t),index);
       push(meta,metadata(t),index);
     });
     const consumed=new Set<number>(), matched=new Set<number>();

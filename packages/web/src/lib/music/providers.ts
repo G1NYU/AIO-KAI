@@ -5,13 +5,14 @@ import {
   type EclipseSearchResults, type EclipseStream, type EclipseTrack,
 } from './eclipse';
 import { youtubeMusicProvider } from './youtube-music';
+import { soundcloudMusicProvider } from './soundcloud';
 
 /** Shared metadata and resolved-audio contract. The UI never constructs a provider's
  * search, catalog, collection or stream URL. A native provider can supply a
  * different transport while keeping its track IDs and credentials isolated. */
 export interface MusicProvider {
   readonly kind: MusicProviderKind;
-  search(query: string, signal?: AbortSignal): Promise<EclipseSearchResults>;
+  search(query: string, signal?: AbortSignal, onPartial?: (result: EclipseSearchResults) => void): Promise<EclipseSearchResults>;
   catalogs(signal?: AbortSignal): Promise<EclipseCatalogDefinition[]>;
   catalog(definition: EclipseCatalogDefinition, skip?: number, signal?: AbortSignal): Promise<EclipseCatalogItem[]>;
   detail(item: EclipseCatalogItem, signal?: AbortSignal): Promise<EclipseDetail>;
@@ -34,6 +35,10 @@ const eclipseProvider: ProviderFactory = ({ url }) => ({
 
 const factories: Record<MusicProviderKind, ProviderFactory> = {
   eclipse: eclipseProvider,
+  soundcloud: () => soundcloudMusicProvider(async (query, signal, onTracks) => {
+    const { requestSoundCloudSearch } = await import('../hosts/shell/soundcloud-music');
+    return requestSoundCloudSearch(query, signal, onTracks);
+  }),
   'youtube-music': () => youtubeMusicProvider(async (operation, value, signal) => {
     const { requestYouTubeMusic } = await import('../hosts/shell/youtube-music');
     return requestYouTubeMusic(operation, value, signal);

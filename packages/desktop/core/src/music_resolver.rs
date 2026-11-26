@@ -72,13 +72,15 @@ struct SessionTemporary(std::path::PathBuf);
 
 #[cfg(windows)]
 impl SessionTemporary {
-    fn create() -> Result<Self, &'static str> {
-        let error = "Could not prepare private temporary YouTube session storage.";
+    fn create() -> Result<Self, &'static str> { Self::create_named("tsugi-youtube") }
+
+    fn create_named(prefix: &str) -> Result<Self, &'static str> {
+        let error = "Could not prepare private temporary music storage.";
         let user = crate::read_runtime::private_storage::CurrentUser::get().map_err(|_| error)?;
         let mut nonce = [0u8; 16];
         getrandom::fill(&mut nonce).map_err(|_| error)?;
         let name: String = nonce.iter().map(|byte| format!("{byte:02x}")).collect();
-        let directory = std::env::temp_dir().join(format!("tsugi-youtube-{name}"));
+        let directory = std::env::temp_dir().join(format!("{prefix}-{name}"));
         if !user.create_root(&directory).map_err(|_| error)? { return Err(error); }
         let temporary = Self(directory);
         user.verify(&temporary.0, true).map_err(|_| error)?;
@@ -90,7 +92,7 @@ impl SessionTemporary {
 impl Drop for SessionTemporary {
     fn drop(&mut self) {
         if std::fs::remove_dir_all(&self.0).is_err() {
-            log::warn!("Could not remove private temporary YouTube tool files.");
+            log::warn!("Could not remove private temporary music tool files.");
         }
     }
 }
@@ -382,6 +384,7 @@ pub(crate) struct Transfer {
     received: Arc<AtomicU64>,
     total: Arc<TransferLength>,
     session: u64,
+    soundcloud: bool,
     audio: Option<Arc<ProgressiveAudio>>,
     cancelled: Arc<AtomicBool>,
     file_output: bool,
@@ -391,11 +394,17 @@ pub(crate) struct Transfer {
     temporary: Option<SessionTemporary>,
 }
 
-enum TransferOutput { Metadata, Memory, Playback, File(std::fs::File) }
+enum TransferOutput { Metadata, Memory, Playback, File(std::fs::File), Search(Box<dyn FnMut(serde_json::Value) + Send>) }
 
 impl Transfer {
     pub(crate) fn start(value: &str) -> Result<Self, &'static str> {
         Self::start_with(value, "bestaudio[protocol=https]", Duration::from_secs(120), TransferOutput::Playback, 0)
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn start_soundcloud_search(query: &str, emit: Box<dyn FnMut(serde_json::Value) + Send>) -> Result<Self, &'static str> {
+        let target = crate::soundcloud::search_target(query)?;
+        Self::start_with(&target, "", Duration::from_secs(60), TransferOutput::Search(emit), 0)
     }
 
     // An explicit authorized Vault export, distinct from the playback format.
@@ -417,21 +426,29 @@ impl Transfer {
     }
 
     fn start_with(value: &str, format: &str, timeout: Duration, output: TransferOutput, rate_mib: u32) -> Result<Self, &'static str> {
-        if !is_target(value) {
-            return Err("Invalid YouTube Music track.");
+        let search = matches!(&output, TransferOutput::Search(_));
+        let soundcloud = search || (matches!(&output, TransferOutput::Playback) && crate::soundcloud::is_target(value));
+        if (!is_target(value) && !soundcloud) || (soundcloud && !cfg!(windows)) {
+            return Err("Invalid or unsupported native music target.");
         }
         let app = std::env::current_exe().map_err(|_| "Could not locate Tsugi.")?;
         let directory = app.parent().ok_or("Could not locate Tsugi.")?;
         let resolver = directory.join("music-tools").join("yt-dlp.exe");
         let runtime = directory.join("music-tools").join("deno.exe");
-        if !resolver.is_file() || !runtime.is_file() {
-            return Err("Bundled YouTube Music tools are missing from this installation.");
+        if !resolver.is_file() || (!soundcloud && !runtime.is_file()) {
+            return Err("Bundled music tools are missing from this installation.");
         }
         let session = session_revision();
         let metadata = matches!(&output, TransferOutput::Metadata);
-        let mut command = transport_command(&resolver, &runtime, value, format, metadata, session & 1 == 1, rate_mib);
         #[cfg(windows)]
-        let temporary = if session & 1 == 1 { Some(SessionTemporary::create()?) } else { None };
+        let temporary = if soundcloud { Some(SessionTemporary::create_named("tsugi-soundcloud")?) }
+            else if session & 1 == 1 { Some(SessionTemporary::create()?) } else { None };
+        let mut command = if soundcloud {
+            #[cfg(windows)]
+            { soundcloud_command(&resolver, &temporary.as_ref().expect("owned SoundCloud directory").0, value, search) }
+            #[cfg(not(windows))]
+            { return Err("SoundCloud is supported on Windows only."); }
+        } else { transport_command(&resolver, &runtime, value, format, metadata, session & 1 == 1, rate_mib) };
         #[cfg(windows)]
         let job = crate::read_runtime::ReadJob::new().map_err(|_| "Could not contain the YouTube music tool.")?;
         #[cfg(windows)]
@@ -466,20 +483,22 @@ impl Transfer {
         let file_output = matches!(&output, TransferOutput::File(_));
         let audio = matches!(&output, TransferOutput::Playback).then(ProgressiveAudio::new);
         let diagnostic_audio = audio.clone();
-        let destination = match output {
-            TransferOutput::File(file) => AudioOutput::File(file),
-            TransferOutput::Playback => AudioOutput::Progressive(audio.as_ref().expect("playback spool").clone()),
-            _ => AudioOutput::Memory,
-        };
+        let playback_audio = audio.clone();
         Ok(Self {
             child,
-            stdout: Some(std::thread::spawn(move || if metadata { read_audio(stdout, 2*1024*1024, &counter) }
-                else { read_stream(stdout, destination, &counter, &cancellation) })),
+            stdout: Some(std::thread::spawn(move || match output {
+                TransferOutput::Metadata => read_audio(stdout, 2*1024*1024, &counter),
+                TransferOutput::Search(emit) => read_soundcloud_rows(stdout, &cancellation, emit),
+                TransferOutput::File(file) => read_stream(stdout, AudioOutput::File(file), &counter, &cancellation),
+                TransferOutput::Playback => read_stream(stdout, AudioOutput::Progressive(playback_audio.expect("playback spool")), &counter, &cancellation),
+                TransferOutput::Memory => read_stream(stdout, AudioOutput::Memory, &counter, &cancellation),
+            })),
             stderr: Some(std::thread::spawn(move || read_diagnostics(stderr, diagnostic_audio, &diagnostic_total))),
             deadline: Instant::now() + timeout,
             received,
             total,
             session,
+            soundcloud,
             audio,
             cancelled,
             file_output,
@@ -511,10 +530,10 @@ impl Transfer {
     }
 
     fn poll_inner(&mut self) -> Result<Option<Vec<u8>>, &'static str> {
-        if self.session != session_revision() { return Err(SESSION_CHANGED); }
+        if !self.soundcloud && self.session != session_revision() { return Err(SESSION_CHANGED); }
         self.total.validate(self.received_bytes(), false)?;
         if Instant::now() >= self.deadline {
-            return Err("YouTube Music transfer timed out.");
+            return Err(if self.soundcloud { "SoundCloud request timed out." } else { "YouTube Music transfer timed out." });
         }
         let Some(status) = self
             .child
@@ -541,11 +560,57 @@ impl Transfer {
             .join()
             .map_err(|_| "Music diagnostic reader stopped.")??;
         if !status.success() {
-            return Err(classify_error(&stderr, self.session & 1 == 1));
+            return Err(if self.soundcloud { "SoundCloud could not complete the public media request." }
+                else { classify_error(&stderr, self.session & 1 == 1) });
         }
         self.total.validate(self.received_bytes(), true)?;
         stdout.map(Some)
     }
+}
+
+fn read_soundcloud_rows(mut stdout: ChildStdout, cancelled: &AtomicBool, mut emit: Box<dyn FnMut(serde_json::Value) + Send>) -> Result<Vec<u8>, &'static str> {
+    let mut rows = crate::soundcloud::SearchRows::default();
+    let mut buffer = [0u8; 16 * 1024];
+    let mut deliver = |track| {
+        if !cancelled.load(Ordering::Acquire) { emit(track); }
+    };
+    loop {
+        let size = read_cancellable(&mut stdout, &mut buffer, cancelled)?;
+        if size == 0 { break; }
+        rows.push(&buffer[..size], &mut deliver)?;
+    }
+    rows.finish(&mut deliver)?;
+    Ok(Vec::new())
+}
+
+// Native HLS writes temporary fragment files even when its final output is
+// stdout. Keep those files in this transfer's private working directory.
+#[cfg(any(windows, test))]
+fn soundcloud_command(resolver: &std::path::Path, directory: &std::path::Path, value: &str, search: bool) -> Command {
+    let mut command = Command::new(resolver);
+    command.current_dir(directory).args([
+        "--ignore-config", "--no-plugin-dirs", "--no-cache-dir", "--no-progress",
+        "--socket-timeout", "8", "--retries", "0", "--extractor-retries", "0",
+        "--no-js-runtimes", "--encoding", "utf-8",
+    ]).arg("--ffmpeg-location").arg(directory);
+    if search {
+        command.args(["--use-extractors", "soundcloud:search", "--flat-playlist", "--lazy-playlist",
+            "--playlist-end", "20", "--skip-download", "--dump-json", "--quiet"]);
+    } else {
+        // Public, complete AAC only. No preview, DRM, cookies, browser session,
+        // external downloader, user configuration or arbitrary target URL.
+        command.args(["--use-extractors", "soundcloud", "--no-playlist", "--no-continue",
+            "--fragment-retries", "0", "--abort-on-unavailable-fragments",
+            "--extractor-args", "soundcloud:formats=hls_aac,http_aac",
+            "--format", "bestaudio[ext=m4a][protocol=m3u8_native][format_id!*=preview]/bestaudio[ext=m4a][protocol=http][format_id!*=preview]",
+            "--downloader", "m3u8:native", "--fixup", "never", "-o", "-"]);
+    }
+    command.args(["--", value]);
+    command
+}
+
+pub(crate) fn is_playback_target(value: &str) -> bool {
+    is_target(value) || crate::soundcloud::is_target(value)
 }
 
 fn transport_command(resolver: &std::path::Path, runtime: &std::path::Path, value: &str, format: &str, metadata: bool, firefox: bool, rate_mib: u32) -> Command {
@@ -683,6 +748,32 @@ mod tests {
         assert!(!firefox.iter().any(|arg| arg == "--cookies"));
         assert!(firefox.iter().any(|arg| arg == "deno:D:/Music tools/deno.exe"));
         assert_eq!(&firefox[firefox.len()-2..], &["--", "https://www.youtube.com/watch?v=abcdefghijk"]);
+    }
+
+    #[test]
+    fn soundcloud_commands_are_public_bounded_and_use_owned_fragment_directory() {
+        let directory = std::path::Path::new("private-fragments");
+        let resolver = std::path::Path::new("yt-dlp.exe");
+        for (value, search) in [("scsearch20:original music", true), ("https://api.soundcloud.com/tracks/123", false)] {
+            let command = soundcloud_command(resolver, directory, value, search);
+            assert_eq!(command.get_current_dir(), Some(directory));
+            let args: Vec<_> = command.get_args().map(|v| v.to_string_lossy().into_owned()).collect();
+            assert_eq!(&args[args.len()-2..], &["--", value]);
+            assert!(!args.iter().any(|v| v.contains("cookies") || v == "--allow-unplayable-formats"));
+            assert!(args.windows(2).any(|pair| pair == ["--ffmpeg-location", "private-fragments"]));
+            if search {
+                assert!(args.iter().any(|v| v == "--flat-playlist"));
+                assert!(args.iter().any(|v| v == "--dump-json"));
+                assert!(args.windows(2).any(|pair| pair == ["--playlist-end", "20"]));
+            } else {
+                assert!(args.iter().any(|v| v == "--abort-on-unavailable-fragments"));
+                assert!(args.windows(2).any(|pair| pair == ["--downloader", "m3u8:native"]));
+                assert!(args.iter().any(|v| v.contains("format_id!*=preview")));
+                assert!(args.windows(2).any(|pair| pair == ["-o", "-"]));
+            }
+        }
+        assert!(is_playback_target("https://api.soundcloud.com/tracks/123"));
+        assert!(!is_target("https://api.soundcloud.com/tracks/123"), "SoundCloud cannot enter YouTube export");
     }
 
     #[test]

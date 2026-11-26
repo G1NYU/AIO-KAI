@@ -318,7 +318,9 @@ export function MusicDiscover({
           <p className="text-sm text-[--tsugi-muted]">
             {source.kind === 'youtube-music'
               ? <Trans>No YouTube Music shelves are available right now. Explore independent charts below or use Search.</Trans>
-              : <Trans>This addon does not publish shelves. Explore independent charts below or use Search.</Trans>}
+              : source.kind === 'soundcloud'
+                ? <Trans>Search public SoundCloud tracks or explore independent charts below.</Trans>
+                : <Trans>This addon does not publish shelves. Explore independent charts below or use Search.</Trans>}
           </p>
         </div>
       )}

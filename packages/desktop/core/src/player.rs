@@ -232,6 +232,8 @@ pub struct Player {
     youtube: Arc<Mutex<HashMap<String, String>>>,
     music_library: PathBuf,
     music_audio: Mutex<Option<crate::music_audio::MusicAudio>>,
+    #[cfg(windows)]
+    soundcloud_search: Mutex<Option<crate::soundcloud::Searches>>,
     emit: Emit,
 }
 
@@ -322,6 +324,8 @@ impl Player {
             youtube: Arc::default(),
             music_library: library.to_path_buf(),
             music_audio: Mutex::default(),
+            #[cfg(windows)]
+            soundcloud_search: Mutex::default(),
             emit,
         })
     }
@@ -360,8 +364,8 @@ impl Player {
         }
         if operation == "session" {
             let result = if cfg!(windows) {
-                crate::music_resolver::session_request(&value).map(|(mode, changed)| {
-                    if changed { self.stop_music_audio(); }
+                crate::music_resolver::session_request(&value).map(|(mode, _changed)| {
+                    // The audio worker invalidates YouTube-only state on revision changes.
                     serde_json::json!({ "mode": mode })
                 })
             } else { Err("YouTube sessions are supported on Windows only.") };
@@ -411,6 +415,28 @@ impl Player {
                 error: Some("Could not start YouTube Music request.".into()),
             });
         }
+    }
+
+    pub fn search_soundcloud(&self, request: String, query: String) {
+        if request.len() > 100 || request.is_empty() { return; }
+        #[cfg(windows)]
+        if let Ok(mut search) = self.soundcloud_search.lock() {
+            if search.is_none() { *search = crate::soundcloud::Searches::new(self.emit.clone()).ok(); }
+            if let Some(search) = &*search
+                && search.search(request.clone(), query.clone())
+            { return; }
+        }
+        let _ = query;
+        (self.emit)(Outbound::SoundcloudSearchResult { request, tracks: vec![], complete: true,
+            error: Some("SoundCloud search is unavailable or busy.".into()) });
+    }
+
+    pub fn cancel_soundcloud_search(&self, request: String) {
+        if request.len() > 100 { return; }
+        #[cfg(windows)]
+        if let Ok(search) = self.soundcloud_search.lock()
+            && let Some(search) = &*search
+        { search.cancel(request); }
     }
 
     pub fn load_music_audio(&self, request: String, url: String, volume: f64) {
@@ -798,6 +824,8 @@ impl Player {
 
 impl Drop for Player {
     fn drop(&mut self) {
+        #[cfg(windows)]
+        if let Ok(search) = self.soundcloud_search.get_mut() { search.take(); }
         // Stop the independent music engine before tearing down video playback.
         if let Ok(audio) = self.music_audio.get_mut() {
             audio.take();

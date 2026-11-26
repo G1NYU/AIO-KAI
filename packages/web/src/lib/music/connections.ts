@@ -2,9 +2,30 @@ import { storage } from '../storage';
 import { manifestUrlFor, parseManifest, type EclipseManifest } from './eclipse';
 
 /** Explicit routing discriminator; legacy saved connections omit it. */
-export type MusicProviderKind = 'eclipse' | 'youtube-music';
+export type MusicProviderKind = 'eclipse' | 'youtube-music' | 'soundcloud';
 
 export const YOUTUBE_MUSIC_ID = 'eeaa2cb3-5735-43ad-bff6-f1f9f23acdb9';
+export const SOUNDCLOUD_MUSIC_ID = 'f9cf487e-67c9-4e29-a626-6db1cd1e1ec2';
+
+export function soundcloudMusicConnection(): MusicConnection {
+  return {
+    id: SOUNDCLOUD_MUSIC_ID, kind: 'soundcloud', url: 'https://soundcloud.com/',
+    manifest: {
+      id: 'tsugi.soundcloud',
+      // eslint-disable-next-line lingui/no-unlocalized-strings -- service name
+      name: 'SoundCloud',
+      version: '1', resources: ['search', 'stream'],
+    },
+  };
+}
+
+export function nativeMusicKind(kind: MusicProviderKind | undefined): boolean {
+  return kind === 'youtube-music' || kind === 'soundcloud';
+}
+
+export function nativeMusicSourceId(id: string): boolean {
+  return id === YOUTUBE_MUSIC_ID || id === SOUNDCLOUD_MUSIC_ID;
+}
 
 export function youtubeMusicConnection(): MusicConnection {
   return {
@@ -43,8 +64,8 @@ export function readMusicSources(): MusicConnection[] {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
     const candidate = raw as Record<string, unknown>;
     if (typeof candidate.id !== 'string' || typeof candidate.url !== 'string') continue;
-    if (candidate.kind === 'youtube-music') {
-      const connection = youtubeMusicConnection();
+    if (nativeMusicKind(candidate.kind as MusicProviderKind | undefined)) {
+      const connection = candidate.kind === 'soundcloud' ? soundcloudMusicConnection() : youtubeMusicConnection();
       if (candidate.id === connection.id && !urls.has(connection.url)) {
         urls.add(connection.url);
         entries.push(connection);

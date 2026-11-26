@@ -16,6 +16,7 @@ import { verifyMihonImportBrowser } from './mihon-import-browser.mjs';
 import { verifyMihonReconstructionBrowser } from './mihon-reconstruction-browser.mjs';
 import { verifyDiscordPresenceBrowser } from './discord-presence-browser.mjs';
 import { verifyYouTubeSessionBrowser } from './youtube-session-browser.mjs';
+import { verifySoundCloudBrowser } from './soundcloud-browser.mjs';
 import { verifyDownloadCleanupBrowser, verifyReaderReleaseBrowser } from './download-cleanup-browser.mjs';
 import { verifyReaderCacheCleanupBrowser } from './reader-cache-cleanup-browser.mjs';
 import { verifySourceFeedBrowser } from './source-feed-browser.mjs';
@@ -1573,6 +1574,7 @@ try {
   await verifyMusicLyricsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyBrushHeadingsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyYouTubeSessionBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifySoundCloudBrowser({ browser, origin, installDesktopFixture });
   await verifyRestoreSessionBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyExtensionUpdatesBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyMihonImportBrowser({ browser, origin, installDesktopFixture, screenshotDir });

@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { readMusicSources, remembersMusicSources, saveMusicSources, youtubeMusicConnection } from '../src/lib/music/connections';
+import { readMusicSources, remembersMusicSources, saveMusicSources, youtubeMusicConnection, soundcloudMusicConnection, SOUNDCLOUD_MUSIC_ID } from '../src/lib/music/connections';
 
 import { parseYouTubeMusicHome, youtubeMusicProvider } from '../src/lib/music/youtube-music';
+import { parseSoundCloudTracks, publicSoundCloudId, nativeSoundCloudTarget, soundcloudMusicProvider } from '../src/lib/music/soundcloud';
+import { providerFor } from '../src/lib/music/providers';
 
 const values = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -142,6 +144,57 @@ describe('YouTube Music home catalogues', () => {
     expect(await provider.catalog(first, 0, signal)).toHaveLength(1);
     expect(await provider.catalog(first, 30, signal)).toEqual([]);
     expect(await provider.catalog({ ...first, id: 'unknown' })).toEqual([]);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('built-in public SoundCloud source', () => {
+  const track = { id: '123456789', title: 'Fixture song', artist: 'Fixture artist', duration: 42.5 };
+  it('restores the canonical source without trusting stored endpoints', () => {
+    const source = soundcloudMusicConnection();
+    saveMusicSources(true, [{ ...source, url: 'https://private.test/token' }, { ...source, id: 'forged' }, example]);
+    expect(readMusicSources()).toEqual([source, example]);
+    expect(source.id).toBe(SOUNDCLOUD_MUSIC_ID);
+    expect(providerFor(source).kind).toBe('soundcloud');
+  });
+  it('validates the complete decimal identity without a private token or arbitrary URL', async () => {
+    expect(publicSoundCloudId('18446744073709551615')).toBe(true);
+    for (const id of ['', '0', '01', '1\n', '1/2', '123?secret_token=x', '18446744073709551616']) {
+      expect(publicSoundCloudId(id)).toBe(false);
+      expect(() => nativeSoundCloudTarget(id)).toThrow();
+    }
+    const request = vi.fn();
+    await expect(soundcloudMusicProvider(request).resolve(track)).resolves.toEqual({ url: 'https://api.soundcloud.com/tracks/123456789' });
+    expect(request).not.toHaveBeenCalled();
+  });
+  it('projects only public display metadata and deduplicates partial rows', () => {
+    const safe = { ...track, artworkURL: 'https://i1.sndcdn.com/artworks-fixture-t500x500.jpg' };
+    const result = parseSoundCloudTracks([
+      { ...safe, streamURL: 'https://private.test/secret', http_headers: { Authorization: 'private' } },
+      safe, { ...track, id: '456', artworkURL: 'https://i1.sndcdn.com/private.jpg?token=secret' },
+      { ...track, id: '789?secret=1' }, { ...track, id: '222', title: 'https://private.test/secret' },
+    ]);
+    expect(result.tracks).toEqual([safe, { ...track, id: '456', artworkURL: undefined }]);
+    expect(result.albums).toEqual([]);
+    expect(JSON.stringify(result)).not.toMatch(/private|secret|streamURL|Authorization/);
+    expect(() => parseSoundCloudTracks(Array(21).fill(track))).toThrow();
+  });
+  it('delivers incremental results, honors cancellation and does not invent catalogues', async () => {
+    const abort = new AbortController();
+    const partial = vi.fn();
+    const request = vi.fn(async (_query: string, signal?: AbortSignal, onRows?: (rows: unknown[]) => void) => {
+      expect(signal).toBe(abort.signal);
+      onRows?.([track]);
+      return [track, { ...track, id: '456' }];
+    });
+    const provider = soundcloudMusicProvider(request);
+    const result = await provider.search(' fixture ', abort.signal, partial);
+    expect(partial).toHaveBeenCalledWith(parseSoundCloudTracks([track]));
+    expect(result.tracks).toHaveLength(2);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(await provider.catalogs()).toEqual([]);
+    abort.abort();
+    await expect(provider.search('fixture', abort.signal)).rejects.toMatchObject({ name: 'AbortError' });
     expect(request).toHaveBeenCalledTimes(1);
   });
 });

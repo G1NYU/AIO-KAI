@@ -352,6 +352,8 @@ pub enum Inbound {
         operation: String,
         value: String,
     },
+    SoundcloudSearch { request: String, query: String },
+    SoundcloudCancel { request: String },
     TorboxRequest { request: String, operation: String, value: String },
     ReadRequest {
         request: String,
@@ -603,6 +605,7 @@ pub enum Outbound {
         data: Option<Value>,
         error: Option<String>,
     },
+    SoundcloudSearchResult { request: String, tracks: Vec<Value>, complete: bool, error: Option<String> },
     TorboxResult { request: String, data: Option<Value>, error: Option<String> },
     BackupResult { request: String, data: Option<Value>, error: Option<String> },
     TsugiReleaseResult { request: String, data: Option<Value>, error: Option<String> },

@@ -12,6 +12,7 @@ pub mod mpv;
 pub mod music_audio;
 mod music_resolver;
 mod music_stream;
+mod soundcloud;
 pub mod now_playing;
 pub mod playback;
 pub mod player;

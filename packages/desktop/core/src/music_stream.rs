@@ -393,6 +393,37 @@ mod tests {
     }
 
     #[test]
+    fn fragmented_mp4_spool_preserves_exact_bytes_before_and_after_eof() {
+        // Original synthetic AAC silence in a fragmented MP4, with an actual
+        // initialization segment followed by successive movie fragments.
+        let bytes = &include_bytes!("../tests/fixtures/fragmented-silence.m4a")[..];
+        let initial = 1733;
+        assert_eq!(&bytes[4..8], b"ftyp");
+        assert_eq!(&bytes[712..716], b"moof");
+        let audio = crate::music_resolver::ProgressiveAudio::new();
+        audio.append(&bytes[..initial]).unwrap();
+        assert_eq!(audio.length(), None);
+        let source = Source::from_progressive(audio.clone());
+        let chunk = source.fetch(0, None).unwrap();
+        assert_eq!(chunk.bytes, bytes[..initial]);
+        let mut reader = Reader { source, chunk, position: 0 };
+        let mut received = vec![0; bytes.len()];
+        let first = reader.read(&mut received).unwrap();
+        assert_eq!(first, initial);
+        assert!(!audio.verified());
+        audio.append(&bytes[initial..]).unwrap();
+        audio.finish(None);
+        assert!(audio.verified());
+        assert_eq!(reader.read(&mut received[first..]).unwrap(), bytes.len()-first);
+        assert_eq!(received, bytes);
+        assert_eq!(reader.read(&mut [0; 1]), Ok(0));
+        reader.position = 0;
+        let mut header = [0; 8];
+        assert_eq!(reader.read(&mut header), Ok(8));
+        assert_eq!(&header, &bytes[..8]);
+    }
+
+    #[test]
     fn buffered_reads_and_seeks_need_no_network() {
         let source = Source::new("https://example.test/unused", Vec::new());
         let mut reader = Reader {

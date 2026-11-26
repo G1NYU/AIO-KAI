@@ -414,7 +414,7 @@ struct Replay {
 impl Replay {
     fn usable(&self, url: &str, now: Instant) -> bool {
         self.url == url
-            && crate::music_resolver::is_target(url)
+            && crate::music_resolver::is_playback_target(url)
             && now.saturating_duration_since(self.stored) < REPLAY_TTL
             && self.source.failure().is_none()
     }
@@ -467,13 +467,13 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
         if youtube_session != current_session {
             // Opting out must discard already downloaded authenticated audio as
             // well as pending extraction. A later Play starts a fresh request.
-            if let Some(item) = pending.take() {
-                fail(emit, &item.request, "YouTube session changed. Play the track again.");
-            }
-            if let Some(player) = session.take() {
-                report(emit, &player.request, "paused", player.position, player.duration, None);
-            }
-            replay = None;
+            if pending.as_ref().is_some_and(|item| crate::music_resolver::is_target(&item.url))
+                && let Some(item) = pending.take()
+            { fail(emit, &item.request, "YouTube session changed. Play the track again."); }
+            if session.as_ref().is_some_and(|player| player.cache_key.as_deref().is_some_and(crate::music_resolver::is_target))
+                && let Some(player) = session.take()
+            { fail(emit, &player.request, "YouTube session changed. Play the track again."); }
+            if replay.as_ref().is_some_and(|item| crate::music_resolver::is_target(&item.url)) { replay = None; }
             prefetch = None;
             youtube_session = current_session;
         }

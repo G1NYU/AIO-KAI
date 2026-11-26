@@ -744,6 +744,14 @@ pub fn handle(
                 });
             }
         }
+        Inbound::SoundcloudSearch { request, query } => {
+            if let Some(p) = player.as_ref() { p.search_soundcloud(request, query); }
+            else { emit(Outbound::SoundcloudSearchResult { request, tracks: vec![], complete: true,
+                error: Some("Desktop music engine is unavailable.".into()) }); }
+        }
+        Inbound::SoundcloudCancel { request } => {
+            if let Some(p) = player.as_ref() { p.cancel_soundcloud_search(request); }
+        }
         Inbound::TorboxRequest { request, .. } => emit(Outbound::TorboxResult { request, data: None, error: Some("unsupported".into()) }),
         Inbound::TsugiReleaseCheck { request } => emit(Outbound::TsugiReleaseResult { request, data: None, error: Some("Tsugi release discovery is unavailable in this session.".into()) }),
         Inbound::BackupRequest { request, .. } => emit(Outbound::BackupResult { request, data: None, error: Some("Managed backups are unavailable in this desktop session.".into()) }),

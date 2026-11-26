@@ -18,3 +18,20 @@ to inspect virtual EOF without waiting for the full audio. Both finish only afte
 the remaining bytes are supplied. Windows CI uses the existing pinned libmpv DLL. The opt-in
 Unix development counterpart takes `TSUGI_MPV_TEST_LIBRARY` and uses null audio
 output so it does not depend on the machine's speakers.
+
+## Fragmented MP4 public-audio fixture
+
+`fragmented-silence.m4a` is six seconds of original generated AAC silence
+in a fragmented MP4 container. It contains an initialization segment and
+successive movie fragments, with no third-party media. Reproduce:
+
+```sh
+ffmpeg -f lavfi -i anullsrc=r=8000:cl=mono -t 6 -vn -c:a aac -b:a 8k -movflags +empty_moov+default_base_moof -frag_duration 500000 fragmented-silence.m4a
+```
+
+The committed fixture is 2,521 bytes, SHA-256
+`3697182b05d86e35449e8440164ca592151a5b35240b754b39bedb252a2f6ccc`.
+FFmpeg decoded the complete original file successfully in the development
+environment. The native stream unit test checks byte-for-byte partial reads,
+unknown length until EOF, exact completion, and a backward seek. It does not
+establish live SoundCloud availability or first-audio timing through mpv.

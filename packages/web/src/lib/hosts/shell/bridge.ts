@@ -29,6 +29,7 @@ export type ShellMessage =
   | { type: 'backup-result'; request: string; data: unknown; error: string | null }
   | { type: 'tsugi-release-result'; request: string; data: unknown; error: string | null }
   | { type: 'torbox-result'; request: string; data: unknown; error: string | null }
+  | { type: 'soundcloud-search-result'; request: string; tracks: unknown[]; complete: boolean; error: string | null }
   | {
       type: 'youtube-resolved';
       request: string;
@@ -223,6 +224,7 @@ interface ShellBridge {
   /** The app can draw its video small over the page, with `player-frame`. */
   miniPlayer?: boolean;
   youtubeMusic?: boolean;
+  soundcloudMusic?: boolean;
   nativeMusicAudio?: boolean;
   torbox?: boolean;
   reading?: boolean;

@@ -24,6 +24,7 @@
     platform: __PLATFORM__,
     miniPlayer: true,
     youtubeMusic: true,
+    soundcloudMusic: __PLATFORM__ === 'windows',
     nativeMusicAudio: true,
     torbox: __PLATFORM__ === 'windows',
     reading: __READING__,
