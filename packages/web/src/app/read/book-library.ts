@@ -101,3 +101,46 @@ export async function removeBook(id: string): Promise<void> {
   tx.objectStore('files').delete(id);
   await complete;
 }
+
+/** Book file blobs are immutable for an ID: import allocates a new ID and
+ * removal deletes both stores. Capture only metadata needed for a guarded
+ * restore; never replace the underlying file, cover or Vault identity. */
+export function bookMetadataSnapshot(book:BookEntry) {
+  const {id,name,title,format,size,addedAt,position,fraction,lastReadAt}=book;
+  return {id,name,title,format,size,addedAt,position,fraction,lastReadAt};
+}
+export type BookMetadataSnapshot=ReturnType<typeof bookMetadataSnapshot>;
+export type BookMetadataChange={
+  expected:BookMetadataSnapshot;
+  title?:string;
+  progress?:{position:BookPosition;fraction:number;lastReadAt:number};
+};
+
+/** All reviewed metadata changes commit in one transaction. Reject a stale
+ * reading position or missing file before committing any change. */
+export async function restoreBookMetadata(changes:BookMetadataChange[]):Promise<void> {
+  if(!changes.length)return;
+  if(changes.length>1000||new Set(changes.map(c=>c.expected.id)).size!==changes.length)throw new Error('restore-count');
+  for(const change of changes){
+    if(change.title!==undefined&&(!change.title.trim()||change.title.length>1000))throw new Error('restore-title');
+    if(change.progress&&(!validBookProgress(change.expected.format,change.progress.position,change.progress.fraction)||
+      !Number.isSafeInteger(change.progress.lastReadAt)||change.progress.lastReadAt<0))throw new Error('restore-progress');
+  }
+  const db=await database();
+  const tx=db.transaction(['books','files'],'readwrite');
+  const complete=finished(tx);
+  const books=tx.objectStore('books'),files=tx.objectStore('files');
+  for(const change of changes){
+    const request=books.get(change.expected.id);
+    request.onsuccess=()=>{
+      const current=request.result as BookEntry|undefined;
+      if(!current||JSON.stringify(bookMetadataSnapshot(current))!==JSON.stringify(change.expected)){tx.abort();return;}
+      const file=files.get(current.id);
+      file.onsuccess=()=>{
+        if(!(file.result instanceof Blob)||file.result.size!==current.size){tx.abort();return;}
+        books.put({...current,...(change.title!==undefined?{title:change.title}:{}),...(change.progress??{})});
+      };
+    };
+  }
+  await complete;
+}

@@ -12,6 +12,7 @@ import { readStartupArea, saveStartupArea, type StartupArea } from '@/lib/deskto
 import { appBridge } from '@/lib/hosts/shell/bridge';
 import { PreferencesBackupSettings } from './preferences-backup-settings';
 import { MusicBackupSettings } from './music-backup-settings';
+import { BookBackupSettings } from './book-backup-settings';
 
 const IMPORT_COLORS_KEY = 'tsugi-global-import-colors-v1';
 const importedColors = () => storage.get<boolean>(IMPORT_COLORS_KEY) !== false;
@@ -174,6 +175,7 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
       window.dispatchEvent(new Event('tsugi-player-preferences-change'));
     }} />
     <MusicBackupSettings />
+    <BookBackupSettings />
     <section className="tsugi-app-about" aria-label={t`About Tsugi`}>
       <h3 className="font-semibold text-[--tsugi-ink]"><Trans>About Tsugi</Trans></h3>
       {bridge?.version && <p><Trans>Version</Trans> · {bridge.version}</p>}

@@ -1048,6 +1048,36 @@ try {
   assert.equal(await bookReader.getByRole('spinbutton').inputValue(),'2');
   await bookReader.getByRole('button',{name:'Back to books',exact:true}).click();
   console.log('PASS: real isolated local EPUB/PDF rendering, disabled book scripts and persistent PDF resume.');
+  await books.getByRole('button',{name:'App settings',exact:true}).click();
+  const bookSettings=page.getByRole('dialog');
+  const bookBackup=bookSettings.getByRole('region',{name:'Book progress backup',exact:true});
+  const bookExportEvent=page.waitForEvent('download');
+  await bookBackup.getByRole('button',{name:'Export book progress',exact:true}).click();
+  const bookExported=await bookExportEvent;
+  assert.equal(bookExported.suggestedFilename(),'tsugi-book-progress.json');
+  const bookData=JSON.parse(await readFile(await bookExported.path(),'utf8'));
+  const pdfProgress=bookData.books.find(row=>row.format==='pdf');
+  assert.equal(pdfProgress.progress.position,2);
+  assert.match(pdfProgress.sha256,/^[a-f0-9]{64}$/);
+  await bookSettings.getByRole('button',{name:'Close',exact:true}).click();
+  await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).click();
+  await books.getByRole('button',{name:'Remove from library',exact:true}).click();
+  await books.getByRole('button',{name:'Remove saved copy',exact:true}).click();
+  await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).waitFor({state:'detached'});
+  await books.getByLabel('Choose ebook files').setInputFiles({name:'Tsugi PDF Fixture.pdf',mimeType:'application/pdf',buffer:pdfFixture()});
+  await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).waitFor();
+  await books.getByRole('button',{name:'App settings',exact:true}).click();
+  await bookBackup.locator('input[type=file]').setInputFiles({name:'books.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(bookData))});
+  await bookBackup.getByRole('heading',{name:'Book restore preview',exact:true}).waitFor();
+  await bookBackup.getByRole('button',{name:'Restore matched book progress',exact:true}).click();
+  await bookBackup.getByText('Matched book metadata and progress restored. Existing files were not replaced.',{exact:true}).waitFor();
+  await bookSettings.getByRole('button',{name:'Close',exact:true}).click();
+  await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).click();
+  await books.getByRole('button',{name:'Resume reading',exact:true}).click();
+  await bookReader.getByRole('spinbutton').waitFor();
+  assert.equal(await bookReader.getByRole('spinbutton').inputValue(),'2');
+  await bookReader.getByRole('button',{name:'Back to books',exact:true}).click();
+  console.log('PASS: content-matched book progress restored to a freshly imported PDF.');
   // Test the actual Vault UI and browser storage, with a synthetic native file response.
   await page.route('**/__tsugi_vault/file/vault-fixture-pdf', async route=>{
     assert.equal(route.request().headers()['x-tsugi-vault-import'],'1');

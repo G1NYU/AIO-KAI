@@ -34,6 +34,11 @@ export function BooksPage() {
     try { setBooks(await listBooks()); } catch { setError(t`Could not read the local book library.`); }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(()=>{
+    const restored=()=>{setDetails(null);setConfirm(false);void refresh();};
+    window.addEventListener('tsugi-book-metadata-restored',restored);
+    return ()=>window.removeEventListener('tsugi-book-metadata-restored',restored);
+  },[refresh]);
   async function add(files: FileList | null) {
     if (!files || busy) return;
     const selected = Array.from(files).slice(0, 20);
