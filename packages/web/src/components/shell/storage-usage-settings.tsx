@@ -1,4 +1,5 @@
 import React from 'react';
+import { reviewArtworkCleanup } from '@/lib/cache/store';
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
 import { inspectManagedStorage,supportsManagedBackups,type StorageKind,type StorageRow } from '@/lib/backup/managed-archive';
@@ -21,6 +22,44 @@ function label(kind:StorageKind,detailed:boolean){
     case 'downloads':return t`Downloads inside app data`;
     case 'other':return t`Other app data`;
   }
+}
+function ArtworkCleanup({onRemoved}:{onRemoved():void}){
+  const [review,setReview]=React.useState<Awaited<ReturnType<typeof reviewArtworkCleanup>>|null>(null);
+  const [busy,setBusy]=React.useState(false);
+  const [notice,setNotice]=React.useState('');
+  const [error,setError]=React.useState('');
+  async function run(apply:boolean){
+    setBusy(true);setNotice('');setError('');
+    try{
+      if(apply && review){
+        await review.apply();
+        onRemoved();
+        setNotice(t({id:'Reviewed artwork removed from the device cache.',message:'Reviewed artwork removed from the device cache.'}));
+        setReview(null);
+      }else{
+        setReview(await reviewArtworkCleanup());
+      }
+    }catch{
+      setReview(null);
+      setError(t({id:'Artwork cleanup could not be completed. Review the current cache again.',message:'Artwork cleanup could not be completed. Review the current cache again.'}));
+    }finally{setBusy(false);}
+  }
+  const count=review?.count??0;
+  const bytes=size(review?.bytes??0);
+  return <div className="space-y-2">
+    <h4><Trans id="Movies & TV artwork cache">Movies &amp; TV artwork cache</Trans></h4>
+    <button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>void run(false)}><Trans id="Review cached artwork">Review cached artwork</Trans></button>
+    {review&&<div className="space-y-2">
+      <p role="status"><Trans id="Cached images selected: {count} ({bytes}).">Cached images selected: {count} ({bytes}).</Trans></p>
+      {review.more&&<p><Trans id="More cached images can be reviewed in another batch.">More cached images can be reviewed in another batch.</Trans></p>}
+      {count>0&&<p><Trans id="These images can load again while online. Your media files, library and progress are kept.">These images can load again while online. Your media files, library and progress are kept.</Trans></p>}
+      <div className="flex flex-wrap gap-2">
+        {count>0&&<button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>void run(true)}><Trans id="Remove reviewed artwork">Remove reviewed artwork</Trans></button>}
+        <button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>setReview(null)}><Trans id="Close artwork review">Close artwork review</Trans></button>
+      </div>
+    </div>}
+    {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
+  </div>;
 }
 export function StorageUsageSettings(){
   const [rows,setRows]=React.useState<StorageRow[]|null>(null);
@@ -48,5 +87,6 @@ export function StorageUsageSettings(){
       {partial&&<p role="status"><Trans>Some entries were inaccessible, redirected or beyond scan limits. Reported sizes are lower bounds.</Trans></p>}
       <p><Trans>No files were removed. Manage media downloads through their respective libraries.</Trans></p>
     </div>}
+    <ArtworkCleanup onRemoved={()=>setRows(null)} />
   </section>;
 }

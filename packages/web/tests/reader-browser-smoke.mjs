@@ -374,6 +374,46 @@ try {
   assert.equal(await storage.locator('progress').count(),9);
   await storage.getByRole('progressbar',{name:'Downloaded manga chapters',exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>window.__readerFixture.managedBackups.length),1,'storage scan does not modify backups');
+  // Populate only this browser fixture's artwork cache. A non-artwork row must survive.
+  await page.evaluate(async()=>{
+    const db=await new Promise((ok,fail)=>{
+      const q=indexedDB.open('aiostreams-web-cache',1);
+      q.onsuccess=()=>ok(q.result);q.onerror=()=>fail(q.error);
+    });
+    window.__readerFixture.cacheRows=async(action)=>{
+      const tx=db.transaction(['entries','bodies'],'readwrite');
+      const entries=tx.objectStore('entries'), bodies=tx.objectStore('bodies');
+      if(action==='seed'||action==='replace'){
+        for(const [id,category] of [['fixture-image','artwork'],['fixture-query','titles']]){
+          entries.put({id,category,scope:'',size:4,usedAt:1,revision:action});
+          bodies.put({id,blob:new Blob(['data'])});
+        }
+      }
+      const keys=bodies.getAllKeys();
+      await new Promise((ok,fail)=>{tx.oncomplete=ok;tx.onabort=tx.onerror=()=>fail(tx.error);});
+      return keys.result;
+    };
+    await window.__readerFixture.cacheRows('seed');
+  });
+  const reviewArt=storage.getByRole('button',{name:'Review cached artwork',exact:true});
+  const removeArt=storage.getByRole('button',{name:'Remove reviewed artwork',exact:true});
+  await reviewArt.click();
+  await storage.getByText('Cached images selected: 1 (4 B).',{exact:true}).waitFor();
+  await storage.getByRole('button',{name:'Close artwork review',exact:true}).click();
+  assert.deepEqual(await page.evaluate(()=>window.__readerFixture.cacheRows('inspect')),['fixture-image','fixture-query']);
+  await reviewArt.click();
+  await removeArt.waitFor();
+  await page.evaluate(()=>window.__readerFixture.cacheRows('replace'));
+  await removeArt.click();
+  await storage.getByRole('alert').filter({hasText:'Review the current cache again'}).waitFor();
+  assert.deepEqual(await page.evaluate(()=>window.__readerFixture.cacheRows('inspect')),['fixture-image','fixture-query']);
+  await reviewArt.click();
+  await removeArt.click();
+  await storage.getByText('Reviewed artwork removed from the device cache.',{exact:true}).waitFor();
+  assert.deepEqual(await page.evaluate(()=>window.__readerFixture.cacheRows('inspect')),['fixture-query']);
+  await reviewArt.click();
+  await storage.getByText('Cached images selected: 0 (0 B).',{exact:true}).waitFor();
+  assert.equal(await removeArt.count(),0);
   console.log('PASS: read-only storage inventory exposes partial results.');
   const releaseSettings=bootSettings.getByRole('region',{name:'Tsugi updates',exact:true});
   await releaseSettings.getByRole('button',{name:'Check stable release',exact:true}).click();

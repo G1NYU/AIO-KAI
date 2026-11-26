@@ -20,6 +20,7 @@ interface Entry {
   scope: string;
   size: number;
   usedAt: number;
+  revision?: string;
 }
 
 export interface SavedQuery {
@@ -243,7 +244,8 @@ export function writeImage(
 ): Promise<number> {
   const blob = data instanceof Blob ? data : new Blob([data], { type });
   return write(
-    { id: url, category: 'artwork', scope: '', size: blob.size },
+    { id: url, category: 'artwork', scope: '', size: blob.size,
+      revision: Array.from(crypto.getRandomValues(new Uint32Array(4))).join('-') },
     { id: url, type, blob }
   );
 }
@@ -275,6 +277,48 @@ async function remove(
     tx.objectStore(BODIES).delete(id);
   }
   await committed(tx);
+}
+
+/** Preview one bounded batch from the dedicated artwork index. IDs can be private URLs:
+ * keep them in this closure and return only counts to Settings.
+ */
+export async function reviewArtworkCleanup() {
+  const db = await open();
+  if (!db) throw new Error('cache-unavailable');
+  const limit = 500;
+  const select = (tx: IDBTransaction): Promise<Entry[]> =>
+    settled(tx.objectStore(ENTRIES).index('category').getAll('artwork', limit + 1));
+  const found = await select(db.transaction(ENTRIES));
+  const rows = found.slice(0, limit);
+  const bytes = rows.reduce((sum, row) => {
+    if (typeof row.id !== 'string' || row.scope !== '' || !Number.isSafeInteger(row.size) ||
+        row.size < 0 || !Number.isSafeInteger(row.usedAt) || !Number.isSafeInteger(sum + row.size)) {
+      throw new Error('invalid-cache-metadata');
+    }
+    return sum + row.size;
+  }, 0);
+  async function apply() {
+    const tx = db!.transaction([ENTRIES, BODIES], 'readwrite');
+    const done = committed(tx);
+    try {
+      const current = await select(tx);
+      if (current.length !== found.length || rows.some((row, i) =>
+        row.id !== current[i].id || row.size !== current[i].size || row.scope !== current[i].scope ||
+        row.usedAt !== current[i].usedAt || row.revision !== current[i].revision)) {
+        throw new Error('stale-cache-preview');
+      }
+      for (const row of rows) {
+        tx.objectStore(ENTRIES).delete(row.id);
+        tx.objectStore(BODIES).delete(row.id);
+      }
+    } catch (error) {
+      try { tx.abort(); } catch { /* An IndexedDB request may already have aborted it. */ }
+      await done.catch(() => undefined);
+      throw error;
+    }
+    await done;
+  }
+  return { count: rows.length, bytes, more: found.length > limit, apply };
 }
 
 export function removeCategory(category: CacheCategory): Promise<void> {
