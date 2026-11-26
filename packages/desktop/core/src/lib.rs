@@ -1,4 +1,6 @@
 pub mod bridge;
+#[cfg(windows)]
+pub mod backup_store;
 pub mod discord;
 pub mod downloads;
 pub mod external;

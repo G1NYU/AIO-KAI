@@ -254,7 +254,7 @@ fn about() -> String {
     )
 }
 
-fn bridge_script(reading: bool, reading_setup: bool) -> String {
+fn bridge_script(reading: bool, reading_setup: bool, backup_store: bool) -> String {
     include_str!("bridge.js")
         .replace("__PROTOCOL__", &PROTOCOL_VERSION.to_string())
         .replace(
@@ -268,6 +268,7 @@ fn bridge_script(reading: bool, reading_setup: bool) -> String {
         .replace("__PIP__", &platform::PIP.to_string())
         .replace("__READING__", &reading.to_string())
         .replace("__READING_SETUP__", &reading_setup.to_string())
+        .replace("__BACKUP_STORE__", &backup_store.to_string())
         .replace(
             "__DEVICE__",
             &serde_json::to_string(&platform::device_name()).unwrap(),
@@ -382,8 +383,10 @@ fn main() {
     let reading = reading::bundled_runtime(&args, web.as_deref()).is_some();
     #[cfg(windows)]
     let reading_setup = reading::bundled_read_section(&args, web.as_deref());
+    #[cfg(windows)]
+    let backup_store = reading::bundled_directory(&args, web.as_deref()).is_some();
     #[cfg(not(windows))]
-    let (reading, reading_setup) = (false, false);
+    let (reading, reading_setup, backup_store) = (false, false, false);
     log::info!("reading section={reading_setup} runtime_ready={reading}");
     shell::run(App {
         args,
@@ -392,7 +395,7 @@ fn main() {
         app_origin,
         data_dir,
         paths,
-        bridge: bridge_script(reading, reading_setup),
+        bridge: bridge_script(reading, reading_setup, backup_store),
     });
 }
 
@@ -740,6 +743,7 @@ pub fn handle(
             }
         }
         Inbound::TorboxRequest { request, .. } => emit(Outbound::TorboxResult { request, data: None, error: Some("unsupported".into()) }),
+        Inbound::BackupRequest { request, .. } => emit(Outbound::BackupResult { request, data: None, error: Some("Managed backups are unavailable in this desktop session.".into()) }),
         Inbound::ReadRequest { request, .. } => {
             emit(Outbound::ReadResult {
                 request,

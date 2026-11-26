@@ -28,6 +28,7 @@
     torbox: __PLATFORM__ === 'windows',
     reading: __READING__,
     readingSetup: __READING_SETUP__,
+    backupStore: __BACKUP_STORE__,
     pip: __PIP__,
     hours24: __HOURS24__,
     device: __DEVICE__,

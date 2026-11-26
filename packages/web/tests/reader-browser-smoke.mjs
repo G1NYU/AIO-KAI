@@ -42,9 +42,25 @@ try {
     const nodes = (items) => ({ nodes: items, totalCount: items.length });
     const emit = (message) => queueMicrotask(() => { for (const listener of listeners) listener(message); });
     window.aiostreamsApp = {
-      protocol: 2, version: 'fixture', platform: 'windows', reading: !new URLSearchParams(location.search).has('readerSetup'), readingSetup: true, youtubeMusic: true, nativeMusicAudio: true, torbox: true, device: 'Fixture',
+      protocol: 2, version: 'fixture', platform: 'windows', reading: !new URLSearchParams(location.search).has('readerSetup'), readingSetup: true, backupStore: true, youtubeMusic: true, nativeMusicAudio: true, torbox: true, device: 'Fixture',
       subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
       send(message) {
+        if(message.type==='backup-request'){
+          const a=message.action;
+          const backups=state.managedBackups??=([]);
+          let data,error=null;
+          if(a.kind==='save'){
+            const createdMs=1760000000000+backups.length;
+            const name='tsugi-backup-'+createdMs+'-'+(backups.length+1).toString(16).padStart(32,'0')+'.json';
+            const row={name,createdMs,bytes:new TextEncoder().encode(a.archive).length,readable:true};
+            backups.push({row,archive:a.archive});data=row;
+          }else if(a.kind==='list')data={folder:'C:/Fixture/data/backups',backups:backups.map(item=>item.row)};
+          else if(a.kind==='open'){
+            const item=backups.find(item=>item.row.name===a.name);
+            if(item)data={archive:item.archive};else error='missing';
+          }else error='unsupported';
+          emit({type:'backup-result',request:message.request,data,error});return;
+        }
         if(message.type==='torbox-request'){
           (state.torboxOperations??=[]).push(message.operation);
           if(message.operation==='connect')state.torboxConnected=message.value==='fixture-key';
@@ -329,6 +345,18 @@ try {
   assert.equal(await mangaBackup.getByRole('button',{name:'Restore matched categories',exact:true}).isEnabled(),false,'reimport is idempotent');
   await mangaBackup.getByRole('button',{name:'Cancel manga restore',exact:true}).click();
   console.log('PASS: reviewed shelf recovery preserves empty shelves and is idempotent.');
+  await portable.getByRole('button',{name:'Save managed backup',exact:true}).click();
+  await portable.getByRole('status').filter({hasText:'Managed backup written and verified:'}).waitFor();
+  await portable.getByRole('button',{name:'Open and verify',exact:true}).click();
+  await portable.getByRole('heading',{name:'Portable backup preview',exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>window.__readerFixture.managedBackups.length),1);
+  assert.equal(await page.evaluate(()=>document.documentElement.dataset.tsugiTheme),'carbon','opening a managed copy does not apply preferences');
+  await portable.getByRole('button',{name:'Close portable backup',exact:true}).click();
+  await page.evaluate(()=>{window.__readerFixture.managedBackups[0].archive='damaged';});
+  await portable.getByRole('button',{name:'Open and verify',exact:true}).click();
+  await portable.getByRole('alert').filter({hasText:'Could not verify this managed backup.'}).waitFor();
+  assert.equal(await portable.getByRole('heading',{name:'Portable backup preview',exact:true}).count(),0);
+  console.log('PASS: managed backup bridge save, list, reopen and damaged copy rejection.');
 
   await bootSettings.getByRole('button', { name: 'Default', exact: true }).click();
   await bootSettings.getByRole('button', { name: 'Silver', exact: true }).click();

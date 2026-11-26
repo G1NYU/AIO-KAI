@@ -250,6 +250,10 @@ pub fn run(app: App) {
             let _ = proxy.send_event(UserEvent::Emit(receive_script(&message)));
         }))
     });
+    #[cfg(windows)]
+    let backup_root = crate::reading::bundled_directory(&args, web.as_deref()).map(|_| data_dir.clone());
+    #[cfg(windows)]
+    let backup_busy = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let torbox = Rc::new(aiostreams_desktop_core::torbox::Worker::start({
         let proxy = proxy.clone();
         move |message| { let _ = proxy.send_event(UserEvent::Emit(receive_script(&message))); }
@@ -332,6 +336,8 @@ pub fn run(app: App) {
             let torbox = torbox.clone();
             #[cfg(windows)]
             let reading = reading.clone();
+            #[cfg(windows)]
+            let (backup_root, backup_busy) = (backup_root.clone(), backup_busy.clone());
             move |req: Request<String>| {
                 let from = origin(&req.uri().to_string()).unwrap_or_default();
                 if from != app_origin {
@@ -347,6 +353,39 @@ pub fn run(app: App) {
                                 let _ = proxy.send_event(UserEvent::Emit(receive_script(&Outbound::TorboxResult {
                                     request, data: None, error: Some("busy".into()),
                                 })));
+                            }
+                            return;
+                        }
+                        other => other,
+                    };
+                    #[cfg(windows)]
+                    let message = match message {
+                        bridge::Inbound::BackupRequest { request, action } => {
+                            use std::sync::atomic::Ordering;
+                            if request.is_empty() || request.len() > 128 || !request.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') { return; }
+                            let Some(root) = backup_root.clone() else {
+                                send(UserEvent::Emit(receive_script(&Outbound::BackupResult { request, data: None, error: Some("Managed backups are unavailable in this desktop session.".into()) })));
+                                return;
+                            };
+                            if backup_busy.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).is_err() {
+                                send(UserEvent::Emit(receive_script(&Outbound::BackupResult { request, data: None, error: Some("Another managed backup operation is running.".into()) })));
+                                return;
+                            }
+                            let busy = backup_busy.clone();
+                            let worker_proxy = proxy.clone();
+                            let worker_request = request.clone();
+                            let started = std::thread::Builder::new().name("tsugi-backup".into()).spawn(move || {
+                                let result = aiostreams_desktop_core::backup_store::execute(&root, action);
+                                let message = match result {
+                                    Ok(data) => Outbound::BackupResult { request: worker_request, data: Some(data), error: None },
+                                    Err(error) => Outbound::BackupResult { request: worker_request, data: None, error: Some(error.into()) },
+                                };
+                                busy.store(false, Ordering::Release);
+                                let _ = worker_proxy.send_event(UserEvent::Emit(receive_script(&message)));
+                            });
+                            if started.is_err() {
+                                backup_busy.store(false, Ordering::Release);
+                                send(UserEvent::Emit(receive_script(&Outbound::BackupResult { request, data: None, error: Some("Could not start managed backup operation.".into()) })));
                             }
                             return;
                         }

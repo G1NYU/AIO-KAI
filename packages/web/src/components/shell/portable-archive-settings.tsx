@@ -3,9 +3,12 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { archiveEntryCounts,capturePortableArchive,parsePortableArchive,PORTABLE_ARCHIVE_LIMIT,type ArchiveKind,type PortableArchive } from '@/lib/backup/archive';
 import { supportsReading } from '@/lib/hosts/shell/reading';
+import { supportsManagedBackups,listManagedBackups,saveManagedArchive,openManagedArchive,type ManagedBackupList,type ManagedBackup } from '@/lib/backup/managed-archive';
 
 export function PortableArchiveSettings({archive,onArchive}:{archive:PortableArchive|null;onArchive(value:PortableArchive|null):void}){
   const [busy,setBusy]=React.useState(false);
+  const [managed,setManaged]=React.useState<ManagedBackupList|null>(null);
+  const nativeAvailable=supportsManagedBackups();
   const [progress,setProgress]=React.useState('');
   const [notice,setNotice]=React.useState('');
   const [error,setError]=React.useState('');
@@ -15,15 +18,18 @@ export function PortableArchiveSettings({archive,onArchive}:{archive:PortableArc
   const counts=React.useMemo(()=>archive?.entries.map(entry=>({entry,...archiveEntryCounts(entry)}))??[],[archive]);
   function activeReader(){return !!document.querySelector('[data-ui="tsugi-book-reader"], .tsugi-chapter-reader');}
   function label(kind:ArchiveKind){return kind==='preferences'?t`Preferences`:kind==='music'?t`Music collections`:kind==='books'?t`Book progress`:t`Manga progress`;}
+  async function capture(){
+    return capturePortableArchive(includeManga,(kind,done,total)=>{
+      const section=label(kind);
+      setProgress(total?t`${section}: ${done} / ${total}`:section);
+    });
+  }
   async function download(){
     setNotice('');setError('');
     if(activeReader()){setError(t`Close the current book or chapter before exporting a portable backup.`);return;}
     setBusy(true);setProgress('');
     try{
-      const data=await capturePortableArchive(includeManga,(kind,done,total)=>{
-        const section=label(kind);
-        setProgress(total?t`${section}: ${done} / ${total}`:section);
-      });
+      const data=await capture();
       const url=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));
       const anchor=document.createElement('a');
       anchor.href=url;anchor.download='tsugi-portable-'+data.createdAt.replace(/[:.]/g,'-')+'.json';
@@ -32,6 +38,34 @@ export function PortableArchiveSettings({archive,onArchive}:{archive:PortableArc
       setNotice(t`Portable backup export requested. Confirm that the file was saved before relying on it.`);
     }catch{setError(t`Could not export every selected section. No partial archive was produced. Check local storage, Reader availability and backup limits.`);}
     finally{setBusy(false);setProgress('');}
+  }
+  async function refreshManaged(){
+    setBusy(true);setError('');setNotice('');
+    try{setManaged(await listManagedBackups());}
+    catch{setManaged(null);setError(t`Could not list managed backups. Existing files were not changed.`);}
+    finally{setBusy(false);}
+  }
+  async function saveManaged(){
+    setError('');setNotice('');
+    if(activeReader()){setError(t`Close the current book or chapter before saving a managed backup.`);return;}
+    setBusy(true);setProgress('');
+    try{
+      const data=await capture();
+      setProgress(t`Writing and verifying backup…`);
+      const saved=await saveManagedArchive(data);
+      const name=saved.name;
+      setNotice(t`Managed backup written and verified: ${name}`);
+      try{setManaged(await listManagedBackups());}
+      catch{setManaged(null);setError(t`The backup was verified, but the history could not be refreshed.`);}
+    }catch{setError(t`The managed backup could not be confirmed. Refresh the backup history before retrying.`);}
+    finally{setBusy(false);setProgress('');}
+  }
+  async function openManaged(row:ManagedBackup){
+    if(!row.readable)return;
+    onArchive(null);setBusy(true);setError('');setNotice('');
+    try{onArchive(await openManagedArchive(row.name));}
+    catch{setError(t`Could not verify this managed backup. Nothing was restored.`);}
+    finally{setBusy(false);}
   }
   async function load(file:File|undefined){
     if(!file)return;
@@ -46,8 +80,20 @@ export function PortableArchiveSettings({archive,onArchive}:{archive:PortableArc
     <h3><Trans>Data &amp; storage</Trans></h3>
     <p><Trans>Export a single versioned backup of built-in preferences, saved music, and local book and manga progress. Every section has an integrity digest. Backups are private library metadata, not encrypted files. Credentials, source URLs, media files, imported Studio layouts and server-owned viewing history are not included.</Trans></p>
     {readerAvailable?<label className="flex items-center gap-2"><input type="checkbox" checked={includeManga} disabled={busy} onChange={event=>setOmitManga(!event.target.checked)}/><Trans>Include manga progress</Trans></label>:<p><Trans>Manga progress is unavailable until the Reader runtime is set up. The archive will explicitly omit it.</Trans></p>}
-    <button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>void download()}><Trans>Export portable backup</Trans></button>
+    <div className="flex flex-wrap gap-2"><button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>void download()}><Trans>Export portable backup</Trans></button>
+      {nativeAvailable&&<button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>void saveManaged()}><Trans>Save managed backup</Trans></button>}
+    </div>
     <label className="min-w-0"><span><Trans>Open portable backup</Trans></span><input type="file" accept=".json,application/json" className="tsugi-read-input w-full min-w-0 max-w-full" disabled={busy} onChange={event=>{const file=event.target.files?.[0];event.target.value='';void load(file);}}/></label>
+    {nativeAvailable&&<div className="space-y-3">
+      <h4><Trans>Managed backup history</Trans></h4>
+      <p><Trans>Managed copies are written into the app's backup folder and reopened for verification before success is reported. Export a separate copy to another drive for protection against disk loss.</Trans></p>
+      <button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>void refreshManaged()}><Trans>Refresh managed backups</Trans></button>
+      {managed&&<><p className="break-all text-xs"><Trans>Folder</Trans>: {managed.folder}</p>
+        <p><Trans>Saved copies</Trans>: {managed.backups.length} · {(managed.backups.reduce((sum,row)=>sum+row.bytes,0)/1048576).toFixed(2)} MiB</p>
+        {!managed.backups.length&&<p><Trans>No managed backups saved yet.</Trans></p>}
+        <div className="max-h-56 overflow-auto">{managed.backups.map(row=><div key={row.name} className="tsugi-read-row flex-wrap"><div className="min-w-0 flex-1"><span>{new Date(row.createdMs).toLocaleString()}</span><small className="block break-all">{row.name} · {(row.bytes/1024).toFixed(1)} KiB</small></div><button className="tsugi-read-action" type="button" disabled={busy||!row.readable} onClick={()=>void openManaged(row)}><Trans>Open and verify</Trans></button></div>)}</div>
+      </>}
+    </div>}
     {busy&&<p role="status">{progress||t`Checking backup sections…`}</p>}
     {archive&&<div className="space-y-3">
       <h4><Trans>Portable backup preview</Trans></h4>

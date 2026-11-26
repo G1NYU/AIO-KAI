@@ -113,6 +113,15 @@ pub enum ReadAction {
     ChapterFlags { ids: Vec<i32>, read: Option<bool>, bookmarked: Option<bool> },
 }
 
+/// Managed backup operations accept no arbitrary paths.
+#[derive(Debug, Deserialize)]
+#[serde(tag="kind",rename_all="kebab-case",deny_unknown_fields)]
+pub enum BackupAction {
+    List,
+    Save { archive: String },
+    Open { name: String },
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(
     tag = "type",
@@ -205,6 +214,7 @@ pub enum Inbound {
         request: String,
         action: ReadAction,
     },
+    BackupRequest { request: String, action: BackupAction },
     MusicAudioLoad {
         request: String,
         url: String,
@@ -354,7 +364,9 @@ pub fn parse(body: &str) -> Option<Inbound> {
         .and_then(|v| v["type"].as_str().map(String::from))
         .unwrap_or_default();
     if REFUSED.lock().is_ok_and(|mut r| r.insert(kind.clone())) {
-        if error.starts_with("unknown variant") {
+        if kind == "backup-request" {
+            log::warn!("ignored a malformed managed backup request");
+        } else if error.starts_with("unknown variant") {
             log::warn!("ignored {kind} messages, which this version doesn't know");
         } else {
             log::warn!("ignored a {kind} message: {error}");
@@ -446,6 +458,7 @@ pub enum Outbound {
         error: Option<String>,
     },
     TorboxResult { request: String, data: Option<Value>, error: Option<String> },
+    BackupResult { request: String, data: Option<Value>, error: Option<String> },
     ReadResult {
         request: String,
         data: Option<Value>,

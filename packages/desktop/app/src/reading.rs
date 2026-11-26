@@ -18,7 +18,7 @@ use serde_json::{Value, json};
 
 use crate::Args;
 
-fn bundled_directory(args: &Args, web: Option<&Path>) -> Option<PathBuf> {
+pub(crate) fn bundled_directory(args: &Args, web: Option<&Path>) -> Option<PathBuf> {
     if args.web.is_some() || args.web_dir.is_some() || args.devtools || args.debug_port.is_some()
         || std::env::var_os("AIOSTREAMS_WEB_DIR").is_some()
     {

@@ -26,6 +26,7 @@ export type VideoOutput = 'mpv' | 'system' | 'compatibility';
 /** `external` marks what the player in its own window sends. */
 export type ShellMessage =
   | { type: 'read-result'; request: string; data: unknown; error: string | null }
+  | { type: 'backup-result'; request: string; data: unknown; error: string | null }
   | { type: 'torbox-result'; request: string; data: unknown; error: string | null }
   | {
       type: 'youtube-resolved';
@@ -225,6 +226,7 @@ interface ShellBridge {
   torbox?: boolean;
   reading?: boolean;
   readingSetup?: boolean;
+  backupStore?: boolean;
   /** The app sends a controller's buttons as `gamepad` messages. */
   gamepadButtons?: boolean;
   /** The system's 12- or 24-hour clock, where the app can tell. */
