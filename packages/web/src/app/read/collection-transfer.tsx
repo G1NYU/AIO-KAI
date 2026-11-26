@@ -103,13 +103,42 @@ export function BatchAddWorkspace({ library, sources, busy, run, reload }: Props
   const [format, setFormat] = React.useState<'titles' | 'csv' | 'mihon'>('titles');
   const [source, setSource] = React.useState('');
   const [input, setInput] = React.useState('');
+  const fileInput = React.useRef<HTMLInputElement>(null);
+  const fileRequest = React.useRef(0);
+  const [fileName, setFileName] = React.useState('');
+  const [fileError, setFileError] = React.useState('');
+  React.useEffect(() => () => { fileRequest.current++; }, []);
   const [rows, setRows] = React.useState<BatchRow[]>([]);
   const [message, setMessage] = React.useState('');
   const [processed, setProcessed] = React.useState(0);
   const [searching, setSearching] = React.useState(false);
   const stop = React.useRef(false);
   const saved = new Set(library.map(item => titleKey(item.title)));
+  async function importFile(file?: File) {
+    if (!file || busy || searching) return;
+    const request = ++fileRequest.current;
+    setFileError('');
+    try {
+      const extension = file.name.toLowerCase().split('.').pop();
+      const selectedFormat = extension === 'csv' ? 'csv' : extension === 'json' ? 'mihon' : extension === 'txt' ? 'titles' : null;
+      if (!selectedFormat) throw new Error(t({ id: 'Choose a CSV, JSON or text file.', message: 'Choose a CSV, JSON or text file.' }));
+      if (file.size > 2_000_000) throw new Error(t({ id: 'Import files must be 2 MB or smaller.', message: 'Import files must be 2 MB or smaller.' }));
+      const bytes = await file.arrayBuffer();
+      if (request !== fileRequest.current) return;
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      const titles = batchTitles(text, selectedFormat);
+      if (!titles.length || titles.length > 100) throw new Error(t({ id: 'The selected file must contain 1–100 unique titles.', message: 'The selected file must contain 1–100 unique titles.' }));
+      if (request !== fileRequest.current) return;
+      setFormat(selectedFormat); setInput(text); setFileName(file.name.slice(0, 120));
+      setRows([]); setProcessed(0); setMessage('');
+    } catch (error) {
+      if (request === fileRequest.current) {
+        setFileError(error instanceof Error ? error.message : t({ id: 'Could not read the selected import file.', message: 'Could not read the selected import file.' }));
+      }
+    }
+  }
   async function lookup() {
+    fileRequest.current++;
     const titles = batchTitles(input, format);
     if (!titles.length || titles.length > 100) throw new Error(t({ id: "Enter 1–100 unique titles per batch.", message: "Enter 1–100 unique titles per batch." }));
     setRows([]); setProcessed(0); setMessage(''); stop.current = false; setSearching(true);
@@ -151,9 +180,11 @@ export function BatchAddWorkspace({ library, sources, busy, run, reload }: Props
   return <section className="tsugi-transfer-workspace">
     <div className="tsugi-transfer-intro"><h2><Trans id="Build your collection">Build your collection</Trans></h2><p><Trans id="Paste a title per line, CSV, or a converted Mihon backup JSON. Search one installed source at a time, review matches and add them together. This imports titles only, not external chapter progress or tracker IDs.">Paste a title per line, CSV, or a converted Mihon backup JSON. Search one installed source at a time, review matches and add them together. This imports titles only, not external chapter progress or tracker IDs.</Trans></p></div>
     <div className="tsugi-transfer-form">
-      <label><Trans id="Import format">Import format</Trans><select className="tsugi-read-input" aria-label={t({ id: "Import format", message: "Import format" })} disabled={busy} value={format} onChange={event => { setFormat(event.target.value as typeof format); setRows([]); setMessage(''); }}><option value="titles"><Trans id="One title per line">One title per line</Trans></option><option value="csv"><Trans id="CSV title column">CSV title column</Trans></option><option value="mihon"><Trans id="Converted Mihon JSON">Converted Mihon JSON</Trans></option></select></label>
+      <label><Trans id="Import format">Import format</Trans><select className="tsugi-read-input" aria-label={t({ id: "Import format", message: "Import format" })} disabled={busy || searching} value={format} onChange={event => { fileRequest.current++; setFileName(''); setFileError(''); setFormat(event.target.value as typeof format); setRows([]); setMessage(''); }}><option value="titles"><Trans id="One title per line">One title per line</Trans></option><option value="csv"><Trans id="CSV title column">CSV title column</Trans></option><option value="mihon"><Trans id="Converted Mihon JSON">Converted Mihon JSON</Trans></option></select></label>
       <label><Trans id="Search source">Search source</Trans><SourcePicker label={t({ id: "Search source", message: "Search source" })} sources={sources} source={source} onChange={value => { setSource(value); setRows([]); setMessage(''); }} busy={busy} /></label>
-      <textarea className="tsugi-read-input tsugi-batch-input" aria-label={t({ id: "Titles to import", message: "Titles to import" })} rows={7} maxLength={2000000} disabled={busy} value={input} onChange={event => { setInput(event.target.value); setRows([]); setMessage(''); }} placeholder={format === 'titles' ? t({ id: "One title per line", message: "One title per line" }) : format === 'csv' ? t({ id: "title,status,chaptersRead", message: "title,status,chaptersRead" }) : t({ id: "Paste converted backup JSON", message: "Paste converted backup JSON" })} />
+      <div className="flex flex-wrap items-center gap-3"><input ref={fileInput} className="sr-only" tabIndex={-1} type="file" accept=".csv,.json,.txt,text/csv,application/json,text/plain" aria-label={t({ id: 'Choose import file', message: 'Choose import file' })} onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void importFile(file); }} /><button type="button" className="tsugi-read-action" disabled={busy || searching} onClick={() => fileInput.current?.click()}><Trans id="Choose CSV, JSON or text file">Choose CSV, JSON or text file</Trans></button>{fileName && <small className="max-w-xs truncate text-[--tsugi-muted]" title={fileName}>{fileName}</small>}</div>
+      {fileError && <p role="alert" className="tsugi-read-error">{fileError}</p>}
+      <textarea className="tsugi-read-input tsugi-batch-input" aria-label={t({ id: "Titles to import", message: "Titles to import" })} rows={7} maxLength={2000000} disabled={busy || searching} value={input} onChange={event => { fileRequest.current++; setFileName(''); setFileError(''); setInput(event.target.value); setRows([]); setMessage(''); }} placeholder={format === 'titles' ? t({ id: "One title per line", message: "One title per line" }) : format === 'csv' ? t({ id: "title,status,chaptersRead", message: "title,status,chaptersRead" }) : t({ id: "Paste converted backup JSON", message: "Paste converted backup JSON" })} />
       <div className="flex flex-wrap items-center gap-2"><button className="tsugi-read-action" disabled={busy || !source || !input.trim()} onClick={() => void run(lookup)}><Trans id="Find matches">Find matches</Trans></button>{searching && <button className="tsugi-read-action" onClick={() => { stop.current = true; }}><Trans id="Stop after current search">Stop after current search</Trans></button>}<small><Trans id="Batch search progress">{processed} searched</Trans></small></div>
     </div>
     {rows.map(row => <div key={row.title} className="tsugi-read-row tsugi-batch-row"><span className="min-w-0"><strong>{row.title}</strong><small className="block text-[--tsugi-muted]">{row.status}</small></span>{row.options.length > 0 && <select className="tsugi-read-input" aria-label={t({ id: 'Review title match', message: 'Review title match' }) + ': ' + row.title} value={row.selected} disabled={busy || row.finished} onChange={event => setRows(old => old.map(item => item.title === row.title ? { ...item, selected: event.target.value } : item))}><option value=""><Trans id="Skip title">Skip title</Trans></option>{row.options.map(item => <option key={item.id} value={String(item.id)}>{item.title}{item.author ? ' · ' + item.author : ''}</option>)}</select>}</div>)}
