@@ -42,7 +42,7 @@ export async function verifySoundCloudBrowser({ browser, origin, installDesktopF
     await music.getByRole('button', { name: 'Connect SoundCloud', exact: true }).click();
     const search = music.getByRole('textbox', { name: 'Search music' });
     await search.fill('fixture');
-    await music.locator('form').filter({ has: search }).getByRole('button', { name: 'Search', exact: true }).click();
+    await search.press('Enter');
     const first = music.locator('[data-ui="music-track-row"]').filter({ hasText: 'SoundCloud fixture track' });
     await first.waitFor();
     const cancel = music.getByRole('button', { name: 'Cancel search', exact: true });
@@ -53,12 +53,13 @@ export async function verifySoundCloudBrowser({ browser, origin, installDesktopF
     await page.evaluate(id => window.__soundcloudFixture.reply(id, [{ id: '888', title: 'Stale search result', artist: 'Fixture' }], true), old);
     assert.equal(await music.getByText('Stale search result', { exact: true }).count(), 0);
     await search.fill('fixture second');
-    await music.locator('form').filter({ has: search }).getByRole('button', { name: 'Search', exact: true }).click();
+    await search.press('Enter');
     await page.waitForFunction(id => window.__soundcloudFixture.current !== id, old);
     await first.waitFor();
     await page.evaluate(() => window.__soundcloudFixture.reply(window.__soundcloudFixture.current, [{ id: '456', title: 'Second public track', artist: 'Fixture' }], true));
     await music.getByText('Second public track', { exact: true }).waitFor();
     await cancel.waitFor({ state: 'hidden' });
+    assert.equal(await music.getByText('Stale search result', { exact: true }).count(), 0);
     await first.click();
     await page.waitForFunction(() => window.__readerFixture.nativeMessages.some(m => m.type === 'music-audio-load' && m.url === 'https://api.soundcloud.com/tracks/123456789'));
     assert.equal(await music.getByRole('button', { name: 'Download track', exact: true }).count(), 0, 'SoundCloud does not enter the YouTube-only export path');

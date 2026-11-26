@@ -148,6 +148,9 @@ jobs:
       - name: Run native core tests without packaging
         working-directory: packages/desktop
         run: cargo test --locked -p aiostreams-desktop-core --lib
+      - name: Verify disposable WebView2 disk-cache preservation
+        shell: pwsh
+        run: ./packages/desktop/scripts/verify-webview-cache.ps1
       - name: Live TorBox authentication rejection probe (no account or submission)
         if: contains(github.event.head_commit.message, '[live vault smoke]')
         working-directory: packages/desktop

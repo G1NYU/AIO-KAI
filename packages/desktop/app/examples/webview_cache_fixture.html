@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>TSUGI disposable cache probe</title>
+<body><h1>Disposable WebView2 cache probe</h1><script>
+'use strict';
+const phase = new URL(location.href).searchParams.get('phase');
+const id = '0123456789abcdef0123456789abcdef';
+const book = '%PDF-1.4\n% original synthetic storage probe\n';
+const cover = Uint8Array.from([137,80,78,71,13,10,26,10,1,2,3,4]);
+const prefs = JSON.stringify({ mode:'spread', width:73, rtl:true, background:'graphite' });
+const session = 'fixture-tab-state';
+const asset = 'tsugi-disk-cache-fixture\n'.repeat(4096);
+function assert(condition, label) {
+  if (!condition) throw new Error(label);
+}
+const send = message => window.ipc.postMessage(message);
+function openBooks(create) {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('tsugi-local-books-v1', 1);
+    request.onupgradeneeded = () => {
+      if (!create) { request.transaction.abort(); return; }
+      request.result.createObjectStore('books', {keyPath:'id'});
+      request.result.createObjectStore('files');
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(new Error('book database unavailable'));
+    request.onblocked = () => reject(new Error('book database blocked'));
+  });
+}
+function done(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = resolve;
+    tx.onerror = tx.onabort = () => reject(new Error('book transaction failed'));
+  });
+}
+function value(req) {
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(new Error('book lookup failed'));
+  });
+}
+async function seed() {
+  localStorage.setItem('tsugi-reader-preferences', prefs);
+  localStorage.setItem('fixture-connected-sources', 'synthetic-source-reference');
+  document.cookie = 'fixture_session=synthetic-session; Max-Age=3600; Path=/; SameSite=Strict';
+  const db = await openBooks(true);
+  try {
+    const tx = db.transaction(['books','files'], 'readwrite');
+    const complete = done(tx);
+    tx.objectStore('books').add({ id, name:'fixture.pdf', title:'Fixture book', format:'pdf',
+      size:book.length, addedAt:12345, position:7, fraction:0.35, lastReadAt:23456,
+      cover:new Blob([cover], {type:'image/png'}), vaultJobId:'fixture-vault' });
+    tx.objectStore('files').add(new Blob([book], {type:'application/pdf'}), id);
+    await complete;
+  } finally { db.close(); }
+  const cache = await caches.open('fixture-protected-cache-storage');
+  await cache.put('/protected-cache-storage', new Response('protected origin cache'));
+}
+async function verify() {
+  assert(localStorage.getItem('tsugi-reader-preferences') === prefs, 'reader preferences changed');
+  assert(localStorage.getItem('fixture-connected-sources') === 'synthetic-source-reference', 'source reference changed');
+  assert(document.cookie.split(';').some(x => x.trim() === 'fixture_session=synthetic-session'), 'cookie lost');
+  const db = await openBooks(false);
+  try {
+    const tx = db.transaction(['books','files']);
+    const complete = done(tx);
+    const [row, file] = await Promise.all([
+      value(tx.objectStore('books').get(id)),
+      value(tx.objectStore('files').get(id))
+    ]);
+    await complete;
+    assert(row && row.id === id && row.name === 'fixture.pdf' && row.title === 'Fixture book' &&
+      row.format === 'pdf' && row.size === book.length && row.addedAt === 12345 &&
+      row.position === 7 && row.fraction === 0.35 && row.lastReadAt === 23456 &&
+      row.vaultJobId === 'fixture-vault', 'book metadata or progress changed');
+    assert(file instanceof Blob && file.type === 'application/pdf' && await file.text() === book,
+      'book bytes changed');
+    assert(row.cover instanceof Blob && row.cover.type === 'image/png' &&
+      String(new Uint8Array(await row.cover.arrayBuffer())) === String(cover), 'cover bytes changed');
+  } finally { db.close(); }
+  const stored = await caches.match('/protected-cache-storage', {cacheName:'fixture-protected-cache-storage'});
+  assert(stored && await stored.text() === 'protected origin cache', 'CacheStorage changed');
+}
+async function fetchAsset() {
+  const response = await fetch('/asset', {cache:'force-cache'});
+  assert(response.ok && await response.text() === asset, 'HTTP cache asset mismatch');
+}
+window.verifyAfterClear = async () => {
+  try {
+    await verify();
+    assert(sessionStorage.getItem('fixture-tab') === session, 'active tab storage changed');
+    send('preserved');
+  } catch (error) { send('error:' + error.message); }
+};
+(async () => {
+  if (phase === 'seed') await seed();
+  await verify();
+  if (['seed','clear','verify'].includes(phase)) await fetchAsset();
+  if (phase === 'clear' || phase === 'interrupt') {
+    sessionStorage.setItem('fixture-tab', session);
+    send('ready-to-clear');
+  } else {
+    send('verified');
+  }
+})().catch(error => send('error:' + error.message));
+</script></body></html>
