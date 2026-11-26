@@ -1,4 +1,5 @@
-import { describe,expect,it } from 'vitest';
+import { describe,expect,it,vi } from 'vitest';
+vi.mock('../src/lib/hosts/shell/bridge',()=>({appBridge:()=>undefined,ask:vi.fn()}));
 import { parseManagedBackup,parseManagedBackupList } from '../src/lib/backup/managed-archive';
 import { PORTABLE_ARCHIVE_LIMIT } from '../src/lib/backup/archive';
 const row={name:'tsugi-backup-1760000000000-'+'a'.repeat(32)+'.json',createdMs:1760000000000,bytes:100,readable:true};
