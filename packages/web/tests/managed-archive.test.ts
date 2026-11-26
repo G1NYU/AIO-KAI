@@ -24,6 +24,8 @@ describe('managed backup response validation',()=>{
 describe('storage inventory response',()=>{
   const rows=STORAGE_KINDS.map(kind=>({kind,bytes:1024,files:1,skipped:0,complete:true}));
   it('accepts distinct categories and explicitly partial scans',()=>{
+    expect(parseStorageUsage({rows:rows.slice(0,6)})).toEqual(rows.slice(0,6));
+    expect(()=>parseStorageUsage({rows:[...rows.slice(0,5),rows[6]]})).toThrow();
     expect(parseStorageUsage({rows:[...rows].reverse()})).toEqual(rows);
     expect(parseStorageUsage({rows:rows.map((row,i)=>i===0?{...row,skipped:1,complete:false}:row)})[0].complete).toBe(false);
   });

@@ -58,7 +58,7 @@ try {
             const name=(a.kind==='save-scheduled'?'tsugi-auto-backup-':'tsugi-backup-')+createdMs+'-'+(backups.length+1).toString(16).padStart(32,'0')+'.json';
             const row={name,createdMs,bytes:new TextEncoder().encode(a.archive).length,readable:true};
             backups.push({row,archive:a.archive});data=a.kind==='save-scheduled'?{backup:row,removed:0,retentionIncomplete:false}:row;
-          }else if(a.kind==='storage')data={rows:['backups','reader','webview','logs','downloads','other'].map((kind,i)=>({kind,bytes:1024*(i+1),files:1,skipped:i===2?1:0,complete:i!==2}))};
+          }else if(a.kind==='storage')data={rows:['backups','reader','webview','logs','downloads','other',...(a.detailed?['readerChapters','readerCache','webCache']:[])].map((kind,i)=>({kind,bytes:1024*(i+1),files:1,skipped:i===2?1:0,complete:i!==2}))};
           else if(a.kind==='list')data={folder:'C:/Fixture/data/backups',backups:backups.map(item=>item.row)};
           else if(a.kind==='open'){
             const item=backups.find(item=>item.row.name===a.name);
@@ -366,7 +366,8 @@ try {
   await storage.getByRole('button',{name:'Scan app storage',exact:true}).click();
   await storage.getByText('App data measured',{exact:true}).waitFor();
   await storage.getByText('Partial scan',{exact:false}).waitFor();
-  assert.equal(await storage.locator('progress').count(),6);
+  assert.equal(await storage.locator('progress').count(),9);
+  await storage.getByRole('progressbar',{name:'Downloaded manga chapters',exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>window.__readerFixture.managedBackups.length),1,'storage scan does not modify backups');
   console.log('PASS: read-only storage inventory exposes partial results.');
   const releaseSettings=bootSettings.getByRole('region',{name:'Tsugi updates',exact:true});

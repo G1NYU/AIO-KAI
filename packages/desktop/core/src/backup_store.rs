@@ -216,10 +216,10 @@ fn save_scheduled(dir:&Path,text:&str,keep:usize)->Result<Value,&'static str>{
     Ok(json!({"backup":backup,"removed":removed,"retentionIncomplete":incomplete}))
 }
 pub fn execute(root:&Path,action:BackupAction)->Result<Value,&'static str>{
-    if matches!(&action,BackupAction::Storage){return storage_usage(root);}
+    if let BackupAction::Storage { detailed } = &action { return storage_usage(root, *detailed); }
     let dir=directory(root)?;
     match action {
-        BackupAction::Storage=>unreachable!("storage handled before backup directory creation"),
+        BackupAction::Storage { .. }=>unreachable!("storage handled before backup directory creation"),
         BackupAction::List=>Ok(json!({"folder":dir.to_string_lossy(),"backups":list(&dir)?})),
         BackupAction::Save{archive}=>save(&dir,&archive,false),
         BackupAction::SaveScheduled{archive,keep}=>save_scheduled(&dir,&archive,keep),
@@ -234,42 +234,91 @@ const STORAGE_DEPTH:usize=32;
 const STORAGE_KEYS:[&str;6]=["backups","reader","webview","logs","downloads","other"];
 #[derive(Default)]
 struct Usage { bytes:u64, files:u64, skipped:u64, incomplete:bool }
-fn scan_usage(path:&Path,depth:usize,budget:&mut usize,usage:&mut Usage){
-    if *budget==0||depth>STORAGE_DEPTH {usage.incomplete=true;return;}
-    *budget-=1;
-    let Ok(meta)=fs::symlink_metadata(path) else {usage.skipped+=1;usage.incomplete=true;return;};
-    if reparse(&meta){usage.skipped+=1;usage.incomplete=true;return;}
-    if meta.is_file(){
-        usage.bytes=usage.bytes.saturating_add(meta.len()).min(9_007_199_254_740_991);
-        usage.files+=1;
-    }else if meta.is_dir(){
-        let Ok(entries)=fs::read_dir(path) else {usage.skipped+=1;usage.incomplete=true;return;};
-        for entry in entries{
-            if *budget==0 {usage.incomplete=true;break;}
+// Only these default, root-relative directory trees have a known narrower purpose.
+// Everything else stays in its original group. No user-configured paths are read.
+const DETAIL_PATHS: [(&str, &str, usize); 3] = [
+    ("reading/downloads/mangas", "readerChapters", 1),
+    ("reading/cache", "readerCache", 1),
+    ("WebView2/EBWebView/Default/Cache", "webCache", 2),
+];
+
+fn detail_group(relative: &Path, parent: usize) -> usize {
+    DETAIL_PATHS.iter().position(|(known, _, _)| {
+        let mut actual = relative.components();
+        Path::new(known).components().all(|component| {
+            actual.next().is_some_and(|part| part.as_os_str().eq_ignore_ascii_case(component.as_os_str()))
+        }) && actual.next().is_none()
+    }).map_or(parent, |index| STORAGE_KEYS.len() + index)
+}
+
+fn scan_usage(root: &Path, relative: &Path, depth: usize, budget: &mut usize,
+              groups: &mut [Usage], kind: usize, detailed: bool) {
+    if *budget == 0 || depth > STORAGE_DEPTH {
+        groups[kind].incomplete = true;
+        return;
+    }
+    *budget -= 1;
+    let path = root.join(relative);
+    let Ok(meta) = fs::symlink_metadata(&path) else {
+        groups[kind].skipped += 1;
+        groups[kind].incomplete = true;
+        return;
+    };
+    if reparse(&meta) {
+        groups[kind].skipped += 1;
+        groups[kind].incomplete = true;
+    } else if meta.is_file() {
+        let usage = &mut groups[kind];
+        usage.bytes = usage.bytes.saturating_add(meta.len()).min(9_007_199_254_740_991);
+        usage.files += 1;
+    } else if meta.is_dir() {
+        let group = if detailed && (kind == 1 || kind == 2) && depth <= 3 {
+            detail_group(relative, kind)
+        } else { kind };
+        let Ok(entries) = fs::read_dir(path) else {
+            groups[group].skipped += 1;
+            groups[group].incomplete = true;
+            return;
+        };
+        for entry in entries {
+            if *budget == 0 { groups[group].incomplete = true; break; }
             match entry {
-                Ok(child)=>scan_usage(&child.path(),depth+1,budget,usage),
-                Err(_)=>{*budget-=1;usage.skipped+=1;usage.incomplete=true;}
+                Ok(child) => scan_usage(root, &relative.join(child.file_name()), depth + 1, budget, groups, group, detailed),
+                Err(_) => { *budget -= 1; groups[group].skipped += 1; groups[group].incomplete = true; }
             }
         }
-    }else{usage.skipped+=1;usage.incomplete=true;}
-}
-fn storage_usage(root:&Path)->Result<Value,&'static str>{
-    let root=root.canonicalize().map_err(|_|"App data folder unavailable.")?;
-    let entries=fs::read_dir(&root).map_err(|_|"Could not inspect app data.")?;
-    let mut groups:[Usage;6]=std::array::from_fn(|_|Usage::default());
-    let mut budgets=[STORAGE_LIMIT;6];
-    let mut root_incomplete=false;
-    for (index,entry) in entries.enumerate(){
-        if index>=MAX_DIRECTORY_ENTRIES{root_incomplete=true;break;}
-        let Ok(entry)=entry else {root_incomplete=true;continue;};
-        let name=entry.file_name().to_string_lossy().to_ascii_lowercase();
-        let kind=match name.as_str(){"backups"=>0,"reading"=>1,"webview2"=>2,"logs"=>3,"downloads"=>4,_=>5};
-        scan_usage(&entry.path(),0,&mut budgets[kind],&mut groups[kind]);
+    } else {
+        groups[kind].skipped += 1;
+        groups[kind].incomplete = true;
     }
-    let rows:Vec<_>=STORAGE_KEYS.iter().zip(groups).map(|(key,row)|json!({
-        "kind":key,"bytes":row.bytes,"files":row.files,"skipped":row.skipped,
-        "complete":!root_incomplete&&!row.incomplete
-    })).collect();
+}
+
+fn storage_usage(root: &Path, detailed: bool) -> Result<Value, &'static str> {
+    let meta = fs::symlink_metadata(root).map_err(|_| "App data folder unavailable.")?;
+    if !meta.is_dir() || reparse(&meta) { return Err("App data folder unavailable."); }
+    let entries = fs::read_dir(root).map_err(|_| "Could not inspect app data.")?;
+    let mut groups: [Usage; STORAGE_KEYS.len() + DETAIL_PATHS.len()] = std::array::from_fn(|_| Usage::default());
+    let mut budgets = [STORAGE_LIMIT; 6];
+    let mut root_incomplete = false;
+    for (index, entry) in entries.enumerate() {
+        if index >= MAX_DIRECTORY_ENTRIES { root_incomplete = true; break; }
+        let Ok(entry) = entry else { root_incomplete = true; continue; };
+        let name = entry.file_name();
+        let kind = match name.to_string_lossy().to_ascii_lowercase().as_str() {
+            "backups" => 0, "reading" => 1, "webview2" => 2, "logs" => 3, "downloads" => 4, _ => 5,
+        };
+        scan_usage(root, Path::new(&name), 0, &mut budgets[kind], &mut groups, kind, detailed);
+    }
+    let keys = STORAGE_KEYS.iter().copied().chain(DETAIL_PATHS.iter().map(|(_, key, _)| *key));
+    let count = if detailed { groups.len() } else { STORAGE_KEYS.len() };
+    let rows: Vec<_> = keys.take(count).enumerate().map(|(index, key)| {
+        let row = &groups[index];
+        // An unreadable ancestor could contain an unseen detail subtree.
+        let parent_partial = index.checked_sub(STORAGE_KEYS.len())
+            .is_some_and(|i| groups[DETAIL_PATHS[i].2].incomplete);
+        json!({"kind":key,"bytes":row.bytes,"files":row.files,"skipped":row.skipped,
+               "complete":!root_incomplete && !row.incomplete && !parent_partial})
+    }).collect();
     Ok(json!({"rows":rows}))
 }
 
@@ -325,7 +374,7 @@ mod tests {
         fs::create_dir(root.join("WebView2")).unwrap();
         fs::write(root.join("WebView2").join("fixture"),b"abc").unwrap();
         fs::write(root.join("settings.json"),b"ab").unwrap();
-        let report=execute(&root,BackupAction::Storage).unwrap();
+        let report=execute(&root,BackupAction::Storage { detailed: false }).unwrap();
         let rows=report["rows"].as_array().unwrap();
         assert_eq!(rows.len(),6);
         assert_eq!(rows[1]["bytes"],4);
@@ -334,13 +383,47 @@ mod tests {
         assert!(rows.iter().all(|row|row["complete"]==true));
         assert!(!root.join("backups").exists());
         assert_eq!(fs::read(root.join("reading").join("fixture")).unwrap(),b"1234");
-        let mut budget=0;
-        let mut usage=Usage::default();
-        scan_usage(&root,0,&mut budget,&mut usage);
-        assert!(usage.incomplete);
-        assert_eq!(usage.files,0);
+        for (folder, _, _) in DETAIL_PATHS {
+            let dir = root.join(folder).join("日本語");
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join("fixture"), b"12345").unwrap();
+        }
+        let detailed = storage_usage(&root, true).unwrap();
+        let rows = detailed["rows"].as_array().unwrap();
+        assert_eq!(rows.len(), 9);
+        for row in &rows[6..] { assert_eq!(row["bytes"], 5); }
+        assert_eq!(rows[1]["bytes"], 4);
+        assert_eq!(rows[2]["bytes"], 3);
+        let legacy = storage_usage(&root, false).unwrap();
+        assert_eq!(legacy["rows"][1]["bytes"], 14);
+        assert_eq!(legacy["rows"][2]["bytes"], 8);
+        let mut groups: [Usage; 9] = std::array::from_fn(|_| Usage::default());
+        scan_usage(&root, Path::new("reading"), 0, &mut 0, &mut groups, 1, true);
+        assert!(groups[1].incomplete);
+        assert_eq!(groups[1].files, 0);
         fs::remove_dir_all(root).unwrap();
     }
+    #[test]
+    fn storage_skips_junctions_and_marks_hidden_subtrees_partial() {
+        let root = temp();
+        fs::create_dir_all(root.join("reading")).unwrap();
+        fs::create_dir(root.join("target")).unwrap();
+        fs::write(root.join("target/private"), b"once").unwrap();
+        let status = std::process::Command::new("cmd.exe")
+            .current_dir(&root)
+            .args(["/d", "/c", "mklink", "/J", "reading\\downloads", "target"])
+            .status().unwrap();
+        assert!(status.success());
+        let report = storage_usage(&root, true).unwrap();
+        assert_eq!(report["rows"][1]["skipped"], 1);
+        assert_eq!(report["rows"][5]["bytes"], 4);
+        assert_eq!(report["rows"][6]["bytes"], 0);
+        assert_eq!(report["rows"][6]["complete"], false);
+        assert!(storage_usage(&root.join("reading/downloads"), true).is_err());
+        fs::remove_dir(root.join("reading/downloads")).unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn scheduled_retention_preserves_manual_damaged_and_new_copy(){
         let root=temp();

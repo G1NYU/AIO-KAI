@@ -784,3 +784,9 @@ Migration commit 1be0b4c passed Unified Windows validation (45558491536) and the
 ### 2026-11-26 — Cycle II checkpoint reconciliation
 
 Verified development revision `79fd83376a47e91459042606883a732fd054380a`. B1.1 discovery passed [Unified Windows](https://github.com/G1NYU/TSUGI/actions/runs/45757055107) (web and windows-check) and [Reader runtime smoke](https://github.com/G1NYU/TSUGI/actions/runs/45757055124). The runtime test exercises an empty updates filter. Positive update, candidate review, update application and physical acceptance remain open. Package and release jobs were skipped. The stable release remains v0.1.0. Resume A1.9b storage classification before cleanup or update mutations. Cycle II remains at 0/10 fully validated milestones.
+
+### 2026-11-26 — A1.9b detailed storage inventory, local implementation
+
+Settings can request nine disjoint rows. The original six-row native request remains available. The new rows measure the default in-root manga chapter directory, Reader cache and recognized WebView2 disk cache. Budgets are shared with the parent category. Redirected roots are refused, skipped subtrees produce lower bounds, and the response contains aggregate counts only. Scope and exclusions are in `docs/portable-data-inventory.md`.
+
+Validated locally against base `79fd833`: core build, web typecheck, 149/149 tests in the Windows workflow's web list, changed-source ESLint, Windows GNU target `cargo check --locked --tests -p aiostreams-desktop-core`, and the storage interaction in the standalone browser fixture. Whole-web ESLint flags the existing unlocalized 'Idle' at party.ts:237. Windows junction tests were compiled; execution requires Windows. No package or physical acceptance. Next gate is branch CI on the reviewed code, then cleanup ownership and recovery. A1 remains open.

@@ -63,3 +63,15 @@ The native storage operation reports logical bytes and file counts inside the ex
 ### Release identity discovery (A2.1)
 
 Portable Tsugi packages report inherited native engine version separately from the Tsugi release tag. `BUILD-INFO.json` provides source commit identity. The manual check queries only the official G1NYU/TSUGI stable release and its lightweight tag reference, validates exact Windows x64 package/checksum asset names and GitHub URLs and requires the published SHA-256 digest. It compares current and stable source revisions for equality, not version ordering; a differing build is not necessarily older. Release notes are plain text. No executable is downloaded or applied; published digest is metadata, not verified downloaded bytes or independent publisher authentication. No upstream updater is enabled for portable packages. Full portable version identity, staged updates, backup-before-apply and rollback remain future work.
+
+### Detailed read-only storage inventory (A1.9b)
+
+Settings requests a detailed scan of the same app-data root. Older requests retain the six aggregate rows. The three additional rows are disjoint logical byte counts.
+
+| Row | Directory relative to app data | Boundary |
+|---|---|---|
+| Downloaded manga chapters | `reading/downloads/mangas` | Default chapter download tree from pinned Suwayomi v2.4.2373. Thumbnails, local-source manga and custom external download paths are excluded from this row. |
+| Reader cache | `reading/cache` | Runtime cache inside the managed Reader data root. System temporary storage is outside this scan. |
+| WebView disk cache | `WebView2/EBWebView/Default/Cache` | Recognized default-profile HTTP cache directory. Other layouts, IndexedDB book blobs, site storage and unrecognized cache directories stay in the WebView total. |
+
+The native worker shares the original traversal budgets across subcategories. A skipped parent can make subsidiary counts partial. Directory names classify measured files for display only. They do not establish that files are disposable, unmodified, idle, or safe to remove. Installed binaries and external folders remain unmeasured.
