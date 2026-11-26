@@ -276,8 +276,8 @@
 :root[data-host='desktop'] .oto-player .oto-transport { gap:20px; }
 :root[data-host='desktop'] .oto-player .oto-timeline { font-size:10px; }
 :root[data-host='desktop'] .oto-player .tsugi-stage-actions { padding-top:0; }
-:root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='junction'] .tsugi-junction-content { background:var(--tsugi-surface); padding:28px; border-radius:14px; }
-:root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='nocturne'] .tsugi-junction-content { background:color-mix(in srgb,var(--tsugi-canvas) 76%,transparent); padding:28px; border-radius:14px; }
+:root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='junction'] .tsugi-junction-content { background:transparent; padding:28px; border-radius:14px; }
+:root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='nocturne'] .tsugi-junction-content { background:transparent; padding:28px; border-radius:14px; }
 .oto-player .oto-up-next { display:flex; gap:14px; align-items:center; padding:14px 16px; width:100%; min-width:0; text-align:start; background:var(--tsugi-surface); border-radius:11px; }
 .oto-player .oto-up-next > span:nth-child(2) { display:flex; min-width:0; flex:1; flex-direction:column; gap:3px; }
 .oto-player .oto-up-next strong { font-size:12px; font-weight:500; color:var(--tsugi-ink); white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }

@@ -128,11 +128,17 @@ export async function verifyMusicPlayerLayoutBrowser({ browser, origin, installD
       await settings.getByRole('combobox', { name: 'Player layout' }).selectOption(layout);
       await settings.getByRole('button', { name: 'Close', exact: true }).click();
       await stage.locator('.tsugi-junction-art').waitFor();
+      await page.waitForFunction(layout => document.querySelector('.oto-player [data-ui="tsugi-junction"]')?.dataset.layout === layout, layout);
     };
     for (const layout of ['default', 'junction', 'nocturne']) {
       await chooseLayout(layout);
       const box = await geometry();
       const title = await titleSpacing();
+      const paint = await stage.locator('.tsugi-junction-content').evaluate(node => {
+        const style = getComputedStyle(node);
+        return { background: style.backgroundColor, image: style.backgroundImage };
+      });
+      assert.deepEqual(paint, { background: 'rgba(0, 0, 0, 0)', image: 'none' }, `${layout}: metadata and controls have no broad decorative panel`);
       await capture(`50-player-${layout}-2048`);
       console.log('PLAYER GEOMETRY', layout, JSON.stringify({ ...box, title }));
       assert.ok(box.content.width <= 680, `${layout}: listening controls have a bounded measure`);
@@ -143,7 +149,7 @@ export async function verifyMusicPlayerLayoutBrowser({ browser, origin, installD
       assert.ok(Math.abs((box.transport.x + box.transport.width / 2) - (box.timeline.x + box.timeline.width / 2)) <= 1, `${layout}: transport and timeline share a center`);
       assert.ok(box.actions.y - box.transport.bottom <= 28 && box.next.y - box.actions.bottom <= 28, `${layout}: related controls keep a consistent rhythm`);
     }
-    console.log('PASS: all three built-in players keep artwork, title and controls bounded and aligned at 2048×1124.');
+    console.log('PASS: all three built-in players keep artwork, title and controls unframed, bounded and aligned at 2048×1124.');
     await chooseLayout('default');
     await page.setViewportSize({ width: 1440, height: 900 });
     const desktop = await geometry();

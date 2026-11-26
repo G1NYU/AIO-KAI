@@ -2261,12 +2261,12 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-native-stage .tsugi-play-toggle { width:clamp(64px,6vw,100px); height:clamp(64px,6vw,100px); }
 .tsugi-native-stage [aria-label='Previous track'],.tsugi-native-stage [aria-label='Next track'] { width:clamp(40px,4vw,64px); height:clamp(40px,4vw,64px); }
 .tsugi-native-stage[data-layout='junction'] { grid-template-columns:minmax(0,1.08fr) minmax(0,1fr); }
-.tsugi-native-stage[data-layout='junction'] .tsugi-junction-content { background:color-mix(in srgb,var(--tsugi-canvas) 76%,transparent); padding:clamp(16px,2vw,38px); border-radius:var(--tsugi-radius-panel); }
+.tsugi-native-stage[data-layout='junction'] .tsugi-junction-content { background:transparent; padding:clamp(16px,2vw,38px); border-radius:var(--tsugi-radius-panel); }
 .tsugi-native-stage[data-layout='nocturne'] { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:clamp(26px,3vw,80px); }
 .tsugi-nocturne-backdrop { position:fixed; inset:0; z-index:-2; pointer-events:none; overflow:hidden; background:var(--tsugi-canvas); }
 .tsugi-nocturne-backdrop img { opacity:.46; object-position:center 40%; filter:blur(18px); transform:scale(1.04); }
 .tsugi-nocturne-backdrop::after { content:''; position:absolute; inset:0; background:linear-gradient(100deg,color-mix(in srgb,var(--tsugi-canvas) 18%,transparent),color-mix(in srgb,var(--tsugi-canvas) 88%,transparent) 82%),linear-gradient(0deg,var(--tsugi-canvas),transparent 75%); }
-.tsugi-native-stage[data-layout='nocturne'] .tsugi-junction-content { background:color-mix(in srgb,var(--tsugi-canvas) 62%,transparent); padding:clamp(16px,2vw,36px); border-radius:var(--tsugi-radius-panel); }
+.tsugi-native-stage[data-layout='nocturne'] .tsugi-junction-content { background:transparent; padding:clamp(16px,2vw,36px); border-radius:var(--tsugi-radius-panel); }
 .tsugi-native-stage[data-layout='nocturne'] .tsugi-track-title { font-size:clamp(38px,5.4vw,112px); }
 .tsugi-matrix { position:fixed; inset:0; width:100%; height:100%; z-index:-1; pointer-events:none; }
 .tsugi-matrix[data-mode='wave'] { z-index:2; opacity:.72; }
