@@ -4,7 +4,7 @@ The supplied design packs shape TSUGI's existing **Read**, **Books**, **Music** 
 
 **YOMI, OTO and KURA are placeholder names for the reference packs, not product or section names.** YOMI supplies the Read/Books reference, OTO the Music reference, and KURA the Vault reference. The application brand remains **TSUGI**; user-facing navigation keeps **Read**, **Books**, **Music** and **Vault**. Internal CSS, asset and filename labels may retain the pack names without displaying them.
 
-The delivery target is a **Windows x64 portable test ZIP**. Exact build revisions, download links and completed verification results are recorded in [PROGRESS.md](../PROGRESS.md) when available. The target package records its source revision in `BUILD-INFO.json`; physical Windows acceptance is separate from automated verification.
+The **Windows x64 portable test ZIP is available** at [`0c277fc`](https://github.com/G1NYU/TSUGI/actions/runs/45813841951/artifacts/15114279276). Its [Windows build](https://github.com/G1NYU/TSUGI/actions/runs/45813841951), assembled-package checks and downloaded-archive verification passed. Exact checksums and verification results are recorded in [PROGRESS.md](../PROGRESS.md). The package records its source revision in `BUILD-INFO.json`; physical Windows acceptance is separate from automated verification.
 
 ## Design and data
 
@@ -30,7 +30,7 @@ Prototype-only notes/highlights workspaces, radio, a seven-band equalizer and cl
 
 ## Start the portable Windows candidate
 
-When the consolidated candidate ZIP is available:
+Download the [candidate artifact](https://github.com/G1NYU/TSUGI/actions/runs/45813841951/artifacts/15114279276), which contains `Tsugi-windows-x64-test.zip`:
 
 1. Extract the **complete ZIP into a new writable folder**. Keep an existing working installation and its data separate.
 2. Keep the `.portable` marker and all companion files in their extracted locations.
