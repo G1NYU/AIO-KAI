@@ -23,6 +23,9 @@ export function PortableArchiveSettings({archive,onArchive}:{archive:PortableArc
   const [omitManga,setOmitManga]=React.useState(false);
   const includeManga=readerAvailable&&!omitManga;
   const counts=React.useMemo(()=>archive?.entries.map(entry=>({entry,...archiveEntryCounts(entry)}))??[],[archive]);
+  const bookFiles=counts.find(row=>row.entry.kind==='books')?.items??0;
+  const readerSources=counts.find(row=>row.entry.kind==='manga')?.sourceCount??0;
+  const musicMatches=counts.find(row=>row.entry.kind==='music')?.metadataOnly??0;
   function activeReader(){return !!document.querySelector('[data-ui="tsugi-book-reader"], .tsugi-chapter-reader');}
   function label(kind:ArchiveKind){return kind==='preferences'?t`Preferences`:kind==='music'?t`Music collections`:kind==='books'?t`Book progress`:t`Manga progress`;}
   async function capture(){
@@ -136,6 +139,12 @@ export function PortableArchiveSettings({archive,onArchive}:{archive:PortableArc
       <dl className="grid grid-cols-2 gap-2 text-sm">
         {counts.map(({entry,items,secondary})=><React.Fragment key={entry.kind}><dt>{label(entry.kind)}</dt><dd>{items}{secondary!==undefined?(entry.kind==='music'?t` collections / ${secondary} tracks`:t` titles / ${secondary} chapters`):''} · {Math.ceil(entry.bytes/1024)} KiB</dd></React.Fragment>)}
       </dl>
+      {(bookFiles>0||readerSources>0||musicMatches>0)&&<div className="space-y-2">
+        <h4><Trans id="Restoring on another device">Restoring on another device</Trans></h4>
+        {bookFiles>0&&<p><Trans id="Original book files to reimport: {bookFiles}. Progress is matched by file contents.">Original book files to reimport: {bookFiles}. Progress is matched by file contents.</Trans></p>}
+        {readerSources>0&&<p><Trans id="Reader sources represented: {readerSources}. Reconnect the original trusted sources and add the matching titles before reviewing manga progress.">Reader sources represented: {readerSources}. Reconnect the original trusted sources and add the matching titles before reviewing manga progress.</Trans></p>}
+        {musicMatches>0&&<p><Trans id="Music entries saved as metadata only: {musicMatches}. Connect a music source to find playable matches.">Music entries saved as metadata only: {musicMatches}. Connect a music source to find playable matches.</Trans></p>}
+      </div>}
       {!archive.entries.some(entry=>entry.kind==='manga')&&<p><Trans>This archive does not contain manga progress.</Trans></p>}
       {archive.entries.some(entry=>entry.kind==='manga')&&!readerAvailable&&<p><Trans>Set up Reader before reviewing the manga section. The original source and title must be available.</Trans></p>}
       <button className="tsugi-read-action" type="button" onClick={()=>onArchive(null)}><Trans>Close portable backup</Trans></button>

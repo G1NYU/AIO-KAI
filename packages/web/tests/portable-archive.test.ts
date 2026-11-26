@@ -25,6 +25,15 @@ describe('portable archive',()=>{
     expect(book.bytes).toBeGreaterThan(book.payload.length);
     expect(archiveEntryCounts(book)).toEqual({items:1});
   });
+  it('derives reconnect counts from the archive without querying sources',()=>{
+    const list='tsugi-saved-tracks';
+    const track={id:'portable:00000000-0000-0000-0000-000000000000:0',title:'Fixture',artist:'Fixture'};
+    const title={identity:'1'.repeat(64),sourceId:'3',title:'Fixture',categories:[],chapters:[]};
+    const archive=createPortableArchive({preferences,books,music:{...music,playlists:[{id:list,name:'Saved',tracks:[track]}]},
+      manga:{format:'tsugi-manga-progress',version:1,manga:[title,{...title,identity:'2'.repeat(64)}]}},date);
+    expect(archiveEntryCounts(archive.entries[1])).toEqual({items:1,secondary:1,metadataOnly:1});
+    expect(archiveEntryCounts(archive.entries[3])).toEqual({items:2,secondary:0,sourceCount:1});
+  });
   it('supports an explicitly omitted Reader section',()=>{
     const archive=createPortableArchive({preferences,music,books},date);
     expect(archive.entries.map(entry=>entry.kind)).toEqual(['preferences','music','books']);

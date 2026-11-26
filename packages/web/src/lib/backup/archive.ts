@@ -84,11 +84,19 @@ export async function capturePortableArchive(includeManga:boolean,onProgress?:(k
   }
   return createPortableArchive({preferences,music,books,manga});
 }
-export function archiveEntryCounts(entry:ArchiveEntry):{items:number;secondary?:number}{
+export function archiveEntryCounts(entry:ArchiveEntry):{items:number;secondary?:number;metadataOnly?:number;sourceCount?:number}{
   switch(entry.kind){
     case 'preferences':return {items:Object.keys(parsePreferencesBackup(entry.payload).settings).length};
-    case 'music':{const p=parseMusicBackup(entry.payload).playlists;return {items:p.length,secondary:p.reduce((n,list)=>n+list.tracks.length,0)};}
+    case 'music': {
+      const playlists = parseMusicBackup(entry.payload).playlists;
+      let tracks = 0, metadataOnly = 0;
+      for (const list of playlists) {
+        tracks += list.tracks.length;
+        metadataOnly += list.tracks.filter(track => !track.sourceId).length;
+      }
+      return {items:playlists.length, secondary:tracks, metadataOnly};
+    }
     case 'books':return {items:parseBookBackup(entry.payload).books.length};
-    case 'manga':{const m=parseMangaBackup(entry.payload).manga;return {items:m.length,secondary:m.reduce((n,title)=>n+title.chapters.length,0)};}
+    case 'manga':{const m=parseMangaBackup(entry.payload).manga;return {items:m.length,secondary:m.reduce((n,title)=>n+title.chapters.length,0),sourceCount:new Set(m.map(title=>title.sourceId)).size};}
   }
 }
