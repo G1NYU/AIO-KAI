@@ -28,7 +28,7 @@ try {
   const capture = async (name) => { if (screenshotDir) await page.screenshot({ path: join(screenshotDir, name + '.png'), animations: 'disabled' }); };
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.addInitScript(() => {
+  function installDesktopFixture() {
     if (window.top !== window) return;
     const listeners = new Set();
     const manga = { id: '1', title: 'Tsugi Original Fixture', author: 'Tsugi', thumbnailUrl: '/api/v1/manga/1/thumbnail', inLibrary: true, unreadCount: 2, description: '**Original fixture** for reader tests.', genre: ['Adventure'] };
@@ -201,7 +201,8 @@ try {
         queueMicrotask(() => { for (const listener of listeners) listener({ type: 'read-result', request: message.request, data, error }); });
       },
     };
-  });
+  }
+  await page.addInitScript(installDesktopFixture);
   const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAYCAIAAAB8wupbAAAAHUlEQVR4nGOsqF3FQApgIkn1qIZRDaMaRjWQrAEA4jkBz8UryC4AAAAASUVORK5CYII=', 'base64');
   await page.route('**/__tsugi_read/page/*', async (route) => {
     const current = await page.evaluate(() => window.__readerFixture.lastPath);
@@ -321,6 +322,35 @@ try {
   const archiveData=JSON.parse(await readFile(await archiveFile.path(),'utf8'));
   assert.equal(archiveData.format,'tsugi-portable');
   assert.deepEqual(archiveData.entries.map(entry=>entry.kind),['preferences','music','books','manga']);
+  // A separate browser context gives the destination fresh origin storage and bridge state.
+  const destination=await browser.newPage({locale:'en-GB',viewport:{width:1440,height:900}});
+  try {
+    await destination.addInitScript(installDesktopFixture);
+    await destination.route('**/*', route => route.request().url().startsWith(origin+'/') ? route.continue() : route.abort());
+    await destination.goto(origin,{waitUntil:'domcontentloaded'});
+    await destination.locator('[data-ui="tsugi-onboarding"]').getByRole('button',{name:'Enter Tsugi'}).click();
+    await destination.getByRole('button',{name:'App settings',exact:true}).click();
+    const settings=destination.getByRole('dialog');
+    const restore=settings.getByRole('region',{name:'Portable backup',exact:true});
+    const before=await destination.evaluate(()=>document.documentElement.dataset.tsugiTheme);
+    assert.notEqual(before,'carbon');
+    await restore.locator('input[type=file]').setInputFiles(await archiveFile.path());
+    await restore.getByRole('heading',{name:'Portable backup preview',exact:true}).waitFor();
+    await restore.getByText(/Reader sources represented:/).waitFor();
+    assert.equal(await destination.evaluate(()=>document.documentElement.dataset.tsugiTheme),before);
+    const pref=settings.getByRole('region',{name:'Preferences backup',exact:true});
+    await pref.getByRole('button',{name:'Review archived preferences'}).click();
+    await pref.getByRole('button',{name:'Apply preferences'}).click();
+    await destination.waitForFunction(()=>document.documentElement.dataset.tsugiTheme==='carbon');
+    const mangaRestore=settings.getByRole('region',{name:'Manga progress backup',exact:true});
+    await mangaRestore.getByRole('button',{name:'Review archived manga'}).click();
+    await mangaRestore.getByRole('button',{name:'Restore matched manga progress'}).click();
+    await mangaRestore.getByRole('status').filter({hasText:'Restored progress or bookmarks for 1 chapters'}).waitFor();
+    assert.deepEqual(await destination.evaluate(()=>[window.__readerFixture.backupPage,window.__readerFixture.backupBookmarked]),[2,true]);
+    await destination.reload({waitUntil:'domcontentloaded'});
+    await destination.waitForFunction(()=>document.documentElement.dataset.tsugiTheme==='carbon');
+    console.log('PASS: exported archive restores into independent origin storage with synthetic Reader state.');
+  } finally { await destination.close(); }
   const corrupt={...archiveData,entries:archiveData.entries.map((entry,i)=>i===0?{...entry,sha256:'0'.repeat(64)}:entry)};
   await portable.locator('input[type=file]').setInputFiles({name:'damaged.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(corrupt))});
   await portable.getByRole('alert').filter({hasText:'Invalid, damaged or unsupported portable backup. Nothing was restored.'}).waitFor();
