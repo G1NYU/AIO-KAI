@@ -241,7 +241,7 @@ impl ReadRuntime {
         serde_json::from_slice(&output).map_err(|_| "Invalid extension metadata inspection result.")
     }
 
-    fn installed_artifact_hash(&self, record: &Value) -> Result<String, &'static str> {
+    pub(super) fn installed_artifact_hash(&self, record: &Value) -> Result<String, &'static str> {
         let name = printable(&record["apkName"], 220)?;
         let stem = name.strip_suffix(".apk").filter(|s| !s.is_empty())
             .ok_or("Installed extension artifact is unknown.")?;
@@ -271,7 +271,7 @@ impl ReadRuntime {
         Ok(store)
     }
 
-    fn verified_extension_sources(&self, installed: &Value) -> Result<BTreeSet<String>, &'static str> {
+    pub(super) fn verified_extension_sources(&self, installed: &Value) -> Result<BTreeSet<String>, &'static str> {
         // Extension.source counts only sources that successfully loaded. The
         // global query retains the database count before filtering unloadable
         // rows, so completeness here detects hidden affected source identities.
@@ -336,7 +336,7 @@ impl ReadRuntime {
 
     /// Complete cached identities/progress for this extension only; no source
     /// network requests. Fail closed on incomplete or excessively large state.
-    fn update_invariants(&self, sources: &BTreeSet<String>) -> Result<String, &'static str> {
+    pub(super) fn update_invariants(&self, sources: &BTreeSet<String>) -> Result<String, &'static str> {
         let mut state = Sha256::new();
         state.update(b"tsugi-extension-state-v1");
         let mut record_count = 0usize;

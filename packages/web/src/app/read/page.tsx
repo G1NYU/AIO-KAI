@@ -7,7 +7,7 @@ import { MediaNavigation } from '@/components/shell/media-navigation';
 import { TsugiRail } from '@/components/shell/tsugi-rail';
 import { BrushSliders } from '@/components/tsugi-icons';
 import { useDesktopArea } from '@/lib/desktop-area';
-import { closeReadingChapter, prepareReading, readRequest, readImage } from '@/lib/hosts/shell/reading';
+import { closeReadingChapter, prepareReading, readRequest, readImage, type ReadAction } from '@/lib/hosts/shell/reading';
 import { ChapterReader } from './chapter-reader';
 import { BatchAddWorkspace, MigrationWorkspace } from './collection-transfer';
 import { LandscapeSpotlight } from '@/components/landscape-spotlight';
@@ -16,6 +16,7 @@ import { ReaderSettings } from './reader-settings';
 import { SourceFeed, useSourceFeed } from './source-feed';
 import type { FeedManga } from './source-feed-state';
 import { normalizedContentWarning, sourceLanguages, sourceMatchesFilters, type ContentFilter, type SourceMetadata as Source } from './source-metadata';
+import { SourceSettings } from './source-settings';
 import { MangaTracking, type Tracker } from './tracking';
 import { readReaderPreferences, saveReaderPreferences } from './reader-preferences';
 import { chapterGroups, neighboringChapter, cleanSynopsis, type ReadingChapter as Chapter } from './reader-utils';
@@ -26,6 +27,7 @@ type Extension = { storeIndexUrl?: string | null; pkgName: string; name: string;
 type ExtensionUpdateResult = { package: string; status: 'updated' | 'rolled-back'; versionName: string; checkpointId: string; error?: string };
 type ExtensionUpdateNotice = { package: string; name: string; status: 'updated' | 'rolled-back' | 'failed'; message: string };
 function extensionUpdateLabel(name: string) { return t({ id: 'Select update for {name}', message: `Select update for ${name}` }); }
+function sourceSettingsLabel(name: string) { return t({ id: 'Settings for {name}', message: `Settings for ${name}` }); }
 function contentWarningLabel(value: unknown) {
   switch (normalizedContentWarning(value)) {
     case 'SAFE': return t({ id: 'Not flagged', message: 'Not flagged' });
@@ -90,6 +92,7 @@ export function ReadPage({ visible }: {
   const [sourceLanguage, setSourceLanguage] = React.useState('');
   const [sourceContent, setSourceContent] = React.useState<ContentFilter>('');
   const [sourcesLoaded, setSourcesLoaded] = React.useState(false);
+  const [sourceSettings, setSourceSettings] = React.useState<Source | null>(null);
   const [libraryFilter, setLibraryFilter] = React.useState('');
   const [librarySort, setLibrarySort] = React.useState<'title' | 'recent'>('title');
   const [libraryView, setLibraryView] = React.useState<'all' | 'reading'>('all');
@@ -138,6 +141,12 @@ export function ReadPage({ visible }: {
   const active = React.useRef(true);
   const openGeneration = React.useRef(0);
   const feed = useSourceFeed(visible && tab === 'browse' && browseTab === 'feed' && !details && !reader);
+  const sourceSettingsRequest = React.useCallback(async <T,>(action: ReadAction): Promise<T> => {
+    if (lock.current) throw new Error(t({ id: 'Another Reader request is still running.', message: 'Another Reader request is still running.' }));
+    lock.current = true; setBusy(true); setError('');
+    try { return await readRequest<T>(action); }
+    finally { lock.current = false; if (active.current) setBusy(false); }
+  }, []);
 
   async function run(work: () => Promise<void>) {
     if (lock.current) return;
@@ -674,9 +683,9 @@ export function ReadPage({ visible }: {
           {sourcesLoaded && <p className="mb-3 text-sm text-[--tsugi-muted]" role="status">{matchingSources.length} / {sources.length} <Trans id="sources shown">sources shown</Trans></p>}
           {sourcesLoaded && !sources.length && !busy && <div className="py-6"><p className="mb-3 text-[--tsugi-muted]"><Trans id="No installed sources. Install an extension to start browsing.">No installed sources. Install an extension to start browsing.</Trans></p><button className="tsugi-read-action" onClick={() => switchBrowse('extensions')}><Trans id="Browse extensions">Browse extensions</Trans></button></div>}
           {sourcesLoaded && sources.length > 0 && !matchingSources.length && <p className="py-6 text-[--tsugi-muted]"><Trans id="No sources match these filters.">No sources match these filters.</Trans></p>}
-          {matchingSources.map(item => <button key={item.id} data-source-id={item.id} className="tsugi-read-row gap-3" disabled={busy} onClick={() => { setSource(item.id); setQuery(''); setBrowse(null); void run(() => catalogue('popular', 1, item.id, '')); }}>
+          {matchingSources.map(item => <div key={item.id} className="tsugi-read-row flex-wrap gap-3"><button data-source-id={item.id} className="flex min-w-0 basis-52 flex-1 items-center gap-3 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[--tsugi-accent]" disabled={busy} onClick={() => { setSource(item.id); setQuery(''); setBrowse(null); void run(() => catalogue('popular', 1, item.id, '')); }}>
             <FiGlobe className="shrink-0" aria-hidden /><span className="min-w-0 flex-1 text-left"><span className="block break-words font-medium">{item.displayName || item.name}</span><span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[--tsugi-muted]"><span>{languageLabel(item.lang)}</span><span>{contentWarningLabel(item.contentWarning)}</span>{item.supportsLatest && <span><Trans id="Latest supported">Latest supported</Trans></span>}{item.isConfigurable && <span><Trans id="Configurable source">Configurable source</Trans></span>}</span>{item.extension && <><span className="block break-words text-xs text-[--tsugi-muted]">{item.extension.name} · {versionLabel(item.extension.versionName, item.extension.isInstalled)}</span><span className="block break-all text-xs text-[--tsugi-muted]">{item.extension.pkgName}</span>{item.extension.isObsolete ? <span className="text-xs text-[--tsugi-muted]"><Trans id="Obsolete extension">Obsolete extension</Trans></span> : item.extension.hasUpdate && <span className="text-xs text-[--tsugi-accent]"><Trans id="Extension update available">Extension update available</Trans></span>}</>}</span><FiChevronRight className="shrink-0" aria-hidden />
-          </button>)}
+          </button>{item.isConfigurable && <button className="tsugi-read-action" aria-label={sourceSettingsLabel(item.displayName || item.name)} disabled={busy} onClick={() => setSourceSettings(item)}><FiSettings aria-hidden /><Trans id="Settings">Settings</Trans></button>}</div>)}
         </section> : <section>
           <div className="mb-5 flex flex-wrap items-center gap-3">
             <button className="tsugi-read-action" disabled={busy} onClick={() => { setSource(''); setBrowse(null); }}><FiArrowLeft aria-hidden /><Trans id="Sources">Sources</Trans></button>
@@ -717,6 +726,7 @@ export function ReadPage({ visible }: {
       {library && library.totalCount > library.nodes.length && <p className="mt-3 text-sm text-[--tsugi-muted]"><Trans id="Some library entries could not be loaded.">Some library entries could not be loaded.</Trans></p>}
     </section>}
     </div>
+    {sourceSettings && <SourceSettings key={sourceSettings.id} source={sourceSettings} busy={busy} request={sourceSettingsRequest} onClose={() => setSourceSettings(null)} />}
   </main>;
 }
 

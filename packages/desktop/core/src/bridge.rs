@@ -72,6 +72,10 @@ pub struct MangaProgressPatch {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ReadContentWarning { Safe, Mixed, Nsfw }
 
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum SourcePreferenceValue { Bool(bool), Choice(u32) }
+
 /// Fixed reading operations; the page cannot send arbitrary GraphQL,
 /// local paths, upstream URLs for pages, or authentication credentials.
 #[derive(Debug, Deserialize)]
@@ -81,6 +85,9 @@ pub enum ReadAction {
     Status,
     Sources,
     SourceInventory,
+    SourcePreferences { source: String },
+    ApplySourcePreference { review_id: String, control_id: String, value: SourcePreferenceValue },
+    CancelSourcePreferences { review_id: String },
     Library,
     LibraryPage { offset: u32 },
     History,
@@ -143,6 +150,17 @@ mod reading_metadata_tests {
         }
         assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind": "extensions", "offset": 0, "isNsfw": true})).is_err());
         assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind": "extensions", "offset": 0, "obsoleteOnly": "true"})).is_err());
+    }
+
+    #[test]
+    fn source_setting_bridge_accepts_only_boolean_or_nonnegative_choice_index() {
+        for value in [serde_json::json!(false), serde_json::json!(true), serde_json::json!(0), serde_json::json!(63)] {
+            assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":"apply-source-preference","reviewId":"a".repeat(32),"controlId":"b".repeat(32),"value":value})).is_ok());
+        }
+        for value in [serde_json::json!("raw value"), serde_json::json!(-1), serde_json::json!(1.5), serde_json::json!([]), Value::Null] {
+            assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":"apply-source-preference","reviewId":"a".repeat(32),"controlId":"b".repeat(32),"value":value})).is_err());
+        }
+        assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":"source-preferences","source":"12345","key":"private"})).is_err());
     }
 }
 

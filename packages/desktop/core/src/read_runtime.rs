@@ -23,6 +23,11 @@ pub use extension_update::ExtensionUpdateReview;
 mod download_cleanup;
 pub use download_cleanup::DownloadCleanupReview;
 
+#[path = "read_source_preferences.rs"]
+mod source_preferences;
+pub use source_preferences::{SourcePreferencesReview, SourcePreferenceChangeReview};
+pub use crate::bridge::SourcePreferenceValue;
+
 #[cfg(test)]
 #[path = "read_feed_tests.rs"]
 mod feed_tests;

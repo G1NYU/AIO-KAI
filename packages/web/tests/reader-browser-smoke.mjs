@@ -11,6 +11,7 @@ import { verifyMihonImportBrowser } from './mihon-import-browser.mjs';
 import { verifyDownloadCleanupBrowser, verifyReaderReleaseBrowser } from './download-cleanup-browser.mjs';
 import { verifySourceFeedBrowser } from './source-feed-browser.mjs';
 import { verifySourceMetadataBrowser } from './source-metadata-browser.mjs';
+import { verifySourceSettingsBrowser } from './source-settings-browser.mjs';
 import { pathToFileURL } from 'node:url';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -1461,4 +1462,5 @@ try {
   await verifyReaderReleaseBrowser({ browser, origin, installDesktopFixture });
   await verifySourceFeedBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifySourceMetadataBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifySourceSettingsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
 } finally { await browser.close(); }

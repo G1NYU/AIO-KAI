@@ -13,7 +13,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use aiostreams_desktop_core::bridge::{Outbound, ReadAction};
-use aiostreams_desktop_core::read_runtime::{CatalogueMode, ChapterPages, DownloadCleanupReview, ReadJob, ReadOperation, ReadRuntime};
+use aiostreams_desktop_core::read_runtime::{CatalogueMode, ChapterPages, DownloadCleanupReview, SourcePreferencesReview, ReadJob, ReadOperation, ReadRuntime};
 use serde_json::{Value, json};
 
 use crate::Args;
@@ -162,6 +162,7 @@ impl Worker {
             let mut reader = None;
             let mut chapter = None;
             let mut cleanup = None;
+            let mut preferences = None;
             let mut serial = 0u64;
             while !stopped.load(Ordering::Acquire) {
                 let (request, action) = match rx.recv_timeout(Duration::from_millis(100)) {
@@ -181,7 +182,7 @@ impl Worker {
                     if preparing {
                         return Ok(json!({"ready": true}));
                     }
-                    execute(reader.as_mut().unwrap(), &mut chapter, &mut cleanup, &images, &mut serial, owner, &stopped, action)
+                    execute(reader.as_mut().unwrap(), &mut chapter, &mut cleanup, &mut preferences, &images, &mut serial, owner, &stopped, action)
                 })();
                 if !stopped.load(Ordering::Acquire) {
                     answer(&reply, request, result);
@@ -281,6 +282,7 @@ fn execute(
     reader: &mut ReadRuntime,
     chapter: &mut Option<(i32, String, ChapterPages)>,
     cleanup: &mut Option<DownloadCleanupReview>,
+    preferences: &mut Option<SourcePreferencesReview>,
     cache: &Cache,
     serial: &mut u64,
     owner: isize,
@@ -289,6 +291,36 @@ fn execute(
 ) -> Result<Value, &'static str> {
     match action {
         ReadAction::Prepare => Err("Invalid reading setup state."),
+        ReadAction::SourcePreferences { source } => {
+            *preferences = None;
+            if chapter.is_some() { return Err("Close the open manga chapter before loading source settings."); }
+            let review = reader.load_source_preferences(&source)?;
+            let preview = review.preview(); *preferences = Some(review); Ok(preview)
+        }
+        ReadAction::CancelSourcePreferences { review_id } => {
+            if review_id.len() != 32 || !review_id.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {
+                return Err("The source settings review expired or changed. Load settings again.");
+            }
+            let cancelled = preferences.as_ref().is_some_and(|review| review.id() == review_id);
+            if cancelled { *preferences = None; }
+            Ok(json!({"reviewId": review_id, "cancelled": cancelled}))
+        }
+        ReadAction::ApplySourcePreference { review_id, control_id, value } => {
+            if !preferences.as_ref().is_some_and(|review| review.id() == review_id) {
+                return Err("The source settings review expired or changed. Load settings again.");
+            }
+            let review = preferences.take().unwrap();
+            if chapter.is_some() { return Err("Close the open manga chapter before changing source settings."); }
+            let change = reader.review_source_preference_change(review, &control_id, value)?;
+            if !confirm(owner, "Tsugi source setting change", change.description()) {
+                return Ok(json!({"reviewId": review_id, "controlId": control_id, "status": "cancelled"}));
+            }
+            if stopped.load(Ordering::Acquire) { return Err("Reading is closing."); }
+            if chapter.is_some() { return Err("Close the open manga chapter before changing source settings."); }
+            *cleanup = None;
+            if let Ok(mut cache) = cache.lock() { *cache = None; }
+            reader.apply_reviewed_source_preference(change)
+        }
         ReadAction::DownloadCleanupCandidates { offset } => reader.download_cleanup_candidates(offset),
         ReadAction::ReviewDownloadCleanup { ids } => {
             *cleanup = None;

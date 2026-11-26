@@ -17,6 +17,9 @@ export type ReadAction =
   | { kind: 'add-store' | 'remove-store'; index: string }
   | { kind: 'extensions'; offset: number; query?: string; store?: string; language?: string; installed?: boolean; updatesOnly?: boolean; obsoleteOnly?: boolean; contentWarning?: 'SAFE' | 'MIXED' | 'NSFW' }
   | { kind: 'install-extension' | 'update-extension' | 'uninstall-extension'; package: string }
+  | { kind: 'source-preferences'; source: string }
+  | { kind: 'cancel-source-preferences'; reviewId: string }
+  | { kind: 'apply-source-preference'; reviewId: string; controlId: string; value: boolean | number }
   | { kind: 'catalogue'; source: string; page: number; mode: 'popular' | 'latest' | 'search'; query?: string }
   | { kind: 'manga' | 'chapter' | 'cover'; id: number }
   | { kind: 'close-chapter'; chapterId: number; session: string }
@@ -51,12 +54,12 @@ let sequence = 0;
 const closingChapters = new Map<string, number>();
 export async function readRequest<T>(action: ReadAction): Promise<T> {
   if (action.kind === 'prepare' ? !supportsReadingSection() : !supportsReading()) throw new Error(t({ id: "Reading is not available in this app.", message: "Reading is not available in this app." }));
-  if (action.kind === 'download-cleanup-candidates' || action.kind === 'review-download-cleanup' || action.kind === 'apply-download-cleanup') {
+  if (action.kind === 'download-cleanup-candidates' || action.kind === 'review-download-cleanup' || action.kind === 'apply-download-cleanup' || action.kind === 'source-preferences' || action.kind === 'apply-source-preference') {
     for (const [session, chapterId] of [...closingChapters]) await closeReadingChapter(chapterId, session);
   }
   const request = 'read-' + Date.now() + '-' + ++sequence;
   const response = await ask({ type: 'read-request', request, action }, 'read-result', {
-    timeoutMs: action.kind === 'prepare' ? 20 * 60_000 : action.kind === 'update-extension' || action.kind === 'apply-download-cleanup' || action.kind === 'review-download-cleanup' ? 10 * 60_000 : action.kind === 'tracker-login' ? 240_000 : 180_000, matches: (message) => message.request === request,
+    timeoutMs: action.kind === 'prepare' ? 20 * 60_000 : action.kind === 'update-extension' || action.kind === 'apply-download-cleanup' || action.kind === 'review-download-cleanup' || action.kind === 'apply-source-preference' ? 10 * 60_000 : action.kind === 'tracker-login' ? 240_000 : 180_000, matches: (message) => message.request === request,
   });
   if (response.error || response.data == null) throw new Error(response.error || t({ id: "Reading request returned no data.", message: "Reading request returned no data." }));
   return response.data as T;
