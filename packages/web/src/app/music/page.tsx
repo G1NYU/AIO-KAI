@@ -80,6 +80,11 @@ export function MusicPage({
   const [selectedCollection, setSelectedCollection] = React.useState<EclipseCatalogItem | null>(null);
   const [tab, setTab] = React.useState<'discover' | 'search' | 'library'>('discover');
   const [playlists, setPlaylists] = React.useState(readMusicLibrary);
+  React.useEffect(()=>{
+    const refresh=()=>setPlaylists(readMusicLibrary());
+    window.addEventListener('tsugi-music-library-restored',refresh);
+    return ()=>window.removeEventListener('tsugi-music-library-restored',refresh);
+  },[]);
   const [libraryError, setLibraryError] = React.useState('');
   const [saveNotice, setSaveNotice] = React.useState('');
   const [sessionTracks, setSessionTracks] = React.useState<EclipseTrack[]>([]);

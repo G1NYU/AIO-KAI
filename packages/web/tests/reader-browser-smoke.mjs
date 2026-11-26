@@ -247,6 +247,16 @@ try {
   await prefs.getByRole('button',{name:'Apply preferences',exact:true}).click();
   await page.waitForFunction(()=>document.documentElement.dataset.tsugiTheme==='carbon'&&document.documentElement.dataset.tsugiAccent==='amber');
   await prefs.getByRole('status').waitFor();
+  const musicBackup=bootSettings.getByRole('region',{name:'Music library backup',exact:true});
+  const musicExportEvent=page.waitForEvent('download');
+  await musicBackup.getByRole('button',{name:'Export music library',exact:true}).click();
+  const musicExported=await musicExportEvent;
+  assert.equal(musicExported.suggestedFilename(),'tsugi-music-library.json');
+  const musicData=JSON.parse(await readFile(await musicExported.path(),'utf8'));
+  assert.equal(musicData.format,'tsugi-music-library');
+  await musicBackup.locator('input[type=file]').setInputFiles({name:'music.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(musicData))});
+  await musicBackup.getByRole('heading',{name:'Music restore preview',exact:true}).waitFor();
+  await musicBackup.getByRole('button',{name:'Cancel music restore',exact:true}).click();
   await bootSettings.getByRole('button', { name: 'Default', exact: true }).click();
   await bootSettings.getByRole('button', { name: 'Silver', exact: true }).click();
   await bootSettings.getByRole('button', { name: 'Close', exact: true }).click();
