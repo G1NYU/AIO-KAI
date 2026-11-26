@@ -20,7 +20,10 @@ export function PortableArchiveSettings({archive,onArchive}:{archive:PortableArc
     if(activeReader()){setError(t`Close the current book or chapter before exporting a portable backup.`);return;}
     setBusy(true);setProgress('');
     try{
-      const data=await capturePortableArchive(includeManga,(kind,done,total)=>setProgress(total?t`${label(kind)}: ${done} / ${total}`:label(kind)));
+      const data=await capturePortableArchive(includeManga,(kind,done,total)=>{
+        const section=label(kind);
+        setProgress(total?t`${section}: ${done} / ${total}`:section);
+      });
       const url=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));
       const anchor=document.createElement('a');
       anchor.href=url;anchor.download='tsugi-portable-'+data.createdAt.replace(/[:.]/g,'-')+'.json';
