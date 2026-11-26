@@ -1,3 +1,8 @@
+
+## 2026-11-26 — C1 translation lint correction
+
+C1 run `45901081803` passed Windows native and WebView2 checks and web typecheck, but Lingui lint rejected two property expressions in translated Up next labels. Extract local variables without changing UI behavior. Browser and cumulative web verification are still pending. The C2 persistent-audio work is not included in this checkpoint.
+
 ## 2026-11-26 — Cross-media Up next, music regression repair and verified staging
 
 At `254a0b2`, [Windows job 140183340300](https://github.com/G1NYU/TSUGI/actions/runs/45900017287/job/140183340300) passed 175 native tests (18 intentionally ignored), the WebView2 preservation fixture, read-only verification and actual disposable staging of the official immutable v0.1.0 ZIP: 440 files, 61 directories, tree SHA-256 `e760422caf32b157940301bd049bc177393f09626c2e1075b543b4d39e41591c`. No application installation or release was modified. The [web job](https://github.com/G1NYU/TSUGI/actions/runs/45900017287/job/140183340003) passed typecheck, lint and 38 unit test files. The actual reactive-seek/mascot fixture passed measured mini/expanded motion, GIF import/poster/reload/removal, pause/reduced-motion/Read suppression and fresh native meter isolation. The cumulative browser gate then failed in the older lyrics fixture because the new mascot input made the generic file-input selector ambiguous; scope it to the Studio-layout importer. B4 browser acceptance is still pending.

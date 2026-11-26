@@ -68,12 +68,12 @@ export function UpNext({open, onClose}: {open:boolean; onClose:()=>void}) {
     {manga.status==='error' && <p role="status"><Trans>Manga history could not be loaded. Refresh to try again.</Trans></p>}
     {!!actions?.openManga && !canManga && <button type="button" className="tsugi-read-action" onClick={()=>{onClose();actions.openManga?.();}}><Trans>Set up Manga to continue reading</Trans></button>}
     <div className="tsugi-up-next-list">
-      {rows.map(row=><article key={resumeKey(row.target)} className="tsugi-up-next-row">
+      {rows.map(row=>{ const { title, page } = row; return <article key={resumeKey(row.target)} className="tsugi-up-next-row">
         <div className="min-w-0">
           <small className="tsugi-up-next-type">{mediaLabel(row)}{row.current && <> · <Trans>Current player</Trans></>}</small>
           <h3>{row.title}</h3>
           {row.subtitle && <p>{row.subtitle}</p>}
-          {row.page!==undefined && <p><Trans>Page {row.page}</Trans></p>}
+          {row.page!==undefined && <p><Trans>Page {page}</Trans></p>}
           {row.at>0 && <p><time dateTime={new Date(row.at).toISOString()}>{new Date(row.at).toLocaleDateString()}</time></p>}
           {row.progress!==undefined && <progress max={1} value={row.progress} aria-label={t`Saved progress`}/>}
           {!row.available && <p><Trans>Original source disconnected</Trans></p>}
@@ -82,9 +82,9 @@ export function UpNext({open, onClose}: {open:boolean; onClose:()=>void}) {
           <button type="button" className="tsugi-read-action" disabled={!row.available} onClick={()=>{onClose();actions?.openResume?.(row.target);}}>
             {row.target.kind==='music' ? row.current ? <Trans>Open player</Trans> : <Trans>Play again</Trans> : <Trans>Resume</Trans>}
           </button>
-          <button type="button" className="tsugi-read-action" aria-label={t`Hide ${row.title}`} onClick={()=>hide(row)}><Trans>Hide</Trans></button>
+          <button type="button" className="tsugi-read-action" aria-label={t`Hide ${title}`} onClick={()=>hide(row)}><Trans>Hide</Trans></button>
         </div>
-      </article>)}
+      </article>; })}
       {!rows.length && books.status!=='loading' && manga.status!=='loading' && <p><Trans>No recent items are available. Start reading or listening to build this list.</Trans></p>}
       <article className="tsugi-up-next-row">
         <div><small className="tsugi-up-next-type"><Trans>Movies & TV</Trans></small><h3><Trans>Continue watching</Trans></h3><p><Trans>Your video profile owns watch history. Open Movies & TV to see its current resume list.</Trans></p></div>
