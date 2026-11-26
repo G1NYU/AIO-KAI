@@ -268,9 +268,14 @@ fn packaged_runtime_download_cleanup_providers() {
             let stale = managed.review_download_cleanup(&[ids[0]]).unwrap();
             let held = data.join("original-junction-target");
             fs::rename(&selected_folder, &held).unwrap();
-            let status = Command::new("cmd.exe").args(["/C", "mklink", "/J"])
-                .arg(&selected_folder).arg(&held).stdout(Stdio::null()).stderr(Stdio::null()).status().unwrap();
-            assert!(status.success(), "create a junction only between original fixture paths");
+            // Match the existing storage junction fixture: cmd built-ins need
+            // Windows separators, while the CI data-root env uses forward slashes.
+            let status = Command::new("cmd.exe").current_dir(&data)
+                .args(["/d", "/c", "mklink", "/J",
+                    r"downloads\mangas\Tsugi Download Fixture (EN)\Tsugi Original Comic\Cleanup chapter 01",
+                    "original-junction-target"])
+                .stdout(Stdio::null()).stderr(Stdio::null()).status().unwrap();
+            assert!(status.success(), "original fixture junction creation failed (exit {:?})", status.code());
             assert!(managed.apply_reviewed_download_cleanup(stale).is_err(), "a reparse point cannot replace a reviewed download");
             assert_eq!(stored_fixture(&held), selected_bytes);
             fs::remove_dir(&selected_folder).expect("remove only the original test junction");
