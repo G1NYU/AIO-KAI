@@ -1218,6 +1218,12 @@ impl ReadRuntime {
     }
 
     pub fn filter_extensions(&self, offset: u32, term: &str, store: Option<&str>, language: Option<&str>, installed: Option<bool>) -> Result<Value, &'static str> {
+        self.filter_extensions_with_updates(offset, term, store, language, installed, false)
+    }
+
+    pub fn filter_extensions_with_updates(&self, offset: u32, term: &str, store: Option<&str>, language: Option<&str>, installed: Option<bool>, updates_only: bool) -> Result<Value, &'static str> {
+        let installed = if updates_only { Some(true) } else { installed };
+        let has_update = updates_only.then_some(true);
         if offset > 100_000 || term.chars().count() > 200 || term.chars().any(char::is_control) {
             return Err("Invalid extension catalogue request.");
         }
@@ -1237,11 +1243,11 @@ impl ReadRuntime {
         // class names; avoid coupling this request to those generated names.
         let (document, variables) = if language.is_some() || installed.is_some() {
             if term.is_empty() {
-                ("query TsugiExtensions($offset: Int!, $store: String, $lang: String, $installed: Boolean) { extensions(first: 100, offset: $offset, condition: {storeIndexUrl: $store, lang: $lang, isInstalled: $installed}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
-                 json!({"offset": offset, "store": store, "lang": language, "installed": installed}))
+                ("query TsugiExtensions($offset: Int!, $store: String, $lang: String, $installed: Boolean, $hasUpdate: Boolean) { extensions(first: 100, offset: $offset, condition: {storeIndexUrl: $store, lang: $lang, isInstalled: $installed, hasUpdate: $hasUpdate}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
+                 json!({"offset": offset, "store": store, "lang": language, "installed": installed, "hasUpdate": has_update}))
             } else {
-                ("query TsugiExtensions($offset: Int!, $term: String!, $store: String, $lang: String, $installed: Boolean) { extensions(first: 100, offset: $offset, condition: {storeIndexUrl: $store, lang: $lang, isInstalled: $installed}, filter: {or: [{name: {includesInsensitive: $term}}, {pkgName: {includesInsensitive: $term}}, {lang: {equalTo: $term}}]}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
-                 json!({"offset": offset, "term": term, "store": store, "lang": language, "installed": installed}))
+                ("query TsugiExtensions($offset: Int!, $term: String!, $store: String, $lang: String, $installed: Boolean, $hasUpdate: Boolean) { extensions(first: 100, offset: $offset, condition: {storeIndexUrl: $store, lang: $lang, isInstalled: $installed, hasUpdate: $hasUpdate}, filter: {or: [{name: {includesInsensitive: $term}}, {pkgName: {includesInsensitive: $term}}, {lang: {equalTo: $term}}]}) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
+                 json!({"offset": offset, "term": term, "store": store, "lang": language, "installed": installed, "hasUpdate": has_update}))
             }
         } else if term.is_empty() && store.is_none() {
             ("query TsugiExtensions($offset: Int!) { extensions(first: 100, offset: $offset) { nodes { name pkgName storeIndexUrl versionName versionCodeLong extensionLib lang contentWarning isInstalled hasUpdate isObsolete } totalCount } }",
@@ -2389,6 +2395,8 @@ mod tests {
         assert_eq!(managed.filter_extensions(0, "fixture", Some(&store.url), Some("en"), Some(false)).unwrap()["totalCount"], 1);
         assert_eq!(managed.filter_extensions(0, "", None, Some("fr"), None).unwrap()["totalCount"], 0);
         assert_eq!(managed.filter_extensions(0, "", None, None, Some(true)).unwrap()["totalCount"], 0);
+        assert_eq!(managed.filter_extensions_with_updates(0, "", None, None, None, true).unwrap()["totalCount"], 0);
+        assert_eq!(managed.filter_extensions_with_updates(0, "fixture", Some(&store.url), Some("en"), None, true).unwrap()["totalCount"], 0);
         assert!(managed.filter_extensions(0, "", None, Some("en\n"), None).is_err());
         assert_eq!(managed.search_extensions(0, "no matching extension", None).unwrap()["totalCount"], 0);
         assert!(managed.search_extensions(0, "", Some("https://example.invalid/repo.json")).is_err());

@@ -181,7 +181,7 @@ try {
           case 'stores': data = nodes(state.stores); break;
           case 'add-store': state.stores.push({ name: 'Original fixture store', indexUrl: a.index }); data = { ok: true }; break;
           case 'refresh-extensions': data = { ok: true }; break;
-          case 'extensions': data = nodes(state.stores.length && (a.installed === undefined || a.installed === state.installed) && (!a.language || a.language === 'en') ? [{ pkgName: 'org.tsugi.fixture', name: 'Original extension', lang: 'en', versionName: '1.6', storeIndexUrl: state.stores[0].indexUrl, isInstalled: state.installed, isObsolete: false }] : []); break;
+          case 'extensions': data = nodes(state.stores.length && (a.installed === undefined || a.installed === state.installed) && (!a.language || a.language === 'en') && (!a.updatesOnly || (state.installed && state.fixtureHasUpdate)) ? [{ pkgName: 'org.tsugi.fixture', name: 'Original extension', lang: 'en', versionName: '1.6', storeIndexUrl: state.stores[0].indexUrl, isInstalled: state.installed, isObsolete: false, hasUpdate: !!state.fixtureHasUpdate && state.installed }] : []); break;
           case 'install-extension': state.installed = true; data = { ok: true }; break;
           case 'sources': data = nodes(state.installed ? [{ id: '12345', name: 'Original source', lang: 'en', supportsLatest: true }, ...(state.transferEnabled ? [{ id: '67890', name: 'Replacement source', lang: 'en', supportsLatest: true }] : [])] : []); break;
           case 'catalogue': data = { mangas: a.source === '67890' ? a.query === 'Batch Fixture' ? [batchTitle] : [replacement] : [manga], hasNextPage: false }; break;
@@ -635,6 +635,15 @@ try {
   await page.getByRole('button', { name: 'Install', exact: true }).click();
   await page.getByRole('button', { name: 'Uninstall', exact: true }).waitFor();
   await page.getByRole('combobox', { name: 'Extension language' }).selectOption('en');
+  await page.getByRole('combobox', { name: 'Extension status' }).selectOption('installed');
+  await page.getByRole('button', { name: 'Uninstall', exact: true }).waitFor();
+  await page.evaluate(()=>{window.__readerFixture.fixtureHasUpdate=true;});
+  await page.getByRole('combobox', { name: 'Extension status' }).selectOption('updates');
+  await page.getByText('Update available',{exact:true}).waitFor();
+  assert.ok(await page.evaluate(()=>window.__readerFixture.requests.some(a=>a.kind==='extensions'&&a.updatesOnly===true&&a.installed===true)));
+  await page.evaluate(()=>{window.__readerFixture.fixtureHasUpdate=false;});
+  await page.getByRole('button',{name:'Check extension updates',exact:true}).click();
+  await page.getByText('No matching extensions.',{exact:true}).waitFor();
   await page.getByRole('combobox', { name: 'Extension status' }).selectOption('installed');
   await page.getByRole('button', { name: 'Uninstall', exact: true }).waitFor();
   await rail.getByRole('button', { name: 'Global search', exact: true }).click();
