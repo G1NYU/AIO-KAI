@@ -42,6 +42,47 @@ fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// Accept only the two host-only session cookies issued by the pinned engine.
+/// This value is operation-local and is never stored in a general cookie jar.
+fn upload_session_cookies<'a>(headers: impl IntoIterator<Item = &'a str>) -> Result<String, &'static str> {
+    let invalid = "The reading engine returned an invalid extension upload session.";
+    let mut session = None;
+    let mut csrf = None;
+    for (index, header) in headers.into_iter().enumerate() {
+        if index >= 2 || header.len() > 1024 || !header.is_ascii() || header.bytes().any(|b| b.is_ascii_control()) {
+            return Err(invalid);
+        }
+        let mut parts = header.split(';');
+        let (name, value) = parts.next().and_then(|part| part.trim().split_once('=')).ok_or(invalid)?;
+        if value.is_empty() || value.len() > 256 || !value.bytes().all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b)) {
+            return Err(invalid);
+        }
+        let mut path = false;
+        let mut http_only = false;
+        let mut strict = false;
+        for part in parts {
+            let part = part.trim();
+            match part.split_once('=') {
+                Some((name, "/")) if name.eq_ignore_ascii_case("Path") && !path => path = true,
+                Some((name, value)) if name.eq_ignore_ascii_case("SameSite") && value.eq_ignore_ascii_case("Strict") && !strict => strict = true,
+                None if part.eq_ignore_ascii_case("HttpOnly") && !http_only => http_only = true,
+                // No Domain, Secure, expiry, duplicate or unknown attributes:
+                // the reviewed runtime uses HTTP on the exact loopback origin.
+                _ => return Err(invalid),
+            }
+        }
+        if !path || !http_only || !strict { return Err(invalid); }
+        match name {
+            "JSESSIONID" if session.is_none() => session = Some(value),
+            "suwayomi-basic-csrf" if csrf.is_none() && value.len() == 36 && value.bytes().enumerate().all(|(index, b)| {
+                if matches!(index, 8 | 13 | 18 | 23) { b == b'-' } else { b.is_ascii_digit() || (b'a'..=b'f').contains(&b) }
+            }) => csrf = Some(value),
+            _ => return Err(invalid),
+        }
+    }
+    Ok(format!("JSESSIONID={}; suwayomi-basic-csrf={}", session.ok_or(invalid)?, csrf.ok_or(invalid)?))
+}
+
 fn printable(value: &Value, max: usize) -> Result<&str, &'static str> {
     value.as_str().filter(|s| !s.is_empty() && s.len() <= max && !s.chars().any(char::is_control))
         .ok_or("Invalid extension update metadata.")
@@ -94,6 +135,15 @@ fn source_ids(record: &Value) -> Result<BTreeSet<String>, &'static str> {
         if !ids.insert(id.to_owned()) { return Err("Duplicate extension source identity."); }
     }
     Ok(ids)
+}
+
+fn canonical_extension_record(mut record: Value) -> Result<Value, &'static str> {
+    source_ids(&record)?;
+    // The pinned extension-source loader has no orderBy. Normalize only that
+    // list; every source identity, count and other metadata remains exact.
+    record["source"]["nodes"].as_array_mut().ok_or("Could not verify extension sources.")?
+        .sort_by(|left, right| left["id"].as_str().cmp(&right["id"].as_str()));
+    Ok(record)
 }
 
 fn verified_source_ids(installed: &Value, inventory: &Value) -> Result<BTreeSet<String>, &'static str> {
@@ -232,6 +282,7 @@ impl ReadRuntime {
     }
 
     fn build_update_review(&self, installed: Value, store: Value, artifact: Vec<u8>) -> Result<ExtensionUpdateReview, &'static str> {
+        let installed = canonical_extension_record(installed)?;
         if installed["isInstalled"] != true || installed["hasUpdate"] != true || installed["isObsolete"] != false {
             return Err("This installed extension has no supported update.");
         }
@@ -273,7 +324,7 @@ impl ReadRuntime {
 
     fn recheck_update(&self, review: &ExtensionUpdateReview) -> Result<(), &'static str> {
         if review.created.elapsed() > REVIEW_LIFETIME { return Err("Extension update review expired. Review it again."); }
-        let installed = self.extension_record(&review.package)?;
+        let installed = canonical_extension_record(self.extension_record(&review.package)?)?;
         if installed != review.installed || self.update_store(&installed)? != review.store
             || self.installed_artifact_hash(&installed)? != review.installed_sha256
             || digest(&review.artifact) != review.sha256
@@ -434,7 +485,6 @@ impl ReadRuntime {
     }
 
     fn upload_reviewed_extension(&self, review: &ExtensionUpdateReview) -> Result<Value, &'static str> {
-        verify_listener(self.client.port, self.client.owner_pid)?;
         let mut entropy = [0u8; 16];
         getrandom::fill(&mut entropy).map_err(|_| "Could not prepare extension update.")?;
         let nonce: String = entropy.iter().map(|b| format!("{b:02x}")).collect();
@@ -449,8 +499,14 @@ impl ReadRuntime {
         let mut body = format!("--{boundary}\r\nContent-Disposition: form-data; name=\"operations\"\r\n\r\n{operation}\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"map\"\r\n\r\n{map}\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"0\"; filename=\"{filename}\"\r\nContent-Type: application/octet-stream\r\n\r\n").into_bytes();
         body.extend_from_slice(&review.artifact);
         body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+        // Basic authentication alone intentionally cannot authorize a form
+        // upload. Bootstrap the pinned engine's session/CSRF pair using its
+        // ordinary authenticated JSON endpoint, then retain it only here.
+        let cookies = self.extension_upload_session()?;
+        verify_listener(self.client.port, self.client.owner_pid)?;
         let mut response = self.client.slow().agent.post(format!("http://127.0.0.1:{}/api/graphql", self.client.port))
             .header("Authorization", &self.client.authorization).header("Accept", "application/json")
+            .header("Cookie", &cookies)
             .header("Connection", "close").header("Content-Type", format!("multipart/form-data; boundary={boundary}"))
             .send(body).map_err(|_| "The reading engine did not confirm the extension update.")?;
         let mut bytes = Vec::new();
@@ -466,12 +522,78 @@ impl ReadRuntime {
         }
         Ok(extension.clone())
     }
+
+    fn extension_upload_session(&self) -> Result<String, &'static str> {
+        verify_listener(self.client.port, self.client.owner_pid)?;
+        let mut response = self.client.agent.post(format!("http://127.0.0.1:{}/api/graphql", self.client.port))
+            .header("Authorization", &self.client.authorization).header("Accept", "application/json")
+            .header("Connection", "close").header("Content-Type", "application/json")
+            .send(json!({"query": ReadOperation::Status.query(), "variables": {}}).to_string())
+            .map_err(|_| "Could not establish an authenticated extension upload session.")?;
+        if response.status().as_u16() != 200 { return Err("The reading engine rejected extension upload authentication."); }
+        let mut headers = Vec::new();
+        for value in response.headers().get_all("set-cookie").iter() {
+            if headers.len() >= 2 { return Err("The reading engine returned an invalid extension upload session."); }
+            headers.push(value.to_str().map_err(|_| "The reading engine returned an invalid extension upload session.")?);
+        }
+        let cookies = upload_session_cookies(headers)?;
+        let mut bytes = Vec::new();
+        response.body_mut().as_reader().take(8193).read_to_end(&mut bytes)
+            .map_err(|_| "Could not verify the extension upload session.")?;
+        if bytes.len() > 8192 { return Err("The extension upload session response exceeded its limit."); }
+        let body = serde_json::from_slice(&bytes).map_err(|_| "Invalid extension upload session response.")?;
+        decode(ReadOperation::Status, Reply { status: 200, challenge: false, body })?;
+        Ok(cookies)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use super::super::tests::FixtureStore;
+
+    #[test]
+    fn extension_upload_cookies_accept_only_the_pinned_private_session_pair() {
+        const SESSION: &str = "JSESSIONID=node0123456789.node0; Path=/; HttpOnly; SameSite=Strict";
+        const CSRF: &str = "suwayomi-basic-csrf=123e4567-e89b-42d3-a456-426614174000; Path=/; HttpOnly; SameSite=Strict";
+        let expected = "JSESSIONID=node0123456789.node0; suwayomi-basic-csrf=123e4567-e89b-42d3-a456-426614174000";
+        assert_eq!(upload_session_cookies([SESSION, CSRF]).unwrap(), expected);
+        assert_eq!(upload_session_cookies([CSRF, SESSION]).unwrap(), expected);
+        for missing_or_duplicate in [vec![], vec![SESSION], vec![CSRF], vec![SESSION, SESSION], vec![CSRF, CSRF], vec![SESSION, CSRF, SESSION]] {
+            assert!(upload_session_cookies(missing_or_duplicate).is_err(), "session pair must be complete and unique");
+        }
+        let invalid_sessions = [
+            SESSION.replace("node0123456789.node0", ""),
+            SESSION.replace("node0123456789.node0", &"a".repeat(257)),
+            SESSION.replace("node0123456789.node0", "bad value"),
+            SESSION.replace("node0123456789.node0", "bad,value"),
+            SESSION.replace("node0123456789.node0", "bad=value"),
+            SESSION.replace("node0123456789.node0", "bad\r\nvalue"),
+            SESSION.replace("JSESSIONID", "another-session"),
+            SESSION.replace("Path=/", "Path=/api"),
+            SESSION.replace("HttpOnly", "Secure"),
+            SESSION.replace("SameSite=Strict", "SameSite=Lax"),
+            format!("{SESSION}; Domain=127.0.0.1"),
+            format!("{SESSION}; Secure"),
+            format!("{SESSION}; Max-Age=3600"),
+            format!("{SESSION}; Expires=Wed, 01 Jan 2031 00:00:00 GMT"),
+            format!("{SESSION}; Path=/"),
+            format!("{SESSION}; HttpOnly"),
+            format!("{SESSION}; SameSite=Strict"),
+            format!("{SESSION}; Unknown=value"),
+            format!("{SESSION}{}", " ".repeat(1024)),
+        ];
+        for invalid in &invalid_sessions {
+            assert!(upload_session_cookies([invalid.as_str(), CSRF]).is_err(), "unsafe cookie syntax or scope must be rejected");
+        }
+        for invalid in [
+            CSRF.replace("123e4567-e89b-42d3-a456-426614174000", "arbitrary-token"),
+            CSRF.replace("123e4567-e89b-42d3-a456-426614174000", "123e4567_e89b_42d3_a456_426614174000"),
+            CSRF.replace("123e4567", "123z4567"),
+        ] {
+            assert!(upload_session_cookies([SESSION, invalid.as_str()]).is_err(), "CSRF token must have the runtime UUID shape");
+        }
+    }
 
     #[test]
     fn update_manifest_requires_exact_package_and_numeric_upgrade() {
@@ -497,6 +619,20 @@ mod tests {
         assert!(source_ids(&json!({"source": {"nodes": [], "totalCount": 1}})).is_err());
         assert!(source_ids(&json!({"source": {"nodes": [{"id": "7"}, {"id": "7"}], "totalCount": 2}})).is_err());
         assert!(source_ids(&json!({"source": {"nodes": [{"id": 7}], "totalCount": 1}})).is_err());
+    }
+
+    #[test]
+    fn update_review_normalizes_only_source_order() {
+        let record = json!({"pkgName": "org.tsugi.fixture", "versionName": "1.6.1",
+            "source": {"nodes": [{"id": "12345"}, {"id": "-9223372036854775808"}], "totalCount": 2}});
+        let mut reordered = record.clone();
+        reordered["source"]["nodes"].as_array_mut().unwrap().reverse();
+        assert_eq!(canonical_extension_record(record.clone()).unwrap(), canonical_extension_record(reordered.clone()).unwrap());
+        let mut changed_id = reordered.clone();
+        changed_id["source"]["nodes"][0]["id"] = json!("54321");
+        assert_ne!(canonical_extension_record(record.clone()).unwrap(), canonical_extension_record(changed_id).unwrap());
+        reordered["versionName"] = json!("1.6.2");
+        assert_ne!(canonical_extension_record(record).unwrap(), canonical_extension_record(reordered).unwrap());
     }
 
     #[test]
@@ -538,6 +674,19 @@ mod tests {
         let category = managed.save_category(None, "Update fixture").unwrap();
         let category_id = number(&category["category"]["id"]).unwrap() as i32;
         managed.assign_category(manga, category_id, true).unwrap();
+
+        // A harmless multipart status request proves the engine still enforces
+        // its CSRF guard. This sends no file and performs no extension change.
+        verify_listener(managed.client.port, managed.client.owner_pid).unwrap();
+        let operation = json!({"query": ReadOperation::Status.query(), "variables": {}});
+        let probe = format!("--TsugiCsrfProbe\r\nContent-Disposition: form-data; name=\"operations\"\r\n\r\n{operation}\r\n--TsugiCsrfProbe\r\nContent-Disposition: form-data; name=\"map\"\r\n\r\n{{}}\r\n--TsugiCsrfProbe--\r\n");
+        let response = managed.client.agent.post(format!("http://127.0.0.1:{}/api/graphql", managed.client.port))
+            .header("Authorization", &managed.client.authorization).header("Accept", "application/json")
+            .header("Connection", "close").header("Content-Type", "multipart/form-data; boundary=TsugiCsrfProbe")
+            .send(probe).expect("probe fixed multipart authentication contract");
+        assert_eq!(response.status().as_u16(), 401, "Basic-only multipart must retain the runtime CSRF guard");
+        drop(response);
+        eprintln!("PASS: Basic-only multipart status request was rejected by the runtime CSRF guard.");
 
         store.replace_jar(2, fixture(2));
         managed.refresh_extensions().unwrap();
