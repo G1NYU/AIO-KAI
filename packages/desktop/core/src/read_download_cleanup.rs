@@ -590,7 +590,10 @@ mod unit_tests {
     struct TestRoot(PathBuf);
     impl TestRoot {
         fn new() -> Self {
-            let path = std::env::temp_dir().join(format!("tsugi-cleanup-unit-{}-{}", std::process::id(), SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos()));
+            // Windows clock resolution can give parallel tests the same timestamp.
+            static SEQUENCE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+            let serial = SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!("tsugi-cleanup-unit-{}-{}-{serial}", std::process::id(), SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos()));
             #[cfg(windows)]
             assert!(private_storage::CurrentUser::get().unwrap().create_root(&path).unwrap());
             #[cfg(not(windows))]
