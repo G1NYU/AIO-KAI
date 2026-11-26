@@ -17,6 +17,7 @@ export type ReadAction =
   | { kind: 'add-store' | 'remove-store'; index: string }
   | { kind: 'extensions'; offset: number; query?: string; store?: string; language?: string; installed?: boolean; updatesOnly?: boolean; obsoleteOnly?: boolean; contentWarning?: 'SAFE' | 'MIXED' | 'NSFW' }
   | { kind: 'install-extension' | 'update-extension' | 'uninstall-extension'; package: string }
+  | { kind: 'extension-icon'; package: string }
   | { kind: 'source-preferences'; source: string }
   | { kind: 'cancel-source-preferences'; reviewId: string }
   | { kind: 'apply-source-preference'; reviewId: string; controlId: string; value: boolean | number }
@@ -88,13 +89,30 @@ export function isReaderPagePath(path: unknown): path is string {
 // The native image capability is a single-slot cache. Transfer each image
 // completely into a local blob before issuing the next image operation.
 // Reading pages take priority over queued covers, while one in-flight native
-// transfer remains atomic. Covers cache compressed bytes only, not object URLs.
-type ImageAction = Extract<ReadAction, { kind: 'page' }> | { kind: 'cover'; id: number };
-type ImageJob = { action: ImageAction; signal?: AbortSignal; resolve(url: string): void; reject(error: unknown): void };
+// transfer remains atomic. Covers and icons cache compressed bytes only, not object URLs.
+type ImageAction = Extract<ReadAction, { kind: 'page' | 'extension-icon' }> | { kind: 'cover'; id: number };
+type ImageJob = { action: ImageAction; signal?: AbortSignal; cacheTag?: string; resolve(url: string): void; reject(error: unknown): void };
 const imageQueue: ImageJob[] = [];
 const coverCache = new Map<number, Blob>();
+const iconCache = new Map<string, Blob>();
 let coverBytes = 0;
+let iconBytes = 0;
 let imageRunning = false;
+function cachedIcon(key: string) {
+  const blob = iconCache.get(key);
+  if (blob) { iconCache.delete(key); iconCache.set(key, blob); }
+  return blob;
+}
+function rememberIcon(key: string, blob: Blob) {
+  const prior = iconCache.get(key);
+  if (prior) iconBytes -= prior.size;
+  iconCache.delete(key); iconCache.set(key, blob); iconBytes += blob.size;
+  while (iconCache.size > 64 || iconBytes > 8 * 1024 * 1024) {
+    const oldest = iconCache.keys().next().value;
+    if (oldest === undefined) break;
+    iconBytes -= iconCache.get(oldest)!.size; iconCache.delete(oldest);
+  }
+}
 function cachedCover(id: number) {
   const blob = coverCache.get(id);
   if (blob) { coverCache.delete(id); coverCache.set(id, blob); }
@@ -113,9 +131,10 @@ function rememberCover(id: number, blob: Blob) {
     coverCache.delete(oldest);
   }
 }
-async function transferImage(action: ImageAction, signal?: AbortSignal): Promise<string> {
+async function transferImage(action: ImageAction, signal?: AbortSignal, cacheTag?: string): Promise<string> {
   signal?.throwIfAborted();
-  const cached = action.kind === 'cover' ? cachedCover(action.id) : undefined;
+  const iconKey = action.kind === 'extension-icon' ? JSON.stringify([action.package, cacheTag || '']) : undefined;
+  const cached = action.kind === 'cover' ? cachedCover(action.id) : iconKey ? cachedIcon(iconKey) : undefined;
   if (cached) return URL.createObjectURL(cached);
   const result = await readRequest<{ path: string; index?: number }>(action);
   signal?.throwIfAborted();
@@ -125,10 +144,11 @@ async function transferImage(action: ImageAction, signal?: AbortSignal): Promise
   if (!response.ok) throw new Error(t({ id: "Could not load reading image.", message: "Could not load reading image." }));
   const blob = await response.blob();
   signal?.throwIfAborted();
-  const limit = action.kind === 'cover' ? 4 * 1024 * 1024 : 24 * 1024 * 1024;
+  const limit = action.kind === 'extension-icon' ? 512 * 1024 : action.kind === 'cover' ? 4 * 1024 * 1024 : 24 * 1024 * 1024;
   if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(blob.type) || blob.size === 0 || blob.size > limit)
     throw new Error(t({ id: "Invalid reading image.", message: "Invalid reading image." }));
   if (action.kind === 'cover') rememberCover(action.id, blob);
+  if (iconKey) rememberIcon(iconKey, blob);
   return URL.createObjectURL(blob);
 }
 function pumpImages() {
@@ -138,13 +158,13 @@ function pumpImages() {
     const [job] = imageQueue.splice(priority < 0 ? 0 : priority, 1);
     if (job.signal?.aborted) { job.reject(job.signal.reason); continue; }
     imageRunning = true;
-    void transferImage(job.action, job.signal).then(job.resolve, job.reject).finally(() => { imageRunning = false; pumpImages(); });
+    void transferImage(job.action, job.signal, job.cacheTag).then(job.resolve, job.reject).finally(() => { imageRunning = false; pumpImages(); });
     return;
   }
 }
-export function readImage(action: ImageAction, signal?: AbortSignal): Promise<string> {
+export function readImage(action: ImageAction, signal?: AbortSignal, cacheTag?: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    imageQueue.push({ action, signal, resolve, reject });
+    imageQueue.push({ action, signal, cacheTag, resolve, reject });
     pumpImages();
   });
 }

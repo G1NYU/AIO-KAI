@@ -437,6 +437,10 @@ fn execute(
             let image = reader.thumbnail(id)?;
             stage_image(cache, serial, image)
         }
+        ReadAction::ExtensionIcon { package } => {
+            let image = reader.extension_icon(&package)?;
+            stage_image(cache, serial, image)
+        }
         ReadAction::SetLibrary { id, in_library } => reader.set_library(id, in_library),
         ReadAction::Chapter { id } => {
             let pages = reader.chapter(id)?;

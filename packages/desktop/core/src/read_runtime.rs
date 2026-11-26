@@ -28,6 +28,9 @@ mod source_preferences;
 pub use source_preferences::{SourcePreferencesReview, SourcePreferenceChangeReview};
 pub use crate::bridge::SourcePreferenceValue;
 
+#[path = "read_icons.rs"]
+mod icons;
+
 #[cfg(test)]
 #[path = "read_feed_tests.rs"]
 mod feed_tests;

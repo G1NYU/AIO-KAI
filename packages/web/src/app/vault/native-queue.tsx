@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
 import { appBridge } from '@/lib/hosts/shell/bridge';
@@ -10,12 +10,16 @@ import { BrushBook, BrushDisc, BrushFolder, BrushPause, BrushPlay, BrushDownload
 import { TorBoxPanel } from './torbox-panel';
 import { nativeTorBox, supportsNativeTorBox } from './native-torbox';
 import { vaultTransferRate, vaultEta, reconcileVaultRows } from './queue-model';
-import { importBook } from '@/app/read/book-library';
+import { importBook, listBooks, type BookEntry } from '@/app/read/book-library';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { readCompletedVaultFile } from './completed-file';
+import { VaultBookImportReview, type BookImportReview } from './book-import-review';
 
 type Row = Extract<HostEvent, {type:'state'}>['jobs'][number] & {speed?:number};
 type Filter = 'all'|'active'|'queued'|'done';
+type BookImportResult = 'imported'|'existing'|'failed';
+const bookFile = (name: string) => /\.(pdf|epub)$/i.test(name);
+const matchingBooks = (books: BookEntry[], name: string) => books.filter(book => book.name.toLowerCase() === name.toLowerCase());
 const newId = () => ['vault',Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('')].join('-');
 function status(row: Row) {
   switch(row.state) {
@@ -42,6 +46,21 @@ export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|n
   const [mode,setMode] = useState<'file'|'youtube'>(track?'youtube':'file');
   const [permission,setPermission] = useState(false);
   const [rows,setRows] = useState<Row[]>([]);
+  const [bookEntries,setBookEntries] = useState<BookEntry[]>([]);
+  const importedBookIds=useMemo(()=>new Set(bookEntries.flatMap(book=>book.vaultJobId?[book.vaultJobId]:[])),[bookEntries]);
+  const bookLookup=useRef(0);
+  const [bookImports,setBookImports] = useState<Record<string,BookImportResult>>({});
+  const [bookReview,setBookReview] = useState<BookImportReview|null>(null);
+  const bookWriting=useRef(false);
+  const [savingBook,setSavingBook]=useState(false);
+  const [anotherBookCopy,setAnotherBookCopy] = useState(false);
+  const completedBookIds = rows.filter(row=>row.state==='done'&&bookFile(row.vault_title||'')).map(row=>row.id).sort().join(',');
+  useEffect(()=>{
+    if(!completedBookIds)return;
+    let alive=true;const lookup=++bookLookup.current;
+    void listBooks().then(books=>{if(alive&&lookup===bookLookup.current)setBookEntries(books);}).catch(()=>{/* Explicit review retries a failed library lookup before any write. */});
+    return()=>{alive=false;};
+  },[completedBookIds]);
   const [folder,setFolder] = useState('');
   const [error,setError] = useState('');
   const [pending,setPending] = useState<string[]>([]);
@@ -91,13 +110,50 @@ export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|n
     if(activeImport.current||row.state!=='done'||!row.vault_title)return;
     const controller=new AbortController();activeImport.current=controller;setImporting(row.id);setError('');
     try {
+      if(bookFile(row.vault_title)){
+        const books=await listBooks();controller.signal.throwIfAborted();bookLookup.current++;setBookEntries(books);
+        if(books.some(book=>book.vaultJobId===row.id))setBookImports(old=>({...old,[row.id]:'existing'}));
+        else{setAnotherBookCopy(false);setBookReview({id:row.id,name:row.vault_title,bytes:row.bytes,duplicates:matchingBooks(books,row.vault_title)});}
+        return;
+      }
       const file=await readCompletedVaultFile(row.id,row.vault_title,controller.signal);
       controller.signal.throwIfAborted();
-      if(/\.(pdf|epub)$/i.test(file.name)){
-        await importBook(file,row.id);controller.signal.throwIfAborted();actions?.openBooks?.();
-      }else actions?.openLocalAudio?.(file);
-    }catch{if(!controller.signal.aborted)setError(t`Could not import the completed file. It may have been moved, removed or exceeded 128 MiB.`);}
+      actions?.openLocalAudio?.(file);
+    }catch{if(!controller.signal.aborted){
+      if(bookFile(row.vault_title))setBookImports(old=>({...old,[row.id]:'failed'}));
+      else setError(t`Could not import the completed file. It may have been moved, removed or exceeded 128 MiB.`);
+    }}
     finally{activeImport.current=null;setImporting('');}
+  }
+  async function confirmBookImport() {
+    if(activeImport.current||!bookReview||bookReview.duplicates.length>0&&!anotherBookCopy)return;
+    const review=bookReview,row=rows.find(row=>row.id===review.id);
+    if(!row||row.state!=='done'||row.vault_title!==review.name||row.bytes!==review.bytes){
+      setBookImports(old=>({...old,[review.id]:'failed'}));setBookReview(null);return;
+    }
+    const controller=new AbortController();activeImport.current=controller;setImporting(row.id);
+    try{
+      const books=await listBooks();controller.signal.throwIfAborted();bookLookup.current++;setBookEntries(books);
+      if(books.some(book=>book.vaultJobId===row.id)){
+        setBookImports(old=>({...old,[row.id]:'existing'}));setBookReview(null);return;
+      }
+      const duplicates=matchingBooks(books,review.name);
+      if(duplicates.map(book=>book.id).sort().join(',')!==review.duplicates.map(book=>book.id).sort().join(',')){
+        setBookReview({...review,duplicates});setAnotherBookCopy(false);return;
+      }
+      const file=await readCompletedVaultFile(row.id,review.name,controller.signal);
+      controller.signal.throwIfAborted();
+      bookWriting.current=true;setSavingBook(true);
+      const entry=await importBook(file,row.id);controller.signal.throwIfAborted();
+      bookLookup.current++;
+      setBookEntries(old=>[...old.filter(book=>book.id!==entry.id),entry]);
+      setBookImports(old=>({...old,[row.id]:'imported'}));setBookReview(null);
+    }catch{if(!controller.signal.aborted){setBookImports(old=>({...old,[row.id]:'failed'}));setBookReview(null);}}
+    finally{bookWriting.current=false;setSavingBook(false);activeImport.current=null;setImporting('');}
+  }
+  function cancelBookImport(){
+    if(bookWriting.current)return;
+    activeImport.current?.abort();setBookReview(null);
   }
   const active=rows.filter(row=>row.state==='downloading');
   const queued=rows.filter(row=>row.state==='queued');
@@ -154,9 +210,10 @@ export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|n
       {importing&&<p role="status"><Trans>Importing completed file…</Trans></p>}
       {error&&<p role="alert">{error}</p>}
       {ready&&visible.length===0&&<div className="tsugi-vault-empty"><BrushFolder aria-hidden/><p><Trans>No downloads in this view.</Trans></p></div>}
-      {([{title:t`Active downloads`,items:visible.filter(row=>row.state!=='done')},{title:t`Completed`,items:visible.filter(row=>row.state==='done')}]).filter(section=>section.items.length>0).map(section=><section key={section.title} className="tsugi-dashboard-list"><header><h3>{section.title}</h3><span>{section.items.length}</span></header>{section.items.map(row=><div className="tsugi-vault-file-row tsugi-vault-task tsugi-dashboard-transfer" key={row.id}>
+      {([{title:t`Active downloads`,items:visible.filter(row=>row.state!=='done')},{title:t`Completed`,items:visible.filter(row=>row.state==='done')}]).filter(section=>section.items.length>0).map(section=><section key={section.title} className="tsugi-dashboard-list"><header><h3>{section.title}</h3><span>{section.items.length}</span></header>{section.items.map(row=><div className="tsugi-vault-file-row tsugi-vault-task tsugi-dashboard-transfer" data-vault-job-id={row.id} key={row.id}>
         <div className="tsugi-vault-task-main">{/\.(epub|pdf)$/i.test(row.vault_title||'')?<BrushBook aria-hidden/>:<BrushDisc aria-hidden/>}<div className="tsugi-vault-task-text"><strong>{row.vault_title}</strong><p><span className="tsugi-vault-task-state" data-state={row.state}>{status(row)}</span> · {(row.bytes/1048576).toFixed(1)} MiB {row.total!==null&&row.total>0&&<span>/ {(row.total/1048576).toFixed(1)} MiB</span>}</p>
           {row.error&&<p role="alert">{row.error}</p>}
+          {row.state==='done'&&bookFile(row.vault_title||'')&&(importedBookIds.has(row.id)?<p role="status" data-vault-import-state={bookImports[row.id]==='imported'?'imported':'existing'}>{bookImports[row.id]==='imported'?<Trans>Imported</Trans>:<Trans>Already in Books</Trans>}</p>:bookImports[row.id]==='failed'&&<p role="alert" data-vault-import-state="failed"><Trans>Import failed. Check that the file is a valid EPUB or PDF of at most 128 MiB and that Books storage is available. Retry import does not restart the download.</Trans></p>)}
         </div></div>
         <div className="tsugi-dashboard-progress">
           {(row.state==='downloading'||row.total!==null&&row.total>0)&&<progress aria-label={t`Download progress`} max={row.total||undefined} value={row.total?Math.min(row.bytes,row.total):undefined}/>}
@@ -169,7 +226,7 @@ export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|n
           {row.state==='failed'&&<button className="tsugi-read-action tsugi-vault-icon-action" aria-label={t`Retry`} title={t`Retry`} onClick={()=>shellDownloads.control(row.id,'retry')}><BrushRefresh aria-hidden/></button>}
           {row.state!=='done'&&<button className="tsugi-read-action tsugi-vault-icon-action" aria-label={t`Cancel`} title={t`Cancel`} onClick={()=>shellDownloads.remove(row.id,true)}><BrushTrash aria-hidden/></button>}
           {row.state==='done'&&<button className="tsugi-read-action tsugi-vault-icon-action" aria-label={t`Remove from list`} title={t`Remove from list`} onClick={()=>shellDownloads.remove(row.id,false)}><BrushTrash aria-hidden/></button>}
-          {row.state==='done'&&row.vault_title&&<button className="tsugi-read-action" disabled={!!importing||(/\.(epub|pdf)$/i.test(row.vault_title)?!actions?.openBooks:!actions?.openLocalAudio)} onClick={()=>void openCompleted(row)}>{/\.(epub|pdf)$/i.test(row.vault_title)?<Trans>Import into Books</Trans>:<Trans>Open in Music</Trans>}</button>}
+          {row.state==='done'&&row.vault_title&&(bookFile(row.vault_title)&&importedBookIds.has(row.id)?<button className="tsugi-read-action" disabled={!!importing||!actions?.openBooks} onClick={()=>actions?.openBooks?.()}><Trans>Open Books</Trans></button>:<button className="tsugi-read-action" disabled={!!importing||(bookFile(row.vault_title)?!actions?.openBooks:!actions?.openLocalAudio)} onClick={()=>void openCompleted(row)}>{bookFile(row.vault_title)?bookImports[row.id]==='failed'?<Trans>Retry import</Trans>:<Trans>Import into Books</Trans>:<Trans>Open in Music</Trans>}</button>)}
           {row.state==='done'&&shellDownloads.folder?.open&&<button className="tsugi-read-action tsugi-vault-icon-action" aria-label={t`Show in folder`} title={t`Show in folder`} onClick={()=>shellDownloads.folder?.open?.(row.id)}><BrushFolder aria-hidden/></button>}
         </div>
       </div>)}</section>)}
@@ -199,6 +256,7 @@ export function NativeVaultQueue({track=null}:{track?:{id:string;title:string}|n
           {supportsNativeTorBox()&&<button type="button" className="tsugi-dashboard-service" onClick={()=>setDestination('torbox')}><span>TorBox</span><small>{torboxConnected?<Trans>Connected</Trans>:<Trans>Connect</Trans>}</small></button>}
         </section>
       </aside>
+      {bookReview&&<VaultBookImportReview review={bookReview} busy={!!importing} saving={savingBook} anotherCopy={anotherBookCopy} onAnotherCopy={setAnotherBookCopy} onApply={()=>void confirmBookImport()} onClose={cancelBookImport}/>}
     </>}
   </section>;
 }

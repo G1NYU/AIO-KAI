@@ -15,6 +15,7 @@ on:
       - 'packages/desktop/core/src/read_download_cleanup_tests.rs'
       - 'packages/desktop/core/src/read_feed_tests.rs'
       - 'packages/desktop/core/src/read_metadata_tests.rs'
+      - 'packages/desktop/core/src/read_icons.rs'
       - 'packages/desktop/core/src/read_source_preferences.rs'
       - 'packages/desktop/core/src/read_source_preferences_tests.rs'
       - 'packages/desktop/core/src/lib.rs'

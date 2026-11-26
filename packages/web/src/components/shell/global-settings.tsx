@@ -18,6 +18,7 @@ import { MihonImportSettings } from './mihon-import-settings';
 import { PortableArchiveSettings } from './portable-archive-settings';
 import { StorageUsageSettings } from './storage-usage-settings';
 import { TsugiReleaseSettings } from './tsugi-release-settings';
+import { SupportSummarySettings } from './support-summary-settings';
 import type { ArchiveKind, PortableArchive } from '@/lib/backup/archive';
 
 const IMPORT_COLORS_KEY = 'tsugi-global-import-colors-v1';
@@ -192,6 +193,7 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
     <MihonImportSettings />
     <StorageUsageSettings />
     <TsugiReleaseSettings />
+    <SupportSummarySettings />
     <section className="tsugi-app-about" aria-label={t`About Tsugi`}>
       <h3 className="font-semibold text-[--tsugi-ink]"><Trans>About Tsugi</Trans></h3>
       {bridge?.version && <p><Trans>Native engine version</Trans> · {bridge.version}</p>}

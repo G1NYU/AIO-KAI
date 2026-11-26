@@ -55,11 +55,26 @@ fn read_audio(reader: impl Read, limit: u64, received: &AtomicU64) -> Result<Vec
 
 fn classify_error(stderr: &[u8]) -> &'static str {
     let error = String::from_utf8_lossy(stderr).to_ascii_lowercase();
-    if error.contains("sign in") || error.contains("not a bot") {
-        "YouTube requires sign-in or verification."
-    } else if error.contains("403") {
+    // A client warning can precede a different terminal failure. Prefer yt-dlp's
+    // final error rather than attributing that failure to an earlier warning.
+    let error = error.lines().rev()
+        .find(|line| line.trim_start().starts_with("error:"))
+        .unwrap_or(&error);
+    let http_status = |code: &str| {
+        ["http error ", "http ", "status code ", "status code: "]
+            .iter().any(|prefix| error.contains(&format!("{prefix}{code}")))
+    };
+    if error.contains("not a bot") {
+        "YouTube requires bot verification for this request. Tsugi does not use your browser's signed-in session."
+    } else if ["confirm your age", "age-restricted", "age restricted", "age-verification", "age verification", "age_verification_required", "age_check_required"]
+        .iter().any(|reason| error.contains(reason)) {
+        "This YouTube track requires age verification. Tsugi does not use your browser's signed-in session."
+    } else if ["sign in", "sign-in", "log in", "login_required"]
+        .iter().any(|reason| error.contains(reason)) {
+        "This YouTube track requires sign-in. Tsugi does not use your browser's signed-in session."
+    } else if http_status("403") {
         "YouTube refused access to this stream (HTTP 403)."
-    } else if error.contains("429") {
+    } else if http_status("429") {
         "YouTube is rate limiting playback (HTTP 429)."
     } else {
         "The bundled music transport could not complete the audio transfer."
@@ -291,12 +306,36 @@ mod tests {
     fn errors_never_include_raw_provider_output() {
         assert_eq!(
             classify_error(b"ERROR: Sign in to confirm you are not a bot"),
-            "YouTube requires sign-in or verification."
+            "YouTube requires bot verification for this request. Tsugi does not use your browser's signed-in session."
         );
         assert_eq!(
             classify_error(b"ERROR: HTTP Error 403: Forbidden"),
             "YouTube refused access to this stream (HTTP 403)."
         );
         assert!(!classify_error(b"https://example.test/?private=hidden").contains("hidden"));
+    }
+
+    #[test]
+    fn distinguishes_access_restrictions_without_assuming_a_browser_session() {
+        for reason in ["Sign in to confirm your age", "This video is age-restricted", "AGE_VERIFICATION_REQUIRED"] {
+            assert_eq!(classify_error(format!("ERROR: [youtube] abcdefghijk: {reason}").as_bytes()),
+                "This YouTube track requires age verification. Tsugi does not use your browser's signed-in session.");
+        }
+        for reason in ["Private video. Sign in if you have access", "LOGIN_REQUIRED", "Please log in"] {
+            assert_eq!(classify_error(format!("ERROR: [youtube] abcdefghijk: {reason}").as_bytes()),
+                "This YouTube track requires sign-in. Tsugi does not use your browser's signed-in session.");
+        }
+        assert_eq!(classify_error(b"ERROR: HTTP Error 429: Too Many Requests"),
+            "YouTube is rate limiting playback (HTTP 429).");
+    }
+
+    #[test]
+    fn terminal_failure_takes_priority_over_client_warnings_and_url_digits() {
+        assert_eq!(classify_error(b"WARNING: Earlier client required sign in to confirm you are not a bot\nERROR: unable to download audio data: HTTP Error 403: Forbidden"),
+            "YouTube refused access to this stream (HTTP 403).");
+        assert_eq!(classify_error(b"ERROR: HTTP Error 403: Forbidden\nERROR: HTTP Error 429: Too Many Requests"),
+            "YouTube is rate limiting playback (HTTP 429).");
+        assert_eq!(classify_error(b"WARNING: Earlier client returned 429\nERROR: Could not read https://example.test/audio-403?private=hidden"),
+            "The bundled music transport could not complete the audio transfer.");
     }
 }

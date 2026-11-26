@@ -12,6 +12,10 @@ import { verifyDownloadCleanupBrowser, verifyReaderReleaseBrowser } from './down
 import { verifySourceFeedBrowser } from './source-feed-browser.mjs';
 import { verifySourceMetadataBrowser } from './source-metadata-browser.mjs';
 import { verifySourceSettingsBrowser } from './source-settings-browser.mjs';
+import { verifySourceIconsBrowser } from './source-icons-browser.mjs';
+import { verifyReaderSettingsSearchBrowser } from './reader-settings-search-browser.mjs';
+import { verifySupportSummaryBrowser } from './support-summary-browser.mjs';
+import { verifyVaultBookImportsBrowser } from './vault-book-import-browser.mjs';
 import { pathToFileURL } from 'node:url';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -1436,9 +1440,12 @@ try {
   await books.locator('[data-ui="tsugi-desktop-rail"]').getByRole('button',{name:'Vault',exact:true}).click();
   const nativeQueue=vault.locator('[data-ui="tsugi-native-vault-queue"]');
   await nativeQueue.getByRole('button',{name:'Import into Books',exact:true}).click();
+  await page.locator('[data-ui="vault-book-import-review"]').getByRole('button',{name:'Confirm import',exact:true}).click();
+  await nativeQueue.locator('[data-vault-import-state="imported"]').waitFor();
+  await nativeQueue.getByRole('button',{name:'Open Books',exact:true}).click();
   await books.locator('.tsugi-manga-card').filter({hasText:'Vault imported fixture'}).waitFor();
   await books.locator('[data-ui="tsugi-desktop-rail"]').getByRole('button',{name:'Vault',exact:true}).click();
-  await nativeQueue.getByRole('button',{name:'Import into Books',exact:true}).click();
+  await nativeQueue.getByRole('button',{name:'Open Books',exact:true}).click();
   await books.locator('.tsugi-manga-card').filter({hasText:'Vault imported fixture'}).waitFor();
   assert.equal(await books.locator('.tsugi-manga-card').filter({hasText:'Vault imported fixture'}).count(),1);
   await books.locator('[data-ui="tsugi-desktop-rail"]').getByRole('button',{name:'Vault',exact:true}).click();
@@ -1463,4 +1470,8 @@ try {
   await verifySourceFeedBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifySourceMetadataBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifySourceSettingsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifySourceIconsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyReaderSettingsSearchBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyVaultBookImportsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifySupportSummaryBrowser({ browser, origin, installDesktopFixture, screenshotDir });
 } finally { await browser.close(); }

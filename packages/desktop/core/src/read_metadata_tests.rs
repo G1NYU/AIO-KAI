@@ -80,6 +80,7 @@ struct MetadataStore {
     body: Arc<Mutex<Vec<u8>>>,
     stop: Arc<AtomicBool>,
     artifacts: Arc<AtomicUsize>,
+    icons: Arc<AtomicUsize>,
     worker: Option<JoinHandle<()>>,
 }
 impl MetadataStore {
@@ -90,7 +91,8 @@ impl MetadataStore {
         let body = Arc::new(Mutex::new(metadata_index(&base, Some(1))));
         let stop = Arc::new(AtomicBool::new(false));
         let artifacts = Arc::new(AtomicUsize::new(0));
-        let (published, stopped, served) = (Arc::clone(&body), Arc::clone(&stop), Arc::clone(&artifacts));
+        let icons = Arc::new(AtomicUsize::new(0));
+        let (published, stopped, served, fetched_icons) = (Arc::clone(&body), Arc::clone(&stop), Arc::clone(&artifacts), Arc::clone(&icons));
         let worker = std::thread::spawn(move || {
             while !stopped.load(Ordering::Acquire) {
                 let Ok((mut stream, _)) = listener.accept() else { std::thread::sleep(Duration::from_millis(20)); continue; };
@@ -103,6 +105,7 @@ impl MetadataStore {
                     let Ok(byte) = byte else { break }; request.push(byte);
                     if request.ends_with(b"\r\n\r\n") { break; }
                 }
+                if request.starts_with(b"GET /original.png HTTP/1.") { fetched_icons.fetch_add(1, Ordering::Relaxed); }
                 let body = published.lock().unwrap();
                 let response = if request.starts_with(b"GET /index.pb HTTP/1.") { Some(body.as_slice()) }
                     else if request.starts_with(b"GET /tsugi-metadata-fixture-v1.6.1.jar HTTP/1.") {
@@ -114,7 +117,7 @@ impl MetadataStore {
                 } else { let _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"); }
             }
         });
-        Self { url: format!("{base}/index.pb"), body, stop, artifacts, worker: Some(worker) }
+        Self { url: format!("{base}/index.pb"), body, stop, artifacts, icons, worker: Some(worker) }
     }
     fn publish(&self, version: Option<u64>) {
         *self.body.lock().unwrap() = metadata_index(self.url.strip_suffix("/index.pb").unwrap(), version);
@@ -231,6 +234,29 @@ fn packaged_runtime_metadata_filters_preserve_reading_state() {
     managed.assign_category(manga, category["category"]["id"].as_i64().unwrap() as i32, true).unwrap();
     let before = saved_state(&managed, manga);
 
+    // The native icon adapter validates the real runtime package but reads
+    // only an existing private cache file. A miss must not call the runtime
+    // icon route, whose remote cache fill has no upstream size bound.
+    let icon = data.join("extensions/icon/org.tsugi.fixture.png");
+    let icon_bytes = STANDARD.decode("iVBORw0KGgoAAAANSUhEUgAAABAAAAAYCAIAAAB8wupbAAAAHUlEQVR4nGOsqF3FQApgIkn1qIZRDaMaRjWQrAEA4jkBz8UryC4AAAAASUVORK5CYII=").unwrap();
+    assert!(!icon.exists(), "the authored metadata JAR has no embedded icon");
+    assert!(managed.extension_icon(PRIMARY).is_err(), "missing cached icons keep the fallback");
+    fs::create_dir_all(icon.parent().unwrap()).unwrap();
+    fs::write(&icon, &icon_bytes).unwrap();
+    let image = managed.extension_icon(PRIMARY).expect("load the original cached raster through a real package lookup");
+    assert_eq!(image.mime, "image/png"); assert_eq!(image.bytes, icon_bytes);
+    let unknown_icon = data.join("extensions/icon/org.tsugi.unknown.png");
+    fs::write(&unknown_icon, &icon_bytes).unwrap();
+    assert!(managed.extension_icon("org.tsugi.unknown").is_err(), "a cached file cannot authorize an unknown package");
+    fs::remove_file(unknown_icon).unwrap();
+    fs::write(&icon, b"<svg xmlns='http://www.w3.org/2000/svg'/>").unwrap();
+    assert!(managed.extension_icon(PRIMARY).is_err(), "active image formats are never exposed");
+    fs::write(&icon, vec![0; 512 * 1024 + 1]).unwrap();
+    assert!(managed.extension_icon(PRIMARY).is_err(), "oversized cached files keep the fallback");
+    fs::write(&icon, &icon_bytes).unwrap();
+    assert_eq!(store.icons.load(Ordering::Acquire), 0, "icon misses and cache reads never fetch a repository icon");
+    assert!(saved_state(&managed, manga) == before, "icon requests preserve saved reading state");
+
     rows(&managed.filter_extensions_with_metadata(0, "", None, Some("all"), Some(true), false, false, Some(ReadContentWarning::Mixed)).unwrap(), 1, 1);
     rows(&managed.filter_extensions_with_metadata(0, "", None, None, Some(false), false, false, None).unwrap(), 124, 100);
     rows(&managed.filter_extensions_with_metadata(0, "", None, None, None, true, false, None).unwrap(), 0, 0);
@@ -264,6 +290,8 @@ fn packaged_runtime_metadata_filters_preserve_reading_state() {
     let mut managed = ReadRuntime::start(&runtime, &data).unwrap();
     assert!(inventory(&managed, &store, false, false) == settled_inventory);
     assert!(saved_state(&managed, manga) == before, "metadata and protected reading state survive restart");
+    assert_eq!(managed.extension_icon(PRIMARY).unwrap().bytes, icon_bytes, "cached original icon remains readable after restart");
+    assert_eq!(store.icons.load(Ordering::Acquire), 0);
     rows(&managed.filter_extensions_with_metadata(100, "", Some(&store.url), Some("en"), None, false, false, Some(ReadContentWarning::Safe)).unwrap(), 120, 20);
     assert_eq!(store.artifacts.load(Ordering::Acquire), downloaded);
     managed.shutdown().unwrap(); drop(managed); drop(store);

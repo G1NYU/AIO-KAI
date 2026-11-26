@@ -112,6 +112,7 @@ pub enum ReadAction {
     Catalogue { source: String, page: u32, mode: String, query: Option<String> },
     Manga { id: i32 },
     Cover { id: i32 },
+    ExtensionIcon { package: String },
     SetLibrary { id: i32, in_library: bool },
     Chapter { id: i32 },
     CloseChapter { chapter_id: i32, session: String },
