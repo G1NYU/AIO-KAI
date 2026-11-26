@@ -2,7 +2,7 @@
 
 Review checkpoint: 2026-11-26. This matrix covers all sixteen available uploaded filenames and the related written feedback. Production changes are complete through `97039f9`, including lyrics repair `a0b6ea5`; later test corrections through `f4db945` synchronously observe decoded artwork and distinguish unframed content groups from interactive setting rows. Original user screenshots are not copied into the repository.
 
-**Implemented; controlled browser verified** means the stated behavior passed in the real web components with authored media, provider responses or native-bridge fixtures. It does not mean the user has accepted the repair in a new Windows executable. The final combined browser run passed **all 57 checkpoints, exit 0**, including every screenshot-specific helper; production build, 376 unit tests, typecheck and changed-source lint also pass. No new package, push or release is established by this review.
+**Implemented; controlled browser verified** means the stated behavior passed in the real web components with authored media, provider responses or native-bridge fixtures. It does not mean the user has accepted the repair in a new Windows executable. The final combined browser run passed **all 57 checkpoints, exit 0**, including every screenshot-specific helper; production build, 376 unit tests, typecheck and changed-source lint also pass. The exact reviewed files are published at `75d85da`; its Unified Windows web job independently passed the same 376 tests and all 57 browser checkpoints. The first native Windows run failed two new audio fixtures, and the separate Reader runtime run failed the new Mihon case. Packaging remains blocked pending those focused repairs; this matrix does not claim physical Windows acceptance or a release.
 
 ## Screenshot acceptance matrix
 
@@ -53,7 +53,7 @@ Focused evidence available in the working session includes the original combined
 
 No concrete visible annotation is left without an implemented repair and controlled browser evidence. Remaining acceptance is:
 
-1. After the current code/workflow push approval, run the Windows/native and separate Reader-runtime workflows, then verify the packaged candidate's executable identity, bundled assets and downloaded ZIP.
+1. Repair the actual Windows native/Reader integration failures, rerun the affected workflows and verify the resulting candidate's executable identity, bundled assets and downloaded ZIP. The user approved this candidate and future task-related pushes in this chat.
 2. Verify live artwork and YouTube behavior, exact-recording lyric timing, native window interaction and physical rendering on the user's Windows setup in that candidate.
 
-This document records local implementation and bounded verification only. It does not create a Windows package, establish a new remote build identity, claim a push, or close the live YouTube issue.
+This document records the published UI implementation and bounded browser verification. A deliverable Windows package still requires the native, Reader-runtime and downloaded-archive gates recorded in [PROGRESS.md](../PROGRESS.md). The live YouTube issue remains open.

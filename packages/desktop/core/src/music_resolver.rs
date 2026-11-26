@@ -807,66 +807,160 @@ mod tests {
         }
     }
 
-    fn echo_child() -> Child {
-        #[cfg(windows)]
-        let mut command = {
-            let mut command = Command::new("powershell.exe");
-            command.args(["-NoProfile", "-NonInteractive", "-Command", "$i=[Console]::OpenStandardInput();$o=[Console]::OpenStandardOutput();$b=New-Object byte[] 65536;while(($n=$i.Read($b,0,$b.Length)) -gt 0){$o.Write($b,0,$n);$o.Flush()}"]);
-            command
-        };
-        #[cfg(unix)]
-        let mut command = Command::new("cat");
-        command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().unwrap()
+    const ECHO_READY: &[u8] = b"\nTSUGI_MUSIC_ECHO_READY\n";
+
+    // Run a byte-preserving producer without a shell's startup/stdin behavior.
+    // Exit directly so libtest cannot append its summary to the media pipe.
+    #[test]
+    #[ignore = "subprocess fixture only"]
+    fn echo_fixture_process() {
+        if std::env::var_os("TSUGI_MUSIC_ECHO_FIXTURE").as_deref() != Some(std::ffi::OsStr::new("1")) { return; }
+        let mut input = std::io::stdin().lock();
+        let mut output = std::io::stdout().lock();
+        output.write_all(ECHO_READY).unwrap();
+        output.flush().unwrap();
+        let mut buffer = [0; FIRST_AUDIO];
+        loop {
+            let size = input.read(&mut buffer).unwrap();
+            if size == 0 { break; }
+            output.write_all(&buffer[..size]).unwrap();
+            output.flush().unwrap();
+        }
+        std::process::exit(0);
+    }
+
+    struct EchoChild(Child);
+
+    impl EchoChild {
+        fn stop(&mut self) {
+            self.0.stdin.take();
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+
+    impl Drop for EchoChild {
+        fn drop(&mut self) { self.stop(); }
+    }
+
+    fn echo_child() -> EchoChild {
+        let mut child = EchoChild(Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "music_resolver::tests::echo_fixture_process", "--ignored", "--nocapture", "--test-threads=1"])
+            .env("TSUGI_MUSIC_ECHO_FIXTURE", "1")
+            .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().unwrap());
+        let mut stdout = child.0.stdout.take().unwrap();
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let flag = cancelled.clone();
+        let (ready, wait) = std::sync::mpsc::channel();
+        let reader = std::thread::spawn(move || {
+            let result = (|| {
+                // Consume only the bounded libtest preamble and readiness marker.
+                // Reading one byte avoids taking any subsequent fixture data.
+                let mut preamble = Vec::new();
+                while preamble.len() < 4096 {
+                    let mut byte = [0];
+                    if read_cancellable(&mut stdout, &mut byte, &flag)? == 0 { return Err("echo fixture exited before readiness"); }
+                    preamble.push(byte[0]);
+                    if preamble.ends_with(ECHO_READY) { return Ok(()); }
+                }
+                Err("echo fixture readiness preamble exceeded its bound")
+            })();
+            let _ = ready.send(result);
+            stdout
+        });
+        let result = wait.recv_timeout(Duration::from_secs(10));
+        if !matches!(result, Ok(Ok(()))) {
+            cancelled.store(true, Ordering::Release);
+            child.stop();
+        }
+        child.0.stdout = Some(reader.join().expect("echo readiness reader"));
+        assert!(matches!(result, Ok(Ok(()))), "native echo producer must become ready before transfer checks: {result:?}; child={:?}", child.0.try_wait());
+        child
+    }
+
+    struct FixtureOutput {
+        worker: Option<Output>,
+        cancelled: Arc<AtomicBool>,
+        child: EchoChild,
+    }
+
+    impl FixtureOutput {
+        fn is_finished(&self) -> bool { self.worker.as_ref().unwrap().is_finished() }
+        fn join(&mut self) -> Result<Vec<u8>, &'static str> { self.worker.take().unwrap().join().expect("fixture output reader") }
+    }
+
+    impl Drop for FixtureOutput {
+        fn drop(&mut self) {
+            self.cancelled.store(true, Ordering::Release);
+            self.child.stop();
+            if let Some(worker) = self.worker.take() { let _ = worker.join(); }
+        }
+    }
+
+    struct FixtureFile(std::path::PathBuf);
+
+    impl FixtureFile {
+        fn create(path: std::path::PathBuf) -> (Self, std::fs::File) {
+            let file = std::fs::OpenOptions::new().create_new(true).write(true).open(&path).unwrap();
+            (Self(path), file)
+        }
+    }
+
+    impl Drop for FixtureFile {
+        fn drop(&mut self) { let _ = std::fs::remove_file(&self.0); }
     }
 
     #[test]
     fn export_sink_writes_before_eof_and_releases_file_on_completion_and_cancel() {
         static SEQUENCE: AtomicU64 = AtomicU64::new(0);
         for cancel in [false, true] {
-            let path = std::env::temp_dir().join(format!("tsugi-audio-sink-{}-{}.part", std::process::id(), SEQUENCE.fetch_add(1, Ordering::Relaxed)));
-            let file = std::fs::OpenOptions::new().create_new(true).write(true).open(&path).unwrap();
+            let (path, file) = FixtureFile::create(std::env::temp_dir().join(format!("tsugi-audio-sink-{}-{}.part", std::process::id(), SEQUENCE.fetch_add(1, Ordering::Relaxed))));
             let mut child = echo_child();
-            let stdout = child.stdout.take().unwrap();
+            let stdout = child.0.stdout.take().unwrap();
             let counter = Arc::new(AtomicU64::new(0)); let received = counter.clone();
             let cancelled = Arc::new(AtomicBool::new(false)); let flag = cancelled.clone();
-            let worker = std::thread::spawn(move || read_stream(stdout, AudioOutput::File(file), &received, &flag));
-            let first = vec![42; FIRST_AUDIO];
-            child.stdin.as_mut().unwrap().write_all(&first).unwrap();
+            let mut worker = FixtureOutput { worker: Some(std::thread::spawn(move || read_stream(stdout, AudioOutput::File(file), &received, &flag))), cancelled: cancelled.clone(), child };
+            let first: Vec<u8> = (0..FIRST_AUDIO).map(|byte| byte as u8).collect();
+            worker.child.0.stdin.as_mut().unwrap().write_all(&first).unwrap();
             let deadline = Instant::now() + Duration::from_secs(5);
             while counter.load(Ordering::Relaxed) < first.len() as u64 && Instant::now() < deadline { std::thread::sleep(Duration::from_millis(10)); }
-            assert_eq!(std::fs::metadata(&path).unwrap().len(), first.len() as u64, "real output file grows before the child gets EOF");
+            let received = counter.load(Ordering::Relaxed);
+            if received != first.len() as u64 {
+                let finished = worker.is_finished();
+                let result = if finished { Some(worker.join()) } else { None };
+                panic!("native echo output did not reach the writer: received={received}, child={:?}, worker_finished={finished}, worker_result={result:?}", worker.child.0.try_wait());
+            }
+            assert_eq!(std::fs::read(&path.0).unwrap(), first, "a fresh file handle reads exact binary output before child EOF");
             assert!(!worker.is_finished());
             if cancel { cancelled.store(true, Ordering::Release); }
-            else { child.stdin.as_mut().unwrap().write_all(b"tail").unwrap(); child.stdin.take(); }
+            else { worker.child.0.stdin.as_mut().unwrap().write_all(b"tail").unwrap(); worker.child.0.stdin.take(); }
             let deadline = Instant::now() + Duration::from_secs(2);
             while !worker.is_finished() && Instant::now() < deadline { std::thread::sleep(Duration::from_millis(10)); }
-            let _ = child.kill(); let _ = child.wait();
             assert!(worker.is_finished(), "the output writer releases its file without waiting for child EOF on cancellation");
-            let result = worker.join().unwrap();
+            let result = worker.join();
             if cancel { assert_eq!(result, Err(CANCELLED)); }
             else { assert_eq!(result, Ok(Vec::new()), "file export does not allocate a second complete audio buffer"); }
             let mut expected = first; if !cancel { expected.extend(b"tail"); }
-            assert_eq!(std::fs::read(&path).unwrap(), expected);
-            let moved = path.with_extension("finished");
-            std::fs::rename(&path, &moved).expect("writer file handle must already be closed");
-            std::fs::remove_file(moved).unwrap();
+            assert_eq!(std::fs::read(&path.0).unwrap(), expected);
+            let moved = path.0.with_extension("finished");
+            std::fs::rename(&path.0, &moved).expect("writer file handle must already be closed");
+            let moved = FixtureFile(moved);
+            std::fs::remove_file(&moved.0).unwrap();
         }
     }
 
     #[test]
     fn export_sink_enforces_its_limit_before_writing_an_oversized_block() {
-        let path = std::env::temp_dir().join(format!("tsugi-audio-limit-{}.part", std::process::id()));
-        let file = std::fs::OpenOptions::new().create_new(true).write(true).open(&path).unwrap();
+        let (path, file) = FixtureFile::create(std::env::temp_dir().join(format!("tsugi-audio-limit-{}.part", std::process::id())));
         let mut child = echo_child();
-        let mut stdout = child.stdout.take().unwrap();
-        child.stdin.as_mut().unwrap().write_all(b"oversized").unwrap(); child.stdin.take();
+        let mut stdout = child.0.stdout.take().unwrap();
+        child.0.stdin.as_mut().unwrap().write_all(b"oversized").unwrap(); child.0.stdin.take();
         let received = AtomicU64::new(0);
         let result = read_stream_bounded(&mut stdout, AudioOutput::File(file), &received, &AtomicBool::new(false), 4);
-        let _ = child.kill(); let _ = child.wait();
         assert_eq!(result, Err("Music transfer exceeded its size limit."));
         assert!(received.load(Ordering::Relaxed) <= 4);
-        assert!(std::fs::metadata(&path).unwrap().len() <= 4);
-        std::fs::remove_file(path).expect("failed export releases its file handle");
+        assert!(std::fs::metadata(&path.0).unwrap().len() <= 4);
+        std::fs::remove_file(&path.0).expect("failed export releases its file handle");
     }
 
     #[test]

@@ -320,11 +320,14 @@ impl ReadRuntime {
                 if !seen.insert((source, url.to_owned())) { return Err(INVALID); }
                 if row["inLibrary"] == true {
                     let id = row["id"].as_i64().and_then(|id| i32::try_from(id).ok()).filter(|id| *id > 0).ok_or(INVALID)?;
-                    let snapshot = self.backup_manga(id)?; let identity = snapshot["identity"].as_str().ok_or(INVALID)?;
-                    for chapter in snapshot["chapters"].as_array().ok_or(INVALID)? {
-                        let chapter_identity = chapter["identity"].as_str().ok_or(INVALID)?;
-                        let page_count = chapter["pageCount"].as_i64().and_then(|count| i32::try_from(count).ok()).ok_or(INVALID)?;
-                        if counts.insert((identity.to_owned(), chapter_identity.to_owned()), (id, page_count)).is_some() { return Err(INVALID); }
+                    let raw = self.backup_manga_raw(id)?;
+                    let snapshot = project_manga_backup(&raw, id)?; let identity = snapshot["identity"].as_str().ok_or(INVALID)?;
+                    for chapter in backup_nodes(&raw["chapters"], 10_000)? {
+                        let chapter_identity = backup_identity("tsugi-chapter-v1", identity, backup_url(&chapter["url"])?);
+                        // Preserve the exact signed runtime value for stale
+                        // review and post-restore checks, including unknown -1.
+                        let page_count = backup_page_count(&chapter["pageCount"])?;
+                        if counts.insert((identity.to_owned(), chapter_identity), (id, page_count)).is_some() { return Err(INVALID); }
                     }
                 }
             }
@@ -532,6 +535,19 @@ mod tests {
         assert_eq!(chapter_number(&[]).unwrap(), 0.0);
     }
     #[test]
+    fn reconstruction_applies_partial_progress_only_with_a_known_positive_page_count() {
+        let input = fixture(); let original = merge(&input, &[], &BTreeMap::new(), &BTreeSet::new()).unwrap().expected;
+        let manga_identity = backup_identity("tsugi-manga-v1", "9007199254740993", "/original/manga");
+        let chapter_identity = backup_identity("tsugi-chapter-v1", &manga_identity, "/original/partial");
+        for count in [-1, 0, 3, 4] {
+            let counts = BTreeMap::from([((manga_identity.clone(), chapter_identity.clone()), (7, count))]);
+            let merged = merge(&input, &original, &counts, &BTreeSet::new()).unwrap();
+            let chapters = messages(&merged.expected[0], 16, 10000).unwrap();
+            assert_eq!(int(&chapters[1], 6).unwrap(), if count == 4 { 3 } else { 0 });
+            assert_eq!(merged.rows[0]["partialSkipped"], if count == 4 { 0 } else { 1 });
+        }
+    }
+    #[test]
     fn reconstruction_preserves_newer_state_and_unrelated_metadata() {
         let input = fixture(); let first = merge(&input, &[], &BTreeMap::new(), &BTreeSet::new()).unwrap();
         let mut original = first.expected[0].clone();
@@ -603,11 +619,17 @@ mod tests {
         let state = managed.backup_manga(id).unwrap();
         assert_eq!(state["categories"], json!(["Mihon shelf"]));
         assert_eq!(state["chapters"].as_array().unwrap().len(), 2);
+        assert!(state["chapters"].as_array().unwrap().iter().all(|chapter| chapter["pageCount"] == 0 && chapter["lastPageRead"] == 0), "unknown counts must not invent page progress");
+        let raw = managed.backup_manga_raw(id).unwrap();
+        assert!(backup_nodes(&raw["chapters"], 10_000).unwrap().iter().all(|chapter| chapter["pageCount"] == -1), "the pinned runtime keeps unknown chapter counts as -1");
         assert!(managed.query(ReadOperation::History).unwrap()["nodes"].as_array().unwrap().iter().any(|row| row["lastReadAt"] == "1700000000" || row["lastReadAt"] == 1700000000));
         let records = managed.track_records(id).unwrap(); assert_eq!(records["totalCount"], 1);
         let after = managed.mihon_export().unwrap();
         let review = managed.review_mihon_import(fixture()).unwrap();
         assert_eq!(review.preview()["rows"][0]["chapters"], 0); assert_eq!(review.preview()["rows"][0]["trackers"], 0);
+        assert_eq!(review.preview()["rows"][0]["partialSkipped"], 1);
+        assert_eq!(review.counts.len(), 2);
+        assert!(review.counts.values().all(|(_, count)| *count == -1), "native review must retain exact runtime counts");
         let result = managed.apply_mihon_import(review).unwrap(); assert_eq!(result["status"], "imported", "reimport result: {result}");
         assert_eq!(managed.mihon_export().unwrap(), after, "reimport must be idempotent");
         let stale = managed.review_mihon_import(fixture()).unwrap();

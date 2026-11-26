@@ -1860,11 +1860,16 @@ impl ReadRuntime {
     /// Cached-only semantic backup. Hash source identities before returning
     /// any data to the WebView; do not export raw URLs or client metadata.
     pub fn backup_manga(&self, id: i32) -> Result<Value, &'static str> {
+        project_manga_backup(&self.backup_manga_raw(id)?, id)
+    }
+
+    // Native import verification also needs the exact runtime page-count
+    // sentinel. Keep this raw response private to the reading broker.
+    fn backup_manga_raw(&self, id: i32) -> Result<Value, &'static str> {
         if id <= 0 { return Err("Invalid manga identifier."); }
-        let raw = self.client.document(
+        self.client.document(
             "query TsugiBackupManga($id: Int!) { manga(id: $id) { id sourceId url title inLibrary categories { nodes { id name } totalCount } chapters { nodes { id url name pageCount isRead isBookmarked lastPageRead lastReadAt } totalCount } } }",
-            "manga", json!({"id": id}))?;
-        project_manga_backup(&raw, id)
+            "manga", json!({"id": id}))
     }
 
     /// Recheck all reviewed identities and local state before any write.
@@ -2074,6 +2079,13 @@ fn backup_identity(domain: &str, first: &str, second: &str) -> String {
     hash.finalize().iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
+fn backup_page_count(value: &Value) -> Result<i32, &'static str> {
+    // Pinned Suwayomi uses -1 until chapter pages have been fetched. No other
+    // negative value, fraction, string or out-of-range count is valid.
+    value.as_i64().and_then(|count| i32::try_from(count).ok()).filter(|count| *count >= -1)
+        .ok_or("Invalid chapter page count.")
+}
+
 fn project_manga_backup(raw: &Value, id: i32) -> Result<Value, &'static str> {
     if id <= 0 || raw["id"].as_i64() != Some(id as i64) || raw["inLibrary"] != true {
         return Err("Manga is not in the local library.");
@@ -2104,8 +2116,9 @@ fn project_manga_backup(raw: &Value, id: i32) -> Result<Value, &'static str> {
         let bookmarked = chapter["isBookmarked"].as_bool().ok_or("Invalid chapter bookmark.")?;
         let page = chapter["lastPageRead"].as_u64().filter(|v| *v <= i32::MAX as u64)
             .ok_or("Invalid chapter progress.")?;
-        let count = chapter["pageCount"].as_u64().filter(|v| *v <= i32::MAX as u64)
-            .ok_or("Invalid chapter page count.")?;
+        // Portable backups represent an unknown count as zero. This cannot
+        // authorize any partial-page restore; the reviewed bound must be > 0.
+        let count = backup_page_count(&chapter["pageCount"])?.max(0);
         let last_read = backup_long(&chapter["lastReadAt"])?;
         if last_read < 0 { return Err("Invalid chapter history."); }
         chapters.push(json!({
@@ -2219,6 +2232,40 @@ mod tests {
         let mut incomplete = raw.clone();
         incomplete["chapters"]["totalCount"] = json!(2);
         assert!(project_manga_backup(&incomplete, 7).is_err());
+    }
+
+    #[test]
+    fn backup_projection_normalizes_only_the_unknown_page_count_sentinel() {
+        let mut raw = backup_fixture();
+        for count in [-1, 0, 20, i32::MAX] {
+            raw["chapters"]["nodes"][0]["pageCount"] = json!(count);
+            let snapshot = project_manga_backup(&raw, 7).unwrap();
+            assert_eq!(snapshot["chapters"][0]["pageCount"], count.max(0));
+            assert_eq!(snapshot["chapters"][0]["lastPageRead"], 2);
+            assert_eq!(backup_page_count(&json!(count)).unwrap(), count);
+        }
+        for invalid in [json!(-2), json!(i32::MIN), json!(i64::from(i32::MAX) + 1), json!(1.5), json!("20"), Value::Null] {
+            raw["chapters"]["nodes"][0]["pageCount"] = invalid;
+            assert!(project_manga_backup(&raw, 7).is_err());
+        }
+    }
+
+    #[test]
+    fn restore_groups_never_apply_partial_progress_with_unknown_page_count() {
+        let mut raw = backup_fixture();
+        raw["chapters"]["nodes"][0]["pageCount"] = json!(-1);
+        raw["chapters"]["nodes"][0]["lastPageRead"] = json!(0);
+        let snapshot = project_manga_backup(&raw, 7).unwrap();
+        let identity = snapshot["identity"].as_str().unwrap();
+        let mut patch: MangaProgressPatch = serde_json::from_value(json!({
+            "identity": snapshot["chapters"][0]["identity"], "expectedRead": false, "expectedBookmarked": false,
+            "expectedLastPage": 0, "expectedPageCount": 0, "expectedLastReadAt": "12",
+            "markRead": false, "bookmark": true, "page": 1
+        })).unwrap();
+        assert!(reviewed_progress_groups(&snapshot, identity, std::slice::from_ref(&patch)).is_err());
+        patch.page = None;
+        assert_eq!(reviewed_progress_groups(&snapshot, identity, std::slice::from_ref(&patch)).unwrap()
+            .get(&(false, true, None)).unwrap(), &vec![9]);
     }
 
     #[test]

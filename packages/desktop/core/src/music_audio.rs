@@ -768,7 +768,9 @@ mod tests {
             assert!(std::env::var_os("CI").is_none(), "CI did not stage the pinned mpv DLL");
             return;
         }
-        let _vulkan = unsafe { libloading::Library::new(library.with_file_name("vulkan").join("vulkan-1.dll")) }.ok();
+        let library = library.canonicalize().expect("resolve pinned mpv");
+        let _vulkan = unsafe { libloading::Library::new(library.with_file_name("vulkan").join("vulkan-1.dll")) }
+            .expect("load pinned Vulkan dependency for progressive fixture");
         verify_progressive_decoder(&library);
     }
 
