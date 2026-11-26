@@ -110,6 +110,14 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
     assert.ok(!['transparent', 'rgba(0, 0, 0, 0)'].includes(geometry.sidebarBackground), 'Sidebar remains legible over artwork');
     assert.ok(geometry.heroStart >= 104, 'Hero content has at least24px clearance from sidebar');
     assert.equal(geometry.heroStart, geometry.rowsStart, 'Hero and catalog content share an inset');
+    const icons = await sidebar().locator('.UI-VerticalMenu__item').evaluateAll(nodes => nodes.map(node => {
+      const s = getComputedStyle(node);
+      return { background: s.backgroundColor, image: s.backgroundImage, shadow: s.boxShadow, current: node.getAttribute('data-current') };
+    }));
+    assert.ok(icons.length > 0 && icons.some(item => item.current === 'true'), 'Movies sidebar has a selected navigation icon');
+    assert.ok(icons.every(item => ['transparent', 'rgba(0, 0, 0, 0)'].includes(item.background) && item.image === 'none' && item.shadow === 'none'), 'Movies sidebar icons have no grey rounded backgrounds');
+    await sidebar().locator('[data-name="home"]').hover();
+    assert.ok(['transparent', 'rgba(0, 0, 0, 0)'].includes(await sidebar().locator('[data-name="home"]').evaluate(el => getComputedStyle(el).backgroundColor)), 'Movie navigation hover stays unboxed');
     await noHorizontalOverflow('Connected Movies home');
     await capture('40-movies-home-restored-sidebar');
     console.log('PASS: connected Movies home restores the compact sidebar, original navigation order and aligned hero/catalog gutters.');
@@ -134,6 +142,24 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
     assert.equal(settings.index.width, 240, 'Settings retains its category index');
     assert.ok(settings.content.x - settings.index.right >= 24, 'Settings columns have visible separation');
     assert.ok(settings.content.width <= 1016, 'Settings labels and controls stay within a bounded panel');
+    const settingsSurfaces = await settingsPage().evaluate(root => {
+      const selectors = [
+        '[data-ui="settings-tab-group"]',
+        '[data-ui="settings-tab"]',
+        '[data-ui="settings-card-body"]',
+        '[data-ui="settings-card-item"]',
+      ];
+      return selectors.map(selector => {
+        const element = root.querySelector(selector);
+        if (!element) return { selector, missing: true };
+        const s = getComputedStyle(element);
+        return { selector, background: s.backgroundColor, image: s.backgroundImage, shadow: s.boxShadow, border: s.borderTopWidth };
+      });
+    });
+    assert.ok(settingsSurfaces.every(item => !item.missing && ['transparent', 'rgba(0, 0, 0, 0)'].includes(item.background) && item.image === 'none' && item.shadow === 'none' && item.border === '0px'), 'Movies Settings categories, icons and descriptions sit on the page background: '+JSON.stringify(settingsSurfaces));
+    const selectedSettings = settingsPage().locator('[data-ui="settings-tab"][data-name="interface"]');
+    await selectedSettings.hover();
+    assert.ok(['transparent', 'rgba(0, 0, 0, 0)'].includes(await selectedSettings.evaluate(el => getComputedStyle(el).backgroundColor)), 'Settings hover does not repaint a grey tile');
     await capture('41-movies-settings-bounded');
     console.log('PASS: real Movies settings retain a240px index, bounded detail column and native titlebar clearance.');
     const aboutTab = settingsPage().locator('[data-ui="settings-tab"][data-name="about"]');
