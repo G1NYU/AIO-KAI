@@ -62,6 +62,7 @@ import { appBridge } from './lib/hosts/shell/bridge';
 import { supportsReading, supportsReadingSection } from './lib/hosts/shell/reading';
 import { GlobalAppearance, GlobalSettingsDialog } from './components/shell/global-settings';
 import { MediaNavigation } from './components/shell/media-navigation';
+import { startScheduledBackups } from './lib/backup/scheduled-runner';
 
 /** The web app served at the Jellyfin API's `/web`. */
 export default function JellyfinWebApp() {
@@ -143,6 +144,7 @@ function Standalone() {
   const queryClient = useQueryClient();
   const [base, setBase] = React.useState(currentServer);
   const desktop = currentHost().name === 'desktop';
+  React.useEffect(() => desktop ? startScheduledBackups() : undefined, [desktop]);
   const reading = desktop && supportsReadingSection();
   const books = desktop && appBridge()?.platform === 'windows';
   const [readerReady, setReaderReady] = React.useState(supportsReading);

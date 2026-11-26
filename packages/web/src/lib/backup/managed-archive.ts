@@ -2,8 +2,8 @@ import { appBridge,ask } from '../hosts/shell/bridge';
 import { parsePortableArchive,PORTABLE_ARCHIVE_LIMIT,type PortableArchive } from './archive';
 export type ManagedBackup={name:string;createdMs:number;bytes:number;readable:boolean};
 export type ManagedBackupList={folder:string;backups:ManagedBackup[]};
-type Action={kind:'list'}|{kind:'save';archive:string}|{kind:'open';name:string};
-const NAME=/^tsugi-backup-(\d{13})-[a-f\d]{32}\.json$/;
+type Action={kind:'list'}|{kind:'save';archive:string}|{kind:'save-scheduled';archive:string;keep:number}|{kind:'open';name:string};
+const NAME=/^tsugi-(?:auto-)?backup-(\d{13})-[a-f\d]{32}\.json$/;
 function object(value:unknown):Record<string,unknown>{
   if(!value||typeof value!=='object'||Array.isArray(value))throw Error('backup-response');
   return value as Record<string,unknown>;
@@ -51,4 +51,17 @@ export async function openManagedArchive(name:string):Promise<PortableArchive>{
   const row=object(await request({kind:'open',name}));exact(row,['archive']);
   if(typeof row.archive!=='string')throw Error('backup-response');
   return parsePortableArchive(row.archive);
+}
+
+export async function saveScheduledArchive(archive:PortableArchive,keep:0|3|7|14|30):Promise<{backup:ManagedBackup;removed:number;retentionIncomplete:boolean}>{
+  const text=JSON.stringify(archive);
+  parsePortableArchive(text);
+  const row=object(await request({kind:'save-scheduled',archive:text,keep}));
+  exact(row,['backup','removed','retentionIncomplete']);
+  const backup=parseManagedBackup(row.backup);
+  if(!backup.name.startsWith('tsugi-auto-backup-')||!backup.readable||
+    backup.bytes!==new TextEncoder().encode(text).length||typeof row.removed!=='number'||
+    !Number.isInteger(row.removed)||row.removed<0||row.removed>499||
+    typeof row.retentionIncomplete!=='boolean')throw Error('backup-write-unconfirmed');
+  return {backup,removed:row.removed,retentionIncomplete:row.retentionIncomplete};
 }

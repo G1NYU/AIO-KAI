@@ -49,11 +49,11 @@ try {
           const a=message.action;
           const backups=state.managedBackups??=([]);
           let data,error=null;
-          if(a.kind==='save'){
+          if(a.kind==='save'||a.kind==='save-scheduled'){
             const createdMs=1760000000000+backups.length;
-            const name='tsugi-backup-'+createdMs+'-'+(backups.length+1).toString(16).padStart(32,'0')+'.json';
+            const name=(a.kind==='save-scheduled'?'tsugi-auto-backup-':'tsugi-backup-')+createdMs+'-'+(backups.length+1).toString(16).padStart(32,'0')+'.json';
             const row={name,createdMs,bytes:new TextEncoder().encode(a.archive).length,readable:true};
-            backups.push({row,archive:a.archive});data=row;
+            backups.push({row,archive:a.archive});data=a.kind==='save-scheduled'?{backup:row,removed:0,retentionIncomplete:false}:row;
           }else if(a.kind==='list')data={folder:'C:/Fixture/data/backups',backups:backups.map(item=>item.row)};
           else if(a.kind==='open'){
             const item=backups.find(item=>item.row.name===a.name);
@@ -357,11 +357,21 @@ try {
   await portable.getByRole('alert').filter({hasText:'Could not verify this managed backup.'}).waitFor();
   assert.equal(await portable.getByRole('heading',{name:'Portable backup preview',exact:true}).count(),0);
   console.log('PASS: managed backup bridge save, list, reopen and damaged copy rejection.');
+  await portable.getByRole('combobox',{name:'Backup frequency'}).selectOption('daily');
+  await portable.getByRole('combobox',{name:'Scheduled copy retention'}).selectOption('7');
+  await page.evaluate(()=>{const key='tsugi-backup-schedule-v1';const state=JSON.parse(localStorage.getItem(key));localStorage.setItem(key,JSON.stringify({...state,dueMs:Date.now()-1}));window.dispatchEvent(new Event('focus'));});
+  assert.equal(await page.evaluate(()=>window.__readerFixture.managedBackups.length),1,'settings dialog defers due backup');
 
   await bootSettings.getByRole('button', { name: 'Default', exact: true }).click();
   await bootSettings.getByRole('button', { name: 'Silver', exact: true }).click();
   await bootSettings.getByRole('button', { name: 'Close', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'sumi' && document.documentElement.dataset.tsugiAccent === 'silver');
+  await bootSettings.waitFor({state:'hidden'});
+  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+  await page.waitForFunction(()=>window.__readerFixture.managedBackups.length===2&&JSON.parse(localStorage.getItem('tsugi-backup-schedule-v1')).result==='saved');
+  assert.ok(await page.evaluate(()=>window.__readerFixture.managedBackups[1].row.name.startsWith('tsugi-auto-backup-')));
+  await page.evaluate(()=>{const key='tsugi-backup-schedule-v1';const state=JSON.parse(localStorage.getItem(key));localStorage.setItem(key,JSON.stringify({...state,cadence:'off',dueMs:0}));window.dispatchEvent(new Event('tsugi-backup-schedule-change'));});
+  console.log('PASS: opt-in schedule defers during settings, then saves verified automatic copy.');
   assert.deepEqual(await landing.locator('.tsugi-index-link').allTextContents(), ['Movies & TV', 'Music', 'Read', 'Vault']);
   assert.equal(await landing.locator('.tsugi-index-link svg').count(), 4);
   assert.equal(await landing.locator('.tsugi-index-kanji').count(), 0);

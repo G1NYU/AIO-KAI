@@ -7,6 +7,8 @@ describe('managed backup response validation',()=>{
   it('accepts generated names and sorts copies newest first',()=>{
     const newer={...row,name:row.name.replace('1760000000000','1760000000001'),createdMs:1760000000001};
     expect(parseManagedBackupList({folder:'C:/Tsugi/data/backups',backups:[row,newer]}).backups).toEqual([newer,row]);
+    const automatic={...newer,name:newer.name.replace('tsugi-backup-','tsugi-auto-backup-')};
+    expect(parseManagedBackupList({folder:'C:/Tsugi/data/backups',backups:[row,automatic]}).backups).toEqual([automatic,row]);
   });
   it('rejects arbitrary paths, inconsistent metadata and duplicates',()=>{
     for(const invalid of [{...row,name:'../private.json'},{...row,createdMs:0},{...row,bytes:-1},{...row,readable:false},{...row,token:'secret'}])

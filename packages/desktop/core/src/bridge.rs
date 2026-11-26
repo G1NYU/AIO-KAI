@@ -119,6 +119,7 @@ pub enum ReadAction {
 pub enum BackupAction {
     List,
     Save { archive: String },
+    SaveScheduled { archive: String, keep: usize },
     Open { name: String },
 }
 

@@ -120,7 +120,7 @@ fn directory(root:&Path)->Result<PathBuf,&'static str>{
     Ok(actual)
 }
 fn name_timestamp(name:&str)->Option<u64>{
-    let body=name.strip_prefix("tsugi-backup-")?.strip_suffix(".json")?;
+    let body=name.strip_prefix("tsugi-backup-").or_else(||name.strip_prefix("tsugi-auto-backup-"))?.strip_suffix(".json")?;
     let (time,nonce)=body.split_once('-')?;
     if time.len()!=13||!time.bytes().all(|b|b.is_ascii_digit())||nonce.len()!=32||
         !nonce.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)){
@@ -128,12 +128,13 @@ fn name_timestamp(name:&str)->Option<u64>{
     }
     time.parse().ok()
 }
-fn generated_name()->Result<String,&'static str>{
+fn generated_name(scheduled:bool)->Result<String,&'static str>{
     let time=SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_|"Invalid system time.")?.as_millis();
     if time>9_999_999_999_999{return Err("Invalid system time.");}
     let mut nonce=[0u8;16];getrandom::fill(&mut nonce).map_err(|_|"Could not allocate backup identifier.")?;
     let suffix:String=nonce.iter().map(|b|format!("{b:02x}")).collect();
-    Ok(format!("tsugi-backup-{time:013}-{suffix}.json"))
+    let prefix=if scheduled {"tsugi-auto-backup"} else {"tsugi-backup"};
+    Ok(format!("{prefix}-{time:013}-{suffix}.json"))
 }
 fn regular(path:&Path)->Result<fs::Metadata,&'static str>{
     let meta=fs::symlink_metadata(path).map_err(|_|"Managed backup is missing.")?;
@@ -164,13 +165,13 @@ fn list(dir:&Path)->Result<Vec<Value>,&'static str>{
         if rows.len()>=MAX_FILES{return Err("Managed backup folder exceeds its backup limit.");}
         rows.push(json!({"name":name,"createdMs":time,"bytes":meta.len(),"readable":meta.len()>0&&meta.len()<=LIMIT as u64}));
     }
-    rows.sort_by(|a,b|b["name"].as_str().cmp(&a["name"].as_str()));
+    rows.sort_by(|a,b|b["createdMs"].as_u64().cmp(&a["createdMs"].as_u64()).then_with(||b["name"].as_str().cmp(&a["name"].as_str())));
     Ok(rows)
 }
-fn save(dir:&Path,text:&str)->Result<Value,&'static str>{
+fn save(dir:&Path,text:&str,scheduled:bool)->Result<Value,&'static str>{
     validate_archive(text)?;
     if list(dir)?.len()>=MAX_FILES{return Err("Managed backup limit reached. Move old copies out of the backup folder.");}
-    let name=generated_name()?;
+    let name=generated_name(scheduled)?;
     let final_path=dir.join(&name);
     let temporary=dir.join(format!("{name}.tmp"));
     let mut file=OpenOptions::new().write(true).create_new(true).open(&temporary)
@@ -189,11 +190,37 @@ fn save(dir:&Path,text:&str)->Result<Value,&'static str>{
     if confirmed!=text{return Err("Managed backup could not be verified after writing.");}
     Ok(json!({"name":name,"createdMs":name_timestamp(&name),"bytes":text.len(),"readable":true}))
 }
+fn save_scheduled(dir:&Path,text:&str,keep:usize)->Result<Value,&'static str>{
+    if !matches!(keep,0|3|7|14|30){return Err("Invalid scheduled backup retention.");}
+    // Publish and verify the new copy before considering retention. Manual,
+    // unrelated, damaged and redirected files are never removed by this policy.
+    let backup=save(dir,text,true)?;
+    let mut removed=0usize;
+    let mut incomplete=false;
+    if keep>0{
+        let current=backup["name"].as_str().ok_or("Invalid saved backup.")?;
+        match list(dir){
+            Ok(rows)=>{
+                let mut retained=1usize;
+                for row in rows{
+                    let Some(name)=row["name"].as_str() else {incomplete=true;continue;};
+                    if !name.starts_with("tsugi-auto-backup-")||name==current{continue;}
+                    if read_archive(dir,name).is_err(){incomplete=true;continue;}
+                    if retained<keep{retained+=1;continue;}
+                    if fs::remove_file(dir.join(name)).is_ok(){removed+=1;}else{incomplete=true;}
+                }
+            },
+            Err(_)=>incomplete=true,
+        }
+    }
+    Ok(json!({"backup":backup,"removed":removed,"retentionIncomplete":incomplete}))
+}
 pub fn execute(root:&Path,action:BackupAction)->Result<Value,&'static str>{
     let dir=directory(root)?;
     match action {
         BackupAction::List=>Ok(json!({"folder":dir.to_string_lossy(),"backups":list(&dir)?})),
-        BackupAction::Save{archive}=>save(&dir,&archive),
+        BackupAction::Save{archive}=>save(&dir,&archive,false),
+        BackupAction::SaveScheduled{archive,keep}=>save_scheduled(&dir,&archive,keep),
         BackupAction::Open{name}=>Ok(json!({"archive":read_archive(&dir,&name)?})),
     }
 }
@@ -218,7 +245,7 @@ mod tests {
         json!({"format":"tsugi-portable","version":1,"createdAt":"2026-01-01T00:00:00.000Z","entries":entries}).to_string()
     }
     fn temp()->PathBuf{
-        let name=generated_name().unwrap();
+        let name=generated_name(false).unwrap();
         let root=std::env::temp_dir().join(format!("tsugi-test-{name}"));
         fs::create_dir(&root).unwrap();root
     }
@@ -240,6 +267,29 @@ mod tests {
         assert!(execute(&root,BackupAction::Open{name:"unrelated.json".into()}).is_err());
         fs::write(dir.join(name),"damaged").unwrap();
         assert!(execute(&root,BackupAction::Open{name:name.into()}).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn scheduled_retention_preserves_manual_damaged_and_new_copy(){
+        let root=temp();
+        let text=fixture();
+        let manual=execute(&root,BackupAction::Save{archive:text.clone()}).unwrap();
+        let dir=directory(&root).unwrap();
+        for i in 0..4 {
+            fs::write(dir.join(format!("tsugi-auto-backup-170000000000{i}-{}.json","a".repeat(32))),&text).unwrap();
+        }
+        let damaged="tsugi-auto-backup-1600000000000-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.json";
+        fs::write(dir.join(damaged),"damaged").unwrap();
+        fs::write(dir.join("notes.txt"),"unrelated").unwrap();
+        assert!(execute(&root,BackupAction::SaveScheduled{archive:text.clone(),keep:1}).is_err());
+        let saved=execute(&root,BackupAction::SaveScheduled{archive:text.clone(),keep:3}).unwrap();
+        assert_eq!(saved["removed"],2);
+        assert_eq!(saved["retentionIncomplete"],true);
+        assert!(dir.join(manual["name"].as_str().unwrap()).is_file());
+        assert!(dir.join(damaged).is_file());
+        assert!(dir.join("notes.txt").is_file());
+        assert_eq!(read_archive(&dir,saved["backup"]["name"].as_str().unwrap()).unwrap(),text);
+        assert_eq!(list(&dir).unwrap().len(),5);
         fs::remove_dir_all(root).unwrap();
     }
     #[test]
