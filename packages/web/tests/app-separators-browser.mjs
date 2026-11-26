@@ -22,6 +22,19 @@ async function assertBands(rows, label, { offset = 0 } = {}) {
   assert.ok(sample.every(row => row.borders.every(width => parseFloat(width) === 0)), `${label}: row boundaries have no separator borders`);
 }
 
+async function assertUnboxed(rows, label) {
+  const sample = await rows.evaluateAll(nodes => nodes.slice(0, 3).map(node => {
+    const s = getComputedStyle(node);
+    return { background: s.backgroundColor, image: s.backgroundImage, shadow: s.boxShadow,
+      borders: [s.borderTopWidth, s.borderBottomWidth], height: node.getBoundingClientRect().height };
+  }));
+  assert.equal(sample.length, 3, `${label}: three real content rows are present`);
+  assert.ok(sample.every(row => row.height > 0), `${label}: rows remain visible`);
+  assert.ok(sample.every(row => ['transparent', 'rgba(0, 0, 0, 0)'].includes(row.background)
+    && row.image === 'none' && row.shadow === 'none' && row.borders.every(value => parseFloat(value) === 0)),
+  `${label}: labels and icons have no grey boxed backgrounds: ${JSON.stringify(sample)}`);
+}
+
 async function assertNoVisibleSeparators(container, label) {
   const painted = await container.locator('[role="separator"], .UI-DropdownMenu__separator, .UI-ContextMenu__separator, .tsugi-pixel-rule').evaluateAll(nodes => nodes.filter(node => {
     const style = getComputedStyle(node);
@@ -113,11 +126,11 @@ export async function verifyAppSeparatorsBrowser({ browser, origin, installDeskt
     assert.ok(requests.has('/Users/Me'), 'Movie checks use a validated synthetic signed-in session');
     assert.equal(await page.locator('.tsugi-video-entry').count(), 0, 'Movie checks are beyond server onboarding');
     await clearInteraction();
-    await assertBands(page.locator('[data-ui="settings-tab-group"][data-name="watching"] > [data-ui="settings-tab"]'), 'Movie setting categories');
-    await assertBands(panel.locator('[data-ui="settings-card"][data-name="navigation"] [data-ui="settings-card-item"]'), 'Movie navigation settings');
+    await assertUnboxed(page.locator('[data-ui="settings-tab-group"][data-name="watching"] > [data-ui="settings-tab"]'), 'Movie setting categories');
+    await assertUnboxed(panel.locator('[data-ui="settings-card"][data-name="navigation"] [data-ui="settings-card-item"]'), 'Movie navigation settings');
     await assertNoVisibleSeparators(page.locator('[data-ui="shell"]'), 'Movie navigation');
-    await capture('20-movie-settings-tonal');
-    console.log('PASS: authenticated Movie settings category and detail rows use alternating tonal surfaces.');
+    await capture('20-movie-settings-unboxed');
+    console.log('PASS: authenticated Movie settings category and detail labels are unboxed without grey rows.');
 
     const startSelect = panel.locator('[data-ui="settings-card-item"]')
       .filter({ has: page.locator('label').filter({ hasText: /^Start on$/ }) }).getByRole('combobox');
@@ -192,7 +205,7 @@ export async function verifyAppSeparatorsBrowser({ browser, origin, installDeskt
     const categories = page.locator('[data-ui="settings-tab-group"][data-name="watching"]');
     await categories.getByRole('button', { name: /Playback/ }).waitFor();
     await clearInteraction();
-    await assertBands(categories.locator('[data-ui="settings-tab"]'), 'Narrow Movie setting categories');
+    await assertUnboxed(categories.locator('[data-ui="settings-tab"]'), 'Narrow Movie setting categories');
 
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${origin}/#/`);

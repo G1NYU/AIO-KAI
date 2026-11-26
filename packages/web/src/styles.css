@@ -3216,6 +3216,10 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 :root[data-host='desktop'] .tsugi-video-shell[data-navigation='sidebar'] [data-ui='sidebar'] .UI-VerticalMenu__item:is(:hover,:focus-visible) {
   color:var(--tsugi-ink);
 }
+:root[data-host='desktop'] .tsugi-video-shell[data-navigation='sidebar'] [data-ui='sidebar'] .UI-VerticalMenu__item:focus-visible {
+  outline:2px solid var(--tsugi-focus);
+  outline-offset:2px;
+}
 :root[data-host='desktop'] .tsugi-video-shell [data-page='settings'] :is(
   [data-ui='settings-card-body'],
   [data-ui='settings-tab-group'],
