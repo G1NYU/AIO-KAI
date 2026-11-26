@@ -129,6 +129,20 @@ try {
             data = { category: { id: a.id } }; break;
           case 'history': data = nodes([{ ...chapters[0], lastReadAt: 1760000000000, manga }]); break;
           case 'updates': data = nodes([{ ...chapters[1], fetchedAt: 1760000000000, manga }]); break;
+          case 'backup-manga': {
+            const item=[manga,{id:2,sourceId:'12345',title:'ZZ Missing Fixture'},replacement,batchTitle].find(m=>Number(m.id)===a.id);
+            if(!item)throw Error('Missing backup fixture');
+            const hash=n=>n.toString(16).padStart(64,'0');
+            data={id:a.id,identity:hash(a.id),sourceId:item.sourceId,title:item.title,categories:[],chapters:a.id===1?[{id:11,identity:hash(11),name:'Chapter one',isRead:false,isBookmarked:!!state.backupBookmarked,lastPageRead:state.backupPage||0,pageCount:4,lastReadAt:'0'}]:[]};
+            break;
+          }
+          case 'restore-manga-progress': {
+            if(a.id!==1||a.changes.length!==1||a.changes[0].identity!=='b'.padStart(64,'0'))throw Error('Unexpected restore fixture');
+            const change=a.changes[0];
+            if(change.bookmark)state.backupBookmarked=true;
+            if(change.page!==undefined)state.backupPage=change.page;
+            data={confirmed:1,total:1,complete:true};break;
+          }
           case 'cached-manga': data = a.id === 3 ? { manga: replacement, chapters: replacementChapters } : a.id === 4 ? { manga: batchTitle, chapters: [] } : { manga, chapters }; break;
           case 'start-library-update': state.updateChecks++; data = { jobsInfo: { isRunning: true, totalJobs: 1, finishedJobs: 0, skippedCategoriesCount: 0, skippedMangasCount: 0 } }; break;
           case 'library-update-status': data = { jobsInfo: { isRunning: false, totalJobs: state.updateChecks ? 1 : 0, finishedJobs: state.updateChecks ? 1 : 0, skippedCategoriesCount: 0, skippedMangasCount: 0 } }; break;
@@ -257,6 +271,24 @@ try {
   await musicBackup.locator('input[type=file]').setInputFiles({name:'music.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(musicData))});
   await musicBackup.getByRole('heading',{name:'Music restore preview',exact:true}).waitFor();
   await musicBackup.getByRole('button',{name:'Cancel music restore',exact:true}).click();
+  const mangaBackup=bootSettings.getByRole('region',{name:'Manga progress backup',exact:true});
+  const mangaExportEvent=page.waitForEvent('download');
+  await mangaBackup.getByRole('button',{name:'Export manga progress',exact:true}).click();
+  const mangaExported=await mangaExportEvent;
+  assert.equal(mangaExported.suggestedFilename(),'tsugi-manga-progress.json');
+  const mangaData=JSON.parse(await readFile(await mangaExported.path(),'utf8'));
+  assert.equal(mangaData.format,'tsugi-manga-progress');
+  const savedManga=mangaData.manga.find(row=>row.title==='Tsugi Original Fixture');
+  assert.ok(savedManga.identity);
+  assert.equal(savedManga.id,undefined);
+  savedManga.chapters=[{identity:'b'.padStart(64,'0'),name:'Chapter one',isRead:false,isBookmarked:true,lastPageRead:2,pageCount:4,lastReadAt:'100'}];
+  await mangaBackup.locator('input[type=file]').setInputFiles({name:'manga.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(mangaData))});
+  await mangaBackup.getByRole('heading',{name:'Manga restore preview',exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>window.__readerFixture.backupPage),undefined,'preview performs no writes');
+  await mangaBackup.getByRole('button',{name:'Restore matched manga progress',exact:true}).click();
+  await mangaBackup.getByText('Restored progress or bookmarks for 1 chapters. Refresh your manga library to see the changes.',{exact:true}).waitFor();
+  assert.deepEqual(await page.evaluate(()=>[window.__readerFixture.backupPage,window.__readerFixture.backupBookmarked]),[2,true]);
+
   await bootSettings.getByRole('button', { name: 'Default', exact: true }).click();
   await bootSettings.getByRole('button', { name: 'Silver', exact: true }).click();
   await bootSettings.getByRole('button', { name: 'Close', exact: true }).click();

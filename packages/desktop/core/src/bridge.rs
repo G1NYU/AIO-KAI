@@ -52,6 +52,21 @@ fn shown() -> bool {
     true
 }
 
+/// Reviewed additive restore against an exact cached chapter identity and state.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MangaProgressPatch {
+    pub identity: String,
+    pub expected_read: bool,
+    pub expected_bookmarked: bool,
+    pub expected_last_page: u32,
+    pub expected_page_count: u32,
+    pub expected_last_read_at: String,
+    pub mark_read: bool,
+    pub bookmark: bool,
+    pub page: Option<u32>,
+}
+
 /// Fixed reading operations; the page cannot send arbitrary GraphQL,
 /// local paths, upstream URLs for pages, or authentication credentials.
 #[derive(Debug, Deserialize)]
@@ -69,6 +84,8 @@ pub enum ReadAction {
     DeleteCategory { id: i32 },
     AssignCategory { manga_id: i32, category_id: i32, assigned: bool },
     CachedManga { id: i32 },
+    BackupManga { id: i32 },
+    RestoreMangaProgress { id: i32, identity: String, changes: Vec<MangaProgressPatch> },
     LibraryUpdateStatus,
     StartLibraryUpdate,
     Stores,

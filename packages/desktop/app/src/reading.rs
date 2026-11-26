@@ -298,6 +298,12 @@ fn execute(
         ReadAction::DeleteCategory { id } => reader.delete_category(id),
         ReadAction::AssignCategory { manga_id, category_id, assigned } => reader.assign_category(manga_id, category_id, assigned),
         ReadAction::CachedManga { id } => reader.cached_manga(id),
+        ReadAction::BackupManga { id } => reader.backup_manga(id),
+        ReadAction::RestoreMangaProgress { id, identity, changes } => {
+            *chapter = None;
+            if let Ok(mut cache) = cache.lock() { *cache = None; }
+            reader.restore_manga_progress(id, &identity, &changes)
+        }
         ReadAction::LibraryUpdateStatus => reader.library_update_status(),
         ReadAction::StartLibraryUpdate => reader.start_library_update(),
         ReadAction::Trackers => reader.query(ReadOperation::Trackers),

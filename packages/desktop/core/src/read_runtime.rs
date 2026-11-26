@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 
 use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
+use crate::bridge::MangaProgressPatch;
 
 const VERSION: &str = "v2.4.2373";
 const USER: &str = "tsugi-read";
@@ -1384,6 +1385,47 @@ impl ReadRuntime {
         Ok(json!({"manga": manga, "chapters": chapters}))
     }
 
+    /// Cached-only semantic backup. Hash source identities before returning
+    /// any data to the WebView; do not export raw URLs or client metadata.
+    pub fn backup_manga(&self, id: i32) -> Result<Value, &'static str> {
+        if id <= 0 { return Err("Invalid manga identifier."); }
+        let raw = self.client.document(
+            "query TsugiBackupManga($id: Int!) { manga(id: $id) { id sourceId url title inLibrary categories { nodes { id name } totalCount } chapters { nodes { id url name pageCount isRead isBookmarked lastPageRead lastReadAt } totalCount } } }",
+            "manga", json!({"id": id}))?;
+        project_manga_backup(&raw, id)
+    }
+
+    /// Recheck all reviewed identities and local state before any write.
+    /// Additive changes are grouped into upstream transactions. If a later
+    /// group fails, report only confirmed changes; never claim an atomic
+    /// cross-group restore or erase newer data to simulate rollback.
+    pub fn restore_manga_progress(&self, id: i32, identity: &str, changes: &[MangaProgressPatch]) -> Result<Value, &'static str> {
+        let snapshot = self.backup_manga(id)?;
+        let groups = reviewed_progress_groups(&snapshot, identity, changes)?;
+        let mut confirmed = 0usize;
+        for ((read, bookmark, page), ids) in groups {
+            let mut patch = json!({});
+            if read { patch["isRead"] = json!(true); }
+            if bookmark { patch["isBookmarked"] = json!(true); }
+            if let Some(page) = page { patch["lastPageRead"] = json!(page); }
+            let result = self.client.mutation(
+                "mutation TsugiRestoreProgress($input: UpdateChaptersInput!) { updateChapters(input: $input) { chapters { id isRead isBookmarked lastPageRead } } }",
+                "updateChapters", json!({"ids": ids, "patch": patch}));
+            let verified = result.ok().and_then(|value| value["chapters"].as_array().cloned())
+                .is_some_and(|rows| rows.len() == ids.len() && ids.iter().all(|id| {
+                    rows.iter().any(|row| row["id"].as_i64() == Some(*id as i64)
+                        && (!read || row["isRead"] == true)
+                        && (!bookmark || row["isBookmarked"] == true)
+                        && page.is_none_or(|value| row["lastPageRead"].as_u64() == Some(value as u64)))
+                }));
+            if !verified {
+                return Ok(json!({"confirmed": confirmed, "total": changes.len(), "complete": false}));
+            }
+            confirmed += ids.len();
+        }
+        Ok(json!({"confirmed": confirmed, "total": changes.len(), "complete": true}))
+    }
+
     pub fn save_category(&self, id: Option<i32>, name: &str) -> Result<Value, &'static str> {
         let name = name.trim();
         if name.is_empty() || name.chars().count() > 80 || name.chars().any(char::is_control)
@@ -1524,6 +1566,122 @@ impl ReadRuntime {
     }
 }
 
+
+fn backup_text(value: &Value, max: usize) -> Result<&str, &'static str> {
+    value.as_str().filter(|v| !v.trim().is_empty() && v.chars().count() <= max &&
+        !v.chars().any(char::is_control) && !v.contains("://"))
+        .ok_or("Invalid manga backup metadata.")
+}
+
+fn backup_url(value: &Value) -> Result<&str, &'static str> {
+    // The raw identity never crosses the native bridge or enters a backup.
+    value.as_str().filter(|v| !v.is_empty() && v.len() <= 16_384)
+        .ok_or("Invalid manga backup identity.")
+}
+
+fn backup_long(value: &Value) -> Result<i64, &'static str> {
+    value.as_i64().or_else(|| value.as_str().and_then(|v| v.parse::<i64>().ok()))
+        .ok_or("Invalid manga backup numeric identity.")
+}
+
+fn backup_nodes(value: &Value, max: usize) -> Result<&Vec<Value>, &'static str> {
+    let nodes = value["nodes"].as_array().ok_or("Invalid manga backup response.")?;
+    if nodes.len() > max || value["totalCount"].as_u64() != Some(nodes.len() as u64) {
+        return Err("Manga backup response was incomplete or exceeded its limit.");
+    }
+    Ok(nodes)
+}
+
+fn backup_identity(domain: &str, first: &str, second: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hash = Sha256::new();
+    for part in [domain, first, second] {
+        hash.update((part.len() as u64).to_be_bytes());
+        hash.update(part.as_bytes());
+    }
+    hash.finalize().iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn project_manga_backup(raw: &Value, id: i32) -> Result<Value, &'static str> {
+    if id <= 0 || raw["id"].as_i64() != Some(id as i64) || raw["inLibrary"] != true {
+        return Err("Manga is not in the local library.");
+    }
+    let source = backup_long(&raw["sourceId"])?.to_string();
+    let identity = backup_identity("tsugi-manga-v1", &source, backup_url(&raw["url"])?);
+    let title = backup_text(&raw["title"], 500)?;
+    let mut categories = Vec::new();
+    for category in backup_nodes(&raw["categories"], 100)? {
+        let category_id = category["id"].as_i64().ok_or("Invalid manga category.")?;
+        if category_id < 0 { return Err("Invalid manga category."); }
+        if category_id > 0 { categories.push(backup_text(&category["name"], 80)?); }
+    }
+    categories.sort_unstable();
+    categories.dedup();
+
+    let mut chapters = Vec::new();
+    let mut ids = std::collections::HashSet::new();
+    let mut identities = std::collections::HashSet::new();
+    for chapter in backup_nodes(&raw["chapters"], 10_000)? {
+        let chapter_id = chapter["id"].as_i64().filter(|v| *v > 0 && *v <= i32::MAX as i64)
+            .ok_or("Invalid backup chapter identifier.")?;
+        let chapter_identity = backup_identity("tsugi-chapter-v1", &identity, backup_url(&chapter["url"])?);
+        if !ids.insert(chapter_id) || !identities.insert(chapter_identity.clone()) {
+            return Err("Duplicate chapter identity prevents a safe backup.");
+        }
+        let read = chapter["isRead"].as_bool().ok_or("Invalid chapter read state.")?;
+        let bookmarked = chapter["isBookmarked"].as_bool().ok_or("Invalid chapter bookmark.")?;
+        let page = chapter["lastPageRead"].as_u64().filter(|v| *v <= i32::MAX as u64)
+            .ok_or("Invalid chapter progress.")?;
+        let count = chapter["pageCount"].as_u64().filter(|v| *v <= i32::MAX as u64)
+            .ok_or("Invalid chapter page count.")?;
+        let last_read = backup_long(&chapter["lastReadAt"])?;
+        if last_read < 0 { return Err("Invalid chapter history."); }
+        chapters.push(json!({
+            "id": chapter_id, "identity": chapter_identity,
+            "name": backup_text(&chapter["name"], 500)?,
+            "isRead": read, "isBookmarked": bookmarked,
+            "lastPageRead": page, "pageCount": count, "lastReadAt": last_read.to_string()
+        }));
+    }
+    Ok(json!({"id": id, "identity": identity, "sourceId": source, "title": title,
+        "categories": categories, "chapters": chapters}))
+}
+
+type MangaPatchGroups = std::collections::BTreeMap<(bool, bool, Option<u32>), Vec<i32>>;
+
+fn reviewed_progress_groups(snapshot: &Value, identity: &str, changes: &[MangaProgressPatch]) -> Result<MangaPatchGroups, &'static str> {
+    if snapshot["identity"].as_str() != Some(identity) || changes.is_empty() || changes.len() > 2000 {
+        return Err("Invalid or changed manga restore preview.");
+    }
+    let chapters = snapshot["chapters"].as_array().ok_or("Invalid manga snapshot.")?;
+    let by_identity: std::collections::HashMap<_, _> = chapters.iter()
+        .filter_map(|chapter| chapter["identity"].as_str().map(|key| (key, chapter))).collect();
+    let mut used = std::collections::HashSet::new();
+    let mut groups = MangaPatchGroups::new();
+    for change in changes {
+        if !used.insert(change.identity.as_str()) { return Err("Duplicate restore chapter."); }
+        let chapter = by_identity.get(change.identity.as_str()).ok_or("Restore chapter no longer matches.")?;
+        if chapter["isRead"].as_bool() != Some(change.expected_read)
+            || chapter["isBookmarked"].as_bool() != Some(change.expected_bookmarked)
+            || chapter["lastPageRead"].as_u64() != Some(change.expected_last_page as u64)
+            || chapter["pageCount"].as_u64() != Some(change.expected_page_count as u64)
+            || chapter["lastReadAt"].as_str() != Some(change.expected_last_read_at.as_str()) {
+            return Err("Reading progress changed since the preview.");
+        }
+        if (!change.mark_read && !change.bookmark && change.page.is_none())
+            || (change.mark_read && change.expected_read)
+            || (change.bookmark && change.expected_bookmarked)
+            || change.page.is_some_and(|page| change.expected_read || change.mark_read
+                || page <= change.expected_last_page || page >= change.expected_page_count) {
+            return Err("Restore would overwrite or exceed existing progress.");
+        }
+        let id = chapter["id"].as_i64().and_then(|v| i32::try_from(v).ok())
+            .filter(|v| *v > 0).ok_or("Invalid restore chapter.")?;
+        groups.entry((change.mark_read, change.bookmark, change.page)).or_default().push(id);
+    }
+    Ok(groups)
+}
+
 impl ReadRuntime {
     /// Closing the private stdin pipe requests normal JVM shutdown. Suwayomi
     /// registers a hook that closes HikariCP. A timeout is a failure, even if
@@ -1568,6 +1726,46 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::{Arc, atomic::{AtomicBool, AtomicUsize, Ordering}};
     use std::thread::JoinHandle;
+
+
+    fn backup_fixture() -> Value {
+        json!({"id": 7, "sourceId": "-9223372036854775808", "url": "https://private.example/secret",
+            "title": "Original fixture", "inLibrary": true, "thumbnailUrl": "https://private.example/art",
+            "categories": {"nodes": [{"id": 1, "name": "Reading"}], "totalCount": 1},
+            "chapters": {"nodes": [{"id": 9, "url": "https://private.example/chapter-token", "name": "Chapter 1",
+                "pageCount": 20, "lastPageRead": 2, "isRead": false, "isBookmarked": false, "lastReadAt": "12"}], "totalCount": 1}})
+    }
+
+    #[test]
+    fn backup_projection_hides_raw_urls_and_preserves_long_source_identity() {
+        let raw = backup_fixture();
+        let snapshot = project_manga_backup(&raw, 7).unwrap();
+        assert_eq!(snapshot["sourceId"], "-9223372036854775808");
+        assert_eq!(snapshot["chapters"][0]["lastReadAt"], "12");
+        assert_eq!(snapshot["identity"].as_str().unwrap().len(), 64);
+        assert!(!snapshot.to_string().contains("private.example"));
+        let mut incomplete = raw.clone();
+        incomplete["chapters"]["totalCount"] = json!(2);
+        assert!(project_manga_backup(&incomplete, 7).is_err());
+    }
+
+    #[test]
+    fn restore_groups_require_exact_identity_and_non_destructive_progress() {
+        let snapshot = project_manga_backup(&backup_fixture(), 7).unwrap();
+        let identity = snapshot["identity"].as_str().unwrap();
+        let mut patch: MangaProgressPatch = serde_json::from_value(json!({
+            "identity": snapshot["chapters"][0]["identity"], "expectedRead": false, "expectedBookmarked": false,
+            "expectedLastPage": 2, "expectedPageCount": 20, "expectedLastReadAt": "12",
+            "markRead": false, "bookmark": true, "page": 5
+        })).unwrap();
+        assert_eq!(reviewed_progress_groups(&snapshot, identity, std::slice::from_ref(&patch)).unwrap()
+            .get(&(false, true, Some(5))).unwrap(), &vec![9]);
+        patch.page = Some(2);
+        assert!(reviewed_progress_groups(&snapshot, identity, std::slice::from_ref(&patch)).is_err());
+        patch.page = Some(5);
+        patch.expected_last_read_at = "13".to_owned();
+        assert!(reviewed_progress_groups(&snapshot, identity, std::slice::from_ref(&patch)).is_err());
+    }
 
     // Exercise the real kernel job without third-party executables or network.
     // The test subprocess waits for the same byte as the JVM launcher.

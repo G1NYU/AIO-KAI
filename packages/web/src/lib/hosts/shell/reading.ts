@@ -1,11 +1,18 @@
 import { t } from '@lingui/core/macro';
 import { appBridge, ask } from './bridge';
 
+export type MangaProgressPatch = {
+  identity:string; expectedRead:boolean; expectedBookmarked:boolean;
+  expectedLastPage:number; expectedPageCount:number; expectedLastReadAt:string;
+  markRead:boolean; bookmark:boolean; page?:number;
+};
+
 export type ReadAction =
   | { kind: 'prepare' | 'status' | 'sources' | 'library' | 'history' | 'updates' | 'categories' | 'library-update-status' | 'start-library-update' | 'stores' | 'refresh-extensions' | 'trackers' }
   | { kind: 'library-page'; offset: number }
   | { kind: 'save-category'; id?: number; name: string }
-  | { kind: 'delete-category' | 'cached-manga'; id: number }
+  | { kind: 'delete-category' | 'cached-manga' | 'backup-manga'; id: number }
+  | { kind: 'restore-manga-progress'; id:number; identity:string; changes:MangaProgressPatch[] }
   | { kind: 'assign-category'; mangaId: number; categoryId: number; assigned: boolean }
   | { kind: 'add-store' | 'remove-store'; index: string }
   | { kind: 'extensions'; offset: number; query?: string; store?: string; language?: string; installed?: boolean }
