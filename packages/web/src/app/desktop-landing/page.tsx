@@ -2,7 +2,7 @@ import React from 'react';
 import { UpNext } from './up-next';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiClock, FiSettings } from 'react-icons/fi';
+import { FiClock, FiPlay, FiSettings } from 'react-icons/fi';
 import { TsugiBrand, TsugiMediaIcon } from '@/components/tsugi-brand';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { FirstBootAppearance } from './first-boot-appearance';
@@ -13,6 +13,7 @@ export function DesktopLandingPage({ openVideo, openMusic, openRead, openVault }
 }) {
   const desktopArea = useDesktopArea();
   const [upNextOpen, setUpNextOpen] = React.useState(false);
+  const [introRevisit,setIntroRevisit]=React.useState(0);
   const sections = [
     { id: 'video' as const, label: t({ id: "Movies & TV", message: "Movies & TV" }), open: openVideo },
     { id: 'music' as const, label: t({ id: "Music", message: "Music" }), open: openMusic },
@@ -20,9 +21,10 @@ export function DesktopLandingPage({ openVideo, openMusic, openRead, openVault }
     ...(openVault ? [{ id: 'vault' as const, label: t({ id: 'Vault', message: 'Vault' }), open: openVault }] : []),
   ];
   return <main data-page="desktop-landing" className="tsugi-landing tsugi-index">
-    {openVault && <FirstBootAppearance />}
+    {openVault && <FirstBootAppearance revisit={introRevisit} />}
     {desktopArea?.openResume && <UpNext open={upNextOpen} onClose={()=>setUpNextOpen(false)}/>}
     <header className="tsugi-index-header">
+      {openVault && <button type="button" className="tsugi-category-link" onClick={()=>setIntroRevisit(value=>value+1)}><FiPlay aria-hidden/><Trans id="Introduction">Introduction</Trans></button>}
       {desktopArea?.openResume && <button type="button" className="tsugi-category-link" onClick={()=>setUpNextOpen(true)}><FiClock aria-hidden/><Trans>Up next</Trans></button>}
       {desktopArea && <button type="button" className="tsugi-category-link" onClick={desktopArea.openSettings}><FiSettings aria-hidden /><Trans id="App settings">App settings</Trans></button>}
     </header>

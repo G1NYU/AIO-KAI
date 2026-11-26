@@ -80,7 +80,7 @@ Baseline: [official v0.1.0](https://github.com/G1NYU/TSUGI/releases/tag/v0.1.0);
 | C3 | P2 | Connections, privacy and diagnostics | Partial: safe support preview/copy and optional cross-media Discord presence implemented; registered TSUGI Application ID, live presence acceptance, full log export, lock and background controls remain |
 | D1 | Later | AI stories in Books and Manga | Requested 2026-11-26: refreshable, automatically curated YouTube stories with in-app listening/watching; planned only |
 | D2 | Later | TorBox cached music discovery and Eclipse source | Requested 2026-11-26: evaluate Debrify, Debrid Media Manager and Debrid Vault as discovery references/integrations; planned only, API and addon compatibility investigation required |
-| D3 | Later | Anime introduction and welcome experience | Requested 2026-11-26: polished, expressive anime presentation in the established TSUGI design language; planned only |
+| D3 | Later | Anime introduction and welcome experience | Implemented: offline illustrated introduction with existing appearance controls, skip/revisit and reduced-motion behavior; browser acceptance pending |
 | D4 | Later | Direct Stremio addon support | Requested 2026-11-26: install and use compatible Stremio addons directly, without requiring AIOStreams; planned only |
 | D5 | Later | Refract and MDBList integration | Requested 2026-11-26: build on the user's RE-Harbor Refract work and supported MDBList interfaces; planned only |
 
@@ -223,7 +223,7 @@ Acceptance: artist/album/track discovery with useful metadata; cache-hit/miss an
 - Make the first encounter feel cinematic while keeping the next action obvious: enter the app, choose a media space or continue its setup. Preserve direct access to local media and existing provider connections. Use genuine application capabilities and state rather than decorative controls that do nothing.
 - Keep the sequence brief and skippable, respect the saved startup destination, and let returning users reach their content promptly. Offer a static or reduced-motion presentation and a way to revisit the introduction. Bundle a complete offline presentation so provider availability does not block startup.
 
-Acceptance: first-run and returning-user paths, skip/revisit, startup-area preference, narrow/short windows, keyboard access, reduced motion, offline startup and artwork/font loading. The introduction must not delay engine readiness or cause playback, account linking or network setup without a corresponding action. This is a later design and implementation task; the current Windows candidate is unchanged.
+Acceptance: first-run and returning-user paths, skip/revisit, startup-area preference, narrow/short windows, keyboard access, reduced motion, offline startup and artwork/font loading. The introduction must not delay engine readiness or cause playback, account linking or network setup without a corresponding action. The illustrated introduction is now implemented using bundled anime artwork, a brief optional CSS entrance, immediate appearance controls and an Introduction action on the existing media index. The clean returning-user launcher and startup-area preference are retained. Browser acceptance is pending; the previously distributed Windows candidate is unchanged.
 
 ## D4 — Direct Stremio addons without AIOStreams (later)
 

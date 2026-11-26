@@ -3255,3 +3255,50 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 .tsugi-up-next-actions { display:flex; gap:6px; flex:none; }
 .tsugi-up-next-note { margin-top:14px; }
 @media(max-width:520px) { .tsugi-up-next-row { align-items:flex-start; flex-direction:column; gap:8px; } }
+
+
+/* Offline cinematic introduction. The returning-user media index intentionally
+   keeps its established clean composition; no delayed startup or auto-play. */
+:root[data-host='desktop'] .tsugi-onboarding {
+  width:min(1040px,94vw); max-height:88vh; padding:0;
+}
+:root[data-host='desktop'] .tsugi-onboarding[open] {
+  display:grid; grid-template-columns:minmax(0,.88fr) minmax(0,1.12fr);
+}
+.tsugi-intro-art {
+  position:relative; min-height:360px; overflow:hidden;
+  background:var(--tsugi-surface); isolation:isolate;
+}
+.tsugi-intro-art > img {
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+  object-position:48% center;
+}
+.tsugi-intro-art-shade {
+  position:absolute; inset:0; background:linear-gradient(180deg,transparent 35%,rgba(9,10,15,.15) 55%,rgba(9,10,15,.88) 100%);
+}
+.tsugi-intro-art-signature {
+  position:absolute; bottom:28px; left:28px; color:#fff;
+  --tsugi-ink:#fff; --tsugi-muted:#e8e8ec;
+}
+.tsugi-intro-art-signature .tsugi-brand-wordmark { width:108px; }
+.tsugi-intro-content { min-width:0; padding:clamp(20px,3vw,34px); }
+.tsugi-intro-content header { border-bottom:0; padding-bottom:10px; }
+.tsugi-onboarding[open] .tsugi-intro-art > img {
+  animation:tsugi-intro-arrive 900ms cubic-bezier(.2,.7,.3,1) both;
+}
+@keyframes tsugi-intro-arrive { from { opacity:.5; transform:scale(1.045); } to { opacity:1; transform:scale(1); } }
+@media(max-width:760px) {
+  :root[data-host='desktop'] .tsugi-onboarding[open] { grid-template-columns:minmax(0,1fr); }
+  .tsugi-intro-art { min-height:0; height:clamp(100px,23vh,220px); }
+  .tsugi-intro-art-signature { bottom:12px; left:16px; }
+  .tsugi-intro-art-signature .tsugi-brand-wordmark { width:72px; }
+}
+@media(max-height:520px) {
+  .tsugi-intro-art { min-height:0; }
+}
+@media(max-width:460px) {
+  :root[data-host='desktop'] .tsugi-index-header { flex-wrap:wrap; gap:6px; justify-content:center; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .tsugi-onboarding[open] .tsugi-intro-art > img { animation:none; }
+}

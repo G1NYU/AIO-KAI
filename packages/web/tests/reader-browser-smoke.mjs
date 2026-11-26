@@ -302,6 +302,11 @@ try {
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).waitFor();
   const onboarding = page.locator('[data-ui="tsugi-onboarding"]');
   await onboarding.waitFor({ state: 'visible' });
+  await onboarding.locator('.tsugi-intro-art img').evaluate(image=>image.decode());
+  assert.ok(await onboarding.locator('.tsugi-intro-art img').evaluate(image=>image.naturalWidth>0));
+  await page.emulateMedia({reducedMotion:'reduce'});
+  assert.equal(await onboarding.locator('.tsugi-intro-art img').evaluate(image=>getComputedStyle(image).animationName),'none');
+  await page.emulateMedia({reducedMotion:'no-preference'});
   assert.equal(await onboarding.evaluate(node => getComputedStyle(node).borderRadius), '14px');
   assert.equal(await onboarding.locator('.tsugi-global-swatch').first().evaluate(node => getComputedStyle(node).borderRadius), '6px');
   await onboarding.getByRole('button', { name: 'Mocha', exact: true }).click();
@@ -314,6 +319,13 @@ try {
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).waitFor();
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'mocha' && document.documentElement.dataset.tsugiAccent === 'blue');
   assert.equal(await onboarding.isVisible(), false, 'onboarding does not reopen after completion');
+  await landing.getByRole('button', { name: 'Introduction', exact: true }).click();
+  await onboarding.waitFor({ state: 'visible' });
+  await page.setViewportSize({ width:440, height:500 });
+  assert.ok(await onboarding.evaluate(node=>node.scrollWidth<=node.clientWidth+1),'compact introduction does not overflow horizontally');
+  await onboarding.getByRole('button',{name:'Skip for now',exact:true}).click();
+  await onboarding.waitFor({state:'hidden'});
+  await page.setViewportSize({ width:1440,height:900 });
   await landing.getByRole('button', { name: 'App settings', exact: true }).click();
   const bootSettings = page.getByRole('dialog');
   assert.equal(await bootSettings.getByLabel('Default visualizer').inputValue(),'wave');

@@ -1261,3 +1261,9 @@ C1 run `45901081803` passed Windows native and WebView2 checks and web typecheck
 C2: reviewed persistent Vault audio copies (SHA-256 content deduplication, bounded local storage, atomic IndexedDB writes, independent retry, restart replay and explicit removal without touching the original download). Audio metadata/duration probe, not full-file decode validation; automatic handoff, CBZ and portable audio bytes remain open. C1 explicit reader translation IDs corrected after the diagnosed guard failure. C2 native Windows unaffected; browser and unit validation required.
 
 Validation: prior Windows job [140187802145](https://github.com/G1NYU/TSUGI/actions/runs/45901409476/job/140187802145) passed; prior web failure was the C1 reader explicit-ID guard, fixed here. New C2 CI not yet run. No release publication. Next: check cumulative CI, continue D3, then remaining recovery/reader/library and D1–D5 dependencies.
+
+## 2026-11-26 — Illustrated first-launch experience (D3)
+
+- Added offline anime illustration, existing TSUGI brush wordmark, short CSS entry motion, reduced-motion support and responsive introduction layout. Retained live theme/accent controls, immediate skip/enter, and a revisit button. Returning startup destination and clean media index remain unchanged. No provider/network dependency or automatic media playback.
+- Extended actual browser smoke for bundled art decoding, reduced motion, revisit and compact viewport. C2 CI typecheck passed but lint flagged the non-user-facing abort exception text; removed it without changing cancellation semantics. Windows gate still running at time of preparation. Neither a new package nor a release was triggered.
+- Next: cumulative web and native CI, remaining A1/A2/B/C acceptance, D1/D2/D4/D5 integration work.

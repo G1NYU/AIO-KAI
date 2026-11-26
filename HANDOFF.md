@@ -1,3 +1,9 @@
+## 2026-11-26 — Illustrated first-launch experience (D3)
+
+- Added offline anime illustration, existing TSUGI brush wordmark, short CSS entry motion, reduced-motion support and responsive introduction layout. Retained live theme/accent controls, immediate skip/enter, and a revisit button. Returning startup destination and clean media index remain unchanged. No provider/network dependency or automatic media playback.
+- Extended actual browser smoke for bundled art decoding, reduced motion, revisit and compact viewport. C2 CI typecheck passed but lint flagged the non-user-facing abort exception text; removed it without changing cancellation semantics. Windows gate still running at time of preparation. Neither a new package nor a release was triggered.
+- Next: cumulative web and native CI, remaining A1/A2/B/C acceptance, D1/D2/D4/D5 integration work.
+
 ## 2026-11-26 — Persistent Vault audio handoff (C2)
 
 C2: reviewed persistent Vault audio copies (SHA-256 content deduplication, bounded local storage, atomic IndexedDB writes, independent retry, restart replay and explicit removal without touching the original download). Audio metadata/duration probe, not full-file decode validation; automatic handoff, CBZ and portable audio bytes remain open. C1 explicit reader translation IDs corrected after the diagnosed guard failure. C2 native Windows unaffected; browser and unit validation required.

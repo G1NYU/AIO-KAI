@@ -7,9 +7,13 @@ import { storage } from '@/lib/storage';
 const key = 'tsugi-onboarding-complete-v1';
 let completedInSession = false;
 
-export function FirstBootAppearance() {
+export function FirstBootAppearance({revisit=0}:{revisit?:number}) {
   const [open, setOpen] = React.useState(() => !completedInSession && storage.get<boolean>(key) !== true);
   const dialog = React.useRef<HTMLDialogElement>(null);
+  const lastRevisit = React.useRef(revisit);
+  React.useEffect(() => {
+    if(revisit!==lastRevisit.current){lastRevisit.current=revisit;setOpen(true);}
+  },[revisit]);
   React.useEffect(() => {
     const node = dialog.current;
     if (open && node && !node.open) node.showModal();
@@ -22,10 +26,16 @@ export function FirstBootAppearance() {
     setOpen(false);
   }
   return <dialog ref={dialog} className="tsugi-global-settings tsugi-onboarding" data-ui="tsugi-onboarding" aria-labelledby="tsugi-onboarding-title" onCancel={event => { event.preventDefault(); finish(); }}>
+    <div className="tsugi-intro-art" aria-hidden="true">
+      <img src="/design/shared/hero-train.webp" alt="" decoding="async"/>
+      <div className="tsugi-intro-art-shade"/>
+      <div className="tsugi-intro-art-signature"><TsugiBrand /></div>
+    </div>
+    <div className="tsugi-intro-content">
     <header>
       <div className="tsugi-onboarding-title">
         <TsugiBrand markOnly />
-        <div><h2 id="tsugi-onboarding-title"><Trans>Make Tsugi yours</Trans></h2><p><Trans>Choose how your workspace looks before you start.</Trans></p></div>
+        <div><h2 id="tsugi-onboarding-title"><Trans>Make Tsugi yours</Trans></h2><p><Trans>Movies, music, stories and downloads — one space for what you love.</Trans></p></div>
       </div>
     </header>
     <GlobalAppearanceSettings />
@@ -36,5 +46,6 @@ export function FirstBootAppearance() {
         <button type="button" className="tsugi-read-action tsugi-series-primary" onClick={finish}><Trans>Enter Tsugi</Trans></button>
       </div>
     </footer>
+    </div>
   </dialog>;
 }

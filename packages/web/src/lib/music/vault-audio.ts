@@ -73,7 +73,7 @@ function metadataDuration(file: File, signal: AbortSignal): Promise<number> {
       audio.removeAttribute('src');
       audio.load();
       URL.revokeObjectURL(url);
-      if (signal.aborted) reject(signal.reason ?? new DOMException('Aborted','AbortError'));
+      if (signal.aborted) reject(signal.reason ?? new DOMException('', 'AbortError'));
       else if (validDuration(value)) resolve(value);
       else reject(new Error('unsupported-vault-audio'));
     }
