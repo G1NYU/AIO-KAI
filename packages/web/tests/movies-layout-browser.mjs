@@ -136,6 +136,14 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
     assert.ok(settings.content.width <= 1016, 'Settings labels and controls stay within a bounded panel');
     await capture('41-movies-settings-bounded');
     console.log('PASS: real Movies settings retain a240px index, bounded detail column and native titlebar clearance.');
+    const aboutTab = settingsPage().locator('[data-ui="settings-tab"][data-name="about"]');
+    await aboutTab.scrollIntoViewIfNeeded();
+    await aboutTab.click();
+    assert.equal(await settingsPage().locator('[data-ui="settings-tab"] > span').count(), 0, 'settings scroll does not leave a sliding rounded marker over other categories');
+    assert.equal(await aboutTab.getAttribute('data-state'), 'active', 'selected category stays attached to its own row');
+    await settingsPage().locator('[data-ui="settings-tab"][data-name="theme"]').click();
+    assert.equal(await settingsPage().locator('[data-ui="settings-tab"] > span').count(), 0, 'selection remains static after scrolling between categories');
+    console.log('PASS: Movies Settings category selection remains stable during sidebar scrolling.');
 
     for (const [destination, surface] of [['music', '.tsugi-music-root'], ['read', '.tsugi-read-root'], ['vault', '.tsugi-vault-root']]) {
       await sidebar().locator('[data-ui="movie-media-switch"]').click();

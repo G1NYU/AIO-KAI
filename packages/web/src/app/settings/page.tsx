@@ -489,11 +489,10 @@ function WideSettings({
   onQuery,
   onDonate,
 }: SettingsProps & { active: Section }) {
-  // With no marker sliding, the tabs keep the usual focus mark.
+  // The settings index scrolls independently, so its selected state stays static.
   const still = useReducedMotion();
   // Built in the background, so a key can cut short a section still building.
   const shown = React.useDeferredValue(active.id);
-  const [focused, setFocused] = React.useState<string | null>(null);
   const searching = words.length > 0;
   const open = (id: string) => {
     onQuery('');
@@ -510,17 +509,16 @@ function WideSettings({
         value={searching ? '' : shown}
         onValueChange={open}
         activationMode="manual"
-        marked={focused ?? undefined}
+        animated={false}
         variant="pill"
         className="grid w-full grid-cols-[240px,minmax(0,1fr)] gap-6"
         triggerClass={cn(
           'h-9 w-full justify-start rounded-lg border-0 px-3 text-base',
           'data-[state=active]:bg-[--subtle] data-[state=active]:text-white dark:hover:text-white',
           'transition duration-200 hover:bg-white/[0.03] focus-visible:ring-0 focus-visible:ring-offset-0',
+          'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[--ring]',
           'motion-reduce:[[data-tv]_&]:focus-visible:bg-white/20'
         )}
-        // The sliding marker carries the focus mark, so the two move together.
-        indicatorClass="group-focus-visible:outline group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-[--ring] [[data-tv]_&]:group-focus-visible:bg-white/20 [[data-tv]_&]:group-focus-visible:outline-none [html[data-pointer-focus]_&]:!outline-none"
         listClass="block h-fit w-full space-y-3"
       >
         <div
@@ -557,11 +555,9 @@ function WideSettings({
                     data-focus={still && !currentHost().tv ? undefined : 'own'}
                     className="group"
                     onFocus={() => {
-                      setFocused(s.id);
                       // Results stay up while focus passes the tabs to reach them.
                       if (!searching) open(s.id);
                     }}
-                    onBlur={() => setFocused(null)}
                   >
                     <s.icon className="me-3 text-xl transition-transform duration-200 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5" />
                     {s.label}
