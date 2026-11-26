@@ -569,3 +569,14 @@
   .yomi-workspace .tsugi-manga-card .tsugi-manga-cover { transition:none; }
   .yomi-workspace .tsugi-manga-card:hover:not(:disabled) .tsugi-manga-cover { transform:none; }
 }
+
+/* Subtle state indicator, not a decorative section separator. */
+.yomi-workspace .tsugi-reading-unread-dot {
+  display: inline-block;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-inline-start: auto;
+  border-radius: 50%;
+  background: var(--tsugi-accent, #ef7e67);
+}

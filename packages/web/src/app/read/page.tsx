@@ -257,6 +257,19 @@ export function ReadPage({ visible }: {
     void run(loadLibrary);
     return () => { active.current = false; openGeneration.current++; };
   }, []);
+  // Keep the Chapter updates indicator current without marking chapters read.
+  // The reader service owns the unread count; failed refreshes leave the last
+  // confirmed value intact, and stale responses cannot overwrite newer state.
+  React.useEffect(() => {
+    if (!visible || !library || details || reader || busy) return;
+    let cancelled = false;
+    void readRequest<Nodes<Activity>>({ kind: 'updates' }).then(result => {
+      if (!cancelled && active.current && Number.isSafeInteger(result.totalCount) && result.totalCount >= 0) {
+        setUpdates(result);
+      }
+    }).catch(() => { /* Preserve the last confirmed count on transient errors. */ });
+    return () => { cancelled = true; };
+  }, [visible, library, details, reader, busy]);
   React.useEffect(() => {
     const imported = () => setImportRevision(value => value + 1);
     window.addEventListener('tsugi-reader-imported', imported);
@@ -462,6 +475,7 @@ export function ReadPage({ visible }: {
     onSaved={(index, finished) => setDetails((old) => old ? { ...old, chapters: old.chapters.map((chapter) =>
       chapter.id === reader.chapter.id ? { ...chapter, lastPageRead: index, isRead: chapter.isRead || finished } : chapter) } : old)} />;
 
+  const unreadUpdates = updates && Number.isSafeInteger(updates.totalCount) ? Math.max(0, updates.totalCount) : 0;
   const tabs = [
     { id: 'library' as const, label: t({ id: "Library", message: "Library" }), Icon: FiBookOpen },
     { id: 'history' as const, label: t({ id: "History", message: "History" }), Icon: FiClock },
@@ -506,7 +520,7 @@ export function ReadPage({ visible }: {
       <nav className="tsugi-rail-local" aria-label={t({ id: "Reading sections", message: "Reading sections" })}>
         {desktopArea?.openBooks && <><span className="tsugi-reading-rail-label"><Trans id="Read">Read</Trans></span><button type="button" disabled={busy} onClick={desktopArea.openBooks} aria-label={t({ id: "Books", message: "Books" })} title={t({ id: "Books", message: "Books" })}><FiBookOpen aria-hidden/><Trans id="Books">Books</Trans></button><div className="tsugi-pixel-rule" aria-hidden="true"/></>}
         <span className="tsugi-reading-rail-label"><Trans id="Collection">Collection</Trans></span>
-        {tabs.map(({ id, label, Icon }) => <button key={id} aria-label={label} title={label} aria-current={tab === id ? 'page' : undefined} disabled={busy} onClick={() => switchTab(id)}><Icon aria-hidden />{label}</button>)}
+        {tabs.map(({ id, label, Icon }) => <button key={id} aria-label={id === 'updates' && unreadUpdates > 0 ? `${label} (${unreadUpdates})` : label} title={label} aria-current={tab === id ? 'page' : undefined} disabled={busy} onClick={() => switchTab(id)}><Icon aria-hidden />{label}{id === 'updates' && unreadUpdates > 0 && <span className="tsugi-reading-unread-dot" aria-hidden="true" />}</button>)}
         <div className="tsugi-pixel-rule" aria-hidden="true" />
         <span className="tsugi-reading-rail-label"><Trans id="Discover">Discover</Trans></span>
         <button title={t({ id: "Browse", message: "Browse" })} aria-current={tab === 'browse' && browseTab === 'sources' ? 'page' : undefined} disabled={busy} onClick={() => switchBrowse('sources')}><FiCompass aria-hidden /><Trans id="Browse">Browse</Trans></button>
