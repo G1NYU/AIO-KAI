@@ -22,8 +22,8 @@ import { moveUpcoming, removeUpcoming, clearUpcoming } from '@/lib/music/queue';
 import { MusicLibrary } from './library';
 import { useRememberedMusicFolder } from './use-remembered-folder';
 import {
-  createLocalEqualizer, readAudioProfile, saveAudioProfile,
-  setLocalEqualizer, nativeDspMode, type AudioProfile, type LocalEqualizer,
+  createBrowserAudioGraph, readAudioProfile, saveAudioProfile,
+  setBrowserEqualizer, nativeDspMode, type AudioProfile, type BrowserAudioGraph,
 } from '@/lib/music/audio-profiles';
 import {
   findLocalPlaylistMatch,
@@ -38,6 +38,9 @@ import type { TrendingRecording } from '@/lib/music/discovery';
 import { makeRecentPlay, mergeRecentPlays, readRecentPlays, storeRecentPlays, type RecentMusicPlay } from '@/lib/music/history';
 
 const SAVED_PLAYLIST_ID = 'tsugi-saved-tracks';
+type BrowserAudioMode = 'local' | 'cors' | 'direct';
+type BrowserPlayback = { request: number; mode: BrowserAudioMode; ready: boolean; autoPlay: boolean };
+type BrowserSession = { request: number; mode: BrowserAudioMode; shouldPlay: boolean; resumeAt: number | null };
 
 /** Music lives outside the AIOStreams/Jellyfin session. */
 export function MusicPage({
@@ -123,8 +126,11 @@ export function MusicPage({
   const [audioProfile, setAudioProfile] = React.useState<AudioProfile>(readAudioProfile);
   const [eqEnabled, setEqEnabled] = React.useState(false);
   const [eqError, setEqError] = React.useState('');
-  const eqGraph = React.useRef<LocalEqualizer | null>(null);
+  const eqGraph = React.useRef<BrowserAudioGraph | null>(null);
+  const graphResume = React.useRef<{ graph: BrowserAudioGraph; timer: ReturnType<typeof setTimeout> } | null>(null);
   const [matrixAnalyser, setMatrixAnalyser] = React.useState<AnalyserNode | null>(null);
+  const [browserPlayback, setBrowserPlayback] = React.useState<BrowserPlayback | null>(null);
+  const browserSession = React.useRef<BrowserSession | null>(null);
   const [matrixWanted, setMatrixWanted] = React.useState(false);
   const [nativeMeterAvailable, setNativeMeterAvailable] = React.useState(false);
   const nativeMeter = React.useRef<{ level: number; at: number } | null>(null);
@@ -139,6 +145,94 @@ export function MusicPage({
   const volumeRef = React.useRef(volume);
   volumeRef.current = volume;
   const generation = React.useRef(0);
+
+  function disposeBrowserGraph() {
+    if (graphResume.current) clearTimeout(graphResume.current.timer);
+    graphResume.current = null;
+    const graph = eqGraph.current;
+    eqGraph.current = null;
+    if (!graph) return;
+    graph.source.disconnect();
+    graph.filters.forEach(filter => filter.disconnect());
+    graph.analyser.disconnect();
+    void graph.context.close().catch(() => {});
+  }
+
+  function clearBrowserAudio() {
+    browserSession.current = null;
+    const element = audioRef.current;
+    if (element) { element.pause(); element.removeAttribute('src'); element.load(); }
+    disposeBrowserGraph();
+    setMatrixAnalyser(null);
+    setBrowserPlayback(null);
+    setStreamUrl('');
+  }
+
+  function startBrowserAudio(url: string, request: number, mode: 'local' | 'cors') {
+    browserSession.current = { request, mode, shouldPlay: true, resumeAt: null };
+    setBrowserPlayback({ request, mode, ready: false, autoPlay: true });
+    setStreamUrl(url);
+  }
+
+  function currentBrowserSession(element: HTMLAudioElement): BrowserSession | null {
+    const session = browserSession.current;
+    return audioRef.current === element && session?.request === playbackRequest.current
+      && element.dataset.audioMode === session.mode && element.dataset.audioRequest === String(session.request) ? session : null;
+  }
+
+  function fallbackBrowserAudio(element: HTMLAudioElement): boolean {
+    const session = currentBrowserSession(element);
+    if (!session || session.mode === 'direct') return false;
+    const resumeAt = Number.isFinite(element.currentTime) ? Math.max(0, element.currentTime) : null;
+    // A media element stays owned by its AudioContext even after disconnection.
+    // A different React key creates an untouched element for direct playback.
+    browserSession.current = { ...session, mode: 'direct', resumeAt };
+    element.pause();
+    element.removeAttribute('src');
+    element.load();
+    disposeBrowserGraph();
+    setMatrixAnalyser(null);
+    setBrowserPlayback({ request: session.request, mode: 'direct', ready: false, autoPlay: session.shouldPlay });
+    setPlayError('');
+    return true;
+  }
+
+  function resumeBrowserGraph(graph: BrowserAudioGraph) {
+    if (eqGraph.current !== graph || !currentBrowserSession(graph.element)) return;
+    if (graph.context.state === 'running') {
+      if (graphResume.current?.graph === graph) {
+        clearTimeout(graphResume.current.timer);
+        graphResume.current = null;
+      }
+      setMatrixAnalyser(graph.analyser);
+      return;
+    }
+    if (graphResume.current?.graph === graph) return;
+    const fail = () => {
+      if (eqGraph.current !== graph || !currentBrowserSession(graph.element)) return;
+      setEqError(t`Audio analysis could not be initialized on this device.`);
+      fallbackBrowserAudio(graph.element);
+    };
+    // A suspended context must not leave otherwise playable audio silent.
+    const timer = setTimeout(fail, 2000);
+    graphResume.current = { graph, timer };
+    try {
+      void graph.context.resume().then(() => {
+        if (graphResume.current?.graph !== graph) return;
+        clearTimeout(timer);
+        graphResume.current = null;
+        if (eqGraph.current !== graph || !currentBrowserSession(graph.element)) return;
+        if (graph.context.state === 'running') setMatrixAnalyser(graph.analyser);
+        else fail();
+      }).catch(fail);
+    } catch { fail(); }
+  }
+
+  function restoreBrowserPosition(element: HTMLAudioElement, session: BrowserSession) {
+    if (session.resumeAt === null) return;
+    const at = Number.isFinite(element.duration) ? Math.min(session.resumeAt, element.duration) : session.resumeAt;
+    try { element.currentTime = at; session.resumeAt = null; } catch { /* Retry after the media data is ready. */ }
+  }
 
   function nativeControl(action: 'stop' | 'pause' | 'seek' | 'volume' | 'dsp', value = 0) {
     const current = nativeAudio.current;
@@ -227,35 +321,30 @@ export function MusicPage({
   React.useEffect(() => {
     const element = audioRef.current;
     const active = eqGraph.current;
-    if (active && (active.element !== element || playingSourceId !== LOCAL_SOURCE)) {
-      active.filters.forEach(filter => filter.disconnect());
-      active.analyser.disconnect();
+    if (active && (active.element !== element || browserPlayback?.mode === 'direct')) {
+      disposeBrowserGraph();
       setMatrixAnalyser(null);
-      void active.context.close();
-      eqGraph.current = null;
     }
-    if (!element || playingSourceId !== LOCAL_SOURCE || !streamUrl) return;
-    if (!eqEnabled && !matrixWanted && !eqGraph.current) return;
+    if (!element || !streamUrl || !browserPlayback?.ready || browserPlayback.mode === 'direct') return;
+    const local = browserPlayback.mode === 'local';
+    if (!(local && eqEnabled) && !matrixWanted && !eqGraph.current) return;
     try {
-      if (!eqGraph.current) eqGraph.current = createLocalEqualizer(element);
-      setMatrixAnalyser(eqGraph.current.analyser);
-      setLocalEqualizer(eqGraph.current, audioProfile, eqEnabled);
-      void eqGraph.current.context.resume();
+      if (!eqGraph.current) eqGraph.current = createBrowserAudioGraph(element);
+      // Remote streams gain analysis only; their original sound stays unchanged.
+      setBrowserEqualizer(eqGraph.current, audioProfile, local && eqEnabled);
+      resumeBrowserGraph(eqGraph.current);
       setEqError('');
     } catch {
-      setEqError(t`Local audio EQ could not be initialized on this device.`);
-      setEqEnabled(false);
+      setEqError(t`Audio analysis could not be initialized on this device.`);
+      if (local) setEqEnabled(false);
+      fallbackBrowserAudio(element);
     }
-  }, [streamUrl, playingSourceId, eqEnabled, audioProfile, matrixWanted]);
+  }, [streamUrl, browserPlayback, eqEnabled, audioProfile, matrixWanted]);
 
   React.useEffect(() => {
     return () => {
-      if (eqGraph.current) {
-        eqGraph.current.filters.forEach(filter => filter.disconnect());
-        eqGraph.current.analyser.disconnect();
-        void eqGraph.current.context.close();
-        eqGraph.current = null;
-      }
+      browserSession.current = null;
+      disposeBrowserGraph();
     };
   }, []);
 
@@ -292,6 +381,7 @@ export function MusicPage({
         stopNativeAudio();
         setResolving(false);
       }
+      if (browserSession.current) browserSession.current.shouldPlay = false;
       audioRef.current?.pause();
       setPaused(true);
       setExpanded(false);
@@ -408,7 +498,7 @@ export function MusicPage({
     const advance = source.kind === 'youtube-music' && appBridge()?.platform === 'windows'
       && !!appBridge()?.nativeMusicAudio && /^[\w-]{11}$/.test(track.id) && playbackAllowedRef.current;
     stopNativeAudio(advance);
-    audioRef.current?.pause();
+    clearBrowserAudio();
     releaseFolderURL();
     if (!fromQueue) setQueue(tracks);
     setQueueIndex(at);
@@ -454,7 +544,7 @@ export function MusicPage({
         nativeAudio.current = { request: id, sourceId: source.id, track, recorded: false, timer };
         bridge.send({ type: 'music-audio-load', request: id, url: stream.url, volume: volumeRef.current });
       } else {
-        setStreamUrl(stream.url);
+        startBrowserAudio(stream.url, request, 'cors');
         setRecent((current) => mergeRecentPlays(current, makeRecentPlay(source.id, track)));
       }
     } catch (error) {
@@ -511,7 +601,7 @@ export function MusicPage({
   function stopFolderPlayback() {
     if (playingSourceId !== LOCAL_SOURCE || !playing?.id.startsWith('folder:')) return;
     ++playbackRequest.current;
-    audioRef.current?.pause();
+    clearBrowserAudio();
     releaseFolderURL();
     setPlaying(null);
     setPlayingSourceId('');
@@ -533,7 +623,7 @@ export function MusicPage({
     }
     const request = ++playbackRequest.current;
     stopNativeAudio();
-    audioRef.current?.pause();
+    clearBrowserAudio();
     releaseFolderURL();
     if (!fromQueue) {
       const list = file ? folderTracks : sessionTracks;
@@ -562,8 +652,8 @@ export function MusicPage({
           return;
         }
         folderURL.current = URL.createObjectURL(selected);
-        setStreamUrl(folderURL.current);
-      } else if (sessionUrl) setStreamUrl(sessionUrl);
+        startBrowserAudio(folderURL.current, request, 'local');
+      } else if (sessionUrl) startBrowserAudio(sessionUrl, request, 'local');
     } catch {
       if (request === playbackRequest.current)
         setPlayError(t`This local file is no longer available. Reopen it from your device.`);
@@ -677,10 +767,17 @@ export function MusicPage({
     }
     const audio = audioRef.current;
     if (!audio) return;
+    const session = currentBrowserSession(audio);
     if (audio.paused) {
+      if (session) session.shouldPlay = true;
       setPlayError('');
-      void audio.play().catch(() => setPlayError(t`The browser audio engine could not play this stream.`));
-    } else audio.pause();
+      void audio.play().catch(() => {
+        if (currentBrowserSession(audio)) setPlayError(t`The browser audio engine could not play this stream.`);
+      });
+    } else {
+      if (session) session.shouldPlay = false;
+      audio.pause();
+    }
   }
 
   function next(auto = false) {
@@ -693,7 +790,14 @@ export function MusicPage({
         return;
       }
       seek(0);
-      void audioRef.current?.play();
+      const audio = audioRef.current;
+      if (audio) {
+        const session = currentBrowserSession(audio);
+        if (session) session.shouldPlay = true;
+        void audio.play().catch(() => {
+          if (currentBrowserSession(audio)) setPlayError(t`The browser audio engine could not play this stream.`);
+        });
+      }
       return;
     }
     let at = queueIndex + 1;
@@ -756,7 +860,7 @@ export function MusicPage({
     if (playingSourceId === id) {
       ++playbackRequest.current;
       stopNativeAudio();
-      audioRef.current?.pause();
+      clearBrowserAudio();
       setPlaying(null);
       setPlayingSourceId('');
       setStreamUrl('');
@@ -1053,8 +1157,9 @@ export function MusicPage({
           connections.find((item) => item.id === playingSourceId)?.manifest.name ?? '',
         queue, index: queueIndex, paused, loading: resolving, error: playError,
         position, duration, volume, quality, expanded, shuffle, repeat,
-        audioProfile, eqEnabled, eqAvailable: playingSourceId === LOCAL_SOURCE || (playingSourceId === YOUTUBE_MUSIC_ID && appBridge()?.platform === 'windows' && !!appBridge()?.nativeMusicAudio), eqError,
-        analyser: playingSourceId === LOCAL_SOURCE ? matrixAnalyser : null,
+        audioProfile, eqEnabled, eqAvailable: (playingSourceId === LOCAL_SOURCE && browserPlayback?.mode !== 'direct') || (playingSourceId === YOUTUBE_MUSIC_ID && appBridge()?.platform === 'windows' && !!appBridge()?.nativeMusicAudio), eqError,
+        analyser: eqGraph.current?.element === audioRef.current ? matrixAnalyser : null,
+        visualizerUnavailable: browserPlayback?.mode === 'direct',
         nativeMeter: playingSourceId === YOUTUBE_MUSIC_ID ? nativeMeter : undefined,
         nativeMeterAvailable: playingSourceId === YOUTUBE_MUSIC_ID && nativeMeterAvailable,
         onMatrixActive: setMatrixWanted,
@@ -1077,21 +1182,52 @@ export function MusicPage({
         },
       }} />
     </main>
-      {playing && streamUrl && (
-        <audio data-ui="tsugi-audio-engine" ref={audioRef} key={streamUrl} autoPlay preload="metadata" src={streamUrl}
+      {playing && streamUrl && browserPlayback && (
+        <audio data-ui="tsugi-audio-engine" data-audio-mode={browserPlayback.mode} data-audio-request={browserPlayback.request}
+          ref={audioRef} key={browserPlayback.request + ':' + browserPlayback.mode}
+          crossOrigin={browserPlayback.mode === 'cors' ? 'anonymous' : undefined}
+          autoPlay={browserPlayback.autoPlay} preload="metadata" src={streamUrl}
           onLoadedMetadata={(event) => {
             const audio = event.currentTarget;
-            audio.volume = volume;
+            const session = currentBrowserSession(audio);
+            if (!session) return;
+            audio.volume = volumeRef.current;
             if (Number.isFinite(audio.duration)) setDuration(audio.duration);
+            restoreBrowserPosition(audio, session);
           }}
-          onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)}
-          onPlay={() => {
+          onLoadedData={(event) => {
+            const audio = event.currentTarget;
+            const session = currentBrowserSession(audio);
+            if (!session) return;
+            restoreBrowserPosition(audio, session);
+            setBrowserPlayback(previous => previous?.request === session.request && previous.mode === session.mode && !previous.ready
+              ? { ...previous, ready: true } : previous);
+            if (!session.shouldPlay || !playbackAllowedRef.current) audio.pause();
+          }}
+          onTimeUpdate={(event) => {
+            if (currentBrowserSession(event.currentTarget)) setPosition(event.currentTarget.currentTime);
+          }}
+          onPlay={(event) => {
+            const audio = event.currentTarget;
+            const session = currentBrowserSession(audio);
+            if (!session) return;
+            if (!session.shouldPlay || !playbackAllowedRef.current) { audio.pause(); return; }
             setPaused(false);
-            if (eqGraph.current) void eqGraph.current.context.resume();
+            if (eqGraph.current?.element === audio) resumeBrowserGraph(eqGraph.current);
           }}
-          onPause={() => setPaused(true)}
-          onEnded={() => next(true)}
-          onError={() => setPlayError(t`The browser audio engine could not play this stream.`)} />
+          onPause={(event) => {
+            if (currentBrowserSession(event.currentTarget)) setPaused(true);
+          }}
+          onEnded={(event) => {
+            if (currentBrowserSession(event.currentTarget)) next(true);
+          }}
+          onError={(event) => {
+            const audio = event.currentTarget;
+            const session = currentBrowserSession(audio);
+            if (!session) return;
+            if (session.mode === 'cors' && fallbackBrowserAudio(audio)) return;
+            setPlayError(t`The browser audio engine could not play this stream.`);
+          }} />
       )}
     </>
   );

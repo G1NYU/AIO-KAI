@@ -73,7 +73,7 @@ export function JunctionPlayer({
       <section className="tsugi-junction-content relative flex min-w-0 flex-col justify-center">
         <header className="min-w-0">
           <p className="tsugi-eyebrow"><Trans>Now playing</Trans></p>
-          {matrixMode !== 'off' && <p className="tsugi-matrix-label">{p.analyser || p.nativeMeterAvailable ? (matrixMode === 'wave' ? <Trans>Audio-reactive dot wave</Trans> : <Trans>Audio-reactive matrix</Trans>) : matrixMode === 'wave' ? <Trans>Waiting for audio data</Trans> : <Trans>Ambient matrix</Trans>}</p>}
+          {matrixMode !== 'off' && <p className="tsugi-matrix-label">{p.analyser || p.nativeMeterAvailable ? (matrixMode === 'wave' ? <Trans>Audio-reactive dot wave</Trans> : <Trans>Audio-reactive matrix</Trans>) : matrixMode === 'wave' ? (p.visualizerUnavailable ? <Trans>Audio visualization unavailable for this stream</Trans> : <Trans>Waiting for audio data</Trans>) : <Trans>Ambient matrix</Trans>}</p>}
           <h1 className="tsugi-track-title mt-5 break-words text-[clamp(2.2rem,4.5vw,4.8rem)] font-semibold leading-[1.07] tracking-[-.055em]">
             {song.title}
           </h1>

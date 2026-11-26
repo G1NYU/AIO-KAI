@@ -2923,10 +2923,6 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   --tsugi-row-hover:color-mix(in srgb,var(--tsugi-surface) 90%,var(--tsugi-ink));
   --tsugi-row-active:color-mix(in srgb,var(--tsugi-surface) 86%,var(--tsugi-accent));
 }
-:root[data-host='desktop'] :is(.tsugi-read-row,.tsugi-chapter-list-item,.tsugi-reader-setting-toggle,.tsugi-search-track-line,.tsugi-collection-row,.tsugi-music-detail-track,.tsugi-dashboard-list .tsugi-dashboard-transfer,.tsugi-vault-task,.tsugi-torbox-row:not(.tsugi-torbox-columns),.tsugi-entry-list > button,.tsugi-music-hub .tsugi-collection-row) { background:var(--tsugi-row); border-block:0; }
-:root[data-host='desktop'] :is(.tsugi-read-row,.tsugi-chapter-list-item,.tsugi-reader-setting-toggle,.tsugi-search-track-line,.tsugi-collection-row,.tsugi-music-detail-track,.tsugi-dashboard-list .tsugi-dashboard-transfer,.tsugi-vault-task,.tsugi-torbox-row:not(.tsugi-torbox-columns),.tsugi-entry-list > button,.tsugi-music-hub .tsugi-collection-row):nth-child(even) { background:var(--tsugi-row-alt); }
-:root[data-host='desktop'] :is(.tsugi-read-row,.tsugi-chapter-list-item,.tsugi-reader-setting-toggle,.tsugi-search-track-line,.tsugi-collection-row,.tsugi-music-detail-track,.tsugi-dashboard-list .tsugi-dashboard-transfer,.tsugi-vault-task,.tsugi-torbox-row:not(.tsugi-torbox-columns),.tsugi-entry-list > button,.tsugi-music-hub .tsugi-collection-row):is(:hover,:focus-within) { background:var(--tsugi-row-hover); }
-:root[data-host='desktop'] :is(.tsugi-read-row,.tsugi-search-track-line,.tsugi-collection-row,.tsugi-music-detail-track,.tsugi-entry-list > button):is([aria-current]:not([aria-current='false']),[aria-selected='true'],[data-active='true']) { background:var(--tsugi-row-active); }
 :root[data-host='desktop'] .tsugi-global-palettes button:not([aria-pressed='true']) { background:var(--tsugi-row); }
 :root[data-host='desktop'] .tsugi-global-palettes button:nth-child(even):not([aria-pressed='true']) { background:var(--tsugi-row-alt); }
 
@@ -3034,4 +3030,144 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   .tsugi-search-source .tsugi-manga-grid,.tsugi-library-workspace .tsugi-manga-grid { grid-template-columns:repeat(auto-fill,minmax(min(100%,104px),1fr)); gap:14px 10px; }
   .tsugi-library-controls .tsugi-reading-filters { width:100%; }
   .tsugi-library-controls .tsugi-reading-filters input { flex:1; min-width:0; }
+}
+
+/* Desktop content is separated by tonal bands, never rules. These named
+   surfaces exclude form outlines, focus rings, progress/seek controls, artwork
+   and imported Studio layers. Panel frames remain distinct from separators. */
+:root[data-host='desktop'] :is(
+  .tsugi-pixel-rule,.UI-Separator__root,.UI-DropdownMenu__separator,
+  .UI-ContextMenu__separator,.UI-Command__separator,
+  [data-ui='top-tabs-divider'],[data-ui='item-actions-divider'],
+  [data-ui='sidebar-history'] > span[aria-hidden],
+  [data-ui='corner-menu'] .h-px,[data-ui='touch-rail'] .h-px,[data-ui='tv-rail'] .h-px,
+  [data-ui='calendar-today-line'] > span:last-child
+) { display:none; }
+:root[data-host='desktop'] :is(
+  .UI-DropdownMenu__separator + .UI-DropdownMenu__item,
+  .UI-DropdownMenu__separator + .UI-DropdownMenu__subTrigger,
+  .UI-DropdownMenu__separator + .UI-DropdownMenu__group,
+  .UI-ContextMenu__separator + .UI-ContextMenu__item,
+  .UI-Command__separator + .UI-Command__group
+) { margin-block-start:8px; }
+
+/* Override legacy desktop-specific rules only on structural boundaries. */
+:root[data-host='desktop'] :is(
+  .tsugi-entry-list,.tsugi-entry-link,.tsugi-index-destinations,.tsugi-index-link,.tsugi-entry-media-nav,
+  .tsugi-music-top,.tsugi-music-navigation,.tsugi-music-section-header,.tsugi-music-detail-tracks,
+  .tsugi-hub-feature.tsugi-feature-composition,
+  .tsugi-collection-header,.tsugi-collection-rail,.tsugi-collection-folder,
+  .tsugi-collection-columns,.tsugi-search-results-heading,.tsugi-junction-secondary,
+  .tsugi-reading-header,.tsugi-read-media-header,.tsugi-read-subnav,
+  .tsugi-reading-rail,.tsugi-reading-rail-bottom,.tsugi-manga-detail,
+  .tsugi-chapter-versions,.tsugi-chapter-toolbar,.tsugi-chapter-footer,.tsugi-chapter-settings,
+  .tsugi-global-settings > header,.tsugi-app-general,.tsugi-app-about,
+  .tsugi-library-shelves,.tsugi-library-grid-heading,.tsugi-library-sidebar,
+  .tsugi-library-sidebar-head,.tsugi-library-folder,.tsugi-library-intro,
+  .tsugi-library-metrics,.tsugi-library-detail-head,.tsugi-hub-inspector,
+  .tsugi-dashboard-left,.tsugi-dashboard-right,.tsugi-dashboard-list > header,
+  .tsugi-vault-page-header,.tsugi-vault-tabs,.tsugi-vault-overview,.tsugi-vault-overview > div,.tsugi-vault-transfer-settings,
+  .tsugi-vault-service-list,.tsugi-vault-advanced,.tsugi-vault-queue-heading,
+  .tsugi-torbox-listbar,.tsugi-source-sheet,.tsugi-music-charts,.tsugi-manga-tracking,
+  .tsugi-reader-settings-content.border-t,.tsugi-settings-sheet > .border-t,
+  [data-page='read-setup'] > section > .border-t,
+  [data-ui='trailers-list'],[data-ui='history-tile'][data-open] > .border-t,
+  [data-ui='dialog'][data-name='item-more'] .border-t,
+  .UI-VerticalMenu__subContent,[data-ui='top-tabs'][data-style='bar'] > .glass-surface
+) { border-width:0!important; }
+:root[data-host='desktop'] .tsugi-mini-player { border-top-width:0!important; }
+:root[data-host='desktop'] .tsugi-hub-feature::after { content:none; }
+:root[data-host='desktop'] :is(.tsugi-hub-columns,.tsugi-hub-remote-columns) { border-bottom-width:0!important; }
+
+/* Rows share the same palette in Music, Reader, Vault, Movies and menus. */
+:root[data-host='desktop'] :is(
+  .tsugi-read-row,.tsugi-chapter-list-item,.tsugi-chapter-versions,
+  .tsugi-reader-setting-toggle,.tsugi-reading-resume-card,
+  .tsugi-search-track-line,[data-ui='music-track-row'],.tsugi-collection-row,.tsugi-music-detail-track,
+  .tsugi-entry-list > button,
+  .tsugi-music-chart-row,.tsugi-library-tracks > li,.tsugi-queue-list > li,
+  .tsugi-source-row,.tsugi-source-addon,
+  .tsugi-dashboard-list .tsugi-dashboard-transfer,.tsugi-vault-task,
+  .tsugi-vault-service,.tsugi-dashboard-service,.tsugi-hub-details > div,
+  .tsugi-torbox-row:not(.tsugi-torbox-columns),
+  [data-ui='settings-card-item'],[data-ui='settings-tab'],
+  [data-ui='shortcuts-help'] > section > div,
+  [data-ui='episode-list-item'],[data-ui='search-suggestion'],[data-ui='search-history-item'],
+  [data-ui='history-entry'],[data-ui='history-table'] tbody > tr,
+  [data-ui='calendar-entry'],[data-ui='trailer'],
+  .UI-Select__item,.UI-DropdownMenu__item,.UI-DropdownMenu__subTrigger,
+  .UI-ContextMenu__item,.UI-Command__item,.UI-VerticalMenu__item
+) {
+  border-width:0!important;
+  background:var(--tsugi-row);
+  &:nth-child(even) { background:var(--tsugi-row-alt); }
+  &:is(:hover,:focus-within,[data-highlighted]):not(:disabled,[aria-disabled='true'],[data-disabled]) { background:var(--tsugi-row-hover); }
+  &:is([aria-current]:not([aria-current='false']),[aria-selected='true'],[aria-pressed='true'],[data-current='true'],[data-active='true'],[data-state='active'],[data-state='checked']) {
+    background:var(--tsugi-row-active);
+    color:var(--tsugi-ink);
+  }
+}
+:root[data-host='desktop'] :is(
+  .tsugi-read-row,.tsugi-reading-settings-index .tsugi-read-row,.tsugi-reader-setting-toggle,.tsugi-reading-resume-card,
+  .tsugi-music-chart-row,.tsugi-vault-service,.tsugi-dashboard-service,.tsugi-hub-details > div
+) { padding-inline:12px; }
+/* Nested controls belong to their parent's band, not an independent stripe. */
+:root[data-host='desktop'] :is(
+  .tsugi-chapter-list-item > .tsugi-chapter-row,
+  .tsugi-search-track-line > [data-ui='music-track-row'],
+  .tsugi-queue-list > li > .tsugi-queue-track
+) { background:transparent; border-width:0!important; }
+:root[data-host='desktop'] .tsugi-mini-queue-panel li button { border-top-width:0; }
+
+/* Category controls use surface changes for active, hover and focus states. */
+:root[data-host='desktop'] :is(
+  .tsugi-read-subnav > button,.tsugi-music-navigation > button:not(.tsugi-music-source-trigger),
+  .tsugi-category-link,.tsugi-library-list-item,.tsugi-library-nav,.tsugi-dashboard-nav,
+  .tsugi-desktop-rail .tsugi-rail-local > button
+) {
+  border-width:0!important;
+  background:var(--tsugi-row);
+  &:nth-child(even) { background:var(--tsugi-row-alt); }
+  &:is(:hover,:focus-visible):not(:disabled) { background:var(--tsugi-row-hover); }
+  &:is([aria-current='page'],[aria-pressed='true']) { background:var(--tsugi-row-active); color:var(--tsugi-ink); }
+}
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-local > .tsugi-pixel-rule + button,
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-local > .tsugi-pixel-rule + .tsugi-reading-rail-label + button { margin-block-start:12px; }
+
+/* Full source results and settings categories are bands too, so titles and
+   their content stay together even with empty/error states or wrapped text. */
+:root[data-host='desktop'] .tsugi-search-source {
+  margin:0;
+  padding:18px 16px 20px;
+  border:0;
+  background:var(--tsugi-row);
+  &:nth-of-type(even) { background:var(--tsugi-row-alt); }
+}
+:root[data-host='desktop'] .tsugi-search-source:is([data-result-state='empty'],[data-result-state='error']) { padding-block:18px; }
+:root[data-host='desktop'] .tsugi-search-source-header { border:0; }
+:root[data-host='desktop'] .tsugi-global-settings > :is(.tsugi-app-general,.tsugi-global-appearance,.tsugi-app-about) {
+  margin:0;
+  padding:20px 16px;
+  background:var(--tsugi-row);
+  &:nth-of-type(even) { background:var(--tsugi-row-alt); }
+}
+:root[data-host='desktop'] :is(.tsugi-reader-setting-group,.tsugi-source-section) {
+  padding:14px 12px;
+  background:var(--tsugi-row);
+  &:nth-of-type(even) { background:var(--tsugi-row-alt); }
+}
+:root[data-host='desktop'] :is(.tsugi-catalog-lane,[data-ui='home-rows'] [data-ui='media-row']) {
+  padding-block:18px;
+  background:var(--tsugi-row);
+  &:nth-child(even) { background:var(--tsugi-row-alt); }
+}
+:root[data-host='desktop'] :is(.tsugi-reading-list-header,.tsugi-library-section-head,.tsugi-dashboard-list > header) {
+  background:var(--tsugi-row-alt);
+}
+:root[data-host='desktop'] :is(.tsugi-reading-list-header,.tsugi-library-section-head) { padding:10px 12px; }
+:root[data-host='desktop'] .tsugi-settings-sheet > .border-t { padding:20px 16px; background:var(--tsugi-row); }
+:root[data-host='desktop'] .tsugi-settings-sheet > .border-t:nth-child(even) { background:var(--tsugi-row-alt); }
+@media(max-width:680px) {
+  :root[data-host='desktop'] .tsugi-search-source { padding-inline:12px; }
+  :root[data-host='desktop'] .tsugi-global-settings > :is(.tsugi-app-general,.tsugi-global-appearance,.tsugi-app-about) { padding-inline:12px; }
 }

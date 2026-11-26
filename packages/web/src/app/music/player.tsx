@@ -44,6 +44,7 @@ export type MusicPlayerProps = {
   eqAvailable: boolean;
   eqError: string;
   analyser?: AnalyserNode | null;
+  visualizerUnavailable?: boolean;
   nativeMeter?: React.RefObject<{level:number;at:number} | null>;
   nativeMeterAvailable?: boolean;
   onMatrixActive?(active: boolean): void;

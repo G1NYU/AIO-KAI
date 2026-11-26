@@ -24,7 +24,7 @@ export function MusicCharts({ onFind }: { onFind(recording: TrendingRecording): 
 
   return (
     <section aria-label={t`Independent music discovery`}
-      className="border-t border-white/10 px-0 py-7">
+      className="tsugi-music-charts border-t border-white/10 px-0 py-7">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-white/40">
@@ -50,7 +50,7 @@ export function MusicCharts({ onFind }: { onFind(recording: TrendingRecording): 
       <div className="grid gap-x-7 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {tracks.slice(0, 15).map((item, index) => (
           <button key={item.key} type="button" onClick={() => onFind(item)}
-            className="group flex min-w-0 items-center gap-3 border-b border-white/[0.08] px-0 py-4 text-left transition-colors hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60">
+            className="tsugi-music-chart-row group flex min-w-0 items-center gap-3 border-b border-white/[0.08] px-0 py-4 text-left transition-colors hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60">
             <span className="w-6 shrink-0 text-right text-xs tabular-nums text-white/35">{index + 1}</span>
             <span className="flex size-11 shrink-0 items-center justify-center text-[--tsugi-muted]">
               <BiDisc aria-hidden className="text-2xl text-white/45" />

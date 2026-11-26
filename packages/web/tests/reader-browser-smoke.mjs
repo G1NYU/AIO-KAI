@@ -3,6 +3,8 @@
 // desktop EXE, Java download, user credentials or package artifact is used.
 import assert from 'node:assert/strict';
 import { pdfFixture, epubFixture } from './ebook-fixtures.mjs';
+import { verifyAppSeparatorsBrowser } from './app-separators-browser.mjs';
+import { verifyMusicAudioBrowser } from './music-audio-browser.mjs';
 import { pathToFileURL } from 'node:url';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -183,8 +185,11 @@ try {
           case 'refresh-extensions': data = { ok: true }; break;
           case 'extensions': data = nodes(state.stores.length && (a.installed === undefined || a.installed === state.installed) && (!a.language || a.language === 'en') && (!a.updatesOnly || (state.installed && state.fixtureHasUpdate)) ? [{ pkgName: 'org.tsugi.fixture', name: 'Original extension', lang: 'en', versionName: '1.6', storeIndexUrl: state.stores[0].indexUrl, isInstalled: state.installed, isObsolete: false, hasUpdate: !!state.fixtureHasUpdate && state.installed }] : []); break;
           case 'install-extension': state.installed = true; data = { ok: true }; break;
-          case 'sources': data = nodes(state.installed ? [{ id: '12345', name: 'Original source', lang: 'en', supportsLatest: true }, ...(state.transferEnabled ? [{ id: '67890', name: 'Replacement source', lang: 'en', supportsLatest: true }] : [])] : []); break;
-          case 'catalogue': data = { mangas: a.source === '67890' ? a.query === 'Batch Fixture' ? [batchTitle] : [replacement] : [manga], hasNextPage: false }; break;
+          case 'sources': data = nodes(state.installed ? [{ id: '12345', name: 'Original source', lang: 'en', supportsLatest: true }, ...(state.transferEnabled ? [{ id: '67890', name: 'Replacement source', lang: 'en', supportsLatest: true }] : []), ...(state.searchLayout ? [{ id: '23456', name: 'Additional source', lang: 'fr' }, { id: '34567', name: 'Empty source', lang: 'en' }, { id: '45678', name: 'Unavailable source', lang: 'en' }] : [])] : []); break;
+          case 'catalogue':
+            if (a.source === '45678') error = 'Fixture source unavailable';
+            else data = { mangas: a.source === '34567' ? [] : a.source === '67890' ? a.query === 'Batch Fixture' ? [batchTitle] : [replacement] : [manga], hasNextPage: false };
+            break;
           case 'manga': data = a.id === 3 ? { manga: replacement, chapters: replacementChapters } : { manga, chapters }; break;
           case 'chapter': data = { id: a.id, pageCount: 4 }; break;
           case 'cover':
@@ -620,14 +625,14 @@ try {
       return [Math.round(r.x - rect.x), Math.round(r.y - rect.y), Math.round(r.width), Math.round(r.height)];
     });
     const rule = getComputedStyle(node.querySelector('.tsugi-pixel-rule'));
-    return { width: Math.round(rect.width), top: Math.round(rect.y), controls, font: getComputedStyle(node).fontFamily, border: getComputedStyle(node).borderInlineEndWidth, separator: rule.backgroundImage.split('repeating-linear-gradient').length - 1 };
+    return { width: Math.round(rect.width), top: Math.round(rect.y), controls, font: getComputedStyle(node).fontFamily, border: getComputedStyle(node).borderInlineEndWidth, separator: rule.display };
   });
   await rail.waitFor({ state: 'visible' });
   const readRailGeometry = await railGeometry(rail);
   assert.equal(readRailGeometry.width, 80);
   assert.equal(readRailGeometry.border, '0px');
   assert.ok(readRailGeometry.font.startsWith('Inter'));
-  assert.equal(readRailGeometry.separator, 0, 'decorative dotted separators are removed');
+  assert.equal(readRailGeometry.separator, 'none', 'navigation groups use spacing without separator lines');
   assert.equal(await page.locator('html').getAttribute('data-tsugi-accent'), 'amber');
   await rail.getByRole('button', { name: 'App settings', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).waitFor();
@@ -728,6 +733,7 @@ try {
   await page.getByText('No matching extensions.',{exact:true}).waitFor();
   await page.getByRole('combobox', { name: 'Extension status' }).selectOption('installed');
   await page.getByRole('button', { name: 'Uninstall', exact: true }).waitFor();
+  await page.evaluate(() => { window.__readerFixture.searchLayout = true; });
   await rail.getByRole('button', { name: 'Global search', exact: true }).click();
   const search=page.locator('.tsugi-global-search-workspace');
   await search.waitFor();
@@ -735,10 +741,41 @@ try {
   await search.getByRole('textbox',{name:'Global manga search',exact:true}).fill('Tsugi');
   await search.getByRole('button',{name:'Search',exact:true}).click();
   await search.getByRole('heading',{name:'Original source',exact:true}).waitFor();
-  await search.getByText('Results: 1',{exact:true}).waitFor();
-  assert.equal(await search.locator('.tsugi-manga-card').count(),1);
-  assert.equal(await search.locator('progress').getAttribute('value'),'1');
-  await capture('03-reader-global-search');
+  await search.getByText('Fixture source unavailable',{exact:true}).waitFor();
+  assert.equal(await search.getByText('Results: 1',{exact:true}).count(),2);
+  assert.equal(await search.locator('.tsugi-manga-card').count(),2);
+  assert.equal(await search.locator('progress').getAttribute('value'),'4');
+  for (const width of [1440, 800]) {
+    await page.setViewportSize({ width, height: 900 });
+    const sourceGeometry = await search.locator('.tsugi-search-source').evaluateAll(groups => groups.map(group => {
+      const box = group.getBoundingClientRect();
+      const header = group.querySelector('header');
+      const heading = header.querySelector('h3');
+      const card = group.querySelector('.tsugi-manga-card');
+      const style = getComputedStyle(group);
+      return {
+        top: box.top, bottom: box.bottom,
+        headerTop: header.getBoundingClientRect().top,
+        headingGap: card ? card.getBoundingClientRect().top - heading.getBoundingClientRect().bottom : null,
+        headerBorder: parseFloat(getComputedStyle(header).borderBottomWidth) + parseFloat(getComputedStyle(heading).borderBottomWidth),
+        groupBorder: parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth),
+        background: style.backgroundColor,
+      };
+    }));
+    for (const [index, group] of sourceGeometry.entries()) {
+      assert.equal(group.headerBorder + group.groupBorder, 0, 'source groups and headings have no separator lines');
+      assert.notEqual(group.background, 'rgba(0, 0, 0, 0)', 'each source group has a visible surface');
+      assert.ok(group.headerTop - group.top >= 16, 'source title is inset within its own band');
+      if (group.headingGap !== null) assert.ok(group.headingGap >= 11, 'source heading has breathing room above artwork');
+      if (index) {
+        assert.ok(group.top >= sourceGeometry[index - 1].bottom, 'source groups never overlap');
+        assert.notEqual(group.background, sourceGeometry[index - 1].background, 'adjacent populated, empty and failed source groups alternate tone');
+      }
+    }
+    await capture(width === 1440 ? '03-reader-global-search' : '03-reader-global-search-narrow');
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => { window.__readerFixture.searchLayout = false; });
   await rail.getByRole('button', { name: 'Browse', exact: true }).click();
   await page.getByRole('button', { name: /Original source/ }).click();
   await page.locator('.tsugi-manga-card').first().click();
@@ -1361,4 +1398,6 @@ try {
   await setup.getByText("Already use Mihon, Komikku or another Tachiyomi-compatible fork? Tsugi supports the same compatible extension repositories. After setup, add a trusted repository URL in Settings → Browse → Sources → Extension repositories, then install individual extensions from Extensions. Sources are not bundled, and compatibility varies by extension.",{exact:true}).waitFor();
   await capture('13-reader-setup-compatibility');
   assert.deepEqual(errors, []);
+  await verifyAppSeparatorsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyMusicAudioBrowser({ browser, origin, installDesktopFixture, screenshotDir });
 } finally { await browser.close(); }
