@@ -30,6 +30,7 @@ import { verifyReaderRepositoriesBrowser } from './reader-repositories-browser.m
 import { verifySupportSummaryBrowser } from './support-summary-browser.mjs';
 import { verifyReaderDownloadsBrowser } from './reader-downloads-browser.mjs';
 import { verifyLocalComicImportBrowser } from './local-comic-import-browser.mjs';
+import { verifyVaultAudioImportsBrowser } from './vault-audio-import-browser.mjs';
 import { verifyVaultBookImportsBrowser } from './vault-book-import-browser.mjs';
 import { verifyLandscapeDecorationBrowser } from './landscape-decoration-browser.mjs';
 import { pathToFileURL } from 'node:url';
@@ -1595,6 +1596,7 @@ try {
   await verifyReaderSettingsSearchBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyReaderRepositoriesBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyVaultBookImportsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyVaultAudioImportsBrowser({ browser, origin, installDesktopFixture });
   await verifySupportSummaryBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyReaderDownloadsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyLocalComicImportBrowser({ browser, origin, installDesktopFixture, screenshotDir });

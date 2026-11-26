@@ -28,6 +28,7 @@ import { YouTubeSessionSettings } from './youtube-session-settings';
 import { moveUpcoming, removeUpcoming, clearUpcoming } from '@/lib/music/queue';
 import { MusicLibrary } from './library';
 import { useRememberedMusicFolder } from './use-remembered-folder';
+import { listVaultAudio, getVaultAudioFile, removeVaultAudio, VAULT_AUDIO_CHANGED, type VaultAudioEntry } from '@/lib/music/vault-audio';
 import {
   createBrowserAudioGraph, readAudioProfile, saveAudioProfile,
   setBrowserEqualizer, nativeDspMode, type AudioProfile, type BrowserAudioGraph,
@@ -110,7 +111,23 @@ export function MusicPage({
   })), [folder.entries, folder.handle]);
   const folderFiles = React.useMemo(() =>
     new Map(folder.entries.map(entry => [entry.id, entry.file])), [folder.entries]);
-  const localTracks = React.useMemo(() => [...sessionTracks, ...folderTracks], [sessionTracks, folderTracks]);
+  const [savedAudio,setSavedAudio]=React.useState<VaultAudioEntry[]>([]);
+  React.useEffect(()=>{
+    if(appBridge()?.platform!=='windows')return;
+    let alive=true, revision=0;
+    const refresh=()=>{
+      const request=++revision;
+      void listVaultAudio().then(entries=>{if(alive&&request===revision)setSavedAudio(entries);})
+        .catch(()=>{if(alive&&request===revision)setLibraryError(t`Could not load saved Vault audio.`);});
+    };
+    refresh();
+    window.addEventListener(VAULT_AUDIO_CHANGED,refresh);
+    return()=>{alive=false;window.removeEventListener(VAULT_AUDIO_CHANGED,refresh);};
+  },[]);
+  const savedAudioTracks=React.useMemo<EclipseTrack[]>(()=>savedAudio.map(entry=>({
+    id:entry.id,title:entry.title,artist:t`Local file`,album:t`Saved from Vault`,duration:entry.duration,
+  })),[savedAudio]);
+  const localTracks = React.useMemo(() => [...sessionTracks, ...folderTracks, ...savedAudioTracks], [sessionTracks, folderTracks, savedAudioTracks]);
   const localURLs = React.useRef(new Map<string,string>());
   const folderURL = React.useRef<string | null>(null);
   const playbackAllowedRef = React.useRef(playbackAllowed);
@@ -667,8 +684,9 @@ export function MusicPage({
   async function playLocalTrack(track: EclipseTrack, at: number, fromQueue = false) {
     const sessionUrl = localURLs.current.get(track.id);
     const file = folderFiles.get(track.id);
+    const saved=savedAudio.find(entry=>entry.id===track.id);
     if (file && folder.busy) return;
-    if (!sessionUrl && !file) {
+    if (!sessionUrl && !file && !saved) {
       setLibraryError(t`This local file is no longer available. Reopen it from your device.`);
       return;
     }
@@ -677,7 +695,7 @@ export function MusicPage({
     clearBrowserAudio();
     releaseFolderURL();
     if (!fromQueue) {
-      const list = file ? folderTracks : sessionTracks;
+      const list = saved ? savedAudioTracks : file ? folderTracks : sessionTracks;
       setQueue(list);
       setQueueIndex(Math.max(0, list.findIndex(item => item.id === track.id)));
     } else setQueueIndex(at);
@@ -689,11 +707,11 @@ export function MusicPage({
     setPosition(0);
     setDuration(0);
     setPaused(true);
-    setResolving(!!file);
+    setResolving(!!(file||saved));
     setQuality(t`Local`);
     try {
-      if (file) {
-        const selected = await file.getFile();
+      if (file||saved) {
+        const selected = saved ? await getVaultAudioFile(saved) : await file!.getFile();
         if (request !== playbackRequest.current) return;
         if (!playbackAllowedRef.current) {
           setPlaying(null);
@@ -851,6 +869,10 @@ export function MusicPage({
     desktopArea?.consumeResume?.(target);
     // Opening the current player must never replace its queue or reset position.
     if (playing?.id === target.trackId && playingSourceId === target.sourceId && !playError) return;
+    if(target.sourceId===LOCAL_SOURCE){
+      const local=localTracks.find(track=>track.id===target.trackId);
+      if(local){setLibraryView('local');setTab('library');void playLocalTrack(local,0);return;}
+    }
     const source = connections.find(item => item.id === target.sourceId);
     const entry = recent.find(item => item.sourceId === target.sourceId && item.track.id === target.trackId);
     setTab('library');
@@ -1076,7 +1098,8 @@ export function MusicPage({
               onPlay={(entry) => { void playSavedTrack(entry); }}
               playing={playing && playingSourceId !== LOCAL_SOURCE
                 ? savedTrack(playing, playingSourceId) : null}
-              localTracks={sessionTracks}
+              localTracks={[...sessionTracks,...savedAudioTracks]}
+              onRemoveVaultAudio={async id=>{if(playing?.id===id)return false;try{await removeVaultAudio(id);setLibraryError('');return true;}catch{setLibraryError(t`Could not remove the saved audio copy.`);return false;}}}
               folderTracks={folderTracks}
               folder={folder}
               onChooseFolder={() => { stopFolderPlayback(); void folder.choose(); }}

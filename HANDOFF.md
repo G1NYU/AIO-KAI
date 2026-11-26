@@ -1,3 +1,9 @@
+## 2026-11-26 — Persistent Vault audio handoff (C2)
+
+C2: reviewed persistent Vault audio copies (SHA-256 content deduplication, bounded local storage, atomic IndexedDB writes, independent retry, restart replay and explicit removal without touching the original download). Audio metadata/duration probe, not full-file decode validation; automatic handoff, CBZ and portable audio bytes remain open. C1 explicit reader translation IDs corrected after the diagnosed guard failure. C2 native Windows unaffected; browser and unit validation required.
+
+Validation: prior Windows job [140187802145](https://github.com/G1NYU/TSUGI/actions/runs/45901409476/job/140187802145) passed; prior web failure was the C1 reader explicit-ID guard, fixed here. New C2 CI not yet run. No release publication. Next: check cumulative CI, continue D3, then remaining recovery/reader/library and D1–D5 dependencies.
+
 
 ## 2026-11-26 — C1 translation lint correction
 

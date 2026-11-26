@@ -365,14 +365,14 @@ export function ReadPage({ visible }: {
     desktopArea?.consumeResume?.(target);
     // Do not replace a mounted chapter or release its native capability.
     if (reader) {
-      if (reader.chapter.id !== target.chapterId || Number(details?.manga.id) !== target.mangaId) toast.info(t`Close the current chapter before opening another from Up next.`);
+      if (reader.chapter.id !== target.chapterId || Number(details?.manga.id) !== target.mangaId) toast.info(t({ id: "Close the current chapter before opening another from Up next.", message: "Close the current chapter before opening another from Up next." }));
       return;
     }
     void run(async () => {
       const history = await readRequest<Nodes<Activity>>({kind:'history'});
       const entry = history.nodes.find(item => Number(item.id) === target.chapterId && Number(item.manga.id) === target.mangaId &&
         item.manga.title === target.title && item.name === target.chapter);
-      if (!entry || entry.isRead) throw new Error(t`This saved chapter is no longer available.`);
+      if (!entry || entry.isRead) throw new Error(t({ id: "This saved chapter is no longer available.", message: "This saved chapter is no longer available." }));
       setTab('history');
       setHistory(history);
       await openActivity(entry);

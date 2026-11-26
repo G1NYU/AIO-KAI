@@ -76,7 +76,7 @@ Baseline: [official v0.1.0](https://github.com/G1NYU/TSUGI/releases/tag/v0.1.0);
 | B4 | P1 | Daily reading workflow and per-title controls | Partial: shared searchable Reader settings and title-specific overrides implemented; native identity tests passed at `58ac30c`, cumulative browser and wider workflow remain |
 | B5 | P1 | Tracker sync and source migration | Partial |
 | C1 | P2 | Cross-media Up Next | Partial: launcher resume for Reader, local books and listening; authenticated Video handoff; cumulative browser acceptance, exact video rows and persistent audio queue/position remain |
-| C2 | P2 | Vault-to-library handoff | Partial: reviewed EPUB/PDF import, per-job result and independent retry implemented; automatic/audio/CBZ handoff remain |
+| C2 | P2 | Vault-to-library handoff | Partial: reviewed EPUB/PDF and persistent deduplicated audio import, per-job result and independent retry implemented; audio CI acceptance, automatic/CBZ handoff remain |
 | C3 | P2 | Connections, privacy and diagnostics | Partial: safe support preview/copy and optional cross-media Discord presence implemented; registered TSUGI Application ID, live presence acceptance, full log export, lock and background controls remain |
 | D1 | Later | AI stories in Books and Manga | Requested 2026-11-26: refreshable, automatically curated YouTube stories with in-app listening/watching; planned only |
 | D2 | Later | TorBox cached music discovery and Eclipse source | Requested 2026-11-26: evaluate Debrify, Debrid Media Manager and Debrid Vault as discovery references/integrations; planned only, API and addon compatibility investigation required |
@@ -171,6 +171,8 @@ The launcher now projects bounded resume rows on demand from the original stores
 Acceptance: all four media types resume correctly across restarts; disconnected sources visible without broken actions; no duplicate watch-state writes.
 
 ## C2 — Vault-to-library handoff (P2)
+
+- 2026-11-26 — C2: reviewed persistent Vault audio copies (SHA-256 content deduplication, bounded local storage, atomic IndexedDB writes, independent retry, restart replay and explicit removal without touching the original download). Audio metadata/duration probe, not full-file decode validation; automatic handoff, CBZ and portable audio bytes remain open. C1 explicit reader translation IDs corrected after the diagnosed guard failure. C2 native Windows unaffected; browser and unit validation required.
 
 - Opt-in import after verified completion into chosen library/collection. Start EPUB/PDF and audio; add CBZ after B3. Preview duplicates and target, use stable content/path identifiers and idempotent import; no silent file moves, overwrites or deletions.
 - Separate download succeeded/import failed states; retry import without redownloading, report unsupported/corrupt files and missing destination, preserve manual import.

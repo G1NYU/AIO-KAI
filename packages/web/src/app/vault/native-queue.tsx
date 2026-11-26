@@ -14,6 +14,8 @@ import { vaultTransferRate, vaultEta, reconcileVaultRows } from './queue-model';
 import { importBook, listBooks, type BookEntry } from '@/app/read/book-library';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { readCompletedVaultFile } from './completed-file';
+import { VaultAudioImportReview, type AudioImportReview } from './audio-import-review';
+import { listVaultAudio, prepareVaultAudio, commitVaultAudio, vaultAudioImportPlan, vaultAudioType, VAULT_AUDIO_CHANGED, type VaultAudioEntry } from '@/lib/music/vault-audio';
 import { VaultBookImportReview, type BookImportReview } from './book-import-review';
 
 type Row = Extract<HostEvent, {type:'state'}>['jobs'][number] & {speed?:number};
@@ -69,6 +71,20 @@ export function NativeVaultQueue({track=null,captureRef,transfersRef,navigationD
     void listBooks().then(books=>{if(alive&&lookup===bookLookup.current)setBookEntries(books);}).catch(()=>{/* Explicit review retries a failed library lookup before any write. */});
     return()=>{alive=false;};
   },[completedBookIds]);
+  const [audioEntries,setAudioEntries]=useState<VaultAudioEntry[]>([]);
+  const [audioImports,setAudioImports]=useState<Record<string,BookImportResult>>({});
+  const [audioReview,setAudioReview]=useState<AudioImportReview|null>(null);
+  const audioWriting=useRef(false);
+  const savedAudioJobs=useMemo(()=>new Set(audioEntries.flatMap(entry=>entry.jobs)),[audioEntries]);
+  const completedAudioIds=rows.filter(row=>row.state==='done'&&vaultAudioType(row.vault_title)).map(row=>row.id).sort().join(',');
+  useEffect(()=>{
+    if(!completedAudioIds)return;
+    let alive=true,revision=0;
+    const refresh=()=>{const request=++revision;void listVaultAudio().then(entries=>{if(alive&&request===revision)setAudioEntries(entries);}).catch(()=>{});};
+    refresh();
+    window.addEventListener(VAULT_AUDIO_CHANGED,refresh);
+    return()=>{alive=false;window.removeEventListener(VAULT_AUDIO_CHANGED,refresh);};
+  },[completedAudioIds]);
   const [folder,setFolder] = useState('');
   const [error,setError] = useState('');
   const [pending,setPending] = useState<string[]>([]);
@@ -132,6 +148,36 @@ export function NativeVaultQueue({track=null,captureRef,transfersRef,navigationD
       else setError(t`Could not import the completed file. It may have been moved, removed or exceeded 128 MiB.`);
     }}
     finally{activeImport.current=null;setImporting('');}
+  }
+  async function reviewAudioImport(row:Row){
+    if(activeImport.current||row.state!=='done'||!row.vault_title||!vaultAudioType(row.vault_title))return;
+    const controller=new AbortController();activeImport.current=controller;setImporting(row.id);setError('');
+    try{
+      const file=await readCompletedVaultFile(row.id,row.vault_title,controller.signal);
+      if(file.size!==row.bytes)throw Error('vault-audio-size-changed');
+      const prepared=await prepareVaultAudio(file,controller.signal);
+      const entries=await listVaultAudio();controller.signal.throwIfAborted();
+      setAudioEntries(entries);
+      const plan=vaultAudioImportPlan(entries,row.id,{id:prepared.id,size:prepared.file.size});
+      if(plan.kind==='existing'){setAudioImports(old=>({...old,[row.id]:'existing'}));return;}
+      setAudioReview({jobId:row.id,name:row.vault_title,bytes:row.bytes,prepared,duplicate:plan.entry});
+    }catch{if(!controller.signal.aborted)setAudioImports(old=>({...old,[row.id]:'failed'}));}
+    finally{activeImport.current=null;setImporting('');}
+  }
+  async function confirmAudioImport(){
+    if(activeImport.current||!audioReview)return;
+    const review=audioReview,row=rows.find(item=>item.id===review.jobId);
+    if(!row||row.state!=='done'||row.vault_title!==review.name||row.bytes!==review.bytes){
+      setAudioImports(old=>({...old,[review.jobId]:'failed'}));setAudioReview(null);return;
+    }
+    const controller=new AbortController();activeImport.current=controller;setImporting(row.id);audioWriting.current=true;
+    try{
+      const {entry,kind}=await commitVaultAudio(row.id,review.prepared,controller.signal,review.duplicate?'duplicate':'new');
+      controller.signal.throwIfAborted();
+      setAudioEntries(old=>[...old.filter(item=>item.id!==entry.id),entry]);
+      setAudioImports(old=>({...old,[row.id]:kind==='new'?'imported':'existing'}));
+    }catch{if(!controller.signal.aborted)setAudioImports(old=>({...old,[row.id]:'failed'}));}
+    finally{audioWriting.current=false;activeImport.current=null;setImporting('');setAudioReview(null);}
   }
   async function confirmBookImport() {
     if(activeImport.current||!bookReview||bookReview.duplicates.length>0&&!anotherBookCopy)return;
@@ -246,6 +292,7 @@ export function NativeVaultQueue({track=null,captureRef,transfersRef,navigationD
             <div className="tsugi-vault-task-main"><div className="kura-file-icon" data-kind={bookFile(row.vault_title||'')?'book':'audio'}>{bookFile(row.vault_title||'')?<BrushBook aria-hidden/>:<BrushDisc aria-hidden/>}</div><div className="tsugi-vault-task-text"><strong title={row.vault_title}>{row.vault_title}</strong><p className="kura-task-meta"><span className="tsugi-vault-task-state" data-state={row.state}>{status(row)}</span><span>{(row.bytes/1048576).toFixed(1)} MiB {row.total!==null&&row.total>0&&<span>/ {(row.total/1048576).toFixed(1)} MiB</span>}</span></p>
               {row.error&&<p role="alert">{row.error}</p>}
               {row.state==='done'&&bookFile(row.vault_title||'')&&(importedBookIds.has(row.id)?<p role="status" data-vault-import-state={bookImports[row.id]==='imported'?'imported':'existing'}>{bookImports[row.id]==='imported'?<Trans>Imported</Trans>:<Trans>Already in Books</Trans>}</p>:bookImports[row.id]==='failed'&&<p role="alert" data-vault-import-state="failed"><Trans>Import failed. Check that the file is a valid EPUB or PDF of at most 128 MiB and that Books storage is available. Retry import does not restart the download.</Trans></p>)}
+              {row.state==='done'&&vaultAudioType(row.vault_title)&&(savedAudioJobs.has(row.id)?<p role="status" data-vault-audio-import-state={audioImports[row.id]==='imported'?'imported':'existing'}>{audioImports[row.id]==='imported'?<Trans>Audio saved</Trans>:<Trans>Already in Music</Trans>}</p>:audioImports[row.id]==='failed'&&<p role="alert" data-vault-audio-import-state="failed"><Trans>Audio import failed. Check the completed file, local audio support and available storage. Retry import does not restart the download.</Trans></p>)}
             </div></div>
             <div className="tsugi-dashboard-progress">
               <div className="kura-progress-meta"><span className="tsugi-dashboard-destination" title={row.vault_path||folder}><BrushFolder aria-hidden/><Trans>Local</Trans></span>{row.total!==null&&row.total>0&&<span>{Math.min(100,Math.max(0,Math.round(row.bytes/row.total*100)))}%</span>}</div>
@@ -259,6 +306,7 @@ export function NativeVaultQueue({track=null,captureRef,transfersRef,navigationD
               {row.state!=='done'&&<button className="tsugi-read-action tsugi-vault-icon-action" aria-label={t`Cancel`} title={t`Cancel`} onClick={()=>shellDownloads.remove(row.id,true)}><BrushTrash aria-hidden/></button>}
               {row.state==='done'&&<button className="tsugi-read-action tsugi-vault-icon-action" aria-label={t`Remove from list`} title={t`Remove from list`} onClick={()=>shellDownloads.remove(row.id,false)}><BrushTrash aria-hidden/></button>}
               {row.state==='done'&&row.vault_title&&(bookFile(row.vault_title)&&importedBookIds.has(row.id)?<button className="tsugi-read-action kura-handoff-action" disabled={!!importing||!actions?.openBooks} onClick={()=>actions?.openBooks?.()}><Trans>Open Books</Trans></button>:<button className="tsugi-read-action kura-handoff-action" disabled={!!importing||(bookFile(row.vault_title)?!actions?.openBooks:!actions?.openLocalAudio)} onClick={()=>void openCompleted(row)}>{bookFile(row.vault_title)?bookImports[row.id]==='failed'?<Trans>Retry import</Trans>:<Trans>Import into Books</Trans>:<Trans>Open in Music</Trans>}</button>)}
+              {row.state==='done'&&vaultAudioType(row.vault_title)&&<button type="button" className="tsugi-read-action kura-handoff-action" disabled={!!importing||!actions?.openLocalMusic} onClick={()=>savedAudioJobs.has(row.id)?actions?.openLocalMusic?.():void reviewAudioImport(row)}>{savedAudioJobs.has(row.id)?<Trans>Open saved Music</Trans>:audioImports[row.id]==='failed'?<Trans>Retry audio import</Trans>:<Trans>Import into Music</Trans>}</button>}
               {row.state==='done'&&shellDownloads.folder?.open&&<button className="tsugi-read-action tsugi-vault-icon-action" aria-label={t`Show in folder`} title={t`Show in folder`} onClick={()=>shellDownloads.folder?.open?.(row.id)}><BrushFolder aria-hidden/></button>}
             </div>
           </div>)}
@@ -293,6 +341,7 @@ export function NativeVaultQueue({track=null,captureRef,transfersRef,navigationD
           {supportsNativeTorBox()&&<button type="button" className="tsugi-dashboard-service" data-ready={torboxConnected===true} onClick={()=>{setDestination('torbox');capturePanel.current?.scrollIntoView({block:'start'});capturePanel.current?.focus({preventScroll:true});}}><span>TorBox</span><small>{torboxConnected===true?<Trans>Connected</Trans>:torboxConnected===false?<Trans>Connect</Trans>:<Trans>Unknown</Trans>}</small></button>}
         </section>
       </aside>
+      {audioReview&&<VaultAudioImportReview review={audioReview} busy={!!importing} onApply={()=>void confirmAudioImport()} onClose={()=>{if(!audioWriting.current)setAudioReview(null);}}/>}
       {bookReview&&<VaultBookImportReview review={bookReview} busy={!!importing} saving={savingBook} anotherCopy={anotherBookCopy} onAnotherCopy={setAnotherBookCopy} onApply={()=>void confirmBookImport()} onClose={cancelBookImport}/>}
     </>}
   </section>;

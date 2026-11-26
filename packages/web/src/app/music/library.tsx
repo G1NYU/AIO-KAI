@@ -15,7 +15,7 @@ import {
 
 export function MusicLibrary({
   playlists, onChange, onPlay, playing, localTracks, onImportLocal, onPlayLocal,
-  folder, folderTracks, onChooseFolder, onRescanFolder, onForgetFolder, recent, onPlayRecent, activeTrackId, navigation, onPlayLocalCollection, localRequest=0, sources=[], onManageSources, onDiscover, onSearch, onPlaySavedCollection, view, onViewChange,
+  folder, folderTracks, onRemoveVaultAudio, onChooseFolder, onRescanFolder, onForgetFolder, recent, onPlayRecent, activeTrackId, navigation, onPlayLocalCollection, localRequest=0, sources=[], onManageSources, onDiscover, onSearch, onPlaySavedCollection, view, onViewChange,
 }: {
   view?: string;
   onViewChange?(view: string): void;
@@ -35,6 +35,7 @@ export function MusicLibrary({
   playing: SavedMusicTrack | null;
   localTracks: SavedMusicTrack[];
   folderTracks: SavedMusicTrack[];
+  onRemoveVaultAudio?: (id:string)=>Promise<boolean>;
   folder: ReturnType<typeof useRememberedMusicFolder>;
   onChooseFolder(): void;
   onRescanFolder(): void;
@@ -49,12 +50,27 @@ export function MusicLibrary({
   const [sort, setSort] = React.useState<'original' | 'title' | 'artist'>('original');
   const [newName, setNewName] = React.useState('');
   const [confirmDelete,setConfirmDelete]=React.useState(false);
+  const [removeAudio,setRemoveAudio]=React.useState<SavedMusicTrack|null>(null);
   const [group,setGroup]=React.useState<string|null>(null);
   React.useEffect(()=>{if(localRequest && view === undefined){setSelected('local');setFilter('');setGroup(null);}},[localRequest,view]);
   React.useEffect(()=>{if(view && view !== selected){setSelected(view);setFilter('');setGroup(null);setConfirmDelete(false);setSourceFilter('all');}},[view,selected]);
   const [error, setError] = React.useState('');
   const [notice, setNotice] = React.useState('');
   const [busy, setBusy] = React.useState(false);
+  const removalDialog=React.useRef<HTMLDialogElement>(null);
+  const [removeError,setRemoveError]=React.useState(false);
+  React.useEffect(()=>{
+    const node=removalDialog.current;
+    if(removeAudio&&node&&!node.open)node.showModal();
+    else if(!removeAudio&&node?.open)node.close();
+    return()=>{if(node?.open)node.close();};
+  },[removeAudio]);
+  async function confirmRemoveAudio(){
+    if(!removeAudio||!onRemoveVaultAudio||activeTrackId===removeAudio.id||busy)return;
+    setBusy(true);setRemoveError(false);
+    try{if(await onRemoveVaultAudio(removeAudio.id))setRemoveAudio(null);else setRemoveError(true);}
+    catch{setRemoveError(true);}finally{setBusy(false);}
+  }
   const inputRef = React.useRef<HTMLInputElement>(null);
   const localInputRef = React.useRef<HTMLInputElement>(null);
   const current = playlists.find((list) => list.id === selected);
@@ -162,6 +178,7 @@ export function MusicLibrary({
         <span className="tsugi-track-duration">{typeof track.duration === 'number' ? Math.floor(track.duration / 60) + ':' + String(Math.floor(track.duration % 60)).padStart(2, '0') : '—'}</span>
         <FiPlay aria-hidden className="tsugi-collection-play-icon" />
       </button>
+      {!removable&&localView&&track.id.startsWith('vault-audio:')&&onRemoveVaultAudio&&<button type="button" className="tsugi-icon-action" aria-label={t`Remove saved audio copy`} title={t`Remove saved audio copy`} disabled={activeTrackId===track.id||busy} onClick={()=>{setRemoveError(false);setRemoveAudio(track);}}><FiTrash2 aria-hidden/></button>}
       {removable && <button type="button" className="tsugi-icon-action" onClick={() => removeTrack(track)} aria-label={t`Remove track from playlist`}><FiTrash2 aria-hidden /></button>}
     </li>;
   }
@@ -212,5 +229,12 @@ export function MusicLibrary({
       </div>
       <aside className="tsugi-dashboard-right tsugi-hub-inspector"><section className="tsugi-dashboard-panel"><h3><Trans>Collection details</Trans></h3><dl className="tsugi-hub-details"><div><dt><Trans>Collection</Trans></dt><dd>{current?.name||group||(localView?t`Local music`:songsView?t`Songs`:visibleRecent?t`Recently played`:t`Library`)}</dd></div><div><dt><Trans>Tracks</Trans></dt><dd>{overview?allLocal.length+saved.length:visibleRecent?recentRows.length:rows.length}</dd></div><div><dt><Trans>Duration</Trans></dt><dd>{rows.length&&rows.every(track=>typeof track.duration==='number')?Math.round(rows.reduce((sum,track)=>sum+(track.duration||0),0)/60)+' min':'—'}</dd></div></dl></section><section className="tsugi-dashboard-panel"><h3><Trans>Your music sources</Trans></h3><div className="tsugi-dashboard-service"><span><Trans>Local files</Trans></span><small>{allLocal.length} <Trans>tracks</Trans></small></div>{sources.map(source=><div className="tsugi-dashboard-service" key={source.id}><span>{source.name}</span><small><Trans>Configured</Trans></small></div>)}{onManageSources&&<button type="button" className="tsugi-read-action tsugi-hub-add-source" onClick={onManageSources}><BrushPlug aria-hidden/><Trans>Manage music sources</Trans></button>}<div className="oto-library-links">{onDiscover&&<button type="button" className="tsugi-read-action" onClick={onDiscover}><BrushCompass aria-hidden/><Trans>Explore music</Trans></button>}{onSearch&&<button type="button" className="tsugi-read-action" onClick={onSearch}><FiSearch aria-hidden/><Trans>Search sources</Trans></button>}</div></section></aside>
     </div>
+    <dialog ref={removalDialog} className="tsugi-global-settings" aria-label={t`Remove saved audio copy`} onCancel={event=>{event.preventDefault();if(!busy)setRemoveAudio(null);}}>
+      {removeAudio&&<><header><h2><Trans>Remove saved audio copy?</Trans></h2></header>
+        <p className="break-words">{removeAudio.title}</p><p><Trans>This removes only Music's saved copy. The original Vault download stays in place.</Trans></p>
+        {removeError&&<p role="alert"><Trans>Could not remove the saved copy. Try again.</Trans></p>}
+        <div className="tsugi-collection-actions"><button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>setRemoveAudio(null)}><Trans>Cancel</Trans></button>
+        <button type="button" className="tsugi-read-action" disabled={busy||activeTrackId===removeAudio.id} onClick={()=>void confirmRemoveAudio()}><Trans>Remove copy</Trans></button></div></>}
+    </dialog>
   </section>;
 }
