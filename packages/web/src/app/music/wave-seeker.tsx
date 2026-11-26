@@ -6,18 +6,19 @@ type Props = {
   duration: number;
   paused: boolean;
   palette: PlayerPalette;
+  reactive?: boolean;
   onSeek(seconds: number): void;
 };
 
 // Two fixed-pitch rows of circular dots. The played region alone moves;
 // the native range control remains the accessible interaction surface.
-export function DotSeeker({ position, duration, paused, palette, onSeek }: Props) {
+export function DotSeeker({ position, duration, paused, palette, onSeek, reactive = false }: Props) {
   const available = Number.isFinite(duration) && duration > 0;
   const max = available ? duration : 1;
   const value = available && Number.isFinite(position) ? Math.min(max, Math.max(0, position)) : 0;
   const progress = (value / max) * 100;
   return (
-    <div className="tsugi-dot-seeker relative flex h-6 min-w-0 flex-1 items-center">
+    <div className="tsugi-dot-seeker relative flex h-6 min-w-0 flex-1 items-center" data-seek-motion={reactive ? 'on' : 'off'}>
       <span aria-hidden className="tsugi-dot-track" style={{color:palette.muted}} />
       <span aria-hidden className="tsugi-dot-track tsugi-dot-played"
         style={{color:palette.accent, width: `${progress}%`}}

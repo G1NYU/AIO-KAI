@@ -16,6 +16,7 @@ import { PlaybackQueue } from './playback-queue';
 import { PlayerSettings } from './player-settings';
 import type { MatrixMode } from './pixel-matrix';
 import { DotSeeker } from './wave-seeker';
+import { ListeningSpirit, PlayerVisualsProvider, useMotionAllowed, usePlayerMotion, usePlayerVisualSettings, useVisuals } from './player-visuals';
 import { VolumeControl } from './volume-control';
 import { storage } from '@/lib/storage';
 import type { AudioProfile } from '@/lib/music/audio-profiles';
@@ -41,6 +42,8 @@ export type MusicPlayerProps = {
   volume: number;
   quality: string;
   expanded: boolean;
+  /** Music remains mounted while other workspaces play its audio. */
+  visible?: boolean;
   shuffle: boolean;
   repeat: RepeatMode;
   audioProfile: AudioProfile;
@@ -120,12 +123,13 @@ export function Transport({ p, palette, large = false }: { p: MusicPlayerProps; 
 }
 
 export function Timeline({ p, palette }: { p: MusicPlayerProps; palette: PlayerPalette }) {
+  const {prefs} = useVisuals();
   return (
     <div className="oto-timeline flex w-full items-center gap-3 text-xs tabular-nums"
       style={{color:palette.muted}}>
       <span className="w-10 shrink-0 text-right">{musicTime(p.position)}</span>
       <DotSeeker position={p.position} duration={p.duration} paused={p.paused}
-        palette={palette} onSeek={p.onSeek} />
+        palette={palette} onSeek={p.onSeek} reactive={prefs.seekMotion} />
       <span className="w-10 shrink-0">-{musicTime(Math.max(0,p.duration-p.position))}</span>
     </div>
   );
@@ -148,12 +152,23 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
   );
   const [matrixMode, setMatrixMode] = React.useState<MatrixMode>(readMatrixMode);
   const template = stageId === 'imported' ? importedTemplate : null;
-  const matrixActive = p.expanded && stageId !== 'imported' && matrixMode !== 'off';
+  const visualSettings = usePlayerVisualSettings();
+  const motionAllowed = useMotionAllowed();
+  const motionRoot = React.useRef<HTMLElement>(null);
+  const visible = p.visible !== false && !!p.track;
+  const nativeLayout = !p.expanded || stageId !== 'imported';
+  const matrixActive = visible && p.expanded && stageId !== 'imported' && matrixMode !== 'off';
+  const mascotVisible = visualSettings.prefs.mascot === 'builtin' ||
+    (visualSettings.prefs.mascot === 'custom' && !!visualSettings.urls);
+  const motionActive = visible && nativeLayout && motionAllowed && !p.paused && !p.loading && !p.error &&
+    !p.visualizerUnavailable && (visualSettings.prefs.seekMotion || mascotVisible);
+  usePlayerMotion(motionRoot,motionActive,JSON.stringify([p.sourceId,p.track?.id,stageId]),p.expanded,p.analyser,p.nativeMeter);
+  const analysisWanted = matrixActive || motionActive;
   const onMatrixActive = p.onMatrixActive;
   React.useEffect(() => {
-    onMatrixActive?.(matrixActive);
+    onMatrixActive?.(analysisWanted);
     return () => onMatrixActive?.(false);
-  }, [matrixActive, onMatrixActive]);
+  }, [analysisWanted, onMatrixActive]);
 
   React.useEffect(() => {
     const sync = () => {
@@ -223,14 +238,14 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
   const track = p.track;
   if (!track) return null;
   return (
-    <>
-      {!p.expanded && <section aria-label={t`Music player`}
+    <PlayerVisualsProvider value={{prefs:visualSettings.prefs,urls:visualSettings.urls}}>
+      {!p.expanded && <section ref={motionRoot} aria-label={t`Music player`}
         className="tsugi-mini-player oto-mini-player fixed inset-x-0 bottom-0 z-30"
         style={{backgroundColor: palette.surface, borderColor: palette.border}}>
         <div className="tsugi-mini-player-grid">
           <button type="button" onClick={() => p.onExpanded(true)}
             className="tsugi-mini-track flex min-w-0 items-center gap-3 text-left focus-visible:outline focus-visible:outline-2">
-            <Artwork track={track} />
+            <span className="relative shrink-0"><Artwork track={track} /><ListeningSpirit /></span>
             <span className="min-w-0 flex-1">
               <span className="tsugi-mini-title block truncate font-semibold">{track.title}</span>
               {track.artist && <span className="tsugi-mini-artist block truncate">{track.artist}</span>}
@@ -270,7 +285,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
         )}
       </section>}
       {p.expanded && (
-        <section role="dialog" aria-modal="true" aria-label={t`Now playing`}
+        <section ref={motionRoot} role="dialog" aria-modal="true" aria-label={t`Now playing`}
           data-stage={stageId} className="tsugi-player-dialog oto-player fixed inset-0 z-50 overflow-y-auto"
           style={{backgroundColor:palette.canvas}}>
           {stageId === 'imported' && <div aria-hidden className="tsugi-player-ambient" />}
@@ -316,6 +331,7 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
               eqEnabled={p.eqEnabled} eqAvailable={p.eqAvailable}
               onEqEnabled={p.onEqEnabled} eqError={p.eqError}
               matrixMode={matrixMode} onMatrixMode={(value) => { setMatrixMode(value); saveMatrixMode(value); }}
+              visualSettings={visualSettings}
               showHeader={showHeader}
               studioContained={studioContained}
               onStudioContained={(value) => {
@@ -331,6 +347,6 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
         </section>
       )}
       {downloadTrack&&<TrackDownload track={downloadTrack} onClose={()=>setDownloadTrack(null)}/>}
-    </>
+    </PlayerVisualsProvider>
   );
 }

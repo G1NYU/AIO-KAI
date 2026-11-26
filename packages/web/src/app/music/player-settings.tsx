@@ -6,11 +6,12 @@ import type { MatrixMode } from './pixel-matrix';
 import type { PlayerStageId } from '@/lib/music/player-layout';
 import { AUDIO_PROFILES, type AudioProfile } from '@/lib/music/audio-profiles';
 import { GlobalAppearanceSettings } from '@/components/shell/global-settings';
+import { PlayerVisualSettings, type VisualSettingsState } from './player-visuals';
 
 export function PlayerSettings({
   onClose, stage, onStage, importedName,
   showHeader, onShowHeader, studioContained, onStudioContained, onImport, matrixMode, onMatrixMode,
-  audioProfile, onAudioProfile, eqEnabled, eqAvailable, onEqEnabled, eqError,
+  audioProfile, onAudioProfile, eqEnabled, eqAvailable, onEqEnabled, eqError, visualSettings,
 }: {
   onClose(): void;
   stage: PlayerStageId;
@@ -29,6 +30,7 @@ export function PlayerSettings({
   eqAvailable: boolean;
   onEqEnabled(value: boolean): void;
   eqError: string;
+  visualSettings: VisualSettingsState;
 }) {
   const closeRef = React.useRef<HTMLButtonElement>(null);
 
@@ -88,6 +90,7 @@ export function PlayerSettings({
           </select>
           <span className="mt-2 block text-xs leading-5 text-[--tsugi-muted]"><Trans>Immersive fills the background; Minimal uses a sparse lower field. Dot wave follows actual local waveform or native audio levels. Unsupported streams show no reactive wave. Reduced motion is respected.</Trans></span>
         </label>}
+        <PlayerVisualSettings state={visualSettings} />
         <div className="mb-8 border-t border-[--tsugi-line] pt-8"><GlobalAppearanceSettings /></div>
 
         <section className="mb-9 border-t border-[--tsugi-line] pt-8" aria-label={t`Audio profiles`}>
@@ -124,7 +127,7 @@ export function PlayerSettings({
               style={{accentColor:'var(--tsugi-accent)'}} />
           </label>
           <p className="mt-4 text-xs leading-5 text-[--tsugi-muted]">
-            <Trans>The equalizer supports local audio and the Windows native YouTube Music engine. Other remote addon streams remain unmodified to avoid cross-origin audio interruptions.</Trans>
+            <Trans>The equalizer supports local audio and Windows native YouTube Music and SoundCloud. Other remote addon streams remain unmodified to avoid cross-origin audio interruptions.</Trans>
           </p>
           {eqError && <p role="alert" className="mt-3 text-xs text-amber-200">{eqError}</p>}
         </section>

@@ -1,5 +1,13 @@
 # TSUGI current development handoff
 
+## 2026-11-26 — Restored measured seek motion and custom mascot; archive API correction
+
+Native SoundCloud and disposable WebView2 preservation remain verified at `18ef6ed` ([combined CI](https://github.com/G1NYU/TSUGI/actions/runs/45897205036)). The read-only A2 verifier landed at `9583d2a`, but the [first native build](https://github.com/G1NYU/TSUGI/actions/runs/45898094868/job/140176884281) rejected the comparison between the pinned ZIP 8.6 `Option<u64>` data offset and a raw offset. This change requires `Some(entry.data)` and retains the strict offset identity check. The next cumulative CI reruns the exact stable ZIP probe and native tests; archive acceptance is not yet verified.
+
+Recovered the interrupted music visual feature in source: a shared 24 fps measured PCM/native-RMS sampler drives the seek ribbon and optional listening spirit without altering seek hitboxes or creating another audio graph. Removes the previous timed, non-reactive dot-flow. Motion is off for paused/loading/error, hidden/inactive, reduced-motion, stale native meter and direct-only playback. Built-in spirit is opt-in; custom PNG/WebP/GIF import is bounded to 4 MiB/1024 px dimensions, decoded, stores original and still poster in one dedicated local IndexedDB record, and is removable. The original animation is displayed only during measured sound. Imported Studio layout remains unchanged. Existing audio tests retain their intentionally opt-in first graph; new unit/browser fixtures exercise PCM and native motion, GIF import/reload/removal, reduced motion, stale samples and Read background playback. New tests and integrated CI are pending; no live provider timing claim. See [music reactivity](docs/music-player-reactivity.md).
+
+Next: inspect actual cumulative CI, then continue A1/A2 recovery, Reader workflow and all B–D milestones. Stable v0.1.0 and last verified portable package remain unchanged. No packaging/release marker is included.
+
 ## 2026-11-26 — Portable archive verification and actual WebView2 acceptance
 
 The disposable WebView2 fixture at `18ef6ed` passed the actual Windows runtime in [job 140173949511](https://github.com/G1NYU/TSUGI/actions/runs/45897205036/job/140173949511), including cold/warm/restart HTTP request counts 1/1/2, protected data checks and interrupted/unknown exit 2 followed by a preservation check. The same job passed all 164 native core tests, with 18 intentionally ignored. Production cleanup and physical mixed-media recovery remain open.

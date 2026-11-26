@@ -14,6 +14,7 @@ import type { PlayerPalette } from '@/lib/music/player-theme';
 import { useTrackLyrics } from './use-track-lyrics';
 import { LyricsPanel } from './lyrics-panel';
 import { BrushHeading } from '@/components/brush-heading';
+import { ListeningSpirit } from './player-visuals';
 
 /** A responsive Tsugi composition; imported Studio templates use their own renderer. */
 export function JunctionPlayer({
@@ -35,7 +36,7 @@ export function JunctionPlayer({
     <div data-ui="tsugi-junction" data-layout={layout} data-lyrics-open={lyricsOpen}
       className="tsugi-native-stage grid w-full flex-1 items-center">
       {layout === 'nocturne' && song.artworkURL && <div className="tsugi-nocturne-backdrop" aria-hidden="true"><MusicArtwork source={song.artworkURL} responsive className="size-full object-cover" /></div>}
-      {matrixMode !== 'off' && <PixelMatrix mode={matrixMode} accent={palette.accent} paused={p.paused || p.loading} analyser={p.analyser} nativeMeter={p.nativeMeter} />}
+      {matrixMode !== 'off' && <PixelMatrix mode={matrixMode} accent={palette.accent} paused={p.paused || p.loading || p.visible === false || !!p.error} analyser={p.analyser} nativeMeter={p.nativeMeter} />}
       <section className="tsugi-stage-artwork mx-auto flex w-full min-w-0 flex-col justify-center">
         <div className="relative isolate">
           {song.artworkURL
@@ -44,6 +45,7 @@ export function JunctionPlayer({
                 style={{ background: palette.panel, color:palette.muted }}>
                 <BiDisc aria-hidden className="text-[clamp(4rem,9vw,8rem)]" />
               </span>}
+          <ListeningSpirit />
         </div>
         <div className="mt-5 flex min-w-0 items-center justify-between gap-5 text-xs"
           style={{ color: palette.muted }}>

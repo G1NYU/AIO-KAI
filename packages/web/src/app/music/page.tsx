@@ -1245,6 +1245,7 @@ export function MusicPage({
           onClose={() => setSelectedCollection(null)} onPlay={playCollection} saving={collectionSaving} />
       )}
       <MusicPlayer p={{
+        visible: visible && playbackAllowed,
         track: playing,
         sourceId: playingSourceId,
         sourceName: playingSourceId === LOCAL_SOURCE ? t`Local audio` :

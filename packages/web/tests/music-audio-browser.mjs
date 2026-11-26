@@ -60,6 +60,8 @@ function inspectAudioGraphs() {
   localStorage.setItem('tsugi-startup-area-v1', JSON.stringify('music'));
   localStorage.setItem('tsugi-onboarding-complete-v1', JSON.stringify(true));
   localStorage.setItem('tsugi-matrix-mode-v1', JSON.stringify('wave'));
+  // Keep the intentional first-graph-on-expand cases independent of seek motion.
+  localStorage.setItem('tsugi-player-visuals-v1',JSON.stringify({seekMotion:false,mascot:'off'}));
 }
 
 export async function verifyMusicAudioBrowser({ browser, origin, installDesktopFixture, screenshotDir }) {

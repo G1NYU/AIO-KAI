@@ -31,3 +31,7 @@ Six synthetic native tests cover complete stored/deflated archives, wrong checks
 ## Remaining A2 boundary
 
 Before apply: verified release selection, bounded download and private staging, safe extraction and re-verification, update preview/explicit consent, app shutdown/locking, persistent crash-safe replacement and rollback journal, protection of actual user data and Windows fault-injection across restart. No live installation writes, migration, downgrade or updater execution are enabled by this diagnostic module.
+
+## Initial native build correction
+
+The first [Windows compile](https://github.com/G1NYU/TSUGI/actions/runs/45898094868/job/140176884281) reported that ZIP 8.6 returns an optional data offset. Compare it to Some(entry.data), not the raw integer. This preserves the requirement that the decoder and bounded central/local directory review agree. The compile, six tests and exact stable archive probe are being rerun by cumulative CI; this is not verified package acceptance yet.
