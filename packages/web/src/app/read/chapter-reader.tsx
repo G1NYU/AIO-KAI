@@ -1,5 +1,6 @@
 import { BrushBack as FiArrowLeft, BrushLeft as FiChevronLeft, BrushRight as FiChevronRight, BrushSettings as FiSettings, BrushMinus as FiMinus, BrushPlus as FiPlus, BrushExpand as FiMaximize, BrushShrink as FiMinimize, BrushList as FiList } from '@/components/tsugi-icons';
 import React from 'react';
+import { useMediaPresence } from '@/lib/rich-presence';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 
@@ -40,6 +41,12 @@ export function ChapterReader({ title, visible, onMusic, onAppSettings, chapter,
   const [saveError, setSaveError] = React.useState('');
   const [lastSaved, setLastSaved] = React.useState<number | null>(null);
   const [closing, setClosing] = React.useState(false);
+  const presenceChapter = chapter.name;
+  const presencePage = index + 1;
+  useMediaPresence(visible && !closing ? { media: 'manga', title,
+    subtitle: t({ id: 'Reading · {presenceChapter} · Page {presencePage} / {count}', message: `Reading · ${presenceChapter} · Page ${presencePage} / ${count}` }),
+    imdb: null, position: 0, duration: null, paused: false, browsing: false,
+  } : null);
   const viewport = React.useRef<HTMLDivElement>(null);
   const pageElements = React.useRef(new Map<number, HTMLDivElement>());
   const memory = React.useRef<Record<number, Page>>({});

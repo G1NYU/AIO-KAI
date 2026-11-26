@@ -84,8 +84,10 @@ describe('collection transfer', () => {
 });
 
 describe('shared Tsugi desktop identity', () => {
-  it('uses the same desktop rail in the three workspaces and one brush outline family', () => {
-    for (const path of ['app/music/page.tsx', 'app/read/page.tsx', 'components/shell/layout.tsx']) {
+  it('uses the shared rail in Music, Read and Vault and one brush outline family', () => {
+    // Movies deliberately restores its established Sidebar; actual routing and
+    // access to the other spaces are covered by movies-layout-browser.mjs.
+    for (const path of ['app/music/page.tsx', 'app/read/page.tsx', 'app/vault/native-queue.tsx']) {
       const source = readFileSync(new URL('../src/' + path, import.meta.url), 'utf8');
       expect(source).toContain('<TsugiRail area=');
     }

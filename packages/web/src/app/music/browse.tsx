@@ -4,7 +4,7 @@ import { Trans } from '@lingui/react/macro';
 import { BiArrowBack, BiDisc, BiPlay } from 'react-icons/bi';
 import { FiPlay, FiPlus, FiCheck, FiArrowRight, FiChevronLeft, FiChevronRight, FiFolder, FiMusic } from 'react-icons/fi';
 import { BrushPlug } from '@/components/tsugi-icons';
-import { LandscapeDecoration } from '@/components/landscape-decoration';
+import { BrushHeading } from '@/components/brush-heading';
 import {
   catalogTrack,
   type EclipseCatalogDefinition, type EclipseCatalogItem, type EclipseDetail, type EclipseTrack,
@@ -246,10 +246,10 @@ export function MusicDiscover({
   const recentFromSource = recent.filter((item) => item.sourceId === source?.id);
 
   const featureHero = <section className="oto-feature" aria-label={t`Featured music`} data-featured={!!featured}>
-    <LandscapeDecoration className="oto-feature-backdrop" fallback="/design/oto/hero-yuna.webp" />
+    {featured?.artworkURL && <MusicArtwork source={featured.artworkURL} target={1024} responsive className="oto-feature-backdrop [&>svg]:hidden" />}
     <div className="oto-feature-copy">
       <p className="oto-overline">{featuredRow?.catalog.name || t`A little escape, a little closer`}</p>
-      <h2>{featured?.title || <Trans>A world between notes</Trans>}</h2>
+      <BrushHeading as="h2">{featured?.title || <Trans>A world between notes</Trans>}</BrushHeading>
       <p className="oto-feature-description">{featured?.artist || featured?.album || <Trans>Find a little escape in the music you love.</Trans>}</p>
       {source && <p className="oto-feature-source"><span aria-hidden />{source.manifest.name}</p>}
       <div className="oto-feature-actions">

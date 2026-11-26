@@ -1,0 +1,39 @@
+{
+  "upstream": "https://github.com/mihonapp/mihon",
+  "revision": "feadad5e1e2bf638be6e2ca317d11657b09d4596",
+  "writer": "BackupStream.kt",
+  "writerBlob": "bb1b8c3d7449fc2c11429b26e8e8d5cacb40f322",
+  "description": "Authored sanitized data encoded by upstream BackupWriter and original serializer declarations. Domain conversion helpers omitted. Not a physical Android export.",
+  "rawSha256": "0d8b2f32b4fca5ed9174a21b65a146496f28a0cc6da9f0828d1e7eb1185af140",
+  "gzipSha256": "bd78e91a3c6cf44d45232d42f1e4366fecd9e0b7f085c437be49d88099e6e537",
+  "rawBytes": 911,
+  "gzipBytes": 544,
+  "sourceBlobs": {
+    "app/src/main/java/eu/kanade/tachiyomi/data/backup/models/Backup.kt": "0c021d34a8426dc0bd5844b4e00f9c13767610bf",
+    "app/src/main/java/eu/kanade/tachiyomi/data/backup/models/BackupManga.kt": "74a27fa017dfc84e2826470c37e8102fe92a782d",
+    "app/src/main/java/eu/kanade/tachiyomi/data/backup/models/BackupChapter.kt": "9b026ca30faae1ad334ab7fcccebaa667515ed77",
+    "app/src/main/java/eu/kanade/tachiyomi/data/backup/models/BackupHistory.kt": "aed3f24a29abd781e6913af9b02b5a44e3203436",
+    "app/src/main/java/eu/kanade/tachiyomi/data/backup/models/BackupCategory.kt": "2600e22a45ca8c693f99860d378672c57347a1fb",
+    "app/src/main/java/eu/kanade/tachiyomi/data/backup/models/BackupSource.kt": "92ee2dca94bb8005ba8b2aec1d90464f28fbf806",
+    "app/src/main/java/eu/kanade/tachiyomi/data/backup/models/BackupTracking.kt": "7b66f1457970619e3934a944c0e59fb9e28c733a",
+    "app/src/main/java/eu/kanade/tachiyomi/data/backup/models/BackupPreference.kt": "3884f37e3f99b032597e734b0517bd2fea970125",
+    "app/src/main/java/eu/kanade/tachiyomi/data/backup/models/BackupExtensionStore.kt": "93ec1a6a7dc64d762c35d1729ce8443ca87ca4ac",
+    "app/src/main/java/eu/kanade/tachiyomi/data/backup/BackupStream.kt": "bb1b8c3d7449fc2c11429b26e8e8d5cacb40f322",
+    "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/model/UpdateStrategy.kt": "d76a7dd008b0f03f3e110a13e75cdb8566c03a31",
+    "core/common/src/main/kotlin/mihon/core/common/extensions/JsonObject.kt": "1fc7998f3c7cc92ede43d922a15cda3a5f8f264d"
+  },
+  "buildDependencies": {
+    "kotlin-compiler-embeddable-2.4.21.jar": "ef19419c765e7ac8404465fa026ca8fc4dbb8a822de0fc79aa53c8dce29f1d02",
+    "kotlin-serialization-compiler-plugin-embeddable-2.4.21.jar": "63b381018a7d45221795d18301150fb80a1d00f30aae7be0550ab86f9ddd0ce8",
+    "kotlin-build-tools-api-2.4.21.jar": "c5cd6a49bd072b529ae10809111c16a7aa0f92147e95d288354017fd65799461",
+    "kotlin-stdlib-2.4.21.jar": "bd8250210584cb659847dce9cda660f8e9906e5def7fbebcea93dc6dcb6a88a3",
+    "kotlin-script-runtime-2.4.21.jar": "a658cf5902a1525a06c264a5e42b437e97a6679ddeef8ca641246f270cf6a013",
+    "kotlin-reflect-1.6.10.jar": "3277ac102ae17aad10a55abec75ff5696c8d109790396434b496e75087854203",
+    "kotlin-daemon-embeddable-2.4.21.jar": "7b3ef24674e5bcffcadfc4e43202ea314194939ecbcdd90a4770b2f1b04e0d07",
+    "kotlinx-coroutines-core-jvm-1.8.0.jar": "9860906a1937490bf5f3b06d2f0e10ef451e65b95b269f22daf68a3d1f5065c5",
+    "annotations-13.0.jar": "ace2a10dc8e2d5fd34925ecac03e4988b2c0f851650c94b8cef49ba1bd111478",
+    "kotlinx-serialization-core-jvm-1.12.0.jar": "bcfddcac76159058ba0953af05938c17111d238cd41be7191874656454d62f1a",
+    "kotlinx-serialization-protobuf-jvm-1.12.0.jar": "d68f6aca48c54ae400f0cecc5b359617e630078a2b36a63311c9338eed8846a5",
+    "okio-jvm-3.18.2.jar": "681fed549d1d2c63710f42c9eab433d642c71af778babd67035c50f8c425aaff"
+  }
+}

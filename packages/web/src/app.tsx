@@ -60,6 +60,7 @@ import { ReadPage, ReadSetupPage } from './app/read/page';
 import { BooksPage } from './app/read/books-page';
 import { appBridge } from './lib/hosts/shell/bridge';
 import { supportsReading, supportsReadingSection } from './lib/hosts/shell/reading';
+import { RichPresenceSession } from './lib/rich-presence';
 import { GlobalAppearance, GlobalSettingsDialog } from './components/shell/global-settings';
 import { MediaNavigation } from './components/shell/media-navigation';
 import { startScheduledBackups } from './lib/backup/scheduled-runner';
@@ -267,7 +268,7 @@ function Standalone() {
   return (
     <DesktopAreaContext.Provider value={desktop ? areaActions : null}>
       <>
-      {desktop && <><GlobalAppearance /><GlobalSettingsDialog open={globalSettings} onClose={() => setGlobalSettings(false)} hasReadSection={reading || books} /></>}
+      {desktop && <><RichPresenceSession /><GlobalAppearance /><GlobalSettingsDialog open={globalSettings} onClose={() => setGlobalSettings(false)} hasReadSection={reading || books} /></>}
       {desktop && area === 'video' && (!base || picking) && <MediaNavigation area="video" className="tsugi-entry-media-nav" />}
       <AnimatePresence mode="wait">
         <motion.div

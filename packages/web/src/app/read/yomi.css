@@ -109,8 +109,9 @@
   font-family:var(--tsugi-feature-font,var(--tsugi-font));
   font-size:clamp(44px,5.1vw,82px);
   font-weight:400;
-  line-height:1.04;
+  line-height:1.28;
   letter-spacing:-.025em;
+  margin-block-start:28px;
 }
 :root[data-host='desktop'] .yomi-workspace .tsugi-spotlight-copy > p:not(.tsugi-feature-kicker) {
   max-width:43ch;
@@ -121,6 +122,24 @@
 }
 .yomi-workspace .tsugi-spotlight-copy .tsugi-feature-kicker { color:#d5b7aa; font-size:10px; letter-spacing:.18em; }
 .yomi-workspace .tsugi-spotlight-copy > .tsugi-read-action { min-height:40px; margin-top:22px; }
+/* Browse leads into an inventory; keep its introduction compact enough for
+   source choices to remain visible without reducing brush glyph clearance. */
+:root[data-host='desktop'] .yomi-workspace[data-read-view='sources'] .tsugi-landscape-spotlight {
+  min-height:240px;
+}
+:root[data-host='desktop'] .yomi-workspace[data-read-view='sources'] .tsugi-spotlight-copy {
+  max-width:min(760px,80%);
+  padding:24px 28px 40px;
+}
+:root[data-host='desktop'] .yomi-workspace[data-read-view='sources'] .tsugi-spotlight-copy h2 {
+  max-width:22ch;
+  font-size:clamp(32px,3.2vw,46px);
+  margin-block-start:18px;
+}
+:root[data-host='desktop'] .yomi-workspace[data-read-view='sources'] .tsugi-spotlight-copy > p:not(.tsugi-feature-kicker) {
+  margin-top:8px;
+}
+:root[data-host='desktop'] .yomi-workspace[data-read-view='sources'] .tsugi-spotlight-copy > .tsugi-read-action { margin-top:18px; }
 .yomi-banner {
   position:relative;
   isolation:isolate;
@@ -144,9 +163,10 @@
   font-family:var(--tsugi-feature-font,var(--tsugi-font));
   font-weight:400;
   font-size:clamp(32px,3.3vw,49px);
-  line-height:1.1;
+  line-height:1.28;
   letter-spacing:-.02em;
 }
+.yomi-banner .yomi-eyebrow { margin-bottom:24px; }
 .yomi-banner-copy > p:last-child { margin-top:16px; color:#bbc2c4; font-size:12px; line-height:1.65; }
 .yomi-banner-extra { margin-inline-start:auto; min-width:0; }
 
@@ -282,8 +302,8 @@
 }
 .yomi-series-hero::after { background:linear-gradient(90deg,rgba(10,16,21,.94),rgba(10,16,21,.8) 52%,rgba(10,16,21,.35)); }
 :root[data-host='desktop'] .yomi-workspace .yomi-series-hero > .tsugi-manga-cover { width:180px; box-shadow:0 14px 30px rgba(0,0,0,.23); }
-:root[data-host='desktop'] .yomi-workspace .yomi-series-hero h2 { max-width:17ch; font-family:var(--tsugi-feature-font,var(--tsugi-font)); font-size:clamp(36px,4.4vw,68px); font-weight:400; line-height:1.08; letter-spacing:-.025em; overflow-wrap:anywhere; }
-.yomi-series-hero .yomi-eyebrow { color:#d5b7aa; }
+:root[data-host='desktop'] .yomi-workspace .yomi-series-hero h2 { max-width:17ch; font-family:var(--tsugi-feature-font,var(--tsugi-font)); font-size:clamp(36px,4.4vw,68px); font-weight:400; line-height:1.28; letter-spacing:-.025em; overflow-wrap:anywhere; }
+.yomi-series-hero .yomi-eyebrow { color:#d5b7aa; margin-bottom:28px; }
 .yomi-series-hero .text-\[--tsugi-muted\] { color:#bbc1c4; }
 :root[data-host='desktop'] .yomi-workspace .tsugi-series-actions { display:flex; flex-direction:row; align-items:center; gap:10px; margin-top:24px; }
 .yomi-workspace .tsugi-series-actions > button { min-height:40px; }
@@ -329,7 +349,7 @@
 .yomi-category-card[aria-current='page'] .yomi-category-copy { color:var(--tsugi-accent); }
 .yomi-category-copy { display:grid; position:relative; z-index:1; gap:8px; min-width:0; max-width:65%; }
 .yomi-category-copy > svg { width:18px; height:18px; color:#afc4ac; }
-.yomi-category-copy > strong { overflow-wrap:anywhere; font-family:var(--tsugi-feature-font,var(--tsugi-font)); font-weight:400; font-size:30px; line-height:1.08; }
+.yomi-category-copy > strong { overflow-wrap:anywhere; font-family:var(--tsugi-feature-font,var(--tsugi-font)); font-weight:400; font-size:30px; line-height:1.28; margin-top:10px; }
 .yomi-category-copy > small { color:#c4c7c9; font-size:10px; }
 .yomi-cover-stack { position:absolute; inset-inline-end:20px; bottom:16px; display:flex; width:40%; justify-content:flex-end; align-items:flex-end; }
 .yomi-cover-stack > .tsugi-manga-cover { width:68px; min-width:0; margin-inline-start:-30px; transform:rotate(7deg); box-shadow:0 6px 16px rgba(0,0,0,.25); }
@@ -364,8 +384,7 @@
 }
 :root[data-host='desktop'] .yomi-workspace .tsugi-search-console { padding:22px; margin-bottom:24px; border:0; background:var(--tsugi-surface); border-radius:12px; }
 .yomi-workspace .tsugi-search-form { gap:10px; }
-:root[data-host='desktop'] .yomi-workspace .tsugi-search-source { padding:20px; margin-bottom:16px; border-radius:13px; background:var(--tsugi-surface); }
-:root[data-host='desktop'] .yomi-workspace .tsugi-search-source:nth-of-type(even) { background:var(--tsugi-row-alt); }
+:root[data-host='desktop'] .yomi-workspace .tsugi-search-source { padding:0; margin-bottom:28px; border-radius:0; background:transparent; }
 .yomi-workspace .tsugi-search-source-header { margin-bottom:18px; }
 .yomi-workspace .tsugi-search-status { margin-top:18px; font-size:12px; gap:14px; }
 .yomi-workspace .tsugi-search-source .tsugi-manga-grid { grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); }
@@ -377,10 +396,22 @@
 :root[data-host='desktop'] .yomi-workspace .tsugi-reading-settings-index { gap:10px; }
 :root[data-host='desktop'] .yomi-workspace .tsugi-reading-settings-index > .tsugi-read-row { min-height:96px; padding:22px; border-radius:12px; font-size:15px; }
 .yomi-workspace .tsugi-reading-settings-index > .tsugi-read-row .text-sm { display:block; margin-top:6px; font-size:12px; line-height:1.6; }
+.yomi-repository-settings { display:grid; gap:24px; max-width:880px; }
+.yomi-repository-settings > header p { max-width:74ch; margin-top:8px; color:var(--tsugi-muted); font-size:13px; line-height:1.65; }
+.yomi-repository-form { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; }
+.yomi-repository-field { display:grid; flex:1 1 320px; gap:8px; min-width:0; color:var(--tsugi-muted); font-size:12px; }
+.yomi-workspace .yomi-repository-field .tsugi-read-input { min-width:0; width:100%; }
+.yomi-repository-form > button { flex:none; }
+.yomi-repository-list { display:grid; gap:20px; margin:0; padding:4px 0; list-style:none; }
+.yomi-repository-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:24px; min-width:0; }
+.yomi-repository-identity { display:grid; gap:5px; min-width:0; padding-block:2px; overflow-wrap:anywhere; }
+.yomi-repository-identity strong { font-size:14px; font-weight:600; line-height:1.5; }
+.yomi-repository-identity > span { color:var(--tsugi-muted); font-size:12px; line-height:1.6; }
+.yomi-repository-empty,.yomi-repository-trust { max-width:74ch; margin:0; color:var(--tsugi-muted); font-size:13px; line-height:1.65; }
+.yomi-repository-settings > button { justify-self:start; }
 :root[data-host='desktop'] .yomi-workspace .tsugi-reader-settings-content { max-width:none; gap:20px; }
 :root[data-host='desktop'] .yomi-workspace .tsugi-reader-settings-title h3 { font-size:21px; font-weight:600; }
-:root[data-host='desktop'] .yomi-workspace .tsugi-reader-setting-group { padding:20px; border:0; border-radius:12px; background:var(--tsugi-surface); }
-:root[data-host='desktop'] .yomi-workspace .tsugi-reader-setting-group:nth-of-type(even) { background:var(--tsugi-row-alt); }
+:root[data-host='desktop'] .yomi-workspace .tsugi-reader-setting-group { padding:16px 0; border:0; border-radius:0; background:transparent; }
 .yomi-workspace .tsugi-reader-setting-group h4 { margin-bottom:14px; font-size:14px; }
 .yomi-workspace .tsugi-reader-layout-options { gap:12px; }
 .yomi-workspace .tsugi-reader-layout-options button { min-height:106px; padding:16px; gap:7px; border:0; border-radius:9px; background:var(--tsugi-panel); font-size:12px; }
@@ -438,7 +469,8 @@
 :root[data-host='desktop'] .yomi-chapter-reader .tsugi-chapter-settings { width:320px; padding:22px; background:var(--tsugi-surface); border:0; }
 .yomi-chapter-reader .tsugi-reader-settings-content { gap:18px; }
 .yomi-chapter-reader .tsugi-reader-settings-title h3 { font-size:16px; }
-.yomi-chapter-reader :is(.tsugi-reader-setting-group,.tsugi-reader-setting-toggle) { padding:14px; border:0; border-radius:10px; background:var(--tsugi-panel); }
+.yomi-chapter-reader .tsugi-reader-setting-group { padding:14px 0; border:0; border-radius:0; background:transparent; }
+.yomi-chapter-reader .tsugi-reader-setting-toggle { padding:14px; border:0; border-radius:10px; background:var(--tsugi-panel); }
 .yomi-chapter-reader .tsugi-reader-layout-options button,.yomi-chapter-reader .tsugi-reader-choice button { border:0; border-radius:7px; background:var(--tsugi-surface); }
 .yomi-chapter-reader .tsugi-reader-layout-options button[aria-pressed='true'],.yomi-chapter-reader .tsugi-reader-choice button[aria-pressed='true'] { background:var(--tsugi-row-active); color:var(--tsugi-accent); }
 .yomi-chapter-reader .tsugi-read-subnav { border:0; gap:6px; }
@@ -487,6 +519,7 @@
   :root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight { min-height:290px; }
   :root[data-host='desktop'] .yomi-workspace .tsugi-spotlight-copy { max-width:100%; padding:25px 23px 50px; }
   :root[data-host='desktop'] .yomi-workspace .tsugi-spotlight-copy h2 { font-size:clamp(38px,7.5vw,59px); max-width:12ch; }
+  :root[data-host='desktop'] .yomi-workspace[data-read-view='sources'] .tsugi-spotlight-copy { max-width:100%; padding:24px 23px 54px; }
   :root[data-host='desktop'] .yomi-workspace .tsugi-reading-resume-list { grid-template-columns:minmax(0,1fr); gap:12px; }
   :root[data-host='desktop'] .yomi-workspace .tsugi-reading-resume-card:last-child:nth-child(3) { grid-column:auto; }
   :root[data-host='desktop'] .yomi-workspace .tsugi-reading-resume-card { min-height:116px; }
@@ -520,6 +553,8 @@
   :root[data-host='desktop'] .yomi-chapter-reader .tsugi-chapter-settings { position:absolute; inset:74px 10px 74px auto; z-index:4; width:min(320px,calc(100vw - 20px)); max-height:calc(100% - 148px); border-radius:13px; padding:18px; box-shadow:0 18px 60px rgba(0,0,0,.35); }
 }
 @media(max-width:480px) {
+  .yomi-repository-row { grid-template-columns:minmax(0,1fr); gap:12px; }
+  .yomi-repository-row > button { justify-self:start; }
   :root[data-host='desktop'] .yomi-workspace .tsugi-reading-content { padding-inline:12px; }
   :root[data-host='desktop'] .yomi-workspace .tsugi-manga-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px 12px; }
   :root[data-host='desktop'] .yomi-workspace .yomi-series-hero { grid-template-columns:minmax(0,1fr); padding:20px; }

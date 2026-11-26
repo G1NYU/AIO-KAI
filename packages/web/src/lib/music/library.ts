@@ -2,7 +2,7 @@ import { storage } from '../storage';
 import type { EclipseTrack } from './eclipse';
 
 /** User-owned metadata. Never store resolved audio URLs, local paths or bearer-token addon URLs. */
-export type SavedMusicTrack = Pick<EclipseTrack, 'id' | 'title' | 'artist' | 'album' | 'artworkURL' | 'duration' | 'isrc'> & {
+export type SavedMusicTrack = Pick<EclipseTrack, 'id' | 'title' | 'artist' | 'album' | 'artworkURL' | 'duration' | 'recordingType' | 'isrc'> & {
   sourceId?: string;
 };
 export type SavedCollectionIdentity = { sourceId: string; id: string; type: 'album' | 'playlist' | 'artist' };
@@ -27,6 +27,7 @@ export function savedTrack(track: EclipseTrack, sourceId?: string): SavedMusicTr
     duration: typeof track.duration === 'number' && Number.isFinite(track.duration)
       && track.duration >= 0 ? track.duration : undefined,
     isrc: clean(track.isrc, 40) || undefined,
+    ...(track.recordingType === 'song' || track.recordingType === 'video' ? { recordingType: track.recordingType } : {}),
     sourceId: sourceId && /^[a-f\d-]{32,40}$/i.test(sourceId) ? sourceId : undefined,
   };
 }

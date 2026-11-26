@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { assertBrushHeadingSpacing } from './brush-headings-browser.mjs';
 
 function installSourceIconsFixture() {
   if (window.top !== window) return;
@@ -69,6 +70,8 @@ export async function verifySourceIconsBrowser({ browser, origin, installDesktop
   const icon = id => row(id).locator('[data-extension-icon]');
   const iconCalls = suffix => page.evaluate(suffix => window.__sourceIconsFixture.calls.filter(action => action.kind === 'extension-icon' && action.package === `org.tsugi.icons.${suffix}`).length, suffix);
   const ready = async locator => {
+    // Exercise the icon only after its lazy-loaded row enters the reading viewport.
+    await locator.scrollIntoViewIfNeeded();
     await locator.locator('img').waitFor();
     await page.waitForFunction(selector => [...document.querySelectorAll(selector)].every(node => {
       const img = node.querySelector('img'); return img?.complete && img.naturalWidth === 16 && img.naturalHeight === 24;
@@ -92,6 +95,12 @@ export async function verifySourceIconsBrowser({ browser, origin, installDesktop
     });
     await page.goto(origin + '/?actualImages', { waitUntil: 'domcontentloaded' });
     await rail.getByRole('button', { name: 'Browse', exact: true }).click();
+    await assertBrushHeadingSpacing(page, '[data-page="read"] .tsugi-spotlight-copy h2');
+    await row('9007199254740993').waitFor();
+    const hero = await read.locator('.tsugi-landscape-spotlight').boundingBox();
+    const secondRow = await row('9007199254740993').boundingBox();
+    assert.ok(hero.height < page.viewportSize().height * .35, 'Browse introduction leaves room for its source inventory');
+    assert.ok(secondRow.y + secondRow.height <= page.viewportSize().height, 'multiple source choices are visible before scrolling');
     await ready(icon('12345')); await ready(icon('9007199254740993'));
     assert.equal(await iconCalls('shared'), 1, 'two source rows share one compressed icon transfer');
     assert.equal(await iconCalls('distant'), 0, 'offscreen source icons are not requested');
@@ -129,6 +138,7 @@ export async function verifySourceIconsBrowser({ browser, origin, installDesktop
     if (screenshotDir) { await mkdir(screenshotDir, { recursive: true }); await page.screenshot({ path: join(screenshotDir, 'source-icons-wide.png'), animations: 'disabled' }); }
 
     await page.setViewportSize({ width: 600, height: 860 });
+    await assertBrushHeadingSpacing(page, '[data-page="read"] .tsugi-spotlight-copy h2');
     await row('12345').scrollIntoViewIfNeeded(); await ready(icon('12345'));
     assert.ok(await read.evaluate(node => node.scrollWidth <= node.clientWidth + 1), 'source icons preserve the narrow layout');
     const box = await icon('12345').boundingBox(); assert.ok(box.width <= 32 && box.height <= 32);

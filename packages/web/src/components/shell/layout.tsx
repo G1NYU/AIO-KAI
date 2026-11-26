@@ -34,8 +34,6 @@ import { useSession } from '@/lib/jellyfin/session';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { TsugiMusicIcon, TsugiReadIcon, TsugiVaultIcon } from '@/components/tsugi-brand';
 import { mediaDestinations } from './media-navigation';
-import { TsugiRail } from './tsugi-rail';
-import { TsugiIcon, type TsugiIconName } from '@/components/tsugi-icons';
 import { useLiveTvShown } from '@/features/live-tv/live-tv';
 import { useCanSwitch } from '@/lib/profiles';
 import { navigate, to } from '@/lib/paths';
@@ -83,6 +81,7 @@ import { HistoryButtons } from './history-buttons';
 import { ConnectionNote } from './unreachable';
 import { Logo, onBar } from './nav/common';
 import { SidebarAccount } from './nav/account';
+import { MovieMediaMenu } from './nav/movie-media-menu';
 import { MobileNav } from './nav/mobile-nav';
 import { TouchRail } from './nav/touch-rail';
 import { TvRail } from './nav/tv-rail';
@@ -190,7 +189,6 @@ export function WebLayout() {
   const top = nav === 'tv-top' || nav === 'top';
   const shape = nav === 'rail' || nav === 'tv-rail' ? railShape : undefined;
   const side = nav === 'sidebar' || shape === 'docked';
-  const unifiedRail = !!desktopArea && nav === 'sidebar';
   const named =
     nav === 'tv-rail' ? railNames === 'always' : railNames !== 'never';
   React.useEffect(() => {
@@ -266,6 +264,10 @@ export function WebLayout() {
     together,
     ...(downloads ? [downloads] : []),
   ];
+  const mediaItems = items.filter((item) =>
+    ['all-media', 'music', 'read', 'vault'].includes(item.id ?? '')
+  );
+  const movieItems = items.filter((item) => !mediaItems.includes(item));
 
   const settingsItem: SidebarItem = {
     id: 'settings',
@@ -303,8 +305,10 @@ export function WebLayout() {
       {!playing && <PagesWork pathname={pathname} playing={!!playback} />}
       <div
         data-ui="shell"
+        data-navigation={nav}
         inert={playing || trailerCovers}
         className={cn(
+          desktopArea && 'tsugi-video-shell',
           playing
             ? 'invisible [content-visibility:hidden]'
             : // Faded away from a trailer playing behind it, which goes on.
@@ -320,22 +324,7 @@ export function WebLayout() {
           >
             {side && (
               <AppLayoutSidebar data-ui="sidebar">
-                {unifiedRail ? (
-                  <TsugiRail area="video" globalSettings={false} footer={<>
-                    <button type="button" title={settingsItem.name} aria-label={settingsItem.name} aria-current={settingsItem.isCurrent ? 'page' : undefined} onClick={settingsItem.onClick}><TsugiIcon name="settings" /><span>{settingsItem.name}</span></button>
-                    <SidebarAccount you={you} />
-                  </>}>
-                    <nav className="tsugi-rail-local" aria-label={t({ id: 'Video sections', message: 'Video sections' })}>
-                      {items.filter(item => !['all-media', 'music', 'read', 'vault'].includes(item.id || '')).map(item => {
-                        const icons: Record<string, TsugiIconName> = { home: 'home', discover: 'compass', search: 'search', favourites: 'heart', live: 'video', calendar: 'calendar', activity: 'history', playlists: 'list', party: 'people', downloads: 'download' };
-                        const name = icons[item.id || ''];
-                        const Icon = item.iconType;
-                        return <button key={item.id} type="button" data-name={item.id} title={item.name} aria-label={item.name} aria-current={item.isCurrent ? 'page' : undefined} onClick={item.onClick}>{name ? <TsugiIcon name={name} /> : Icon ? <Icon /> : null}<span>{item.name}</span></button>;
-                      })}
-                    </nav>
-                    <HistoryButtons />
-                  </TsugiRail>
-                ) : nav === 'rail' ? (
+                {nav === 'rail' ? (
                   <TouchRail
                     items={items}
                     footerItems={[settingsItem]}
@@ -351,11 +340,17 @@ export function WebLayout() {
                   />
                 ) : (
                   <Sidebar
+                    className={desktopArea ? 'tsugi-video-sidebar' : undefined}
                     header={<Logo />}
-                    items={items}
+                    items={movieItems}
                     belowItems={<HistoryButtons />}
                     footerItems={[settingsItem]}
-                    footer={<SidebarAccount you={you} />}
+                    footer={
+                      <>
+                        {desktopArea && <MovieMediaMenu />}
+                        <SidebarAccount you={you} />
+                      </>
+                    }
                   />
                 )}
               </AppLayoutSidebar>
@@ -452,6 +447,7 @@ export function WebLayout() {
                 calendar,
                 playlists,
                 together,
+                ...mediaItems,
                 ...items.filter(onBar),
               ]}
               menuItems={several ? [settingsItem, switchItem] : [settingsItem]}

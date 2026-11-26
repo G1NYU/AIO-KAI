@@ -31,9 +31,10 @@
 :root[data-host='desktop'] :is(.tsugi-read-action,.tsugi-menu-select,.tsugi-music-input) { border-radius:var(--tsugi-radius-control); }
 :root[data-host='desktop'] :is(.tsugi-series-primary,.tsugi-vault-capture-primary) { background:var(--tsugi-accent); color:var(--tsugi-on-accent); }
 
-/* One sidebar owns all media navigation and the established TSUGI identity. */
+/* Media workspaces share a sidebar; Movies keeps its established navigation.
+   The rail surface reaches the window edge while controls clear the drag strip. */
 :root[data-host='desktop'] .tsugi-desktop-rail {
-  padding:20px 18px 16px;
+  padding:calc(var(--tsugi-window-strip) + 20px) 18px 16px;
   gap:16px;
   align-items:stretch;
   background:color-mix(in srgb,var(--tsugi-canvas) 70%,var(--tsugi-surface));
@@ -99,7 +100,7 @@
   display:grid;
   grid-template-columns:repeat(4,minmax(0,1fr));
   gap:4px;
-  padding:7px 0;
+  padding:7px;
   border-radius:10px;
   background:var(--tsugi-surface);
 }
@@ -164,7 +165,7 @@
 }
 @media(max-width:760px) {
   :root[data-host='desktop'] { --tsugi-rail-width:58px; --tsugi-rail-control:40px; --tsugi-rail-icon:20px; --tsugi-page-gap:14px; }
-  :root[data-host='desktop'] .tsugi-desktop-rail { padding:10px 7px; gap:10px; }
+  :root[data-host='desktop'] .tsugi-desktop-rail { padding:calc(var(--tsugi-window-strip) + 10px) 7px 10px; gap:10px; }
   :root[data-host='desktop'] .tsugi-desktop-rail > .tsugi-rail-brand { min-height:44px; margin-bottom:0!important; padding:0; }
   :root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-signature .tsugi-brand-wordmark,
   .tsugi-rail-context { display:none; }

@@ -28,6 +28,7 @@ export type EclipseCatalogItem = {
   album?: string;
   artworkURL?: string;
   durationMs?: number;
+  recordingType?: 'song' | 'video';
   isrc?: string;
   year?: string;
 };
@@ -67,6 +68,7 @@ export type EclipseTrack = {
   album?: string;
   artworkURL?: string;
   duration?: number;
+  recordingType?: 'song' | 'video';
   streamURL?: string;
   isrc?: string;
 };
@@ -377,6 +379,7 @@ export function catalogTrack(item: EclipseCatalogItem): EclipseTrack {
     album: item.album,
     artworkURL: item.artworkURL,
     duration: item.durationMs === undefined ? undefined : item.durationMs / 1000,
+    ...(item.recordingType ? { recordingType: item.recordingType } : {}),
     isrc: item.isrc,
   };
 }

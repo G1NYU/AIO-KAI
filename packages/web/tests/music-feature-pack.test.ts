@@ -3,7 +3,7 @@ import { fetchTrendingRecordings, parseTrendingRecordings } from '../src/lib/mus
 import { DEFAULT_PLAYER_THEME, isPlayerTheme, PLAYER_PALETTES, PLAYER_ACCENTS, isPlayerAccent, withPlayerAccent } from '../src/lib/music/player-theme';
 import { NOCTURNE_STAGE } from '../src/lib/music/nocturne-stage';
 import { JUNCTION_STAGE } from '../src/lib/music/junction-stage';
-import { artworkCandidates, expandedArtwork, artworkAcceptable, ArtworkChoiceCache } from '../src/lib/music/artwork';
+import { artworkCandidates, expandedArtwork, artworkAcceptable, artworkPixelTarget, ArtworkChoiceCache } from '../src/lib/music/artwork';
 import { nativeYouTubeTarget, nextNativeYouTubeTarget, parseYouTubeMusicResults } from '../src/lib/music/youtube-music';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -106,6 +106,7 @@ describe('Independent accents and expanded album artwork', () => {
     expect(expandedArtwork('https://lh3.googleusercontent.com/album=w120-h120-l90-rj')).toBe('https://lh3.googleusercontent.com/album=w1024-h1024-l90-rj');
     expect(expandedArtwork('https://lh3.googleusercontent.com/album=w120-h60')).toBe('https://lh3.googleusercontent.com/album=w1024-h512');
     expect(expandedArtwork('https://lh3.googleusercontent.com/album=s200-c')).toBe('https://lh3.googleusercontent.com/album=s1024-c');
+    expect(expandedArtwork('https://yt3.googleusercontent.com/album=w120-h120-p-l90-rj')).toBe('https://yt3.googleusercontent.com/album=w1024-h1024-p-l90-rj');
     for (const url of ['https://lh3.googleusercontent.com/album=w1200-h1200', 'https://lh3.googleusercontent.com/album=w120-h120?sig=test', 'https://lh3.googleusercontent.com.example.test/album=w120-h120', 'blob:local', 'https://i.ytimg.com/vi/abcdefghijk/default.jpg']) expect(expandedArtwork(url)).toBe(url);
   });
   it('tries an intermediate exact-image size before the small thumbnail', () => {
@@ -124,22 +125,56 @@ describe('Independent accents and expanded album artwork', () => {
     expect(variants.at(-1)).toBe(original);
     expect(artworkCandidates(original+'?sig=private')).toEqual([original+'?sig=private']);
     expect(artworkAcceptable(variants[0],original,120,90,1024)).toBe(false);
+    expect(artworkAcceptable(variants[0],original,256,256,1024)).toBe(false);
     expect(artworkAcceptable(variants[0],original,1280,720,1024)).toBe(true);
     expect(artworkAcceptable(original,original,120,90,1024)).toBe(true);
+  });
+  it('upgrades only the known public YouTube thumbnail transform and preserves the original fallback', () => {
+    const source = 'https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg?sqp=synthetic_resize&rs=synthetic_signature';
+    expect(artworkCandidates(source,160)).toEqual([source]);
+    expect(artworkCandidates(source)).toEqual([
+      'https://i.ytimg.com/vi/abcdefghijk/maxresdefault.jpg',
+      'https://i.ytimg.com/vi/abcdefghijk/sddefault.jpg',
+      'https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg', source,
+    ]);
+    const resizedMax = source.replace('hqdefault', 'maxresdefault');
+    expect(artworkCandidates(resizedMax)).toEqual(['https://i.ytimg.com/vi/abcdefghijk/maxresdefault.jpg', resizedMax]);
+    for (const unknown of [source + '&sig=private', source + '&rs=duplicate', source.replace('sqp=', 'sig='),
+      source.replace('i.ytimg.com', 'i.ytimg.com.example.test'), source.replace('/vi/', '/private/'), source + '#fragment',
+      source.replace('https://', 'http://'), source.replace('i.ytimg.com', 'user:password@i.ytimg.com')]) {
+      expect(artworkCandidates(unknown)).toEqual([unknown]);
+    }
+  });
+  it('sizes expanded artwork for its rendered crop and display density with a bounded request', () => {
+    expect(artworkPixelTarget(1024,550,550,1)).toBe(1024);
+    expect(artworkPixelTarget(1024,550,550,2)).toBe(1152);
+    expect(artworkPixelTarget(1024,550,550,2,1280,720)).toBe(2048);
+    expect(artworkPixelTarget(1024,4000,3000,4)).toBe(2048);
+    expect(artworkPixelTarget(1024,0,0,Number.NaN)).toBe(1024);
   });
   it('caches variant choice by resolution, expires it and bounds memory', () => {
     const cache = new ArtworkChoiceCache(2,100);
     const source = 'https://lh3.googleusercontent.com/album=w120-h120';
     const large = expandedArtwork(source);
-    cache.remember(source,1024,large,0);
+    cache.remember(source,1024,large,1024,1024,0);
     expect(cache.get(source,1024,10)).toBe(large);
     expect(cache.get(source,384,10)).toBeUndefined();
-    cache.remember(source,384,expandedArtwork(source,384),10);
-    cache.remember(source,160,expandedArtwork(source,160),10);
+    cache.remember(source,384,expandedArtwork(source,384),384,384,10);
+    cache.remember(source,160,expandedArtwork(source,160),160,160,10);
     expect(cache.get(source,1024,11)).toBeUndefined();
     expect(cache.get(source,384,110)).toBeUndefined();
-    cache.remember('blob:local',1024,'blob:local',0);
+    cache.remember('blob:local',1024,'blob:local',1024,1024,0);
     expect(cache.get('blob:local',1024,1)).toBeUndefined();
+  });
+  it('does not promote a small fallback above higher-resolution choices on the next opening', () => {
+    const cache = new ArtworkChoiceCache();
+    const source = 'https://lh3.googleusercontent.com/album=w120-h120';
+    cache.remember(source,1024,source,120,120,0);
+    expect(cache.get(source,1024,1)).toBeUndefined();
+    cache.remember(source,1024,expandedArtwork(source,544),544,544,0);
+    expect(cache.get(source,1024,1)).toBeUndefined();
+    cache.remember(source,1024,expandedArtwork(source),256,256,0);
+    expect(cache.get(source,1024,1)).toBeUndefined();
   });
   it('selects the largest declared YouTube Music thumbnail, not the last one', () => {
     const large = 'https://lh3.googleusercontent.com/art=w544-h544';
@@ -151,6 +186,18 @@ describe('Independent accents and expanded album artwork', () => {
       ] } } },
     } });
     expect(result.tracks[0]?.artworkURL).toBe(large);
+  });
+  it('preserves the selected provider video thumbnail for same-video resolution upgrades', () => {
+    const source = 'https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg?sqp=synthetic_resize&rs=synthetic_signature';
+    const result = parseYouTubeMusicResults({ musicCardShelfRenderer: {
+      title: { runs: [{ text: 'Original video fixture' }] },
+      navigationEndpoint: { watchEndpoint: { videoId: 'abcdefghijk' } },
+      thumbnail: { musicThumbnailRenderer: { thumbnail: { thumbnails: [
+        { url: source, width: 400, height: 225 }, { url: 'https://i.ytimg.com/vi/abcdefghijk/default.jpg', width: 120, height: 90 },
+      ] } } },
+    } });
+    expect(result.tracks[0]?.artworkURL).toBe(source);
+    expect(artworkCandidates(result.tracks[0].artworkURL!)[0]).toBe('https://i.ytimg.com/vi/abcdefghijk/maxresdefault.jpg');
   });
 });
 

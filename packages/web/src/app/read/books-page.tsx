@@ -5,6 +5,7 @@ import { TsugiRail } from '@/components/shell/tsugi-rail';
 import { BrushBook, BrushPlus, BrushSearch, BrushRefresh, BrushHistory, BrushGrid, BrushRight, BrushBack } from '@/components/tsugi-icons';
 import { LandscapeSpotlight } from '@/components/landscape-spotlight';
 import { LandscapeDecoration } from '@/components/landscape-decoration';
+import { BrushHeading } from '@/components/brush-heading';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { getBookFile, importBook, listBooks, removeBook, type BookEntry } from './book-library';
 import { BookReader } from './book-reader';
@@ -114,7 +115,7 @@ export function BooksPage() {
           <button className="tsugi-read-action mb-6" onClick={library}><BrushBack aria-hidden/><Trans>Back</Trans></button>
           <div className="tsugi-manga-detail tsugi-book-detail yomi-series-hero"><LandscapeDecoration className="yomi-series-backdrop" fallback="/design/shared/hero-train.webp"/><BookCover book={details}/><div className="min-w-0">
             <p className="yomi-eyebrow"><Trans>In your library</Trans><span aria-hidden="true"> / </span>{details.format.toUpperCase()}</p>
-            <h2 className="text-3xl font-semibold">{details.title}</h2><p className="my-3 text-sm text-[--tsugi-muted]">{details.format.toUpperCase()} · {(details.size/1048576).toFixed(1)} MiB</p>
+            <BrushHeading as="h2" className="text-3xl font-semibold">{details.title}</BrushHeading><p className="my-3 text-sm text-[--tsugi-muted]">{details.format.toUpperCase()} · {(details.size/1048576).toFixed(1)} MiB</p>
             <div className="yomi-book-progress"><span>{details.position !== undefined ? <>{Math.round((details.fraction || 0)*100)}% <Trans>read</Trans></> : <Trans>Not started</Trans>}</span><progress aria-label={t`Reading progress`} max={1} value={details.fraction || 0}/></div>
             <div className="tsugi-series-actions flex flex-wrap gap-3">
               <button className="tsugi-read-action tsugi-series-primary" disabled={busy} onClick={() => void open(details)}>{details.position !== undefined ? <Trans>Resume reading</Trans> : <Trans>Read book</Trans>}</button>

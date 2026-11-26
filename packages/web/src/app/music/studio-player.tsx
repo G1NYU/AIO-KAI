@@ -9,7 +9,9 @@ import type { EclipsePlayerTemplate, PlayerLayer } from '@/lib/music/player-temp
 import type { PlayerPalette } from '@/lib/music/player-theme';
 import { musicTime } from './player';
 import { MusicArtwork } from './music-artwork';
-import { fetchTrackLyrics, lyricAt, type TrackLyrics } from '@/lib/music/lyrics';
+import { lyricAt } from '@/lib/music/lyrics';
+import { useTrackLyrics } from './use-track-lyrics';
+import { LyricsPanel } from './lyrics-panel';
 import { storage } from '@/lib/storage';
 
 /** Render only known player controls, never foreign HTML or remote scripts. */
@@ -34,9 +36,9 @@ export function EclipseStudioStage({
   const [queueOpen, setQueueOpen] = React.useState(false);
   const [optionsOpen, setOptionsOpen] = React.useState(false);
   const [lyricsOpen, setLyricsOpen] = React.useState(false);
-  const [lyrics, setLyrics] = React.useState<TrackLyrics | null>(null);
-  const [lyricsBusy, setLyricsBusy] = React.useState(false);
-  const [lyricsError, setLyricsError] = React.useState('');
+  const [timingPanel, setTimingPanel] = React.useState(false);
+  const lyricsState = useTrackLyrics(song, p.sourceId ?? p.sourceName, p.mediaDuration, lyricsOpen);
+  const { lyrics, busy: lyricsBusy, error: lyricsError } = lyricsState;
   const [favorite, setFavorite] = React.useState(false);
   const favoriteKey = p.sourceName + ':' + (song?.id ?? '');
 
@@ -44,22 +46,6 @@ export function EclipseStudioStage({
     const saved = storage.get<string[]>('tsugi-local-favorites-v1');
     setFavorite(Array.isArray(saved) && saved.includes(favoriteKey));
   }, [favoriteKey]);
-
-  React.useEffect(() => {
-    setLyrics(null);
-    setLyricsError('');
-    if (!lyricsOpen || !song) return;
-    const controller = new AbortController();
-    setLyricsBusy(true);
-    fetchTrackLyrics(song, controller.signal).then((value) => {
-      if (!controller.signal.aborted) setLyrics(value);
-    }).catch(() => {
-      if (!controller.signal.aborted) setLyricsError(t`Lyrics are temporarily unavailable.`);
-    }).finally(() => {
-      if (!controller.signal.aborted) setLyricsBusy(false);
-    });
-    return () => controller.abort();
-  }, [lyricsOpen, song]);
 
   function toggleFavorite() {
     const saved = storage.get<string[]>('tsugi-local-favorites-v1');
@@ -72,7 +58,7 @@ export function EclipseStudioStage({
   if (!song) return null;
   const time = Math.max(1, p.duration);
   const skippedCount = template.skippedLayers;
-  const lyricIndex = lyrics ? lyricAt(lyrics.synced, p.position) : -1;
+  const lyricIndex = lyricsState.synchronized && lyrics ? lyricAt(lyrics.synced, p.position, lyricsState.offset) : -1;
 
   function render(layer: PlayerLayer) {
     const song = p.track;
@@ -141,23 +127,27 @@ export function EclipseStudioStage({
       case 'lyricsInline':
         if (!lyricsOpen) return <button type="button" onClick={() => setLyricsOpen(true)}
             className="w-full text-center text-sm text-white/55 hover:text-white">
-            <Trans>Show synchronized lyrics</Trans>
+            <Trans>Show lyrics</Trans>
           </button>;
         if (lyricsBusy) return <span className="text-sm"><Trans>Loading lyrics…</Trans></span>;
         if (lyricsError) return <span className="text-xs">{lyricsError}</span>;
-        if (lyrics?.synced.length) {
+        if (lyricsState.synchronized && lyrics?.synced.length) {
           return <div className="flex w-full flex-col items-center gap-1 overflow-hidden text-center">
+            <button type="button" className="text-xs" onClick={() => { lyricsState.showTiming(true); setTimingPanel(true); }}><Trans>Adjust lyrics timing</Trans></button>
             {lyrics.synced.slice(Math.max(0, lyricIndex), Math.max(0, lyricIndex) + 3).map((line, at) =>
-              <span key={line.at} className={at === 0 ? 'block w-full truncate font-semibold' : 'block w-full truncate text-white/45'}>
+              <span key={line.at} className={at === 0 && lyricIndex >= 0 ? 'block w-full truncate font-semibold' : 'block w-full truncate text-white/45'}>
                 {line.text}
               </span>)}
           </div>;
         }
-        if (lyrics?.plain.length) return <span className="block max-h-full overflow-hidden text-center text-sm">{lyrics.plain.slice(0, 3).join(' · ')}</span>;
+        if (lyrics?.plain.length) return <div className="w-full overflow-hidden text-center text-sm">
+          {lyrics.synced.length > 0 && <button type="button" className="block w-full text-xs" onClick={() => { lyricsState.showTiming(true); setTimingPanel(true); }}><Trans>Timing unconfirmed · Adjust lyrics timing</Trans></button>}
+          <span>{lyrics.plain.slice(0, 3).join(' · ')}</span>
+        </div>;
         return <span className="text-center text-xs text-white/55"><Trans>No matching lyrics found.</Trans></span>;
       case 'artwork':
         return song.artworkURL
-          ? <MusicArtwork source={song.artworkURL} className="tsugi-studio-artwork size-full object-cover" />
+          ? <MusicArtwork source={song.artworkURL} responsive className="tsugi-studio-artwork size-full object-cover" />
           : <span className="flex size-full items-center justify-center bg-[#282138]">
               <BiDisc aria-hidden className="text-6xl" />
             </span>;
@@ -257,10 +247,16 @@ export function EclipseStudioStage({
               className="block w-full rounded-none px-3 py-2 text-left text-xs hover:bg-white/10"><Trans>Show queue</Trans></button>
             <button type="button" onClick={() => { setLyricsOpen(true); setOptionsOpen(false); }}
               className="block w-full rounded-none px-3 py-2 text-left text-xs hover:bg-white/10"><Trans>Show lyrics</Trans></button>
+            <button type="button" onClick={() => { setLyricsOpen(true); setTimingPanel(true); setOptionsOpen(false); }}
+              className="block w-full rounded-none px-3 py-2 text-left text-xs hover:bg-white/10"><Trans>Adjust lyrics timing</Trans></button>
             <button type="button" onClick={() => setOptionsOpen(false)}
               className="block w-full rounded-none px-3 py-2 text-left text-xs hover:bg-white/10"><Trans>Close menu</Trans></button>
           </section>
         )}
+        {lyricsOpen && timingPanel && <aside className="tsugi-studio-lyrics-timing" aria-label={t`Lyrics timing`}>
+          <button type="button" onClick={() => setTimingPanel(false)}><Trans>Close lyrics timing</Trans></button>
+          <LyricsPanel state={lyricsState} position={p.position} duration={p.duration} onSeek={p.onSeek} />
+        </aside>}
       </div>
       {template.skippedLayers > 0 && (
         <details className="mx-auto mt-1 w-fit text-center text-xs text-white/35">

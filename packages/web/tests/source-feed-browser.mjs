@@ -1,6 +1,7 @@
 // Real Feed UI with manually completed synthetic native catalogue requests.
 // No live source, source URL, credentials or native media is used here.
 import assert from 'node:assert/strict';
+import { assertUnframedGroups } from './shared-layout-browser.mjs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -154,6 +155,7 @@ export async function verifySourceFeedBrowser({ browser, origin, installDesktopF
     await complete(); await idle();
     assert.deepEqual((await calls()).map(row => row.source), ['12345', '9007199254740993', '-9']);
     await source('9007199254740993').getByRole('alert').getByText(/This page could not be loaded/).waitFor();
+    await assertUnframedGroups(feed.locator('[data-feed-source]'), 'Reader Feed artwork groups', 3);
     assert.ok(!(await feed.innerText()).includes('Original fixture source declined.'), 'provider errors are not copied into UI');
     await source('9007199254740993').getByRole('button', { name: 'Retry this source', exact: true }).click();
     await pending('9007199254740993'); await complete(); await idle();

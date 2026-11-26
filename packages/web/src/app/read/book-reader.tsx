@@ -3,6 +3,7 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { BrushBack, BrushLeft, BrushRight } from '@/components/tsugi-icons';
 import { storage } from '@/lib/storage';
+import { useMediaPresence } from '@/lib/rich-presence';
 import { updateBook, validBookProgress, type BookEntry } from './book-library';
 
 type Tone = 'dark' | 'paper' | 'light';
@@ -43,6 +44,11 @@ export function BookReader({ entry, file, onClose }: { entry: BookEntry; file: F
   const [pages, setPages] = useState(0);
   const [page, setPage] = useState(typeof entry.position === 'number' ? entry.position : 1);
   const [closing, setClosing] = useState(false);
+  const percentage = Math.round(fraction * 100);
+  useMediaPresence(ready && !error && !closing ? { media: 'books', title,
+    subtitle: entry.format === 'pdf' && pages > 0 ? t`Reading · Page ${page} / ${pages}` : t`Reading · ${percentage}%`,
+    imdb: null, position: 0, duration: null, paused: false, browsing: false,
+  } : null);
   const send = useCallback((type: string, data: Record<string, unknown> = {}) => {
     if (origin) frame.current?.contentWindow?.postMessage({ channel: 'tsugi-ebook', type, ...data }, origin);
   }, [origin]);

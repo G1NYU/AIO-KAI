@@ -34,6 +34,15 @@ export type MihonReport = {
 export type MihonImport = {
   format: 'mihon-tachibk'; compression: 'gzip' | 'none'; backup: MangaBackup;
   sources: { id: string; name: string }[]; report: MihonReport;
+  /** Operation-local identities. Never serialize this into a portable archive or diagnostic. */
+  reconstruction: MihonReconstruction;
+  reconstructionSkipped: { title: string; sourceId: string; titleSkipped: boolean; chaptersSkipped: number }[];
+};
+export type MihonReconstruction = {
+  manga: { sourceId: string; url: string; title: string; categories: string[];
+    chapters: { url: string; name: string; read: boolean; bookmark: boolean; page: number; chapterNumber: number; sourceOrder: number; lastReadAt: string }[];
+    trackers: { trackerId: number; remoteId: string }[] }[];
+  categories: string[];
 };
 export type MihonLabels = { manga: string; chapter: string; source: string };
 export type MihonPageReview = {
@@ -98,6 +107,14 @@ class WireReader {
     if (value > 1n) throw Error('mihon-boolean');
     return value === 1n;
   }
+  float(wire: number): number {
+    this.require(wire, 5);
+    if (this.data.length - this.position < 4) throw Error('mihon-truncated');
+    const value = new DataView(this.data.buffer, this.data.byteOffset + this.position, 4).getFloat32(0, true);
+    this.position += 4;
+    if (!Number.isFinite(value) || value < -1 || value > 1000000000) throw Error('mihon-chapter-number');
+    return value;
+  }
   skip(wire: number) {
     if (wire === 0) { this.varint(); return; }
     if (wire === 2) { this.bytes(wire); return; }
@@ -133,16 +150,38 @@ function identity(domain: string, first: string, second: string): string {
   return Array.from(hash.digest(), value => value.toString(16).padStart(2, '0')).join('');
 }
 
-type RawChapter = { url: string; name: string; read: boolean; bookmark: boolean; page: number };
-type RawManga = { source: string; url: string; title: string; favorite: boolean; categories: string[]; chapters: RawChapter[]; history: Map<string, bigint> };
+/** Only public identity strings may become new persisted runtime records.
+ * Do not strip credentials and then silently match a different identity. */
+export function canReconstructMihonIdentity(value: string): boolean {
+  if (!value || value.trim() !== value || value.length > MAX_URL_BYTES || /[\x00-\x1f\x7f-\x9f\\]|%0[0-9a-f]|%1[0-9a-f]|%7f/i.test(value) || value.startsWith('//')) return false;
+  try {
+    const parsed = new URL(value, 'https://tsugi-import.invalid/');
+    const absolute = /^[a-z][a-z0-9+.-]*:/i.test(value);
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.hash || value.includes('#')) return false;
+    if (absolute) {
+      const host = parsed.hostname.toLowerCase().replace(/\.$/, '');
+      if (!host.includes('.') || /^[\d.]+$/.test(host) || host.includes(':')
+          || /(?:^|\.)(?:localhost|local|internal|invalid|test)$/.test(host) || host.endsWith('.localdomain')) return false;
+    }
+    const allowed = new Set(['id', 'manga', 'chapter', 'title', 'page', 'volume', 'lang', 'language', 'slug']);
+    for (const [name, value] of parsed.searchParams) {
+      if (!allowed.has(name.toLowerCase()) || !/^[a-z0-9_.~-]{1,200}$/i.test(value)) return false;
+    }
+    if (/(?:^|\/)(?:auth|token|secret|api[-_]?key|password|credentials?|sessions?|signed)(?:\/|$)/i.test(decodeURIComponent(parsed.pathname))) return false;
+    return true;
+  } catch { return false; }
+}
+
+type RawChapter = { url: string; name: string; read: boolean; bookmark: boolean; page: number; chapterNumber: number; sourceOrder: number };
+type RawManga = { source: string; url: string; title: string; favorite: boolean; categories: string[]; chapters: RawChapter[]; history: Map<string, bigint>; trackers: { trackerId: number; remoteId: string }[] };
 type RawCategory = { name: string; order: string };
 
 function readChapter(reader: WireReader, report: MihonReport, fallback: string): RawChapter {
   const fields = new Set<number>();
-  const chapter: RawChapter = { url: '', name: '', read: false, bookmark: false, page: 0 };
+  const chapter: RawChapter = { url: '', name: '', read: false, bookmark: false, page: 0, chapterNumber: 0, sourceOrder: 0 };
   while (!reader.done) {
     const { field, wire } = reader.tag();
-    if ([1, 2, 4, 5, 6].includes(field)) once(fields, field);
+    if ([1, 2, 4, 5, 6, 9, 10].includes(field)) once(fields, field);
     switch (field) {
       case 1: chapter.url = url(reader.string(wire, MAX_URL_BYTES)); break;
       case 2: chapter.name = reader.string(wire); break;
@@ -152,6 +191,12 @@ function readChapter(reader: WireReader, report: MihonReport, fallback: string):
         const page = reader.long(wire);
         if (page < 0n || page > 2147483647n) throw Error('mihon-page-limit');
         chapter.page = Number(page); break;
+      }
+      case 9: chapter.chapterNumber = reader.float(wire); break;
+      case 10: {
+        const order = reader.long(wire);
+        if (order < 0n || order > 2147483647n) throw Error('mihon-source-order');
+        chapter.sourceOrder = Number(order); break;
       }
       default: report.metadataFieldsOmitted++; reader.skip(wire);
     }
@@ -176,7 +221,7 @@ function readHistory(reader: WireReader, report: MihonReport): { url: string; at
 
 function readManga(reader: WireReader, budget: Budget, report: MihonReport, labels: MihonLabels): RawManga {
   const fields = new Set<number>();
-  const manga: RawManga = { source: '0', url: '', title: '', favorite: true, categories: [], chapters: [], history: new Map() };
+  const manga: RawManga = { source: '0', url: '', title: '', favorite: true, categories: [], chapters: [], history: new Map(), trackers: [] };
   while (!reader.done) {
     const { field, wire } = reader.tag();
     if ([1, 2, 3, 100].includes(field)) once(fields, field);
@@ -197,7 +242,12 @@ function readManga(reader: WireReader, budget: Budget, report: MihonReport, labe
         }
         break;
       }
-      case 18: report.trackingRecords++; reader.bytes(wire); break;
+      case 18: {
+        if (++report.trackingRecords > 20000) throw Error('mihon-tracker-limit');
+        const tracker = readTracker(reader.message(wire));
+        if (tracker) manga.trackers.push(tracker);
+        break;
+      }
       case 100: manga.favorite = reader.boolean(wire); break;
       case 104: {
         if (++budget.history > MAX_HISTORY) throw Error('mihon-history-limit');
@@ -213,6 +263,27 @@ function readManga(reader: WireReader, budget: Budget, report: MihonReport, labe
   manga.title = label(manga.title, labels.manga, report);
   if (new Set(manga.chapters.map(chapter => chapter.url)).size !== manga.chapters.length) throw Error('mihon-duplicate-chapter');
   return manga;
+}
+
+// Mihon v0.21.3 BackupTracking.getTrackImpl prefers legacy mediaIdInt (3)
+// when nonzero, otherwise mediaId (100). libraryId (2) is account-local and
+// must never be mistaken for the public manga ID or carried across accounts.
+function readTracker(reader: WireReader): { trackerId: number; remoteId: string } | null {
+  const fields = new Set<number>();
+  let tracker = 0n, legacy = 0n, current = 0n;
+  while (!reader.done) {
+    const { field, wire } = reader.tag();
+    if ([1, 3, 100].includes(field)) {
+      once(fields, field);
+      const value = reader.long(wire);
+      if (field === 1) tracker = value;
+      else if (field === 3) legacy = value;
+      else current = value;
+    } else reader.skip(wire);
+  }
+  const id = legacy !== 0n ? legacy : current;
+  return (tracker === 1n || tracker === 2n) && id > 0n
+    ? { trackerId: Number(tracker), remoteId: id.toString() } : null;
 }
 
 function readCategory(reader: WireReader, report: MihonReport): RawCategory {
@@ -268,8 +339,8 @@ async function expand(bytes: Uint8Array): Promise<{ bytes: Uint8Array; compressi
   return { bytes: output, compression: 'gzip' };
 }
 
-/** Parse locally; returned state contains no source URLs, tracker payloads,
- * extension repository URLs, app settings or source credentials. */
+/** Parse locally. The portable projection omits raw identities. Operation-local
+ * reconstruction identities are non-enumerable and never written to reports. */
 export async function parseMihonBackup(input: Uint8Array, labels: MihonLabels = { manga: 'untitled-manga', chapter: 'unnamed-chapter', source: 'unnamed-source' }): Promise<MihonImport> {
   if (Object.values(labels).some(value => !validLabel(value, 500))) throw Error('mihon-invalid-fallback');
   const expanded = await expand(input);
@@ -317,6 +388,8 @@ export async function parseMihonBackup(input: Uint8Array, labels: MihonLabels = 
   }).map(category => [category.order, category.name]));
   const seen = new Set<string>();
   const manga: BackupManga[] = [];
+  const reconstruction: MihonReconstruction = { manga: [], categories: [...shelves.values()] };
+  const reconstructionSkipped: MihonImport['reconstructionSkipped'] = [];
   for (const row of entries) {
     const mangaIdentity = identity('tsugi-manga-v1', row.source, row.url);
     if (seen.has(mangaIdentity)) throw Error('mihon-duplicate-manga');
@@ -342,13 +415,22 @@ export async function parseMihonBackup(input: Uint8Array, labels: MihonLabels = 
       };
     });
     manga.push({ identity: mangaIdentity, sourceId: row.source, title: row.title, categories: categoryNames, chapters });
+    const titleSkipped = !canReconstructMihonIdentity(row.url);
+    const safeChapters = row.chapters.filter(chapter => canReconstructMihonIdentity(chapter.url));
+    const chaptersSkipped = titleSkipped ? row.chapters.length : row.chapters.length - safeChapters.length;
+    if (titleSkipped || chaptersSkipped) reconstructionSkipped.push({ title: row.title, sourceId: row.source, titleSkipped, chaptersSkipped });
+    if (!titleSkipped) reconstruction.manga.push({ sourceId: row.source, url: row.url, title: row.title, categories: categoryNames,
+      chapters: safeChapters.map(chapter => ({ ...chapter, lastReadAt: (row.history.get(chapter.url) ?? 0n).toString() })),
+      trackers: row.trackers });
   }
   const backup = parseMangaBackup(JSON.stringify({ format: 'tsugi-manga-progress', version: 2, manga, categories: [...shelves.values()] }));
   report.titles = manga.length;
   report.chapters = manga.reduce((count, row) => count + row.chapters.length, 0);
   report.categories = shelves.size;
   report.sources = sources.length;
-  return { format: 'mihon-tachibk', compression: expanded.compression, backup, sources, report };
+  const parsed = { format: 'mihon-tachibk' as const, compression: expanded.compression, backup, sources, report, reconstructionSkipped } as MihonImport;
+  Object.defineProperty(parsed, 'reconstruction', { value: reconstruction, enumerable: false });
+  return parsed;
 }
 
 /** Page counts are absent from Mihon backups. A user may explicitly bind an

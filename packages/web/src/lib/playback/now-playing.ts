@@ -1,4 +1,6 @@
 import React from 'react';
+import { usePresencePreferences } from '@/lib/rich-presence';
+import { sharesPresence } from '@/lib/presence-model';
 import { currentHost } from '@/lib/hosts';
 import { mediaKeyJustTaken, noteInput } from '@/lib/input';
 import type { MediaKey } from '@/lib/hosts/shell/bridge';
@@ -49,7 +51,7 @@ export function useNowPlaying(
   actions: Actions
 ) {
   const { client } = useSession();
-  const [discord] = useSetting(settings.app.discord['playing']);
+  const discord = sharesPresence(usePresencePreferences(), 'video');
   const [pip] = useSetting(settings.app.pip);
   const [background] = useSetting(settings.app.background);
   const show = useItem(item.SeriesId ?? item.Id!);

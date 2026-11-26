@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { assertUnframedGroups, verifySharedLayoutBrowser } from './shared-layout-browser.mjs';
 
 async function assertBands(rows, label, { offset = 0 } = {}) {
   const sample = await rows.evaluateAll((nodes, start) => nodes.slice(start, start + 3).map(node => {
@@ -197,15 +198,12 @@ export async function verifyAppSeparatorsBrowser({ browser, origin, installDeskt
     await page.goto(`${origin}/#/`);
     const homeRows = page.locator('[data-ui="home-rows"] [data-ui="media-row"][data-row^="view:"]');
     await homeRows.locator('[href="#/item/fixture-series"]').waitFor();
-    const categoryBands = await homeRows.evaluateAll(nodes => nodes.map(node => ({ color: getComputedStyle(node).backgroundColor, border: getComputedStyle(node).borderBottomWidth })));
-    assert.ok(categoryBands.length >= 2, 'Movie home renders multiple real catalogue categories');
-    assert.notEqual(categoryBands[0].color, categoryBands[1].color, 'Movie home categories use contrasting tonal surfaces');
-    assert.ok(categoryBands.every(row => parseFloat(row.border) === 0), 'Movie catalogue categories have no bottom separator rules');
+    await assertUnframedGroups(homeRows, 'Movie catalogue shelves', 2);
     await capture('24-movie-catalogue-categories');
 
     assert.deepEqual([...unexpected], [], 'Every synthetic Movie API request has an intentional fixture');
     assert.deepEqual(failures, [], 'No Movie component runtime errors');
-    console.log('PASS: authenticated synthetic Movies settings, history, catalogue groups, shortcut help and account/select menus use tonal separation; control borders and keyboard focus remain visible.');
+    console.log('PASS: authenticated synthetic Movies settings, history, shortcut help and account/select menus retain row separation; catalogue shelves remain unframed, and control borders and keyboard focus stay visible.');
   } catch (error) {
     await capture('app-separators-failure').catch(() => {});
     if (unexpected.size || failures.length) {
@@ -215,4 +213,5 @@ export async function verifyAppSeparatorsBrowser({ browser, origin, installDeskt
   } finally {
     await page.close();
   }
+  await verifySharedLayoutBrowser({ browser, origin, installDesktopFixture, screenshotDir });
 }

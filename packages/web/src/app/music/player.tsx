@@ -27,6 +27,7 @@ export type RepeatMode = 'off' | 'all' | 'one';
 
 export type MusicPlayerProps = {
   track: EclipseTrack | null;
+  sourceId?: string;
   sourceName: string;
   queue: EclipseTrack[];
   index: number;
@@ -35,6 +36,8 @@ export type MusicPlayerProps = {
   error: string;
   position: number;
   duration: number;
+  /** Decoder duration; zero while only the catalog display estimate is known. */
+  mediaDuration: number;
   volume: number;
   quality: string;
   expanded: boolean;
@@ -80,7 +83,7 @@ export function musicTime(value: number): string {
 function Artwork({ track, large = false }: { track: EclipseTrack; large?: boolean }) {
   const size = large ? 'aspect-square w-full max-w-[440px] rounded-2xl' : 'size-12 shrink-0 rounded-xl';
   return track.artworkURL
-    ? <MusicArtwork source={track.artworkURL} target={large ? 1024 : 160}
+    ? <MusicArtwork source={track.artworkURL} target={large ? 1024 : 160} responsive={large}
         className={`${size} border border-[--tsugi-line] bg-[--tsugi-surface] object-cover`} />
     : <span className={`${size} flex items-center justify-center border border-[--tsugi-line] bg-[--tsugi-surface] text-[--tsugi-muted]`}>
         <BiDisc aria-hidden className={large ? 'text-8xl' : 'text-3xl'} />

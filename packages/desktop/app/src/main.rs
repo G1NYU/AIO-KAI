@@ -900,6 +900,7 @@ pub fn handle(
         Inbound::Presence { presence } => now_playing::browsing(presence),
         Inbound::NowPlaying { item } => now_playing::set_item(item),
         Inbound::DiscordCheck => discord::check(),
+        Inbound::DiscordConfigure { config } => discord::configure(config),
         Inbound::LinksReady => send(UserEvent::LinksReady),
         Inbound::DownloadAdd { jobs } => downloads.send(downloads::Command::Add(jobs)),
         Inbound::DownloadControl { id, action } => match action.as_str() {

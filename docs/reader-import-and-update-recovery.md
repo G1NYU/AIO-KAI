@@ -22,7 +22,9 @@ This is guarded recovery across separate metadata stores, not one atomic transac
 
 Use **Mihon backup import** in Data & storage. The importer decodes gzip-compressed or raw protobuf locally using the maintained Mihon v0.21.3 schema. Compatible older backups with the same field representation are supported; unknown fields are skipped without interpreting their private contents. Schema references and upstream blob identities are recorded in `packages/web/src/lib/backup/mihon.ts`.
 
-The current slice imports only exact matches to titles and chapters already available in Read:
+The **complete library import** now reconstructs missing remote titles/chapters, history and opt-in supported public tracker references through a reviewed native checkpoint. See [complete Mihon library import](mihon-library-import.md) for its recovery, conflict policy, exclusions and validation.
+
+The original **existing-title merge** remains available and has the following deliberately narrower behavior:
 
 | Data | Behavior |
 |---|---|

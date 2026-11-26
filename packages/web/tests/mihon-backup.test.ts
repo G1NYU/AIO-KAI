@@ -1,6 +1,6 @@
 import { gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { MIHON_BACKUP_LIMIT, MIHON_EXPANDED_LIMIT, parseMihonBackup, prepareMihonProgress } from '../src/lib/backup/mihon';
+import { MIHON_BACKUP_LIMIT, MIHON_EXPANDED_LIMIT, canReconstructMihonIdentity, parseMihonBackup, prepareMihonProgress } from '../src/lib/backup/mihon';
 import { planMangaRestore, type LocalManga } from '../src/lib/backup/manga';
 import { planCategoryRestore } from '../src/lib/backup/manga-categories';
 import { bytes, categoryWire, fixtureChapters, fixtureIdentity, integer, mangaWire, message, mihonFixture, string, varint } from './mihon-fixture.mjs';
@@ -62,7 +62,7 @@ describe('Mihon maintained protobuf schema', () => {
   it('does not copy credentials, tracker payloads, extension repositories, or metadata URLs', async () => {
     const privateValue = 'fixture-private-value-must-not-survive';
     const raw = mihonFixture({
-      manga: [mangaWire({ title: 'https://private.example/title', extra: bytes(message(18, string(1, privateValue)), string(9, 'https://private.example/cover'), message(9000, string(1, privateValue))) })],
+      manga: [mangaWire({ title: 'https://private.example/title', extra: bytes(message(18, bytes(integer(1, 99), string(4, privateValue))), string(9, 'https://private.example/cover'), message(9000, string(1, privateValue))) })],
       extra: bytes(message(104, string(1, privateValue)), message(105, string(2, privateValue)), message(106, string(1, 'https://private.example/repository'))),
     });
     const parsed = await parseMihonBackup(raw);
@@ -211,5 +211,50 @@ describe('Mihon malformed and bounded decoding', () => {
     await expect(parseMihonBackup(message(1, new Uint8Array(8 * 1024 * 1024 + 1)))).rejects.toThrow('mihon-field-size');
     await expect(parseMihonBackup(mihonFixture({ manga: Array.from({ length: 1001 }, () => mangaWire({ chapters: [], history: [] })) }))).rejects.toThrow('mihon-title-limit');
     await expect(parseMihonBackup(mihonFixture({ manga: [mangaWire({ chapters: Array.from({ length: 10001 }, () => fixtureChapters[0]), history: [] })] }))).rejects.toThrow('mihon-chapter-limit');
+  });
+});
+
+
+describe('Mihon complete reconstruction projection', () => {
+  it('keeps exact reconstruction identities operation-local and outside JSON exports', async () => {
+    const parsed = await fixture();
+    expect(parsed.reconstruction.manga[0].url).toBe(fixtureIdentity.url);
+    expect(parsed.reconstruction.manga[0].chapters[0].lastReadAt).toBe('1700000000');
+    expect(Object.keys(parsed)).not.toContain('reconstruction');
+    expect(JSON.stringify(parsed)).not.toContain(fixtureIdentity.url);
+  });
+  it('maps only supported public tracker IDs, including legacy field precedence, and drops account data', async () => {
+    const parsed = await parseMihonBackup(mihonFixture({ manga: [mangaWire({ extra: bytes(
+      message(18, bytes(integer(1, 1), integer(2, 777), integer(3, 44), integer(100, 45), string(4, 'https://private.example/token/value'))),
+      message(18, bytes(integer(1, 2), integer(100, '9007199254740993'))),
+      message(18, bytes(integer(1, 99), integer(100, 88))),
+      message(18, bytes(integer(1, 1), integer(100, 0))),
+    ) })] }));
+    expect(parsed.reconstruction.manga[0].trackers).toEqual([{ trackerId: 1, remoteId: '44' }, { trackerId: 2, remoteId: '9007199254740993' }]);
+    expect(parsed.report.trackingRecords).toBe(4);
+    expect(JSON.stringify(parsed.reconstruction)).not.toContain('private.example');
+    expect(JSON.stringify(parsed.reconstruction)).not.toContain('777');
+  });
+  it.each(['/manga/public', 'manga/public/chapter-1', '/manga?id=123&lang=en', 'https://reader.example.com/manga/chapter-1'])('accepts exact public identifier %s', value => {
+    expect(canReconstructMihonIdentity(value)).toBe(true);
+  });
+  it.each(['https://user:secret@example.com/a', '//example.com/a', '/manga?token=secret', '/manga?X-Amz-Signature=private', '/manga?unknown=private', '/manga#private', 'file:///private/file', 'http://example.com/a', 'https://127.0.0.1/a', 'https://[::1]/a', 'https://localhost./a', 'https://intranet.local/a', '/manga/%0a/private', '/token/private/manga', '/%74oken/private/manga', ' /manga'])('excludes private or unsupported identifier %s', value => {
+    expect(canReconstructMihonIdentity(value)).toBe(false);
+  });
+  it('reports excluded identities without exposing them or losing the hash-only exact-merge projection', async () => {
+    const secret = 'private-identity-value';
+    const parsed = await parseMihonBackup(mihonFixture({ manga: [
+      mangaWire({ url: `/manga?token=${secret}`, title: 'Excluded title' }),
+      mangaWire({ url: '/public/manga', title: 'Public title', chapters: [{ ...fixtureChapters[0], url: `/chapter?signature=${secret}` }, fixtureChapters[1]] }),
+    ] }));
+    expect(parsed.backup.manga).toHaveLength(2);
+    expect(parsed.reconstruction.manga).toHaveLength(1);
+    expect(parsed.reconstruction.manga[0].chapters).toHaveLength(1);
+    expect(parsed.reconstructionSkipped).toEqual([
+      { title: 'Excluded title', sourceId: fixtureIdentity.sourceId, titleSkipped: true, chaptersSkipped: 3 },
+      { title: 'Public title', sourceId: fixtureIdentity.sourceId, titleSkipped: false, chaptersSkipped: 1 },
+    ]);
+    expect(JSON.stringify(parsed)).not.toContain(secret);
+    expect(JSON.stringify(parsed.reconstruction)).not.toContain(secret);
   });
 });

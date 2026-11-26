@@ -26,6 +26,7 @@ import { MangaTracking, type Tracker } from './tracking';
 import { readReaderPreferences, saveReaderPreferences } from './reader-preferences';
 import { chapterGroups, neighboringChapter, cleanSynopsis, type ReadingChapter } from './reader-utils';
 import { YomiBanner } from './yomi-banner';
+import { BrushHeading } from '@/components/brush-heading';
 import './yomi.css';
 
 type Nodes<T> = { nodes: T[]; totalCount: number };
@@ -110,6 +111,8 @@ export function ReadPage({ visible }: {
   const content = React.useRef<HTMLDivElement>(null);
   const [busy, setBusy] = React.useState(false);
   const lock = React.useRef(false);
+  const [importRevision, setImportRevision] = React.useState(0);
+  const refreshedImport = React.useRef(0);
   const [error, setError] = React.useState('');
   const [library, setLibrary] = React.useState<Nodes<Manga> | null>(null);
   const [categories, setCategories] = React.useState<Category[]>([]);
@@ -254,6 +257,22 @@ export function ReadPage({ visible }: {
     void run(loadLibrary);
     return () => { active.current = false; openGeneration.current++; };
   }, []);
+  React.useEffect(() => {
+    const imported = () => setImportRevision(value => value + 1);
+    window.addEventListener('tsugi-reader-imported', imported);
+    return () => window.removeEventListener('tsugi-reader-imported', imported);
+  }, []);
+  React.useEffect(() => {
+    // Settings can complete an import while this page remains mounted. Wait
+    // for its current request to finish, then replace the cached collections.
+    if (busy || lock.current || importRevision <= refreshedImport.current) return;
+    refreshedImport.current = importRevision;
+    void run(async () => {
+      await loadLibrary();
+      await loadHistory();
+      await loadUpdates();
+    });
+  }, [importRevision, busy]);
   // Poll only while the update feed is visible; the native updater owns its
   // queue and continues safely when the user navigates away.
   React.useEffect(() => {
@@ -533,7 +552,7 @@ export function ReadPage({ visible }: {
         <MangaCover manga={details.manga} fallbackEnabled={visible && coverFallback} />
         <div className="min-w-0">
           <p className="yomi-eyebrow"><Trans id="Manga">Manga</Trans>{details.manga.inLibrary && <><span aria-hidden="true"> / </span><Trans id="In your library">In your library</Trans></>}</p>
-          <h2 className="text-3xl font-semibold tracking-tight">{details.manga.title}</h2>
+          <BrushHeading as="h2" className="text-3xl font-semibold tracking-tight">{details.manga.title}</BrushHeading>
           {details.manga.author && <p className="mt-2 text-[--tsugi-muted]">{details.manga.author}</p>}
           {details.manga.genre?.length ? <div className="my-3 flex flex-wrap gap-2 text-xs text-[--tsugi-muted]">{details.manga.genre.map((genre) => <span className="tsugi-manga-genre" key={genre}>{genre}</span>)}</div> : null}
           <div className="tsugi-series-actions flex flex-wrap gap-3">
@@ -596,10 +615,12 @@ export function ReadPage({ visible }: {
           : settingsPage === 'reader' ? <><ReaderSettings value={readerPreferences} onChange={(value) => { setReaderPreferences(value); saveReaderPreferences(value); }} /><div className="tsugi-reader-settings-content mt-8 border-t border-[--tsugi-line] pt-6"><h3 className="text-lg font-semibold"><Trans id="Library artwork">Library artwork</Trans></h3><label className="tsugi-reader-setting-toggle"><span><strong><Trans id="Find missing library covers">Find missing library covers</Trans></strong><small><Trans id="Search Jikan for the titles of saved manga only when their source cover is missing or fails. Existing covers always take priority.">Search Jikan for the titles of saved manga only when their source cover is missing or fails. Existing covers always take priority.</Trans></small></span><input type="checkbox" checked={coverFallback} onChange={event => { saveCoverFallback(event.target.checked); setCoverFallback(event.target.checked); }} /></label></div></>
           : settingsPage === 'browse' ? settingRow(t({ id: "Sources", message: "Sources" }), t({ id: "Manage extension sources and repositories.", message: "Manage extension sources and repositories." }), 'sources')
           : settingsPage === 'sources' ? settingRow(t({ id: "Extension repositories", message: "Extension repositories" }), t({ id: "Add or remove trusted extension stores.", message: "Add or remove trusted extension stores." }), 'repositories')
-          : <>
-            <h2 className="text-xl font-semibold"><Trans id="Extension repositories">Extension repositories</Trans></h2>
-            <p className="my-3 text-sm text-[--tsugi-muted]"><Trans id="Paste the HTTPS extension repository index URL you use with Mihon, Komikku or another compatible Tachiyomi fork. Adding a repository lists its extensions; install the ones you want from Extensions.">Paste the HTTPS extension repository index URL you use with Mihon, Komikku or another compatible Tachiyomi fork. Adding a repository lists its extensions; install the ones you want from Extensions.</Trans></p>
-            <form className="flex flex-wrap gap-2" onSubmit={(event) => {
+          : <div className="yomi-repository-settings" data-ui="reader-repositories">
+            <header>
+              <h2 className="text-xl font-semibold"><Trans id="Extension repositories">Extension repositories</Trans></h2>
+              <p><Trans id="Paste the HTTPS extension repository index URL you use with Mihon, Komikku or another compatible Tachiyomi fork. Adding a repository lists its extensions; install the ones you want from Extensions.">Paste the HTTPS extension repository index URL you use with Mihon, Komikku or another compatible Tachiyomi fork. Adding a repository lists its extensions; install the ones you want from Extensions.</Trans></p>
+            </header>
+            <form className="yomi-repository-form" onSubmit={(event) => {
               event.preventDefault();
               void run(async () => {
                 await readRequest({ kind: 'add-store', index: repository.trim() });
@@ -608,14 +629,22 @@ export function ReadPage({ visible }: {
                 await readRequest({ kind: 'refresh-extensions' });
               });
             }}>
-              <input className="tsugi-read-input grow" type="url" required value={repository} onChange={(event) => setRepository(event.target.value)} placeholder={t({ id: "HTTPS repository index URL", message: "HTTPS repository index URL" })} aria-label={t({ id: "Repository index URL", message: "Repository index URL" })} />
+              <label className="yomi-repository-field">
+                <span><Trans id="Repository index URL">Repository index URL</Trans></span>
+                <input className="tsugi-read-input" type="url" required value={repository} onChange={(event) => setRepository(event.target.value)} placeholder={t({ id: "HTTPS repository index URL", message: "HTTPS repository index URL" })} aria-label={t({ id: "Repository index URL", message: "Repository index URL" })} />
+              </label>
               <button className="tsugi-read-action" disabled={busy || !repository.trim()}><Trans id="Add repository">Add repository</Trans></button>
             </form>
-            {!stores.length && !busy && <p className="py-6 text-[--tsugi-muted]"><Trans id="No repositories added yet.">No repositories added yet.</Trans></p>}
-            {stores.map((store) => <div className="tsugi-read-row" key={store.indexUrl}><span className="min-w-0"><span className="block font-medium">{store.name}</span><span className="block break-all text-xs text-[--tsugi-muted]">{store.indexUrl}</span></span><button className="tsugi-read-action" disabled={busy} onClick={() => void run(async () => { await readRequest({ kind: 'remove-store', index: store.indexUrl }); if (storeFilter === store.indexUrl) setStoreFilter(''); await loadStores(); await readRequest({ kind: 'refresh-extensions' }); })}><Trans id="Remove">Remove</Trans></button></div>)}
-            <p className="my-4 text-sm text-[--tsugi-muted]"><Trans id="Only install extensions from publishers you trust. Extensions run with your Windows account permissions; their signatures are not independently verified.">Only install extensions from publishers you trust. Extensions run with your Windows account permissions; their signatures are not independently verified.</Trans></p>
+            {!stores.length && !busy && <p className="yomi-repository-empty"><Trans id="No repositories added yet.">No repositories added yet.</Trans></p>}
+            {!!stores.length && <ul className="yomi-repository-list" aria-label={t({ id: "Extension repositories", message: "Extension repositories" })}>
+              {stores.map((store) => <li className="yomi-repository-row" key={store.indexUrl}>
+                <div className="yomi-repository-identity"><strong>{store.name}</strong><span>{store.indexUrl}</span></div>
+                <button className="tsugi-read-action" disabled={busy} onClick={() => void run(async () => { await readRequest({ kind: 'remove-store', index: store.indexUrl }); if (storeFilter === store.indexUrl) setStoreFilter(''); await loadStores(); await readRequest({ kind: 'refresh-extensions' }); })}><Trans id="Remove">Remove</Trans></button>
+              </li>)}
+            </ul>}
+            <p className="yomi-repository-trust"><Trans id="Only install extensions from publishers you trust. Extensions run with your Windows account permissions; their signatures are not independently verified.">Only install extensions from publishers you trust. Extensions run with your Windows account permissions; their signatures are not independently verified.</Trans></p>
             <button className="tsugi-read-action" disabled={busy} onClick={() => switchTab('browse')}><Trans id="Return to Browse">Return to Browse</Trans></button>
-          </>}
+          </div>}
       </section>
     ) : tab === 'migrate' ? <MigrationWorkspace library={allLibrary} sources={sources} busy={busy} run={run} reload={loadLibrary} />
     : tab === 'batch' ? <BatchAddWorkspace library={allLibrary} sources={sources} busy={busy} run={run} reload={loadLibrary} />
@@ -656,7 +685,7 @@ export function ReadPage({ visible }: {
           <nav aria-label={t({ id: "Custom categories", message: "Custom categories" })} className="yomi-category-cards">
             {categories.map((category, index) => <button type="button" key={category.id} className="tsugi-category-item yomi-category-card" aria-current={categoryId === category.id ? 'page' : undefined} onClick={() => { setCategoryId(category.id); setRenameCategory(category.name); setConfirmDelete(false); }} disabled={busy}>
               <img className="yomi-category-art" src={index % 2 ? '/design/shared/hero-train.webp' : '/design/shared/hero-neon.webp'} alt="" />
-              <span className="yomi-category-copy"><FiFolder aria-hidden /><strong>{category.name}</strong><small>{allLibrary.filter(manga => categoryContains(manga, category.id)).length} <Trans id="Saved titles">Saved titles</Trans></small></span>
+              <span className="yomi-category-copy"><FiFolder aria-hidden /><BrushHeading as="strong">{category.name}</BrushHeading><small>{allLibrary.filter(manga => categoryContains(manga, category.id)).length} <Trans id="Saved titles">Saved titles</Trans></small></span>
               <span className="yomi-cover-stack" aria-hidden="true">{allLibrary.filter(manga => categoryContains(manga, category.id)).slice(0, 3).map(manga => <MangaCover key={manga.id} manga={manga} fallbackEnabled={visible && coverFallback} />)}</span>
             </button>)}
           </nav>

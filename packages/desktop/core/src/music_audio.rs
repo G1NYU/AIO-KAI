@@ -191,6 +191,7 @@ struct Session {
     last_report: Instant,
     failure: Option<&'static str>,
     finished: bool,
+    drained: bool,
     timing_reported: bool,
     cache_key: Option<String>,
     cache_recorded: bool,
@@ -241,6 +242,7 @@ impl Session {
             last_report: now,
             failure: None,
             finished: false,
+            drained: false,
             timing_reported: false,
             cache_key: None,
             cache_recorded: false,
@@ -250,6 +252,16 @@ impl Session {
     }
 
     fn update(&mut self, emit: &Emit) -> bool {
+        if let Some(message) = self.source.failure() {
+            fail(emit, &self.request, message);
+            return false;
+        }
+        if self.drained {
+            if !self.source.transfer_verified() { return true; }
+            self.finished = true;
+            report(emit, &self.request, "ended", self.duration, self.duration, None);
+            return false;
+        }
         for _ in 0..64 {
             let Some(event) = self.mpv.wait_event(0.0, |_| false) else {
                 break;
@@ -263,6 +275,10 @@ impl Session {
                 }
                 Event::EndFile { reason, .. } => {
                     if reason == "eof" && self.loaded && self.source.failure().is_none() {
+                        if !self.source.transfer_verified() {
+                            self.drained = true;
+                            return true;
+                        }
                         self.finished = true;
                         report(
                             emit,
@@ -384,6 +400,7 @@ struct Pending {
     volume: f64,
     transfer: Transfer,
     started: Instant,
+    decoding: bool,
 }
 
 // A single, short-lived, in-memory buffer. No signed URLs, disk cache or
@@ -444,7 +461,22 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
     let mut pending: Option<Pending> = None;
     let mut replay: Option<Replay> = None;
     let mut prefetch: Option<Prefetch> = None;
+    let mut youtube_session = crate::music_resolver::session_revision();
     loop {
+        let current_session = crate::music_resolver::session_revision();
+        if youtube_session != current_session {
+            // Opting out must discard already downloaded authenticated audio as
+            // well as pending extraction. A later Play starts a fresh request.
+            if let Some(item) = pending.take() {
+                fail(emit, &item.request, "YouTube session changed. Play the track again.");
+            }
+            if let Some(player) = session.take() {
+                report(emit, &player.request, "paused", player.position, player.duration, None);
+            }
+            replay = None;
+            prefetch = None;
+            youtube_session = current_session;
+        }
         if prefetch.as_ref().is_some_and(|item| !item.matches(&item.url, Instant::now())) {
             prefetch = None;
         }
@@ -498,6 +530,7 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                                 volume,
                                 transfer,
                                 started,
+                                decoding: false,
                             });
                         }
                         Err(message) => fail(emit, &request, message),
@@ -547,7 +580,8 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                     {
                         item.volume = value;
                     }
-                } else if session
+                }
+                if session
                     .as_ref()
                     .is_some_and(|player| player.request == request)
                 {
@@ -561,6 +595,7 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                         && player.control(&action, value).is_err()
                     {
                         fail(emit, &request, "Native audio control failed.");
+                        if pending.as_ref().is_some_and(|item| item.request == request) { pending.take(); }
                         session.take();
                         replay = None;
                         prefetch = None;
@@ -577,9 +612,12 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
             Err(RecvTimeoutError::Timeout) => {}
         }
         let speculative = prefetch.as_mut().and_then(|item| item.transfer.as_mut())
-            .and_then(|transfer| transfer.poll().transpose());
-        if let Some(result) = speculative {
-            match result.and_then(Source::from_bytes) {
+            .and_then(|transfer| transfer.poll().transpose().map(|result| (result, transfer.progressive_audio())));
+        if let Some((result, audio)) = speculative {
+            match result.and_then(|bytes| match audio {
+                Some(audio) => Ok(Source::from_progressive(audio)),
+                None => Source::from_bytes(bytes),
+            }) {
                 Ok(source) => if let Some(item) = &mut prefetch {
                     item.transfer.take();
                     item.source = Some(source);
@@ -587,21 +625,50 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                 Err(_) => { prefetch = None; }
             }
         }
+        let mut failed_start = false;
+        if let Some(item) = &mut pending
+            && !item.decoding
+            && let Some(audio) = item.transfer.progressive_audio()
+            && audio.ready()
+        {
+            // The downloader continues producing in parallel. Decoding is no
+            // longer gated on the end of the track's transfer.
+            log::info!("native music: first audio buffer ready in {} ms", item.started.elapsed().as_millis());
+            session = start_session(library, emit, item.request.clone(), Source::from_progressive(audio), item.volume);
+            if let Some(player) = &mut session { player.cache_key = Some(item.url.clone()); }
+            item.decoding = session.is_some();
+            failed_start = session.is_none();
+        }
+        if failed_start { pending.take(); }
         let ready = pending
             .as_mut()
             .and_then(|item| item.transfer.poll().transpose());
         if let Some(result) = ready
             && let Some(item) = pending.take()
         {
-            match result.and_then(Source::from_bytes) {
-                Ok(source) => {
+            match result {
+                Ok(bytes) => {
                     log::info!("native music: resolver and transfer completed in {} ms", item.started.elapsed().as_millis());
-                    session = start_session(library, emit, item.request, source, item.volume);
-                    if let Some(player) = &mut session {
-                        player.cache_key = Some(item.url);
+                    if !item.decoding {
+                        let source = match item.transfer.progressive_audio() {
+                            Some(audio) => Ok(Source::from_progressive(audio)),
+                            None => Source::from_bytes(bytes),
+                        };
+                        match source {
+                            Ok(source) => {
+                                session = start_session(library, emit, item.request, source, item.volume);
+                                if let Some(player) = &mut session { player.cache_key = Some(item.url); }
+                            }
+                            Err(message) => fail(emit, &item.request, message),
+                        }
                     }
                 }
-                Err(message) => fail(emit, &item.request, message),
+                Err(message) => {
+                    if session.as_ref().is_some_and(|player| player.request == item.request) { session.take(); }
+                    replay = None;
+                    prefetch = None;
+                    fail(emit, &item.request, message);
+                },
             }
         }
         if let Some(player) = &mut session {
@@ -614,6 +681,7 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
                 player.cache_recorded = true;
             }
             if !alive {
+                if pending.as_ref().is_some_and(|item| item.request == player.request) { pending.take(); }
                 if !player.finished { replay = None; prefetch = None; }
                 session.take();
             }
@@ -624,6 +692,93 @@ fn run(library: &Path, emit: &Emit, inbox: &Receiver<Command>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn verify_progressive_decoder(library: &Path) {
+        use crate::music_resolver::ProgressiveAudio;
+        for (name, bytes) in [
+            ("WebM/Opus", &include_bytes!("../tests/fixtures/progressive-tone.webm")[..]),
+            ("M4A/AAC", &include_bytes!("../tests/fixtures/progressive-tone.m4a")[..]),
+        ] {
+            let initial = 64 * 1024;
+            let audio = ProgressiveAudio::new();
+            if name == "M4A/AAC" {
+                assert_eq!(bytes.get(4..8), Some(b"ftyp".as_slice()));
+                audio.set_length(bytes.len() as u64);
+                assert_eq!(audio.length(), Some(bytes.len() as u64));
+            } else {
+                assert!(bytes.starts_with(&[0x1a, 0x45, 0xdf, 0xa3]));
+                assert_eq!(audio.length(), None);
+            }
+            audio.append(&bytes[..initial]).unwrap();
+            let source = Source::from_progressive(audio.clone());
+            let mpv = Mpv::new(library, &[
+                ("config", "no"), ("idle", "yes"), ("keep-open", "no"),
+                ("force-window", "no"), ("vid", "no"), ("vo", "null"),
+                ("ao", "null"), ("audio-display", "no"), ("ytdl", "no"),
+                ("load-scripts", "no"), ("input-default-bindings", "no"),
+                ("network-timeout", "12"), ("tls-verify", "yes"),
+            ]).expect("load real mpv for progressive playback");
+            // SAFETY: source remains alive until this mpv instance is dropped.
+            unsafe { music_stream::register(&mpv, &source).unwrap(); }
+            let result = (|| -> Result<(), String> {
+                let started = Instant::now();
+                mpv.command(&["loadfile", "tsugi-audio://track", "replace"])?;
+                let deadline = Instant::now() + Duration::from_secs(3);
+                let position = || mpv.get_property("time-pos", Kind::Double).and_then(|value| value.as_f64());
+                let mut decoded = false;
+                while Instant::now() < deadline {
+                    mpv.wait_event(0.02, |_| false);
+                    if position().is_some_and(|value| value > 0.05) { decoded = true; break; }
+                }
+                if !decoded { return Err(format!("{name} did not decode from its initial {initial} bytes before producer EOF")); }
+                if audio.verified() { return Err("fixture ended the producer before asserting startup".into()); }
+                println!("PASS: {name} decoded before transfer completion in {} ms ({initial} / {} bytes)", started.elapsed().as_millis(), bytes.len());
+                let partial_end = bytes.len() * 3 / 4;
+                let future_bytes = bytes[initial..partial_end].to_vec();
+                let producer = audio.clone();
+                let fill = std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(100));
+                    producer.append(&future_bytes).unwrap();
+                });
+                mpv.command(&["seek", "12", "absolute", "exact"])?;
+                let deadline = Instant::now() + Duration::from_secs(3);
+                let mut sought = false;
+                while Instant::now() < deadline {
+                    mpv.wait_event(0.02, |_| false);
+                    if position().is_some_and(|value| value >= 11.5) { sought = true; break; }
+                }
+                fill.join().map_err(|_| "future-byte producer failed".to_owned())?;
+                if !sought { return Err(format!("{name} did not seek to newly arriving bytes before producer EOF")); }
+                if audio.verified() { return Err("producer reached EOF before seek acceptance".into()); }
+                audio.append(&bytes[partial_end..]).map_err(str::to_owned)?;
+                audio.finish(None);
+                Ok(())
+            })();
+            audio.finish(Some("Progressive fixture ended."));
+            drop(mpv);
+            result.expect("real progressive native decode and seek");
+        }
+    }
+
+    #[cfg(all(windows, target_arch = "x86_64"))]
+    #[test]
+    fn native_progressive_audio_decodes_before_transfer_completion() {
+        let library = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../vendor/x86_64/libmpv-2.dll");
+        if !library.is_file() {
+            assert!(std::env::var_os("CI").is_none(), "CI did not stage the pinned mpv DLL");
+            return;
+        }
+        let _vulkan = unsafe { libloading::Library::new(library.with_file_name("vulkan").join("vulkan-1.dll")) }.ok();
+        verify_progressive_decoder(&library);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    #[ignore = "requires an explicitly supplied local libmpv test runtime"]
+    fn local_progressive_audio_decodes_before_transfer_completion() {
+        let library = PathBuf::from(std::env::var_os("TSUGI_MPV_TEST_LIBRARY").expect("set local libmpv test runtime"));
+        verify_progressive_decoder(&library);
+    }
 
     #[test]
     fn native_dsp_is_a_closed_enum_and_meter_is_bounded() {

@@ -17,6 +17,7 @@ on:
       - 'packages/desktop/core/src/read_downloads_tests.rs'
       - 'packages/desktop/core/src/read_local_import.rs'
       - 'packages/desktop/core/src/read_local_import_tests.rs'
+      - 'packages/desktop/core/src/read_mihon_import.rs'
       - 'packages/desktop/core/src/read_feed_tests.rs'
       - 'packages/desktop/core/src/read_metadata_tests.rs'
       - 'packages/desktop/core/src/read_icons.rs'
@@ -142,7 +143,7 @@ jobs:
                 'Failed to fetch extension store', 'Shutting down HikariCP',
                 'Failed to sync preference store', 'AccessDeniedException',
                 'FileSystemException', 'SQLException', 'JdbcSQL', 'NoClassDefFoundError')
-              foreach ($kind in @('library', 'stores', 'extension', 'extension-update', 'download-cleanup-folder', 'download-cleanup-cbz', 'download-cleanup-locked', 'download-actions', 'local-import', 'feed', 'metadata', 'source-settings')) {
+              foreach ($kind in @('library', 'stores', 'extension', 'extension-update', 'download-cleanup-folder', 'download-cleanup-cbz', 'download-cleanup-locked', 'download-actions', 'local-import', 'mihon-import', 'feed', 'metadata', 'source-settings')) {
                 $logs = Join-Path $env:TSUGI_READ_FIXTURE "$kind/logs"
                 if (Test-Path -LiteralPath $logs) {
                   foreach ($marker in $markers) {

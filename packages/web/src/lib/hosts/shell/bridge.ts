@@ -174,7 +174,7 @@ export type ShellMessage =
     }
   | {
       type: 'discord-status';
-      state: 'connected' | 'not-found' | 'failed' | 'refused';
+      state: 'disabled' | 'private' | 'needs-setup' | 'idle' | 'connected' | 'not-found' | 'failed' | 'refused';
       message: string | null;
     }
   | { type: 'link'; url: string }

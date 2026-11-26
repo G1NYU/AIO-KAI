@@ -1,5 +1,5 @@
 //! Bounded, seekable media reader for the independent music decoder.
-//! Windows uses validated in-memory audio; other platforms retain HTTPS ranges.
+//! Windows reads a bounded progressive yt-dlp spool; other platforms retain HTTPS ranges.
 //! Authentication errors remain terminal.
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Read;
@@ -9,6 +9,7 @@ use std::time::Duration;
 use crate::mpv::{Handle, Mpv};
 
 const CHUNK: u64 = 512 * 1024;
+const PROGRESSIVE_CHUNK: u64 = 64 * 1024;
 const MAX_SIZE: u64 = 1024 * 1024 * 1024;
 const URI: &CStr = c"tsugi-audio://track";
 const LOAD_FAILED: c_int = -13;
@@ -19,6 +20,7 @@ pub(crate) struct Source {
     agent: ureq::Agent,
     failure: Mutex<Option<&'static str>>,
     buffered: Option<Vec<u8>>,
+    progressive: Option<Arc<crate::music_resolver::ProgressiveAudio>>,
 }
 
 impl Source {
@@ -31,6 +33,12 @@ impl Source {
             return Err("Music transfer did not return valid MP4 or WebM audio.");
         }
         Ok(Self::with_buffer("", Vec::new(), Some(bytes)))
+    }
+
+    pub(crate) fn from_progressive(audio: Arc<crate::music_resolver::ProgressiveAudio>) -> Arc<Self> {
+        let mut source = Self::with_buffer("", Vec::new(), None);
+        Arc::get_mut(&mut source).expect("new audio source").progressive = Some(audio);
+        source
     }
 
     fn with_buffer(
@@ -50,6 +58,7 @@ impl Source {
                 .into(),
             failure: Mutex::new(None),
             buffered,
+            progressive: None,
         })
     }
 
@@ -61,11 +70,21 @@ impl Source {
 
     pub(crate) fn failure(&self) -> Option<&'static str> {
         self.failure.lock().ok().and_then(|value| *value)
+            .or_else(|| self.progressive.as_ref().and_then(|audio| audio.failure()))
+    }
+
+    pub(crate) fn transfer_verified(&self) -> bool {
+        self.progressive.as_ref().is_none_or(|audio| audio.verified())
     }
 
     fn fetch(&self, start: u64, total: Option<u64>) -> Result<Chunk, &'static str> {
         if self.failure().is_some() {
             return Err("The media reader has stopped.");
+        }
+        if let Some(audio) = &self.progressive {
+            let (bytes, length) = audio.read(start, PROGRESSIVE_CHUNK as usize)?;
+            if start == 0 && !media_header(&bytes) { return Err("Music transfer did not return valid MP4 or WebM audio."); }
+            return Ok(Chunk { start, size: length.unwrap_or(64 * 1024 * 1024), bytes });
         }
         if let Some(bytes) = &self.buffered {
             let size = bytes.len() as u64;
@@ -181,9 +200,10 @@ impl Reader {
         if self.position < self.chunk.start
             || self.position - self.chunk.start >= self.chunk.bytes.len() as u64
         {
-            let start = self.position / CHUNK * CHUNK;
+            let start = if self.source.progressive.is_some() { self.position } else { self.position / CHUNK * CHUNK };
             self.chunk = self.source.fetch(start, Some(self.chunk.size))?;
         }
+        if self.position >= self.chunk.size || self.chunk.bytes.is_empty() { return Ok(0); }
         let offset = (self.position - self.chunk.start) as usize;
         let count = output.len().min(self.chunk.bytes.len() - offset);
         output[..count].copy_from_slice(&self.chunk.bytes[offset..offset + count]);
@@ -307,7 +327,9 @@ unsafe extern "C" fn size(cookie: *mut c_void) -> i64 {
         return -1;
     }
     // SAFETY: cookie belongs to this stream until close.
-    unsafe { &*cookie.cast::<Reader>() }.chunk.size as i64
+    let reader = unsafe { &*cookie.cast::<Reader>() };
+    if let Some(audio) = &reader.source.progressive { audio.length().map_or(-1, |length| length as i64) }
+    else { reader.chunk.size as i64 }
 }
 
 unsafe extern "C" fn close(cookie: *mut c_void) {

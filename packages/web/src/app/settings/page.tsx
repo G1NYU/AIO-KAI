@@ -506,12 +506,13 @@ function WideSettings({
         <Trans>Settings</Trans>
       </h1>
       <Tabs
+        data-ui="settings-layout"
         value={searching ? '' : shown}
         onValueChange={open}
         activationMode="manual"
         marked={focused ?? undefined}
         variant="pill"
-        className="grid w-full grid-cols-[240px,1fr] gap-6"
+        className="grid w-full grid-cols-[240px,minmax(0,1fr)] gap-6"
         triggerClass={cn(
           'h-9 w-full justify-start rounded-lg border-0 px-3 text-base',
           'data-[state=active]:bg-[--subtle] data-[state=active]:text-white dark:hover:text-white',
@@ -524,6 +525,7 @@ function WideSettings({
       >
         <div
           data-sticky
+          data-ui="settings-index"
           className="sticky top-6 z-[1] flex max-h-[calc(100vh-3rem)] flex-col gap-3 self-start"
         >
           {whoseField}
@@ -570,7 +572,7 @@ function WideSettings({
             <DonateButton onClick={onDonate} />
           </TabsList>
         </div>
-        <div className="min-w-0">
+        <div data-ui="settings-content" className="min-w-0">
           {searching ? (
             <SearchResults all={all} words={words} />
           ) : (

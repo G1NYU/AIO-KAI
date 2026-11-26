@@ -6,6 +6,7 @@ import { MIHON_BACKUP_LIMIT, parseMihonBackup, prepareMihonProgress, type MihonI
 import { prepareMangaRestore, readRestoreSessionState, restoreSessionBusy, reviewRestoreSection, RestoreSessionError, RESTORE_SESSION_EVENT } from '@/lib/backup/restore-session';
 import { supportsReading } from '@/lib/hosts/shell/reading';
 import { MangaBackupSettings } from './manga-backup-settings';
+import { MihonReconstruction } from './mihon-reconstruction';
 import { restoreSessionFeedback } from './restore-session-feedback';
 
 export function MihonImportSettings() {
@@ -95,7 +96,7 @@ export function MihonImportSettings() {
   return <section className="tsugi-app-general" aria-label={t`Mihon backup import`}>
     <h3><Trans>Mihon backup import</Trans></h3>
     <p><Trans>Import a real Mihon .tachibk or .proto.gz backup. Files are decoded locally using the supported Mihon 0.21.3 protobuf schema, including compatible older backups. The limit is 16 MiB per file and 32 MiB after decompression.</Trans></p>
-    <p><Trans>Add the original titles from their trusted sources in Read before applying the import. Only exact source, manga and chapter identities can merge. Source installation and finding missing titles remain separate actions.</Trans></p>
+    <p><Trans>Use the complete library import to reconstruct titles and chapters from the backup, or the existing-title merge to apply only exact matches already in Read. Source installation remains a separate trusted action.</Trans></p>
     <label className="min-w-0"><span><Trans>Choose a Mihon backup</Trans></span><input type="file" accept=".tachibk,.proto.gz,.gz,.proto,application/gzip,application/octet-stream" className="tsugi-read-input w-full min-w-0 max-w-full" disabled={busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void load(file); }} /></label>
     {busy && <p role="status">{progress || t`Preparing the Mihon import…`}</p>}
     {parsed && <div className="space-y-3">
@@ -112,21 +113,22 @@ export function MihonImportSettings() {
         <dt><Trans>Ambiguous or unsupported categories skipped</Trans></dt><dd>{parsed.report.categoriesSkipped}</dd>
         <dt><Trans>Unresolved category assignments</Trans></dt><dd>{parsed.report.categoryAssignmentsSkipped}</dd>
       </dl>
-      <p><Trans>Read flags and bookmarks can be merged after review. Existing categories and newer reading progress are kept. History timestamps help detect newer progress; the history timeline, reading durations, tracker connections, downloads and images are not imported.</Trans></p>
+      <p><Trans>Read flags and bookmarks can be merged after review. Existing categories and newer reading progress are kept. The complete import also restores chapter history and optional supported tracker references. Reading durations, account connections, downloads and images are not imported.</Trans></p>
       <details>
         <summary><Trans>Data excluded from this import</Trans></summary>
         <dl className="grid grid-cols-2 gap-2 text-sm">
-          <dt><Trans>Tracker references</Trans></dt><dd>{parsed.report.trackingRecords}</dd>
+          <dt><Trans>Tracker references available for separate review</Trans></dt><dd>{parsed.report.trackingRecords}</dd>
           <dt><Trans>App preference entries</Trans></dt><dd>{parsed.report.appPreferences}</dd>
           <dt><Trans>Source preference groups</Trans></dt><dd>{parsed.report.sourcePreferences}</dd>
           <dt><Trans>Extension repository entries</Trans></dt><dd>{parsed.report.extensionStores}</dd>
           <dt><Trans>Other metadata fields</Trans></dt><dd>{parsed.report.metadataFieldsOmitted}</dd>
           <dt><Trans>Unsupported labels replaced</Trans></dt><dd>{parsed.report.labelsReplaced}</dd>
         </dl>
-        <p><Trans>Source preferences may contain credentials. Their values, app settings, tracker payloads and repository addresses are discarded without applying them.</Trans></p>
+        <p><Trans>Source preferences may contain credentials. Their values, app settings, tracker account data and repository addresses are discarded without applying them.</Trans></p>
       </details>
       {parsed.sources.length > 0 && <details><summary><Trans>Sources named in the backup</Trans></summary><ul className="max-h-48 overflow-auto">{parsed.sources.map(source => <li key={source.id} className="tsugi-read-row"><span className="min-w-0 break-words">{source.name}</span><small>{source.id}</small></li>)}</ul><p><Trans>These names come from the backup. The matched restore preview checks which sources are currently available.</Trans></p></details>}
       {parsed.report.partialPositions > 0 && <label className="flex items-start gap-2"><input type="checkbox" checked={includePages} disabled={busy || prepared !== null} onChange={event => setIncludePages(event.target.checked)} /><span><Trans>Include eligible partial page positions</Trans><small className="block"><Trans>Mihon backups do not contain page counts. Allow a forward position only when the exact local chapter has a cached page count, the position is in range, and local progress is not newer. The preview and apply check the local chapter again.</Trans></small></span></label>}
+      {!prepared && <MihonReconstruction parsed={parsed} includePages={includePages} busy={busy} onBusy={setBusy} />}
       {!prepared && <button type="button" className="tsugi-read-action" disabled={busy} onClick={() => void prepare()}><Trans>Prepare Mihon import checkpoint</Trans></button>}
       {prepared && <>
         <p role="status"><Trans>The recovery checkpoint is saved. Review the proposed changes below before applying progress or categories.</Trans></p>

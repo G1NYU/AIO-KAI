@@ -3,7 +3,7 @@ import { safeHttpsUrl, type EclipseCatalogDefinition, type EclipseCatalogItem, t
 import type { MusicProvider } from './providers';
 
 type ObjectValue = Record<string, unknown>;
-type Operation = 'search' | 'browse' | 'audio' | 'home';
+type Operation = 'search' | 'browse' | 'audio' | 'home' | 'session';
 export type YouTubeMusicRequest = (operation: Operation, value: string, signal?: AbortSignal) => Promise<unknown>;
 
 const obj = (value: unknown): ObjectValue =>
@@ -22,6 +22,11 @@ export function nextNativeYouTubeTarget(queue: readonly { id: string }[], index:
   if (shuffle || repeat === 'one' || index < 0 || index >= queue.length || queue.length < 2) return null;
   const next = queue[index + 1] ?? (repeat === 'all' ? queue[0] : undefined);
   return next && next.id !== queue[index]?.id && videoId(next.id) ? nativeYouTubeTarget(next.id) : null;
+}
+/** Protect the foreground transfer; prepare the next track near the end. */
+export function shouldPrefetchNativeTrack(position: number, duration: number): boolean {
+  return Number.isFinite(position) && Number.isFinite(duration) && duration > 0
+    && position >= 2 && position <= duration && duration - position <= 20;
 }
 const browseId = (id: string): boolean => /^(?:MPRE|UC|VL|MPLA|OLAK5uy_)[\w-]{1,175}$/.test(id);
 
@@ -105,7 +110,10 @@ function decodeRow(row: ObjectValue): { track?: EclipseTrack; item?: EclipseCata
     str(obj(obj(titleRuns[0]?.navigationEndpoint).watchEndpoint).videoId);
   if (!videoId(id)) return {};
   const album = subtitle.find(run => kind(str(endpoint(run).browseId)) === 'album');
-  return { track: { id, title, artist, artworkURL, album: str(album?.text) || undefined, duration: duration(row, subtitle) } };
+  const label = subtitle.map(run => str(run.text).trim().toLowerCase());
+  const recordingType = label.includes('video') ? 'video' : label.includes('song') ? 'song' : undefined;
+  return { track: { id, title, artist, artworkURL, album: str(album?.text) || undefined, duration: duration(row, subtitle),
+    ...(recordingType ? { recordingType } : {}) } };
 }
 
 /** Only item-level endpoints determine identity. Do not select unrelated menu IDs. */
@@ -155,6 +163,7 @@ export function parseYouTubeMusicHome(root: unknown): HomeShelf[] {
     const tracks: EclipseCatalogItem[] = result.tracks.map(track => ({
       id: track.id, type: 'track', title: track.title, artist: track.artist,
       album: track.album, artworkURL: track.artworkURL,
+      ...(track.recordingType ? { recordingType: track.recordingType } : {}),
       durationMs: track.duration === undefined ? undefined : track.duration * 1000,
     }));
     const groups: EclipseCatalogItem[][] = [tracks, result.albums, result.artists, result.playlists];

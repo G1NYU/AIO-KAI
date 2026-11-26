@@ -529,7 +529,7 @@ impl ReadRuntime {
         Ok(extension.clone())
     }
 
-    fn extension_upload_session(&self) -> Result<String, &'static str> {
+    pub(super) fn extension_upload_session(&self) -> Result<String, &'static str> {
         verify_listener(self.client.port, self.client.owner_pid)?;
         let mut response = self.client.agent.post(format!("http://127.0.0.1:{}/api/graphql", self.client.port))
             .header("Authorization", &self.client.authorization).header("Accept", "application/json")

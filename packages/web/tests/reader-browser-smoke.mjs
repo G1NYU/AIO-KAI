@@ -4,16 +4,25 @@
 import assert from 'node:assert/strict';
 import { pdfFixture, epubFixture } from './ebook-fixtures.mjs';
 import { verifyAppSeparatorsBrowser } from './app-separators-browser.mjs';
+import { verifyMoviesLayoutBrowser } from './movies-layout-browser.mjs';
 import { verifyMusicAudioBrowser } from './music-audio-browser.mjs';
+import { verifyMusicArtworkBrowser } from './music-artwork-browser.mjs';
+import { verifyMusicPlayerLayoutBrowser } from './music-player-layout-browser.mjs';
+import { verifyMusicLyricsBrowser } from './music-lyrics-browser.mjs';
+import { verifyBrushHeadingsBrowser } from './brush-headings-browser.mjs';
 import { verifyRestoreSessionBrowser } from './restore-session-browser.mjs';
 import { verifyExtensionUpdatesBrowser } from './extension-updates-browser.mjs';
 import { verifyMihonImportBrowser } from './mihon-import-browser.mjs';
+import { verifyMihonReconstructionBrowser } from './mihon-reconstruction-browser.mjs';
+import { verifyDiscordPresenceBrowser } from './discord-presence-browser.mjs';
+import { verifyYouTubeSessionBrowser } from './youtube-session-browser.mjs';
 import { verifyDownloadCleanupBrowser, verifyReaderReleaseBrowser } from './download-cleanup-browser.mjs';
 import { verifySourceFeedBrowser } from './source-feed-browser.mjs';
 import { verifySourceMetadataBrowser } from './source-metadata-browser.mjs';
 import { verifySourceSettingsBrowser } from './source-settings-browser.mjs';
 import { verifySourceIconsBrowser } from './source-icons-browser.mjs';
 import { verifyReaderSettingsSearchBrowser } from './reader-settings-search-browser.mjs';
+import { verifyReaderRepositoriesBrowser } from './reader-repositories-browser.mjs';
 import { verifySupportSummaryBrowser } from './support-summary-browser.mjs';
 import { verifyReaderDownloadsBrowser } from './reader-downloads-browser.mjs';
 import { verifyLocalComicImportBrowser } from './local-comic-import-browser.mjs';
@@ -612,8 +621,14 @@ try {
     row: getComputedStyle(node).backgroundColor, column: getComputedStyle(node.closest('.tsugi-desktop-rail')).backgroundColor
   }));
   assert.notEqual(vaultSelection.row, vaultSelection.column, 'selected Vault row remains distinguishable');
-  await vault.locator('[data-ui="kura-hero"]').getByText('Kitsu',{exact:true}).waitFor();
-  assert.ok(heroRequests.includes('kitsu-image-2'),'Vault uses the shared landscape API after rejecting a failed image');
+  const decodedDecoration = async (container, previous = '') => {
+    await page.waitForFunction(({ node, previous }) => {
+      const image = node.querySelector('img[data-artwork-provider]');
+      return image && image.getAttribute('src') !== previous && image.complete && image.naturalWidth >= 800 && getComputedStyle(image).opacity === '1';
+    }, { node: await container.elementHandle(), previous }, { timeout: 20_000 });
+    return container.locator('img[data-artwork-provider]').getAttribute('src');
+  };
+  await decodedDecoration(vault.locator('[data-ui="kura-hero"]'));
   assert.equal(heroRequests.filter(value=>value==='kitsu').length,1,'hidden media workspaces do not fetch decorative catalogues');
   await vault.locator('[data-ui="kura-hero"]').getByRole('button',{name:'Use local artwork',exact:true}).click();
   const localArtworkRequestCount = heroRequests.length;
@@ -638,11 +653,11 @@ try {
   assert.equal(await entry.locator('[data-ui="auth-card"]').evaluate((node) => getComputedStyle(node).borderRadius), '0px');
   assert.equal(await entry.locator('[data-ui="auth-card"]').evaluate((node) => getComputedStyle(node).backgroundColor), 'rgba(0, 0, 0, 0)');
   assert.equal(await entry.locator('[data-ui="auth-card"]').evaluate(node=>getComputedStyle(node).boxShadow),'none');
-  const entryAtmosphere = entry.locator('.tsugi-atmosphere[data-placement="entry"]');
-  assert.equal(await entryAtmosphere.getAttribute('aria-hidden'), 'true');
-  assert.equal(await entryAtmosphere.evaluate(node => getComputedStyle(node).pointerEvents), 'none');
-  assert.ok((await entryAtmosphere.locator('.tsugi-brand-wordmark').boundingBox()).width > 240);
-  assert.equal(await entryAtmosphere.locator('svg').count(),0,'only signature text in background');
+  assert.equal(await entry.locator('.tsugi-atmosphere').count(), 0, 'server setup keeps one identity in its navigation');
+  const connectionForm = await entry.locator('[data-ui="auth-card"]').boundingBox();
+  const entryBounds = await entry.boundingBox();
+  assert.ok(connectionForm.width <= 440, 'server setup remains readable on a wide window');
+  assert.ok(Math.abs(connectionForm.x + connectionForm.width / 2 - entryBounds.x - entryBounds.width / 2) <= 2, 'server setup is centered inside the usable window without a sideways offset: ' + JSON.stringify({ connectionForm, entryBounds }));
   assert.equal(await entry.getByRole('button', { name: 'Connect', exact: true }).evaluate((node) => getComputedStyle(node).borderRadius), '8px');
   assert.equal(await entry.evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(12, 13, 16)');
   assert.equal(await entry.locator('.tsugi-auth-brand').count(), 0, 'desktop setup has no redundant foreground wordmark');
@@ -663,7 +678,7 @@ try {
   assert.equal(await field.evaluate((node) => getComputedStyle(node).outlineColor), 'rgb(213, 213, 220)');
   await mediaNav.getByRole('button', { name: 'All media', exact: true }).click();
   await landing.waitFor();
-  console.log('PASS: atmospheric movie entry, matte panel, aligned foreground brand and palette-independent field focus.');
+  console.log('PASS: centered unboxed movie setup, consistent controls and palette-independent field focus.');
   await page.getByRole('button', { name: 'App settings', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'carbon' && document.documentElement.style.getPropertyValue('--background') === document.documentElement.style.getPropertyValue('--tsugi-canvas'));
@@ -706,12 +721,13 @@ try {
   assert.equal(heroRequests.length,localArtworkRequestCount,'the shared local-only choice prevents external decoration in Read');
   await hero.getByRole('button',{name:'Enable external illustration',exact:true}).click();
   await hero.getByRole('button',{name:'Next illustration',exact:true}).waitFor();
-  await hero.locator('img[src*="/cover_images/2/"]').waitFor();
+  const initialIllustration = await decodedDecoration(hero);
+  assert.equal(heroRequests.filter(value=>value==='kitsu').length,1,'Read reuses the shared catalogue instead of restarting the popular-first request');
   await page.bringToFront();
   await hero.getByRole('button',{name:'Next illustration',exact:true}).click();
-  await hero.getByText('Nekos API',{exact:true}).waitFor();
-  await hero.getByText('Kitsu',{exact:true}).waitFor({timeout:26000}); // automatic 20-second rotation
-  assert.ok(heroRequests.includes('kitsu-image')&&heroRequests.includes('kitsu-image-2')&&heroRequests.includes('nekos'));
+  const manualIllustration = await decodedDecoration(hero, initialIllustration);
+  await decodedDecoration(hero, manualIllustration); // automatic visible rotation without a fixed provider order
+  assert.equal(heroRequests.filter(value=>value==='kitsu').length,1,'manual and automatic illustration changes reuse the catalogue');
   await page.locator('.tsugi-library-controls').waitFor();
   await capture('03-reading-library');
   await page.evaluate(()=>window.__readerFixture.heroFeatured=true);
@@ -722,7 +738,7 @@ try {
   await hero.getByRole('button',{name:'Next featured title',exact:true}).click();
   await hero.getByRole('heading',{name:'ZZ Missing Fixture',exact:true}).waitFor();
   assert.equal(await hero.locator('.tsugi-spotlight-source-cover img').count(),0,'missing featured cover never invents a title cover');
-  assert.equal(await hero.locator('img[src="/design/yomi/hero-torii.webp"]').count(),1,'missing featured cover retains the bundled illustration');
+  assert.equal(await hero.locator('.tsugi-design-illustration[src="/design/yomi/hero-torii.webp"]').count(),1,'missing featured cover retains the bundled illustration');
   assert.equal(await hero.locator('[data-ui="landscape-decoration"]').count(),1,'decorative landscape stays separate from the actual featured cover');
   await page.evaluate(()=>window.__readerFixture.heroFeatured=false);
   await page.getByRole('button',{name:'Refresh library',exact:true}).click();
@@ -824,12 +840,11 @@ try {
     }));
     for (const [index, group] of sourceGeometry.entries()) {
       assert.equal(group.headerBorder + group.groupBorder, 0, 'source groups and headings have no separator lines');
-      assert.notEqual(group.background, 'rgba(0, 0, 0, 0)', 'each source group has a visible surface');
-      assert.ok(group.headerTop - group.top >= 16, 'source title is inset within its own band');
+      assert.equal(group.background, 'rgba(0, 0, 0, 0)', 'source artwork groups have no broad grey background');
+      assert.ok(Math.abs(group.headerTop - group.top) <= 1, 'source title aligns with its unframed content');
       if (group.headingGap !== null) assert.ok(group.headingGap >= 11, 'source heading has breathing room above artwork');
       if (index) {
-        assert.ok(group.top >= sourceGeometry[index - 1].bottom, 'source groups never overlap');
-        assert.notEqual(group.background, sourceGeometry[index - 1].background, 'adjacent populated, empty and failed source groups alternate tone');
+        assert.ok(group.top - sourceGeometry[index - 1].bottom >= 20, 'populated, empty and failed source groups remain distinct through spacing');
       }
     }
     await capture(width === 1440 ? '03-reader-global-search' : '03-reader-global-search-narrow');
@@ -1049,8 +1064,9 @@ try {
   await musicSettings.getByRole('button', { name: 'Connect YouTube Music', exact: true }).click();
   await music.getByRole('button', { name: 'Discover', exact: true }).click();
   await music.getByRole('heading', { name: 'Native fixture track', exact: true }).waitFor();
-  await music.locator('.oto-feature').getByText('Kitsu',{exact:true}).waitFor();
-  assert.equal(await music.locator('.oto-feature .oto-feature-cover img').count(),1,'Music preserves actual catalogue artwork over its decorative landscape');
+  await music.locator('img.oto-feature-backdrop').waitFor();
+  assert.equal(await music.locator('[data-ui="landscape-decoration"],[data-ui="landscape-artwork-controls"]').count(),0,'Music does not use anime decoration or its controls');
+  assert.equal(await music.locator('.oto-feature .oto-feature-cover img').count(),1,'Music preserves the actual featured catalogue artwork');
   assert.equal(await music.getByRole('heading', { name: 'Discover', exact: true }).count(), 1);
   await music.locator('.tsugi-catalog-lane').filter({ hasText: 'Fixture recommendations' }).waitFor();
   await page.setViewportSize({ width: 2560, height: 1440 });
@@ -1520,12 +1536,20 @@ try {
   await setup.getByText("Already use Mihon, Komikku or another Tachiyomi-compatible fork? Tsugi supports the same compatible extension repositories. After setup, add a trusted repository URL in Settings → Browse → Sources → Extension repositories, then install individual extensions from Extensions. Sources are not bundled, and compatibility varies by extension.",{exact:true}).waitFor();
   await capture('13-reader-setup-compatibility');
   assert.deepEqual(errors, []);
-  await verifyLandscapeDecorationBrowser({ browser, origin, installDesktopFixture });
+  await verifyLandscapeDecorationBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyAppSeparatorsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyMoviesLayoutBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyMusicAudioBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyMusicArtworkBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyMusicPlayerLayoutBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyMusicLyricsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyBrushHeadingsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyYouTubeSessionBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyRestoreSessionBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyExtensionUpdatesBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyMihonImportBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyMihonReconstructionBrowser({ browser, origin, installDesktopFixture });
+  await verifyDiscordPresenceBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyDownloadCleanupBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyReaderReleaseBrowser({ browser, origin, installDesktopFixture });
   await verifySourceFeedBrowser({ browser, origin, installDesktopFixture, screenshotDir });
@@ -1533,6 +1557,7 @@ try {
   await verifySourceSettingsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifySourceIconsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyReaderSettingsSearchBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyReaderRepositoriesBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyVaultBookImportsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifySupportSummaryBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyReaderDownloadsBrowser({ browser, origin, installDesktopFixture, screenshotDir });

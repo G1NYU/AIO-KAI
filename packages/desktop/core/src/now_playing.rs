@@ -7,7 +7,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::bridge::Outbound;
-use crate::discord::{self, Presence};
+use crate::discord::{self, Media, Presence};
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Item {
@@ -56,6 +56,7 @@ struct State {
     /// A seek landed; its position can arrive either side of the event.
     seeked: bool,
     on_discord: bool,
+    page_presence: Option<Presence>,
 }
 
 static STATE: Mutex<State> = Mutex::new(State {
@@ -66,6 +67,7 @@ static STATE: Mutex<State> = Mutex::new(State {
     duration_ms: None,
     seeked: false,
     on_discord: false,
+    page_presence: None,
 });
 static CONTROLS: OnceLock<Controls> = OnceLock::new();
 
@@ -85,9 +87,10 @@ pub fn set_item(item: Option<Item>) {
 
 /// A browsing status from the page, which a title playing on Discord outranks.
 pub fn browsing(presence: Option<Presence>) {
-    let Ok(state) = STATE.lock() else { return };
+    let Ok(mut state) = STATE.lock() else { return };
+    state.page_presence = presence;
     if !state.on_discord {
-        discord::set(presence);
+        discord::set(state.page_presence.clone());
     }
 }
 
@@ -146,6 +149,7 @@ fn publish(state: &mut State) {
         .as_ref()
         .filter(|s| s.item.discord)
         .map(|s| Presence {
+            media: Media::Video,
             title: s.item.title.clone(),
             subtitle: s.item.subtitle.clone(),
             imdb: s.item.imdb.clone(),
@@ -156,6 +160,6 @@ fn publish(state: &mut State) {
         });
     if presence.is_some() || state.on_discord {
         state.on_discord = presence.is_some();
-        discord::set(presence);
+        discord::set(presence.or_else(|| state.page_presence.clone()));
     }
 }

@@ -46,7 +46,7 @@ jobs:
       - name: Verify pinned ebook engine preparation
         run: pnpm -F @aiostreams/web prepare:ebooks
       - name: Desktop navigation and music regression tests
-        run: pnpm exec vitest run packages/web/tests/reader-utils.test.ts packages/web/tests/desktop-area.test.ts packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts packages/web/tests/player-template.test.ts packages/web/tests/player-layout.test.ts packages/web/tests/music-feature-pack.test.ts packages/web/tests/music-lyrics.test.ts packages/web/tests/music-history.test.ts packages/web/tests/eclipse-appearance.test.ts packages/web/tests/music-library.test.ts packages/web/tests/audio-profiles.test.ts packages/web/tests/preferences-backup.test.ts packages/web/tests/music-backup.test.ts packages/web/tests/book-backup.test.ts packages/web/tests/manga-backup.test.ts packages/web/tests/portable-archive.test.ts packages/web/tests/manga-categories.test.ts packages/web/tests/managed-archive.test.ts packages/web/tests/backup-schedule.test.ts packages/web/tests/tsugi-release.test.ts packages/web/tests/restore-session.test.ts packages/web/tests/mihon-backup.test.ts packages/web/tests/download-cleanup.test.ts packages/web/tests/source-feed-preferences.test.ts packages/web/tests/source-feed.test.ts packages/web/tests/source-metadata.test.ts packages/web/tests/reader-settings-search.test.ts packages/web/tests/support-summary.test.ts packages/web/tests/reader-downloads.test.ts packages/web/tests/local-comic-import.test.ts
+        run: pnpm exec vitest run packages/web/tests/reader-utils.test.ts packages/web/tests/desktop-area.test.ts packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts packages/web/tests/player-template.test.ts packages/web/tests/player-layout.test.ts packages/web/tests/music-feature-pack.test.ts packages/web/tests/music-lyrics.test.ts packages/web/tests/music-history.test.ts packages/web/tests/eclipse-appearance.test.ts packages/web/tests/music-library.test.ts packages/web/tests/audio-profiles.test.ts packages/web/tests/preferences-backup.test.ts packages/web/tests/music-backup.test.ts packages/web/tests/book-backup.test.ts packages/web/tests/manga-backup.test.ts packages/web/tests/portable-archive.test.ts packages/web/tests/manga-categories.test.ts packages/web/tests/managed-archive.test.ts packages/web/tests/backup-schedule.test.ts packages/web/tests/tsugi-release.test.ts packages/web/tests/restore-session.test.ts packages/web/tests/mihon-backup.test.ts packages/web/tests/download-cleanup.test.ts packages/web/tests/source-feed-preferences.test.ts packages/web/tests/source-feed.test.ts packages/web/tests/source-metadata.test.ts packages/web/tests/reader-settings-search.test.ts packages/web/tests/support-summary.test.ts packages/web/tests/reader-downloads.test.ts packages/web/tests/local-comic-import.test.ts packages/web/tests/presence.test.ts packages/web/tests/mihon-writer.test.ts packages/web/tests/youtube-session.test.ts packages/web/tests/landscape-artwork.test.ts
       - name: Browser interaction smoke (no desktop packaging)
         run: |
           npm install --prefix "$RUNNER_TEMP/tsugi-reader-browser" --no-audit --no-fund --no-save playwright@1.58.2
@@ -351,6 +351,23 @@ jobs:
           selected in any hero. Real title and album covers remain separate.
           Extract this candidate into a new folder; retain your working copy.
           Keep the .portable marker; portable data is stored beside current/.
+
+          MUSIC, READING AND PRESENCE CHECKS
+          This candidate includes progressive YouTube playback and one-pass
+          track downloads. Live access and speed still need verification on
+          your connection: check the first track, replay, next track, seeking,
+          rapid switching, download progress and cancellation.
+          Music now uses relevant music artwork; the screenshot-driven layout,
+          title-spacing and cover-resolution corrections are included.
+          For videos with different lyric timing, open Adjust lyrics timing
+          and Match a sung line. A correction applies only to that recording
+          for the current app session; provider timestamps are not guaranteed.
+          Music sources offers an optional Firefox session for this launch.
+          Reading can review and reconstruct supported remote Mihon library
+          entries with a checkpoint; inspect the skipped/conflicting entries
+          before applying. Existing account connections are not imported.
+          Discord presence is off by default. Its setup requires a public
+          Discord Application ID for TSUGI, never an account or bot token.
 
           VAULT ACCEPTANCE
           Use Vault for direct-file downloads, batches, concurrency, and rate limits.

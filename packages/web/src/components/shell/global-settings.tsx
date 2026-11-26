@@ -18,6 +18,7 @@ import { MihonImportSettings } from './mihon-import-settings';
 import { PortableArchiveSettings } from './portable-archive-settings';
 import { StorageUsageSettings } from './storage-usage-settings';
 import { TsugiReleaseSettings } from './tsugi-release-settings';
+import { DiscordPresenceSettings } from './discord-presence-settings';
 import { SupportSummarySettings } from './support-summary-settings';
 import type { ArchiveKind, PortableArchive } from '@/lib/backup/archive';
 
@@ -178,6 +179,7 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
       <p><Trans>Choose how the expanded player opens. Imported layouts retain their own composition.</Trans></p>
     </section>
     <GlobalAppearanceSettings />
+    <DiscordPresenceSettings />
     <PortableArchiveSettings archive={archive} onArchive={setArchive} />
     {/* Closing or replacing an archive invalidates every unconfirmed section review. */}
     <React.Fragment key={archive?.entries.map(entry=>entry.sha256).join(':')??'standalone'}>

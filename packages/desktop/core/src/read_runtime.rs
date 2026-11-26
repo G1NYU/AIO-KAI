@@ -38,6 +38,10 @@ mod downloads;
 mod local_import;
 pub use local_import::LocalImportReview;
 
+#[path = "read_mihon_import.rs"]
+mod mihon_import;
+pub use mihon_import::MihonImportReview;
+
 #[cfg(test)]
 #[path = "read_feed_tests.rs"]
 mod feed_tests;

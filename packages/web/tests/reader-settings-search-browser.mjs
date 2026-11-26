@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { assertUnframedGroups } from './shared-layout-browser.mjs';
 
 function installReaderSettingsSearchFixture() {
   if (window.top !== window) return;
@@ -36,6 +37,20 @@ export async function verifyReaderSettingsSearchBrowser({ browser, origin, insta
   const providerCalls = () => page.evaluate(() => window.__readerFixture.requests.filter(action => ['manga', 'catalogue', 'source-preferences', 'source-inventory', 'chapter'].includes(action.kind)));
   const section = name => settings.getByRole('navigation', { name: 'Reader settings sections', exact: true }).getByRole('button', { name, exact: true });
   const clear = async () => { await settings.getByRole('button', { name: 'Clear settings search', exact: true }).click(); await frames(); };
+  const surfaces = async () => {
+    assert.deepEqual(await groups(), ['size', 'wheel']);
+    // Content wrappers and clickable checkbox labels have different purposes.
+    // Check the wrappers without removing the toggle row's interaction cues.
+    await assertUnframedGroups(settings.locator('.tsugi-reader-setting-group[data-reader-setting]'), 'Reader settings content groups');
+    const borders = await settings.locator('[data-reader-setting]').evaluateAll(rows => rows.map(row => {
+      const style = getComputedStyle(row);
+      return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth];
+    }));
+    assert.ok(borders.every(widths => widths.every(width => width === '0px')), 'settings groups and toggle rows have no separator rules');
+    const toggle = settings.locator('label.tsugi-reader-setting-toggle[data-reader-setting="wheel"]');
+    assert.equal(await toggle.getByRole('checkbox').count(), 1, 'the retained surface belongs to a single interactive setting');
+    assert.ok(!['transparent', 'rgba(0, 0, 0, 0)'].includes(await toggle.evaluate(node => getComputedStyle(node).backgroundColor)), 'the interactive toggle retains its row surface');
+  };
   try {
     await page.addInitScript({ content: `(${installDesktopFixture.toString()})();(${installReaderSettingsSearchFixture.toString()})();` });
     await page.route('**/*', route => route.request().url().startsWith(origin + '/') ? route.continue() : route.abort());
@@ -73,10 +88,25 @@ export async function verifyReaderSettingsSearchBrowser({ browser, origin, insta
     assert.deepEqual(await preferences(), { ...original, gap: false }, 'a matching control changes only its own setting');
     assert.equal(await section('Appearance').getAttribute('aria-current'), 'page');
     await search().fill('zoom');
-    const tones = await settings.locator('[data-reader-setting]').evaluateAll(rows => rows.map(row => ({
-      background: getComputedStyle(row).backgroundColor, border: getComputedStyle(row).borderBottomWidth,
-    })));
-    assert.ok(tones.every(row => row.border === '0px' && row.background !== 'rgba(0, 0, 0, 0)'), 'search results retain tonal groups without separator rules');
+    await surfaces();
+    const wheelRow = settings.locator('label[data-reader-setting="wheel"]');
+    const wheel = wheelRow.getByRole('checkbox');
+    await page.mouse.move(1430, 5);
+    const restingTone = await wheelRow.evaluate(node => getComputedStyle(node).backgroundColor);
+    await wheelRow.hover();
+    assert.notEqual(await wheelRow.evaluate(node => getComputedStyle(node).backgroundColor), restingTone, 'hover identifies the clickable setting row');
+    await wheel.focus(); await page.mouse.move(1430, 5);
+    assert.notEqual(await wheelRow.evaluate(node => getComputedStyle(node).backgroundColor), restingTone, 'keyboard focus keeps the setting row distinguishable');
+    const beforeWheel = await preferences(), beforeWheelWrites = await writes();
+    await page.keyboard.press('Space');
+    assert.equal(await wheel.isChecked(), false);
+    assert.deepEqual(await preferences(), { ...beforeWheel, wheelZoom: false }, 'keyboard activation changes only wheel zoom');
+    await page.keyboard.press('Space');
+    assert.equal(await wheel.isChecked(), true);
+    assert.deepEqual(await preferences(), beforeWheel);
+    assert.equal(await writes(), beforeWheelWrites + 2);
+    assert.deepEqual(await providerCalls(), originalCalls, 'toggle interaction does not contact providers');
+    await search().focus();
     if (screenshotDir) { await mkdir(screenshotDir, { recursive: true }); await page.screenshot({ path: join(screenshotDir, 'reader-settings-search-global.png'), animations: 'disabled' }); }
     await page.setViewportSize({ width: 440, height: 1000 }); await frames();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'global settings search fits a narrow window');
@@ -112,7 +142,7 @@ export async function verifyReaderSettingsSearchBrowser({ browser, origin, insta
     await clear();
     assert.equal(await section('Controls').getAttribute('aria-current'), 'page');
     await search().fill('zoom');
-    assert.deepEqual(await groups(), ['size', 'wheel']);
+    await surfaces();
     if (screenshotDir) await page.screenshot({ path: join(screenshotDir, 'reader-settings-search-chapter.png'), animations: 'disabled' });
     await search().focus(); await page.keyboard.press('Escape');
     assert.equal(await settings.isVisible(), true);

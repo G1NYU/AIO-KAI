@@ -5,6 +5,7 @@ import { BrushBook, BrushDisc, BrushDownload, BrushFolder, BrushPlus, BrushRight
 import { useDesktopArea } from '@/lib/desktop-area';
 import { appBridge } from '@/lib/hosts/shell/bridge';
 import { LandscapeDecoration } from '@/components/landscape-decoration';
+import { BrushHeading } from '@/components/brush-heading';
 import { saveVaultFile, vaultPicker, vaultTarget } from './transfer';
 import { NativeVaultQueue } from './native-queue';
 import './kura.css';
@@ -63,7 +64,7 @@ export function VaultPage({ track = null }: { track?: { id: string; title: strin
       <LandscapeDecoration className="kura-hero-art" fallback="/design/kura/hero-kura.webp"/>
       <div className="kura-hero-copy">
         <p className="kura-eyebrow"><Trans>TSUGI / YOUR PERSONAL VAULT</Trans></p>
-        <h2 id="kura-hero-title"><Trans>Everything worth keeping.</Trans></h2>
+        <BrushHeading as="h2" id="kura-hero-title"><Trans>Everything worth keeping.</Trans></BrushHeading>
         <p className="kura-hero-description"><Trans>A book. A song. A little discovery. Bring the things you love into one beautiful place.</Trans></p>
         <div className="kura-hero-actions">
           <button type="button" className="tsugi-read-action tsugi-series-primary" disabled={!nativeSupported || busy} onClick={() => focusPanel(capture, true)}><BrushPlus aria-hidden/><Trans>Add links</Trans></button>

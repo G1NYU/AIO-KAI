@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { landscapeCandidates, type LandscapeArtwork } from './landscape-artwork';
+import { LANDSCAPE_ROTATION_MS, landscapeArtworkPool, landscapeCandidates, localLandscapes, type LandscapeArtwork } from './landscape-artwork';
 import './landscape-decoration.css';
 
 const preferenceKey = 'tsugi.landscape.local-only';
@@ -24,6 +24,11 @@ function setExternal(enabled: boolean) {
   try { localStorage.setItem(preferenceKey, String(localOnly)); } catch { /* In-memory preference. */ }
   window.dispatchEvent(new Event(preferenceEvent));
 }
+function subscribeVisibility(callback: () => void) {
+  document.addEventListener('visibilitychange', callback);
+  return () => document.removeEventListener('visibilitychange', callback);
+}
+const documentVisible = () => !document.hidden;
 
 function ArtworkImage({ artwork, onFailure, onReady }: { artwork: LandscapeArtwork; onFailure: () => void; onReady: () => void }) {
   const [loaded, setLoaded] = useState(false);
@@ -51,9 +56,10 @@ function DecorationContent({ fallback, className = '', active = true, external }
   const container = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
   const [candidates, setCandidates] = useState<LandscapeArtwork[]>([]);
-  const [failed, setFailed] = useState<Set<string>>(() => new Set());
-  const [index, setIndex] = useState(0);
+  const [artwork, setArtwork] = useState<LandscapeArtwork>();
   const [loadedUrl, setLoadedUrl] = useState('');
+  const pageVisible = useSyncExternalStore(subscribeVisibility, documentVisible, () => true);
+  const visible = active && inView && pageVisible;
   useEffect(() => {
     const node = container.current;
     if (!node) return;
@@ -62,32 +68,41 @@ function DecorationContent({ fallback, className = '', active = true, external }
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
-    if (!active || !inView || !external || candidates.length) return;
+    if (!visible || !external || candidates.length) return;
     const controller = new AbortController();
     let current = true;
     const timer = window.setTimeout(() => controller.abort(), 4000);
     void landscapeCandidates(controller.signal).then(result => {
-      if (current) setCandidates(result);
+      if (current) setCandidates([...result, ...localLandscapes(fallback)]);
+    }).catch(() => {
+      if (current) setCandidates(localLandscapes(fallback));
     }).finally(() => window.clearTimeout(timer));
     return () => { current = false; controller.abort(); window.clearTimeout(timer); };
-  }, [active, inView, external, candidates.length]);
-  const available = candidates.filter(item => !failed.has(item.url));
-  const artwork = available.length ? available[index % available.length] : undefined;
+  }, [visible, external, candidates.length, fallback]);
+  const available = landscapeArtworkPool.available(candidates);
   const ready = !!artwork && loadedUrl === artwork.url;
-  const advance = useCallback(() => { setLoadedUrl(''); setIndex(value => value + 1); }, []);
-  const onFailure = useCallback(() => {
-    if (!artwork || !active || !inView) return;
+  const advance = useCallback(() => {
+    const next = landscapeArtworkPool.next(candidates, artwork?.url);
+    if (next?.url === artwork?.url) return;
     setLoadedUrl('');
-    setFailed(current => new Set([...current, artwork.url]));
-  }, [artwork, active, inView]);
+    setArtwork(next);
+  }, [candidates, artwork]);
+  useEffect(() => {
+    if (visible && external && candidates.length && !artwork) advance();
+  }, [visible, external, candidates.length, artwork, advance]);
+  const onFailure = useCallback(() => {
+    if (!artwork || !visible) return;
+    landscapeArtworkPool.reject(artwork.url);
+    advance();
+  }, [artwork, visible, advance]);
   const onReady = useCallback(() => { if (artwork) setLoadedUrl(artwork.url); }, [artwork]);
   useEffect(() => {
-    if (!active || !inView || !external || !ready || available.length < 2) return;
+    if (!visible || !external || !ready || available.length < 2) return;
     const timer = window.setInterval(() => {
       if (!document.hidden && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) advance();
-    }, 20000);
+    }, LANDSCAPE_ROTATION_MS);
     return () => window.clearInterval(timer);
-  }, [active, inView, external, ready, available.length, artwork, advance]);
+  }, [visible, external, ready, available.length, artwork, advance]);
 
   return <>
     <div ref={container} className={'tsugi-hero-artwork ' + className} aria-hidden="true" data-ui="landscape-decoration">
@@ -99,10 +114,10 @@ function DecorationContent({ fallback, className = '', active = true, external }
         <path d="M0 560 340 460 650 520 965 395 1250 500 1600 420V600H0Z" fill="#192b3b" />
       </svg>
       {fallback && <img className="tsugi-design-illustration" src={fallback} alt="" />}
-      {external && artwork && (ready || (active && inView)) && <ArtworkImage key={artwork.url} artwork={artwork} onFailure={onFailure} onReady={onReady} />}
+      {external && artwork && (ready || visible) && <ArtworkImage key={artwork.url} artwork={artwork} onFailure={onFailure} onReady={onReady} />}
     </div>
     <div className="tsugi-landscape-credit" data-ui="landscape-artwork-controls">
-      {external && ready && <span>{artwork?.provider === 'kitsu' ? <Trans>Kitsu</Trans> : <Trans>Nekos API</Trans>}</span>}
+      {external && ready && <span>{artwork?.provider === 'kitsu' ? <Trans>Kitsu</Trans> : artwork?.provider === 'nekos' ? <Trans>Nekos API</Trans> : <Trans>Local artwork</Trans>}</span>}
       {external && ready && available.length > 1 && <button type="button" onClick={advance}><Trans>Next illustration</Trans></button>}
       {external ? <button type="button" title={t`External illustrations are filtered but may be incorrectly classified.`} onClick={() => setExternal(false)}><Trans>Use local artwork</Trans></button> : <button type="button" onClick={() => setExternal(true)}><Trans>Enable external illustration</Trans></button>}
     </div>

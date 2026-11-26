@@ -76,6 +76,33 @@ pub enum ReadContentWarning { Safe, Mixed, Nsfw }
 #[serde(untagged)]
 pub enum SourcePreferenceValue { Bool(bool), Choice(u32) }
 
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MihonImportInput {
+    pub manga: Vec<MihonImportManga>, pub categories: Vec<String>,
+    pub include_partial_pages: bool, pub include_trackers: bool,
+}
+impl std::fmt::Debug for MihonImportInput {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("MihonImportInput(<private library metadata>)")
+    }
+}
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MihonImportManga {
+    pub source_id: String, pub url: String, pub title: String, pub categories: Vec<String>,
+    pub chapters: Vec<MihonImportChapter>, pub trackers: Vec<MihonImportTracker>,
+}
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MihonImportChapter {
+    pub url: String, pub name: String, pub read: bool, pub bookmark: bool,
+    pub page: i32, pub chapter_number: f32, pub source_order: i32, pub last_read_at: String,
+}
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MihonImportTracker { pub tracker_id: i32, pub remote_id: String }
+
 /// Fixed reading operations; the page cannot send arbitrary GraphQL,
 /// local paths, upstream URLs for pages, or authentication credentials.
 #[derive(Debug, Deserialize)]
@@ -125,6 +152,9 @@ pub enum ReadAction {
     BeginLocalImport {},
     ApplyLocalImport { review_id: String },
     CancelLocalImport { review_id: String },
+    ReviewMihonImport { input: MihonImportInput },
+    ApplyMihonImport { review_id: String },
+    CancelMihonImport { review_id: String },
     Page { chapter_id: i32, index: usize },
     Progress { chapter_id: i32, index: usize, finished: bool },
     DownloadCleanupCandidates { offset: u32 },
@@ -407,7 +437,9 @@ pub enum Inbound {
     Presence {
         presence: Option<Presence>,
     },
-    /// Connects to Discord if need be and answers with a `discord-status`.
+    /// Explicit opt-in policy; disabled until configured by this page session.
+    DiscordConfigure { config: crate::discord::Config },
+    /// Connects to Discord if enabled and answers with a `discord-status`.
     DiscordCheck,
     /// The title the player shows; `None` once it closes.
     NowPlaying {

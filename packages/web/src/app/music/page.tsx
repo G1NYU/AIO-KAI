@@ -1,5 +1,6 @@
 import { BrushDisc as BiDisc, BrushSearch as BiSearch, BrushPlug as BiPlug, BrushClose as FiX, BrushPlus as FiPlus, BrushPlay as FiPlay, BrushPause as FiPause, BrushPrevious as FiSkipBack, BrushNext as FiSkipForward } from '@/components/tsugi-icons';
 import React from 'react';
+import { useMediaPresence } from '@/lib/rich-presence';
 import './oto.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
@@ -14,11 +15,13 @@ import {
   type MusicConnection,
 } from '@/lib/music/connections';
 import { providerFor } from '@/lib/music/providers';
-import { nativeYouTubeTarget, nextNativeYouTubeTarget } from '@/lib/music/youtube-music';
+import { stableMediaDuration } from '@/lib/music/lyrics';
+import { nativeYouTubeTarget, nextNativeYouTubeTarget, shouldPrefetchNativeTrack } from '@/lib/music/youtube-music';
 import { supportsYouTubeMusic } from '@/lib/hosts/shell/youtube-music';
 import { appBridge, type ShellMessage } from '@/lib/hosts/shell/bridge';
 import { MusicPlayer, type RepeatMode } from './player';
 import { MusicArtwork } from './music-artwork';
+import { YouTubeSessionSettings } from './youtube-session-settings';
 import { moveUpcoming, removeUpcoming, clearUpcoming } from '@/lib/music/queue';
 import { MusicLibrary } from './library';
 import { useRememberedMusicFolder } from './use-remembered-folder';
@@ -123,7 +126,12 @@ export function MusicPage({
   const [paused, setPaused] = React.useState(true);
   const [position, setPosition] = React.useState(0);
   const [duration, setDuration] = React.useState(0);
+  const [mediaDuration, setMediaDuration] = React.useState(0);
   const [quality, setQuality] = React.useState('');
+  useMediaPresence(playing && playbackAllowed && !resolving && !playError && (!paused || visible) ? {
+    media: 'music', title: playing.title, subtitle: playing.artist || null, imdb: null,
+    position: position * 1000, duration: duration > 0 ? duration * 1000 : null, paused, browsing: false,
+  } : null);
   const [volume, setVolume] = React.useState(0.85);
   const [audioProfile, setAudioProfile] = React.useState<AudioProfile>(readAudioProfile);
   const [eqEnabled, setEqEnabled] = React.useState(false);
@@ -161,6 +169,7 @@ export function MusicPage({
   }
 
   function clearBrowserAudio() {
+    setMediaDuration(0);
     browserSession.current = null;
     const element = audioRef.current;
     if (element) { element.pause(); element.removeAttribute('src'); element.load(); }
@@ -278,9 +287,9 @@ export function MusicPage({
     const url = nextNativeYouTubeTarget(queue, queueIndex, shuffle, repeat);
     const previous = prefetchSent.current;
     if (previous?.request === current.request && previous.url === url) return;
-    // Wait for actual playback before opening a second transfer. A changed
+    // Prepare near the end so a second transfer does not compete with startup. A changed
     // queue can still cancel a previous request while the player is paused.
-    if (url && (paused || position < 2)) {
+    if (url && (paused || !shouldPrefetchNativeTrack(position, duration))) {
       if (previous?.request === current.request && previous.url) {
         bridge.send({ type: 'music-audio-prefetch', request: current.request, url: null });
         prefetchSent.current = null;
@@ -289,7 +298,7 @@ export function MusicPage({
     }
     prefetchSent.current = { request: current.request, url };
     bridge.send({ type: 'music-audio-prefetch', request: current.request, url });
-  }, [queue, queueIndex, shuffle, repeat, paused, position, resolving, playbackAllowed]);
+  }, [queue, queueIndex, shuffle, repeat, paused, position, duration, resolving, playbackAllowed]);
 
   React.useEffect(() => {
     saveMusicSources(rememberSources, connections);
@@ -892,7 +901,10 @@ export function MusicPage({
       setPlayError(message.error || t`Native music playback failed.`);
       return;
     }
-    if (Number.isFinite(message.duration) && message.duration > 0) setDuration(message.duration);
+    if (Number.isFinite(message.duration) && message.duration > 0) {
+      setDuration(message.duration);
+      setMediaDuration(previous => stableMediaDuration(previous, message.duration));
+    }
     if (Number.isFinite(message.position)) setPosition(Math.max(0, message.position));
     setResolving(message.status === 'loading');
     setPaused(message.status !== 'playing');
@@ -1122,6 +1134,16 @@ export function MusicPage({
                 </div>
                 {activeAddon && <p role="status" className="text-sm text-[--tsugi-muted]"><Trans>Connected to {connectedName}</Trans></p>}
               </section>
+              {supportsYouTubeMusic() && appBridge()?.platform === 'windows' && <YouTubeSessionSettings
+                trackId={playingSourceId === YOUTUBE_MUSIC_ID ? playing?.id : undefined}
+                onChanged={() => {
+                  if (playingSourceId !== YOUTUBE_MUSIC_ID) return;
+                  ++playbackRequest.current;
+                  stopNativeAudio();
+                  setResolving(false);
+                  setPaused(true);
+                  setPlayError('');
+                }} />}
               <section aria-labelledby="music-source-heading" className="tsugi-source-section">
                 <h3 id="music-source-heading"><Trans>Connect a music source</Trans></h3>
                 <p className="text-sm text-[--tsugi-muted]"><Trans>Connect multiple Eclipse music sources. Their private URLs are kept only in memory unless you choose to remember them on this device.</Trans></p>
@@ -1175,10 +1197,11 @@ export function MusicPage({
       )}
       <MusicPlayer p={{
         track: playing,
+        sourceId: playingSourceId,
         sourceName: playingSourceId === LOCAL_SOURCE ? t`Local audio` :
           connections.find((item) => item.id === playingSourceId)?.manifest.name ?? '',
         queue, index: queueIndex, paused, loading: resolving, error: playError,
-        position, duration, volume, quality, expanded, shuffle, repeat,
+        position, duration, mediaDuration, volume, quality, expanded, shuffle, repeat,
         audioProfile, eqEnabled, eqAvailable: (playingSourceId === LOCAL_SOURCE && browserPlayback?.mode !== 'direct') || (playingSourceId === YOUTUBE_MUSIC_ID && appBridge()?.platform === 'windows' && !!appBridge()?.nativeMusicAudio), eqError,
         analyser: eqGraph.current?.element === audioRef.current ? matrixAnalyser : null,
         visualizerUnavailable: browserPlayback?.mode === 'direct',
@@ -1214,8 +1237,18 @@ export function MusicPage({
             const session = currentBrowserSession(audio);
             if (!session) return;
             audio.volume = volumeRef.current;
-            if (Number.isFinite(audio.duration)) setDuration(audio.duration);
+            if (Number.isFinite(audio.duration) && audio.duration > 0) {
+              setDuration(audio.duration);
+              setMediaDuration(previous => stableMediaDuration(previous, audio.duration));
+            }
             restoreBrowserPosition(audio, session);
+          }}
+          onDurationChange={(event) => {
+            const audio = event.currentTarget;
+            if (currentBrowserSession(audio) && Number.isFinite(audio.duration) && audio.duration > 0) {
+              setDuration(audio.duration);
+              setMediaDuration(previous => stableMediaDuration(previous, audio.duration));
+            }
           }}
           onLoadedData={(event) => {
             const audio = event.currentTarget;

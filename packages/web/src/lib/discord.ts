@@ -1,5 +1,6 @@
 import { t } from '@lingui/core/macro';
 import React from 'react';
+import { setMediaPresence } from './rich-presence';
 import { useItem } from './jellyfin/queries';
 import { itemTitle } from './format';
 import { settings, useSetting, type DiscordEvent } from './settings';
@@ -31,6 +32,7 @@ const pageStatus = (event: Exclude<BrowsingEvent, 'titles'>) =>
   })[event];
 
 const browsing = (title: string, subtitle?: string, imdb?: string | null) => ({
+  media: 'video' as const,
   title,
   subtitle: subtitle ?? null,
   imdb: imdb ?? null,
@@ -42,12 +44,13 @@ const browsing = (title: string, subtitle?: string, imdb?: string | null) => ({
 
 /** The last browsing presence sent, so an unchanged page is not sent again. */
 let shown: string | null = null;
+const owner = Symbol('video-browsing');
 
 function showBrowsing(presence: ReturnType<typeof browsing> | null) {
   const key = presence && JSON.stringify(presence);
   if (key === shown) return;
   shown = key;
-  appBridge()?.send({ type: 'presence', presence });
+  setMediaPresence(owner, presence);
 }
 
 export function useDiscordBrowsing(pathname: string) {

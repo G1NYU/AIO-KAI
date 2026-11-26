@@ -290,6 +290,16 @@ export const movesFocus = (input: string) =>
  */
 function onKey(e: KeyboardEvent, early: boolean): void {
   if (isQuiet(e)) return;
+  // Tab remains browser navigation, but its next focused control needs the
+  // keyboard ring even when the previous interaction came from a pointer.
+  if (e.key === 'Tab') {
+    if (early) {
+      inputs++;
+      keys = true;
+      markPointerFocus(false);
+    }
+    return;
+  }
   const input = keyInput(e);
   if (!input) return;
   keys = true;

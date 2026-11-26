@@ -891,52 +891,18 @@ fn vault_mime_allowed(ext: &str, content_type: &str) -> bool {
 }
 
 // Vault transfers are intentionally stricter than the legacy video downloader.
-// Resume restarts an incomplete transfer, avoiding unsafe byte-range stitching
-// when a public source changes its contents between requests.
-// Uses the same bounded yt-dlp transport as playback, but asks for M4A only.
-// All file IO stays in the persistent Vault worker; no player state changes.
+// YouTube exports use the same verified yt-dlp transport as playback, asking
+// for M4A only. Resolve and transfer once: probing a second native transport
+// first added another extraction whenever the CDN omitted a strong ETag.
+// The subprocess streams to the job's temporary file, never a complete
+// in-memory song. Ordinary direct-file downloads still use the managed engine.
 fn fetch_vault_music(
     url: &str, path: &Path, stop: &Arc<AtomicBool>,
     report: impl Fn(u64, Option<u64>), rate_mib:u32,
 ) -> Result<(), Failure> {
-    let error=|message:&str|Failure::Error(message.to_owned());
-    if stop.load(Ordering::Relaxed){return Err(Failure::Stopped);}
-    if path.exists(){return Err(error("A file already exists at the Vault destination"));}
-    #[cfg(windows)]
-    if let Some(binary)=crate::vault_engine::installed_binary(){
-        report(0,None);
-        let metadata=if let Ok(mut resolver)=music_resolver::Transfer::start_resolve(url){
-            loop{
-                if stop.load(Ordering::Relaxed){return Err(Failure::Stopped);}
-                match resolver.poll(){
-                    Ok(Some(bytes))=>break Some(bytes),
-                    Ok(None)=>thread::sleep(Duration::from_millis(100)),
-                    Err(message) if message.contains("sign-in")||message.contains("HTTP 403")||message.contains("HTTP 429")=>return Err(error(&format!("YouTube extraction: {message}"))),
-                    Err(_)=>break None,
-                }
-            }
-        }else{None};
-        if let Some(media)=metadata.as_deref().and_then(|bytes|music_resolver::parse_resolved(bytes).ok()){
-            let part=part_of(path);
-            // An engine output is validated before it is visible in the library.
-            match crate::vault_engine::transfer_media(&binary,url,&media.url,media.headers,&part,stop.clone(),rate_mib,&report,false){
-                crate::vault_engine::Outcome::Complete=>{
-                    let result=finalize_media_part(&part,path,stop,&report);
-                    if result.is_err(){let _=fs::remove_file(&part);}
-                    return result;
-                },
-                crate::vault_engine::Outcome::Stopped=>return Err(Failure::Stopped),
-                crate::vault_engine::Outcome::Fallback=>{},
-            }
-        }
-        crate::vault_engine::cleanup(path);
-    }
-    #[cfg(not(windows))]
-    let _=rate_mib;
-    fetch_vault_music_native(url,path,stop,report)
+    fetch_vault_music_native(url,path,stop,report,rate_mib)
 }
 
-#[cfg(windows)]
 fn finalize_media_part(part:&Path,path:&Path,stop:&AtomicBool,report:impl Fn(u64,Option<u64>))->Result<(),Failure>{
     let error=|m:&str|Failure::Error(m.to_owned());
     let meta=fs::symlink_metadata(part).map_err(|_|error("Media transfer: output missing"))?;
@@ -947,10 +913,11 @@ fn finalize_media_part(part:&Path,path:&Path,stop:&AtomicBool,report:impl Fn(u64
     file.read_exact(&mut header).map_err(|_|error("Media transfer: incomplete audio header"))?;
     if &header[4..8]!=b"ftyp"{return Err(error("Media transfer: output is not M4A"));}
     drop(file);
+    #[cfg(windows)]
     validate_music_output(part,stop)?;
     if stop.load(Ordering::Relaxed){return Err(Failure::Stopped);}
     if path.exists(){return Err(error("A file already exists at the Vault destination"));}
-    fs::rename(part,path).map_err(|_|error("Media transfer: could not finalize audio"))?;
+    publish_music_part(part,path).map_err(|_|error("Media transfer: could not finalize audio without replacing an existing file"))?;
     report(size,Some(size));
     Ok(())
 }
@@ -965,50 +932,79 @@ fn validate_music_output(path:&Path,stop:&AtomicBool)->Result<(),Failure>{
     Ok(())
 }
 
-// Compatibility path for unsupported CDN responses. Playback is unchanged.
+// Successful temporary-file writes finish before output validation. A
+// provider refusal is terminal: never silently retry using another session or
+// a freshly resolved URL. Pause/retry restarts this non-resumable transfer.
 fn fetch_vault_music_native(
     url: &str, path: &Path, stop: &AtomicBool,
-    report: impl Fn(u64, Option<u64>),
+    report: impl Fn(u64, Option<u64>), rate_mib: u32,
 ) -> Result<(), Failure> {
     let error = |message: &str| Failure::Error(message.to_owned());
     if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
     if path.exists() { return Err(error("A file already exists at the Vault destination")); }
+    let (part, file) = prepare_music_part(path)?;
     report(0, None);
-    let mut transfer = music_resolver::Transfer::start_export(url).map_err(error)?;
-    let mut reported = 0;
-    let bytes = loop {
-        if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
-        if let Some(bytes) = transfer.poll().map_err(error)? { break bytes; }
-        let received = transfer.received_bytes();
-        if received != reported { report(received, None); reported = received; }
-        thread::sleep(Duration::from_millis(100));
-    };
-    // ISO BMFF file signature; never label a WebM or an error response M4A.
-    if bytes.get(4..8) != Some(&b"ftyp"[..]) || bytes.len() < 16 {
-        return Err(error("YouTube did not return a supported M4A file"));
+    let result = (|| {
+        let mut transfer = music_resolver::Transfer::start_export_to(url, file, rate_mib).map_err(error)?;
+        let mut reported = (0, None);
+        loop {
+            if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
+            if transfer.poll().map_err(error)?.is_some() { break; }
+            let received = transfer.received_bytes();
+            let total = transfer.total_bytes();
+            if (received, total) != reported { report(received, total); reported = (received, total); }
+            thread::sleep(Duration::from_millis(50));
+        }
+        drop(transfer);
+        finalize_media_part(&part, path, stop, &report)
+    })();
+    if result.is_err() && fs::remove_file(&part).is_err() && part.exists() {
+        return Err(error("The incomplete music file is still in use. Retry after its transfer has stopped."));
     }
+    result
+}
+
+// The final filesystem operation itself must refuse an existing destination;
+// an earlier exists() check alone cannot protect against another writer.
+#[cfg(windows)]
+fn publish_music_part(part: &Path, path: &Path) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "kernel32")]
+    unsafe extern "system" { fn MoveFileExW(existing: *const u16, destination: *const u16, flags: u32) -> i32; }
+    let from = part.as_os_str().encode_wide().chain(Some(0)).collect::<Vec<_>>();
+    let to = path.as_os_str().encode_wide().chain(Some(0)).collect::<Vec<_>>();
+    // No MOVEFILE_REPLACE_EXISTING flag. Both names are in the same directory.
+    if unsafe { MoveFileExW(from.as_ptr(), to.as_ptr(), 0) } == 0 {
+        Err(std::io::Error::last_os_error())
+    } else { Ok(()) }
+}
+
+#[cfg(not(windows))]
+fn publish_music_part(part: &Path, path: &Path) -> std::io::Result<()> {
+    fs::hard_link(part, path)?;
+    // A leftover staging name does not invalidate the published same-file link.
+    let _ = fs::remove_file(part);
+    Ok(())
+}
+
+fn prepare_music_part(path: &Path) -> Result<(PathBuf, fs::File), Failure> {
+    let error = |message: &str| Failure::Error(message.to_owned());
+    if path.exists() { return Err(error("A file already exists at the Vault destination")); }
     let parent = path.parent().ok_or_else(|| error("Invalid Vault destination"))?;
     fs::create_dir_all(parent).map_err(|_| error("Could not create Vault folder"))?;
     let part = part_of(path);
-    let result = (|| {
-        let mut file = OpenOptions::new().create(true).truncate(true).write(true).open(&part)
-            .map_err(|_| error("Could not open Vault temporary file"))?;
-        for chunk in bytes.chunks(128 * 1024) {
-            if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
-            file.write_all(chunk).map_err(|_| error("Could not write Vault music file"))?;
-        }
-        file.sync_all().map_err(|_| error("Could not finish Vault music file"))?;
-        drop(file);
-        #[cfg(windows)]
-        validate_music_output(&part,stop)?;
-        if stop.load(Ordering::Relaxed) { return Err(Failure::Stopped); }
-        if path.exists() { return Err(error("A file already exists at the Vault destination")); }
-        fs::rename(&part, path).map_err(|_| error("Could not finalize Vault music file"))?;
-        report(bytes.len() as u64, Some(bytes.len() as u64));
-        Ok(())
-    })();
-    if result.is_err() { let _ = fs::remove_file(&part); }
-    result
+    match fs::symlink_metadata(&part) {
+        Ok(metadata) if metadata.file_type().is_file() => {
+            fs::remove_file(&part).map_err(|_| error("Could not clear incomplete Vault music file"))?;
+        },
+        Ok(_) => return Err(error("Invalid Vault temporary file")),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {},
+        Err(_) => return Err(error("Could not inspect Vault temporary file")),
+    }
+    // Exclusive creation also refuses a path replaced after the inspection.
+    let file = OpenOptions::new().create_new(true).write(true).open(&part)
+        .map_err(|_| error("Could not open Vault temporary file"))?;
+    Ok((part, file))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -1415,9 +1411,8 @@ mod vault_tests {
         server.join().unwrap();
         fs::remove_dir_all(dir).unwrap();
     }
-    #[cfg(windows)]
     #[test]
-    fn sidecar_audio_finalization_rejects_wrong_type_and_cancellation(){
+    fn audio_finalization_rejects_wrong_type_and_cancellation(){
         let dir=std::env::temp_dir().join(format!("tsugi-audio-final-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
         fs::create_dir_all(&dir).unwrap();
         let part=dir.join("test.part");let path=dir.join("test.m4a");
@@ -1429,6 +1424,64 @@ mod vault_tests {
         assert!(!path.exists());
         assert!(finalize_media_part(&part,&path,&AtomicBool::new(false),|n,t|assert_eq!(Some(n),t)).is_ok());
         assert!(path.exists()&&!part.exists());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn music_export_restarts_only_its_regular_partial_and_preserves_completed_files() {
+        let dir = std::env::temp_dir().join(format!("tsugi-music-part-{}-{}", std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let path = dir.join("track.m4a");
+        let (part, mut file) = prepare_music_part(&path).unwrap_or_else(|_| panic!("prepare export"));
+        file.write_all(b"incomplete prior transfer").unwrap();
+        drop(file);
+        let (again, file) = prepare_music_part(&path).unwrap_or_else(|_| panic!("restart export"));
+        assert_eq!(again, part);
+        assert_eq!(file.metadata().unwrap().len(), 0);
+        drop(file);
+        fs::write(&path, b"keep existing destination").unwrap();
+        assert!(prepare_music_part(&path).is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"keep existing destination");
+        fs::remove_file(&path).unwrap();
+        fs::remove_file(&part).unwrap();
+        fs::create_dir(&part).unwrap();
+        assert!(prepare_music_part(&path).is_err());
+        assert!(part.is_dir());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn music_export_refuses_a_symlink_without_modifying_its_target() {
+        let dir = std::env::temp_dir().join(format!("tsugi-music-link-{}-{}", std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("track.m4a");
+        let target = dir.join("keep.txt");
+        fs::write(&target, b"preserved").unwrap();
+        std::os::unix::fs::symlink(&target, part_of(&path)).unwrap();
+        assert!(prepare_music_part(&path).is_err());
+        assert_eq!(fs::read(&target).unwrap(), b"preserved");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn audio_finalization_preserves_an_existing_destination() {
+        let dir = std::env::temp_dir().join(format!("tsugi-music-collision-{}-{}", std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("track.m4a");
+        let part = part_of(&path);
+        fs::write(&path, b"existing audio").unwrap();
+        fs::write(&part, b"\x00\x00\x00\x18ftypM4A \x00\x00\x00\x00").unwrap();
+        assert!(finalize_media_part(&part, &path, &AtomicBool::new(false), |_,_| panic!("must not publish")).is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"existing audio");
+        assert!(part.is_file());
+        // Exercise the publication primitive directly: this represents a file
+        // appearing after finalization's advisory exists() check.
+        assert!(publish_music_part(&part, &path).is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"existing audio");
+        assert!(part.is_file());
         fs::remove_dir_all(dir).unwrap();
     }
 

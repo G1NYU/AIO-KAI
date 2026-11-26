@@ -1,9 +1,9 @@
+import { DiscordPresenceSettings } from '@/components/shell/discord-presence-settings';
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { toast } from 'sonner';
 import { Select } from '@aiostreams/ui/select';
-import { Switch } from '@aiostreams/ui/switch';
 import { Button } from '@aiostreams/ui/button';
 import { copyToClipboard } from '@aiostreams/ui/utils/clipboard';
 import {
@@ -21,17 +21,10 @@ import {
   updateStatus,
   useUpdateState,
 } from '@/lib/hosts/shell';
-import {
-  checkDiscord,
-  useDiscordStatus,
-  type DiscordStatus,
-} from '@/lib/hosts/shell/desktop';
 import { appBridge } from '@/lib/hosts/shell/bridge';
 import {
   settings,
   useSetting,
-  DISCORD_EVENTS,
-  type DiscordEvent,
 } from '@/lib/settings';
 import { useServerInfo } from '@/lib/jellyfin/server-info';
 import { SettingsCard, SettingsRow } from './_components/settings-card';
@@ -76,92 +69,6 @@ function UpdatesCard() {
   );
 }
 
-const discordLabels = (event: DiscordEvent): { label: string; help?: string } =>
-  ({
-    playing: {
-      label: t`What's playing`,
-      help: t`The title, the episode and the time left.`,
-    },
-    titles: {
-      label: t`Title pages`,
-      help: t`The movie or show whose page is open.`,
-    },
-    home: { label: t`Home` },
-    discover: { label: t`Discover` },
-    search: {
-      label: t`Search`,
-      help: t`That you are searching, not what for.`,
-    },
-    calendar: { label: t`Calendar` },
-    favourites: { label: t`Favourites` },
-    activity: { label: t`Activity` },
-  })[event];
-
-function discordStatus(status: DiscordStatus | null): string {
-  switch (status?.state) {
-    case undefined:
-      return t`Checking…`;
-    case 'connected':
-      return t`Connected to Discord.`;
-    case 'not-found':
-      return t`Discord is not running on this computer.`;
-    case 'failed': {
-      const message = status.message ?? '';
-      return t`Could not connect: ${message}`;
-    }
-    case 'refused': {
-      const message = status.message ?? '';
-      return t`Discord refused the status: ${message}`;
-    }
-  }
-}
-
-function DiscordEventSwitch({ event }: { event: DiscordEvent }) {
-  const [value, setValue] = useSetting(settings.app.discord[event]);
-  const { label, help } = discordLabels(event);
-  return (
-    <Switch
-      side="right"
-      label={label}
-      help={help}
-      value={value}
-      onValueChange={setValue}
-    />
-  );
-}
-
-function DiscordCard() {
-  const [events] = useSetting(settings.app.discordEvents);
-  const any = Object.values(events).some(Boolean);
-  const status = useDiscordStatus();
-  React.useEffect(() => {
-    if (any) checkDiscord();
-  }, [any]);
-  return (
-    <SettingsCard
-      name="discord"
-      title={t`Discord`}
-      description={t`What your Discord profile shows.`}
-      holds="device"
-    >
-      {DISCORD_EVENTS.map((event) => (
-        <DiscordEventSwitch key={event} event={event} />
-      ))}
-      {any && (
-        <SettingsRow label={t`Status`} help={discordStatus(status)}>
-          <Button
-            intent="gray-outline"
-            className="w-full rounded-full sm:w-auto"
-            onClick={checkDiscord}
-          >
-            <Trans>Check now</Trans>
-          </Button>
-        </SettingsRow>
-      )}
-    </SettingsCard>
-  );
-}
-
 export function AppSection() {
   const app = currentHost().settings;
   return (
@@ -183,7 +90,7 @@ export function DesktopSection() {
   return (
     <>
       <UpdatesCard />
-      <DiscordCard />
+      <DiscordPresenceSettings />
       <SettingsCard name="troubleshooting" title={t`Troubleshooting`}>
         <SettingsRow
           label={t`Logs`}

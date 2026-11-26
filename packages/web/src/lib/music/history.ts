@@ -5,7 +5,7 @@ import type { EclipseTrack } from './eclipse';
 /** Metadata only. Never persist stream URLs or addon manifest credentials. */
 export type RecentMusicPlay = {
   sourceId: string;
-  track: Pick<EclipseTrack, 'id' | 'title' | 'artist' | 'album' | 'artworkURL' | 'duration' | 'isrc'>;
+  track: Pick<EclipseTrack, 'id' | 'title' | 'artist' | 'album' | 'artworkURL' | 'duration' | 'recordingType' | 'isrc'>;
 };
 
 const KEY = 'tsugi-recent-music-v1';
@@ -13,7 +13,8 @@ const MAX = 16;
 
 export function makeRecentPlay(sourceId: string, track: EclipseTrack): RecentMusicPlay {
   const { id, title, artist, album, artworkURL, duration, isrc } = track;
-  return { sourceId, track: { id, title, artist, album, artworkURL, duration, isrc } };
+  return { sourceId, track: { id, title, artist, album, artworkURL, duration, isrc,
+    ...(track.recordingType === 'song' || track.recordingType === 'video' ? { recordingType: track.recordingType } : {}) } };
 }
 
 function valid(entry: unknown): entry is RecentMusicPlay {

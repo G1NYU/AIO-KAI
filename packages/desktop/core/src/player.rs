@@ -358,6 +358,20 @@ impl Player {
         if request.len() > 100 || value.len() > 800 || operation.len() > 10 {
             return;
         }
+        if operation == "session" {
+            let result = if cfg!(windows) {
+                crate::music_resolver::session_request(&value).map(|(mode, changed)| {
+                    if changed { self.stop_music_audio(); }
+                    serde_json::json!({ "mode": mode })
+                })
+            } else { Err("YouTube sessions are supported on Windows only.") };
+            let (data, error) = match result {
+                Ok(data) => (Some(data), None),
+                Err(error) => (None, Some(error.to_string())),
+            };
+            (self.emit)(Outbound::YoutubeMusicResult { request, data, error });
+            return;
+        }
         if IN_FLIGHT.fetch_add(1, Ordering::AcqRel) >= 4 {
             IN_FLIGHT.fetch_sub(1, Ordering::AcqRel);
             (self.emit)(Outbound::YoutubeMusicResult {

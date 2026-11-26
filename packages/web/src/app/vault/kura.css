@@ -25,10 +25,10 @@
 .kura-page .kura-eyebrow { color:var(--tsugi-muted); font-size:9px; font-weight:500; letter-spacing:.16em; line-height:1.5; margin:0; }
 .kura-hero { position:relative; isolation:isolate; overflow:hidden; min-height:294px; display:flex; align-items:center; margin-bottom:28px; padding:28px 32px; border-radius:var(--kura-radius); background:#141c20; color:#EFEEE8; }
 .kura-hero-art { position:absolute; inset:0; z-index:-3; width:100%; height:100%; object-fit:cover; object-position:center 52%; }
-.kura-hero::before { content:''; position:absolute; inset:0; z-index:-2; background:linear-gradient(90deg,rgba(11,18,23,.93) 0%,rgba(11,18,23,.72) 32%,rgba(11,18,23,.21) 63%,rgba(11,18,23,.04) 100%); }
-.kura-hero-copy { width:65%; max-width:690px; }
-.kura-page .kura-hero .kura-eyebrow { color:#D5C8B8; font-size:9px; letter-spacing:.2em; margin-bottom:12px; }
-.kura-hero h2 { font-family:var(--tsugi-feature-font,'Amanojaku',sans-serif); font-size:clamp(48px,5.1vw,80px); font-weight:400; line-height:.98; letter-spacing:0; text-wrap:balance; margin:0; max-width:660px; }
+.kura-hero::before { content:''; position:absolute; inset:0; z-index:-2; background:linear-gradient(90deg,rgba(11,18,23,.93) 0%,rgba(11,18,23,.8) 45%,rgba(11,18,23,.32) 75%,rgba(11,18,23,.08) 100%); }
+.kura-hero-copy { width:84%; max-width:980px; }
+.kura-page .kura-hero .kura-eyebrow { color:#D5C8B8; font-size:9px; letter-spacing:.2em; margin-bottom:20px; }
+.kura-hero h2 { font-family:var(--tsugi-feature-font,'Amanojaku',sans-serif); font-size:clamp(44px,4.4vw,64px); font-weight:400; line-height:1.28; letter-spacing:0; text-wrap:balance; overflow-wrap:anywhere; margin:0; }
 .kura-hero-description { max-width:54ch; margin-top:19px; color:#C4C7C9; font-size:12px; line-height:1.7; }
 .kura-hero-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-top:21px; }
 .kura-page .kura-hero-actions .tsugi-read-action { min-height:38px; padding-inline:16px; font-size:11px; }
@@ -36,8 +36,8 @@
 .kura-page .kura-hero-actions .kura-hero-secondary:hover:not(:disabled) { background:rgba(12,20,26,.72); }
 .kura-hero-japanese { position:absolute; inset-inline-end:29px; inset-block-start:28px; font-family:var(--tsugi-japanese,sans-serif); font-size:18px; font-weight:400; line-height:1.9; letter-spacing:.22em; writing-mode:vertical-rl; color:#EFEDE3; text-shadow:0 2px 12px #0009; }
 
-.kura-page .tsugi-vault-manager.tsugi-vault-workspace { grid-template-columns:minmax(0,1fr) 264px; align-items:start; gap:24px; max-width:none; margin:0; }
-.kura-page .tsugi-vault-workspace .tsugi-dashboard-right { padding:0; border:0; background:var(--tsugi-canvas); min-width:0; align-self:start; }
+.kura-page .tsugi-vault-manager.tsugi-vault-workspace { grid-template-columns:minmax(0,1fr) 264px; align-items:stretch; gap:24px; max-width:none; margin:0; }
+.kura-page .tsugi-vault-workspace .tsugi-dashboard-right { padding:0; border:0; background:var(--tsugi-canvas); min-width:0; align-self:stretch; }
 .kura-page .kura-rail-content { width:100%; min-width:0; }
 .kura-page .kura-rail .kura-rail-add { width:100%; min-height:39px; margin-bottom:16px; font-size:12px; }
 :root[data-host='desktop'] .kura-page .kura-rail .kura-vault-navigation { align-items:stretch; gap:5px; }
@@ -51,7 +51,9 @@
 .kura-local-note > svg { width:20px; height:20px; color:var(--kura-sage); }
 .kura-page .kura-local-note .tsugi-vault-quiet { display:flex; align-items:center; justify-content:space-between; font-size:11px; }
 .kura-local-note button svg { width:15px; height:15px; }
-.kura-page .tsugi-dashboard-center { display:grid; align-content:start; gap:20px; min-width:0; padding:0; }
+.kura-page .tsugi-dashboard-center { display:flex; flex-direction:column; gap:20px; min-width:0; padding:0; }
+.kura-page .tsugi-dashboard-center > * { flex:none; }
+.kura-page .tsugi-dashboard-center > :is(.tsugi-vault-empty,.tsugi-dashboard-list):last-child { flex:1; }
 .kura-page .tsugi-dashboard-center .tsugi-dashboard-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
 .kura-page .tsugi-dashboard-metrics > div { display:flex; flex-direction:column; justify-content:space-between; align-items:flex-start; gap:10px; min-height:104px; padding:15px 14px; border:0; border-radius:11px; background:var(--tsugi-surface); }
 .kura-page .tsugi-dashboard-metrics > .kura-speed-metric { background:color-mix(in srgb,var(--kura-sage) 10%,var(--tsugi-surface)); }
@@ -110,7 +112,7 @@
 .kura-page .tsugi-vault-empty p { font-size:11px; line-height:1.6; }
 .kura-page .tsugi-vault-empty .tsugi-vault-hint { max-width:46ch; font-size:11px; }
 .kura-page .tsugi-vault-empty button { margin-top:6px; }
-.kura-page .tsugi-dashboard-list { display:grid; gap:8px; padding:0; border:0; border-radius:0; background:transparent; }
+.kura-page .tsugi-dashboard-list { display:grid; align-content:start; gap:8px; padding:0; border:0; border-radius:0; background:transparent; }
 :root[data-host='desktop'] .kura-page .tsugi-dashboard-list > header { background:transparent; border:0; padding:0 2px 4px; }
 .kura-page .tsugi-dashboard-list > header h3 { font-size:12px; font-weight:500; color:var(--tsugi-muted); }
 .kura-page .tsugi-dashboard-list > header > span { font-size:10px; }
@@ -144,8 +146,9 @@
 .kura-page .tsugi-dashboard-transfer .tsugi-vault-icon-action { width:30px; min-width:30px; padding:7px!important; }
 .kura-page .tsugi-dashboard-transfer .tsugi-vault-icon-action svg { width:15px; height:15px; }
 
-.kura-page .tsugi-dashboard-right { display:grid; gap:17px; }
-.kura-page .tsugi-dashboard-right .tsugi-dashboard-panel { display:grid; grid-template-columns:minmax(0,1fr); gap:13px; min-width:0; padding:19px; border:0; border-radius:var(--kura-radius); background:var(--tsugi-surface); }
+/* The last inspector panel follows the downloads height without spreading its rows. */
+.kura-page .tsugi-dashboard-right { display:grid; grid-template-rows:auto auto minmax(min-content,1fr); align-content:stretch; gap:17px; }
+.kura-page .tsugi-dashboard-right .tsugi-dashboard-panel { display:grid; grid-template-columns:minmax(0,1fr); align-content:start; gap:13px; min-width:0; padding:19px; border:0; border-radius:var(--kura-radius); background:var(--tsugi-surface); }
 .kura-page .tsugi-dashboard-panel h3 { margin:0; font-size:14px; font-weight:500; line-height:1.4; }
 .kura-page .tsugi-dashboard-panel > .kura-eyebrow { margin-bottom:-5px; font-size:8px; letter-spacing:.11em; }
 .kura-page .tsugi-dashboard-panel .tsugi-vault-destinations { grid-template-columns:minmax(0,1fr); gap:8px; }
@@ -255,8 +258,7 @@
   .kura-page .tsugi-dashboard-metrics strong { font-size:19px; }
   .kura-page .tsugi-dashboard-metrics strong.tsugi-dashboard-status-value { font-size:12px; }
   .kura-hero { min-height:280px; padding:26px 28px; }
-  .kura-hero h2 { font-size:62px; }
-  .kura-hero-copy { width:68%; }
+  .kura-hero h2 { font-size:58px; }
   .kura-page .tsugi-dashboard-transfer > .tsugi-vault-actions { max-width:113px; }
 }
 @media(max-width:1100px) {
@@ -266,20 +268,19 @@
   .kura-page .tsugi-dashboard-center .tsugi-dashboard-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .kura-page .tsugi-dashboard-metrics > div { min-height:93px; }
   .kura-hero { min-height:270px; }
-  .kura-hero-copy { width:75%; }
-  .kura-hero h2 { font-size:57px; }
+  .kura-hero h2 { font-size:54px; }
   .kura-hero-description { max-width:43ch; font-size:11px; }
   .kura-hero-japanese { font-size:15px; inset-inline-end:21px; }
 }
 @media(max-width:900px) {
   .kura-page .tsugi-vault-manager.tsugi-vault-workspace { grid-template-columns:minmax(0,1fr); gap:22px; }
-  .kura-page .tsugi-vault-workspace .tsugi-dashboard-right { grid-column:1; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+  .kura-page .tsugi-vault-workspace .tsugi-dashboard-right { grid-column:1; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:none; align-content:start; gap:16px; }
   .kura-page .kura-services-panel { grid-column:1/-1; }
   .kura-page .tsugi-dashboard-center .tsugi-dashboard-metrics { grid-template-columns:repeat(4,minmax(0,1fr)); }
   .kura-page .tsugi-dashboard-metrics strong { font-size:20px; }
   .kura-page .tsugi-dashboard-center .tsugi-vault-composer { padding:22px; }
   .kura-hero-copy { width:86%; }
-  .kura-hero h2 { font-size:56px; max-width:500px; }
+  .kura-hero h2 { font-size:50px; max-width:500px; }
   .kura-hero::before { background:linear-gradient(90deg,rgba(11,18,23,.91),rgba(11,18,23,.62) 65%,rgba(11,18,23,.25)); }
   .kura-page .kura-library-links { flex-wrap:wrap; gap:4px; }
   .kura-page .kura-library-links .tsugi-read-action { font-size:10px; padding-inline:8px; }
@@ -293,7 +294,7 @@
   .kura-hero { margin-bottom:22px; min-height:264px; padding:24px; }
   .kura-hero-art { object-position:64% center; }
   .kura-hero-copy { width:90%; max-width:470px; }
-  .kura-hero h2 { font-size:55px; }
+  .kura-hero h2 { font-size:46px; }
   .kura-page .kura-hero .kura-eyebrow { font-size:8px; }
   .kura-hero-description { margin-top:17px; font-size:11px; max-width:42ch; }
   .kura-hero-japanese { inset-inline-end:16px; font-size:13px; }
@@ -318,7 +319,7 @@
   .kura-page .kura-library-links .tsugi-read-action svg { width:13px; height:13px; }
   .kura-hero { padding:24px 19px; min-height:288px; }
   .kura-hero-copy { width:100%; }
-  .kura-hero h2 { font-size:48px; max-width:300px; }
+  .kura-hero h2 { font-size:40px; max-width:300px; }
   .kura-page .kura-hero .kura-eyebrow { max-width:85%; font-size:7px; letter-spacing:.14em; }
   .kura-hero-description { max-width:31ch; font-size:10px; line-height:1.8; }
   .kura-hero-japanese { display:none; }

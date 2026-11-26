@@ -13,7 +13,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use aiostreams_desktop_core::bridge::{Outbound, ReadAction};
-use aiostreams_desktop_core::read_runtime::{CatalogueMode, ChapterPages, DownloadCleanupReview, LocalImportReview, SourcePreferencesReview, ReadJob, ReadOperation, ReadRuntime};
+use aiostreams_desktop_core::read_runtime::{CatalogueMode, ChapterPages, DownloadCleanupReview, LocalImportReview, MihonImportReview, SourcePreferencesReview, ReadJob, ReadOperation, ReadRuntime};
 use serde_json::{Value, json};
 
 use crate::Args;
@@ -164,6 +164,7 @@ impl Worker {
             let mut cleanup = None;
             let mut preferences = None;
             let mut local_import = None;
+            let mut mihon_import = None;
             let mut serial = 0u64;
             while !stopped.load(Ordering::Acquire) {
                 let (request, action) = match rx.recv_timeout(Duration::from_millis(100)) {
@@ -183,7 +184,7 @@ impl Worker {
                     if preparing {
                         return Ok(json!({"ready": true}));
                     }
-                    execute(reader.as_mut().unwrap(), &mut chapter, &mut cleanup, &mut preferences, &mut local_import, &images, &mut serial, owner, &stopped, action)
+                    execute(reader.as_mut().unwrap(), &mut chapter, &mut cleanup, &mut preferences, &mut local_import, &mut mihon_import, &images, &mut serial, owner, &stopped, action)
                 })();
                 if !stopped.load(Ordering::Acquire) {
                     answer(&reply, request, result);
@@ -311,6 +312,7 @@ fn execute(
     cleanup: &mut Option<DownloadCleanupReview>,
     preferences: &mut Option<SourcePreferencesReview>,
     local_import: &mut Option<LocalImportReview>,
+    mihon_import: &mut Option<MihonImportReview>,
     cache: &Cache,
     serial: &mut u64,
     owner: isize,
@@ -319,6 +321,29 @@ fn execute(
 ) -> Result<Value, &'static str> {
     match action {
         ReadAction::Prepare => Err("Invalid reading setup state."),
+        ReadAction::ReviewMihonImport { input } => {
+            *mihon_import = None;
+            if chapter.is_some() { return Err("Close the current chapter before reviewing a Mihon import."); }
+            let review = reader.review_mihon_import(input)?;
+            let preview = review.preview(); *mihon_import = Some(review); Ok(preview)
+        }
+        ReadAction::CancelMihonImport { review_id } => {
+            let cancelled = mihon_import.as_ref().is_some_and(|review| review.id() == review_id);
+            if cancelled { *mihon_import = None; }
+            Ok(json!({"cancelled": cancelled}))
+        }
+        ReadAction::ApplyMihonImport { review_id } => {
+            let review = mihon_import.take().filter(|review| review.id() == review_id)
+                .ok_or("The Mihon import review expired. Review the backup again.")?;
+            if chapter.is_some() { return Err("Close the current chapter before importing a Mihon backup."); }
+            if !confirm(owner, "Tsugi Mihon import", &review.description()) {
+                return Ok(json!({"status": "cancelled", "reviewId": review_id}));
+            }
+            if stopped.load(Ordering::Acquire) { return Err("Reading is closing."); }
+            *cleanup = None; *preferences = None; *local_import = None;
+            if let Ok(mut cache) = cache.lock() { *cache = None; }
+            reader.apply_mihon_import(review)
+        }
         ReadAction::BeginLocalImport {} => {
             *local_import = None;
             let Some(path) = choose_cbz(owner)? else { return Ok(json!({"cancelled": true})); };
