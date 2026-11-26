@@ -16,6 +16,7 @@ import { BookBackupSettings } from './book-backup-settings';
 import { MangaBackupSettings } from './manga-backup-settings';
 import { PortableArchiveSettings } from './portable-archive-settings';
 import { StorageUsageSettings } from './storage-usage-settings';
+import { TsugiReleaseSettings } from './tsugi-release-settings';
 import type { ArchiveKind, PortableArchive } from '@/lib/backup/archive';
 
 const IMPORT_COLORS_KEY = 'tsugi-global-import-colors-v1';
@@ -185,9 +186,10 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
     <BookBackupSettings archiveEntry={archived('books')} />
     <MangaBackupSettings archiveEntry={archived('manga')} />
     <StorageUsageSettings />
+    <TsugiReleaseSettings />
     <section className="tsugi-app-about" aria-label={t`About Tsugi`}>
       <h3 className="font-semibold text-[--tsugi-ink]"><Trans>About Tsugi</Trans></h3>
-      {bridge?.version && <p><Trans>Version</Trans> · {bridge.version}</p>}
+      {bridge?.version && <p><Trans>Native engine version</Trans> · {bridge.version}</p>}
       <p><Trans>Open-source desktop media workspace. Music sources and server connections are managed in their respective sections.</Trans></p>
       <a className="text-[--tsugi-accent] underline" href="https://github.com/G1NYU/TSUGI" target="_blank" rel="noopener noreferrer"><Trans>Project and documentation</Trans></a>
     </section>

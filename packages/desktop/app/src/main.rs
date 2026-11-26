@@ -254,7 +254,7 @@ fn about() -> String {
     )
 }
 
-fn bridge_script(reading: bool, reading_setup: bool, backup_store: bool) -> String {
+fn bridge_script(reading: bool, reading_setup: bool, backup_store: bool, tsugi_release_check: bool) -> String {
     include_str!("bridge.js")
         .replace("__PROTOCOL__", &PROTOCOL_VERSION.to_string())
         .replace(
@@ -269,6 +269,7 @@ fn bridge_script(reading: bool, reading_setup: bool, backup_store: bool) -> Stri
         .replace("__READING__", &reading.to_string())
         .replace("__READING_SETUP__", &reading_setup.to_string())
         .replace("__BACKUP_STORE__", &backup_store.to_string())
+        .replace("__TSUGI_RELEASE_CHECK__", &tsugi_release_check.to_string())
         .replace(
             "__DEVICE__",
             &serde_json::to_string(&platform::device_name()).unwrap(),
@@ -387,6 +388,7 @@ fn main() {
     let backup_store = reading::bundled_directory(&args, web.as_deref()).is_some();
     #[cfg(not(windows))]
     let (reading, reading_setup, backup_store) = (false, false, false);
+    let tsugi_release_check = backup_store && portable.is_some() && cfg!(target_arch = "x86_64");
     log::info!("reading section={reading_setup} runtime_ready={reading}");
     shell::run(App {
         args,
@@ -395,7 +397,7 @@ fn main() {
         app_origin,
         data_dir,
         paths,
-        bridge: bridge_script(reading, reading_setup, backup_store),
+        bridge: bridge_script(reading, reading_setup, backup_store, tsugi_release_check),
     });
 }
 
@@ -743,6 +745,7 @@ pub fn handle(
             }
         }
         Inbound::TorboxRequest { request, .. } => emit(Outbound::TorboxResult { request, data: None, error: Some("unsupported".into()) }),
+        Inbound::TsugiReleaseCheck { request } => emit(Outbound::TsugiReleaseResult { request, data: None, error: Some("Tsugi release discovery is unavailable in this session.".into()) }),
         Inbound::BackupRequest { request, .. } => emit(Outbound::BackupResult { request, data: None, error: Some("Managed backups are unavailable in this desktop session.".into()) }),
         Inbound::ReadRequest { request, .. } => {
             emit(Outbound::ReadResult {

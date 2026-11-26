@@ -42,9 +42,13 @@ try {
     const nodes = (items) => ({ nodes: items, totalCount: items.length });
     const emit = (message) => queueMicrotask(() => { for (const listener of listeners) listener(message); });
     window.aiostreamsApp = {
-      protocol: 2, version: 'fixture', platform: 'windows', reading: !new URLSearchParams(location.search).has('readerSetup'), readingSetup: true, backupStore: true, youtubeMusic: true, nativeMusicAudio: true, torbox: true, device: 'Fixture',
+      protocol: 2, version: 'fixture', platform: 'windows', reading: !new URLSearchParams(location.search).has('readerSetup'), readingSetup: true, backupStore: true, tsugiReleaseCheck: true, youtubeMusic: true, nativeMusicAudio: true, torbox: true, device: 'Fixture',
       subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
       send(message) {
+        if(message.type==='tsugi-release-check'){
+          const data={latestTag:'v0.1.0',latestCommit:'a'.repeat(40),currentCommit:'c'.repeat(40),status:'different-build',packageBytes:173235714,sha256:'b'.repeat(64),notes:'Fixture release notes'};
+          emit({type:'tsugi-release-result',request:message.request,data,error:null});return;
+        }
         if(message.type==='backup-request'){
           const a=message.action;
           const backups=state.managedBackups??=([]);
@@ -365,6 +369,12 @@ try {
   assert.equal(await storage.locator('progress').count(),6);
   assert.equal(await page.evaluate(()=>window.__readerFixture.managedBackups.length),1,'storage scan does not modify backups');
   console.log('PASS: read-only storage inventory exposes partial results.');
+  const releaseSettings=bootSettings.getByRole('region',{name:'Tsugi updates',exact:true});
+  await releaseSettings.getByRole('button',{name:'Check stable release',exact:true}).click();
+  await releaseSettings.getByText('v0.1.0',{exact:true}).waitFor();
+  await releaseSettings.getByText(/This build differs from the stable release/).waitFor();
+  assert.equal(await releaseSettings.getByRole('link',{name:'Open official release'}).getAttribute('href'),'https://github.com/G1NYU/TSUGI/releases/tag/v0.1.0');
+  console.log('PASS: official release discovery distinguishes source revision and release tag.');
   await portable.getByRole('combobox',{name:'Backup frequency'}).selectOption('daily');
   await portable.getByRole('combobox',{name:'Scheduled copy retention'}).selectOption('7');
   await page.evaluate(()=>{const key='tsugi-backup-schedule-v1';const state=JSON.parse(localStorage.getItem(key));localStorage.setItem(key,JSON.stringify({...state,dueMs:Date.now()-1}));window.dispatchEvent(new Event('focus'));});

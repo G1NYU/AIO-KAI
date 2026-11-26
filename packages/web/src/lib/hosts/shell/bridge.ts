@@ -27,6 +27,7 @@ export type VideoOutput = 'mpv' | 'system' | 'compatibility';
 export type ShellMessage =
   | { type: 'read-result'; request: string; data: unknown; error: string | null }
   | { type: 'backup-result'; request: string; data: unknown; error: string | null }
+  | { type: 'tsugi-release-result'; request: string; data: unknown; error: string | null }
   | { type: 'torbox-result'; request: string; data: unknown; error: string | null }
   | {
       type: 'youtube-resolved';
@@ -227,6 +228,7 @@ interface ShellBridge {
   reading?: boolean;
   readingSetup?: boolean;
   backupStore?: boolean;
+  tsugiReleaseCheck?: boolean;
   /** The app sends a controller's buttons as `gamepad` messages. */
   gamepadButtons?: boolean;
   /** The system's 12- or 24-hour clock, where the app can tell. */

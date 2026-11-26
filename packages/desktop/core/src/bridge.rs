@@ -217,6 +217,7 @@ pub enum Inbound {
         action: ReadAction,
     },
     BackupRequest { request: String, action: BackupAction },
+    TsugiReleaseCheck { request: String },
     MusicAudioLoad {
         request: String,
         url: String,
@@ -461,6 +462,7 @@ pub enum Outbound {
     },
     TorboxResult { request: String, data: Option<Value>, error: Option<String> },
     BackupResult { request: String, data: Option<Value>, error: Option<String> },
+    TsugiReleaseResult { request: String, data: Option<Value>, error: Option<String> },
     ReadResult {
         request: String,
         data: Option<Value>,
