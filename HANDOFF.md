@@ -1,5 +1,10 @@
 # TSUGI current development handoff
 
+
+## 2026-11-26 — B4 cumulative CI syntax correction
+
+The first B4 web gate [failed at typecheck](https://github.com/G1NYU/TSUGI/actions/runs/45899503079/job/140181526918) because the conditional JSX reset button lacked its closing expression brace. This correction closes that expression without changing behavior or removing coverage. The exact next CI must pass before claiming B4 or music visual acceptance. The native job has progressed through compilation and tests to the disposable WebView2 gate; its final result is pending.
+
 ## 2026-11-26 — B4 per-title reader settings and verified A2 archive gate
 
 The Windows job at [`ba74025`](https://github.com/G1NYU/TSUGI/commit/ba740253ab4fee2ce5bd69e01c650dc6bab26e21) ([job 140179424454](https://github.com/G1NYU/TSUGI/actions/runs/45898859425/job/140179424454)) passed 170 native tests (18 intentionally ignored), the disposable WebView2 preservation fixture, and verification of the exact official v0.1.0 archive (173235714 bytes; 295750604 unpacked; 440 entries; source commit e8e7140fe20ae265ffae4e559a45f939dd5b243b; published SHA-256 matched). No install, update apply or rollback is enabled. The web job passed typecheck but failed lint on two GIF binary-signature literals; this change marks those non-display literals accordingly. Reactive music browser coverage remains pending.
