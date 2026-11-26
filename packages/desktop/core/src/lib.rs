@@ -17,6 +17,8 @@ pub mod playback;
 pub mod player;
 #[cfg(windows)]
 pub mod read_runtime;
+#[cfg(windows)]
+pub mod read_checkpoint;
 pub mod render;
 pub mod sound;
 pub mod thumbnails;

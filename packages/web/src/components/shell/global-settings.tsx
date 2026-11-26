@@ -14,6 +14,7 @@ import { PreferencesBackupSettings } from './preferences-backup-settings';
 import { MusicBackupSettings } from './music-backup-settings';
 import { BookBackupSettings } from './book-backup-settings';
 import { MangaBackupSettings } from './manga-backup-settings';
+import { MihonImportSettings } from './mihon-import-settings';
 import { PortableArchiveSettings } from './portable-archive-settings';
 import { StorageUsageSettings } from './storage-usage-settings';
 import { TsugiReleaseSettings } from './tsugi-release-settings';
@@ -188,6 +189,7 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
       <BookBackupSettings archiveEntry={archived('books')} />
       <MangaBackupSettings archiveEntry={archived('manga')} />
     </React.Fragment>
+    <MihonImportSettings />
     <StorageUsageSettings />
     <TsugiReleaseSettings />
     <section className="tsugi-app-about" aria-label={t`About Tsugi`}>

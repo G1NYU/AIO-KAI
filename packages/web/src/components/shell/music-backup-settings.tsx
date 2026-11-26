@@ -2,6 +2,8 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { applyMusicMerge, captureMusicBackup, parseMusicBackup, previewMusicMerge, MUSIC_BACKUP_LIMIT, type MusicBackup } from '@/lib/backup/music';
+import { reviewRestoreSection,runRestoreSection,type RestoreSectionReview } from '@/lib/backup/restore-session';
+import { restoreSessionFeedback } from './restore-session-feedback';
 
 export function MusicBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
   const [backup,setBackup]=React.useState<MusicBackup|null>(null);
@@ -9,6 +11,7 @@ export function MusicBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
   const [notice,setNotice]=React.useState('');
   const [error,setError]=React.useState('');
   const [busy,setBusy]=React.useState(false);
+  const [review,setReview]=React.useState<{entry?:string;session?:RestoreSectionReview}>({});
   function download(){
     setNotice('');setError('');
     try{
@@ -21,30 +24,34 @@ export function MusicBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
       setNotice(t`Music backup export requested. Check your downloads.`);
     }catch{setError(t`Could not export the entire music library. Storage or metadata may be invalid, or the backup exceeds the size limit.`);}
   }
-  async function load(file:File|undefined){
+  async function load(file:File|undefined,entry?:string){
     setBackup(null);setPreview(null);setError('');setNotice('');
     if(!file)return;
     setBusy(true);
     try{
+      const session=reviewRestoreSection('music',entry);
       if(file.size>MUSIC_BACKUP_LIMIT)throw new Error('size');
       const data=parseMusicBackup(await file.text());
       const plan=previewMusicMerge(data);
-      setBackup(data);setPreview(plan);
-    }catch{setError(t`Invalid music backup or local library. Nothing was changed.`);}
+      setBackup(data);setPreview(plan);setReview({entry,session});
+    }catch(reason){setError(restoreSessionFeedback(reason)??t`Invalid music backup or local library. Nothing was changed.`);}
     finally{setBusy(false);}
   }
-  function apply(){
+  async function apply(){
     if(!backup||!preview)return;
-    setError('');setNotice('');
-    const outcome=applyMusicMerge(backup,preview.baseline);
-    if(outcome==='applied'){
+    setError('');setNotice('');setBusy(true);
+    try{
+      const outcome=await runRestoreSection('music',review.entry,review.session,
+        ()=>applyMusicMerge(backup,preview.baseline),value=>value==='applied');
       setBackup(null);setPreview(null);
-      window.dispatchEvent(new Event('tsugi-music-library-restored'));
-      setNotice(t`Music library merged. Existing collections and tracks were retained.`);
-    }else if(outcome==='stale'){
-      setBackup(null);setPreview(null);
-      setError(t`The library changed since preview. Open the backup again to review the new merge.`);
-    }else setError(t`The merge could not be saved. No library data was removed. Check conflicts, capacity and available storage.`);
+      if(outcome==='applied'){
+        window.dispatchEvent(new Event('tsugi-music-library-restored'));
+        setNotice(t`Music library merged. Existing collections and tracks were retained.`);
+      }else if(outcome==='stale'){
+        setError(t`The library changed since preview. Open the backup again to review the new merge.`);
+      }else setError(t`The merge could not be saved. No library data was removed. Check conflicts, capacity and available storage.`);
+    }catch(reason){setBackup(null);setPreview(null);setError(restoreSessionFeedback(reason)??t`The music restore could not be confirmed. Review the library before retrying.`);}
+    finally{setBusy(false);}
   }
   return <section className="tsugi-app-general" aria-label={t`Music library backup`}>
     <h3><Trans>Music library backup</Trans></h3>
@@ -55,7 +62,7 @@ export function MusicBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
         const file=event.target.files?.[0];event.target.value='';void load(file);
       }}/>
     </label>
-    {archiveEntry!==undefined&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(new File([archiveEntry],'music.json',{type:'application/json'}))}><Trans>Review archived music</Trans></button>}
+    {archiveEntry!==undefined&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(new File([archiveEntry],'music.json',{type:'application/json'}),archiveEntry)}><Trans>Review archived music</Trans></button>}
     {preview&&<div className="space-y-3">
       <h4><Trans>Music restore preview</Trans></h4>
       <dl className="grid grid-cols-2 gap-2 text-sm">
@@ -68,8 +75,8 @@ export function MusicBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
       {preview.blocked&&<p role="alert"><Trans>The combined library exceeds its storage limits.</Trans></p>}
       {!!preview.conflicts&&<p role="alert"><Trans>Collection identity conflicts must be resolved before merging.</Trans></p>}
       <div className="flex flex-wrap gap-2">
-        <button type="button" className="tsugi-read-action" disabled={preview.blocked||!!preview.conflicts} onClick={apply}><Trans>Merge music library</Trans></button>
-        <button type="button" className="tsugi-read-action" onClick={()=>{setBackup(null);setPreview(null);}}><Trans>Cancel music restore</Trans></button>
+        <button type="button" className="tsugi-read-action" disabled={busy||preview.blocked||!!preview.conflicts} onClick={()=>void apply()}><Trans>Merge music library</Trans></button>
+        <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>{setBackup(null);setPreview(null);}}><Trans>Cancel music restore</Trans></button>
       </div>
     </div>}
     {error&&<p role="alert">{error}</p>}

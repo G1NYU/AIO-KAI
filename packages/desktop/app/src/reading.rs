@@ -180,7 +180,7 @@ impl Worker {
                     if preparing {
                         return Ok(json!({"ready": true}));
                     }
-                    execute(reader.as_ref().unwrap(), &mut chapter, &images, &mut serial, owner, &stopped, action)
+                    execute(reader.as_mut().unwrap(), &mut chapter, &images, &mut serial, owner, &stopped, action)
                 })();
                 if !stopped.load(Ordering::Acquire) {
                     answer(&reply, request, result);
@@ -277,7 +277,7 @@ fn stage_image(cache: &Cache, serial: &mut u64, image: aiostreams_desktop_core::
 }
 
 fn execute(
-    reader: &ReadRuntime,
+    reader: &mut ReadRuntime,
     chapter: &mut Option<(i32, ChapterPages)>,
     cache: &Cache,
     serial: &mut u64,
@@ -337,6 +337,17 @@ fn execute(
                 return Err("Extension installation cancelled.");
             }
             reader.install_reviewed_extension(review)
+        }
+        ReadAction::UpdateExtension { package } => {
+            let review = reader.review_extension_update(&package)?;
+            let message = format!("Update executable extension code?\n\n{}\n\nThe reviewed file will be applied after saving a private recovery copy. If source identities or library data change unexpectedly, the previous Reader state will be restored. Only continue if you trust this publisher. Package signatures are not independently verified.", review.description());
+            if !confirm(owner, "Tsugi extension update", &message) {
+                return Err("Extension update cancelled.");
+            }
+            if stopped.load(Ordering::Acquire) { return Err("Reading is closing."); }
+            *chapter = None;
+            if let Ok(mut cache) = cache.lock() { *cache = None; }
+            reader.apply_reviewed_extension_update(review)
         }
         ReadAction::UninstallExtension { package } => {
             if package.len() > 200 || package.chars().any(char::is_control) {

@@ -52,10 +52,10 @@ Baseline: [official v0.1.0](https://github.com/G1NYU/TSUGI/releases/tag/v0.1.0);
 
 | ID | Priority | Milestone | Initial state |
 |---|---|---|---|
-| A1 | P0 | Portable backup, restore, storage management | In progress: domain recovery, managed copies, schedules and detailed storage validated. Reviewed artwork cleanup and fresh-device reconnect guidance implemented. Physical round-trip and interruption recovery open |
-| A2 | P0 | Safe Tsugi-native application updates | Planned |
-| B1 | P1 | Extension updates and source management | Partial; first Reader priority |
-| B2 | P1 | Native Mihon backup and CSV migration/import | Partial; existing title-only batch import; `.tachibk` not yet supported |
+| A1 | P0 | Portable backup, restore, storage management | In progress: metadata recovery, managed copies, schedules, storage inventory and reviewed artwork cleanup. Persistent restore checkpoints and interruption review implemented; physical round-trip and native chapter cleanup remain open |
+| A2 | P0 | Safe Tsugi-native application updates | Partial: stable release discovery implemented; application replacement/recovery pending |
+| B1 | P1 | Extension updates and source management | Partial: discovery plus reviewed individual/selected update implementation with native recovery; Feed, wider metadata/preferences and physical source acceptance remain open |
+| B2 | P1 | Native Mihon backup and CSV migration/import | Partial: gzip/raw `.tachibk` decoding, exact progress/category merge and recovery review implemented; exporter-produced fixture/physical import and wider mappings remain open |
 | B3 | P1 | Offline manga, CBZ and storage policy | Planned |
 | B4 | P1 | Daily reading workflow and per-title controls | Partial |
 | B5 | P1 | Tracker sync and source migration | Partial |
@@ -162,10 +162,14 @@ Acceptance: presence disabled/cleared, lock recovery, capture limitation documen
 
 Published branch checkpoint: `73dbd005368ac7d2ffd1eab473808e1b1ff99a5d` on `feature/tsugi-read-runtime` (2026-11-26). Preferences, music metadata, exact-match book progress, manga/chapter/category recovery, managed copies, opt-in schedules, detailed storage inventory, reviewed artwork cleanup and missing-source review are implemented. [Unified Windows validation](https://github.com/G1NYU/TSUGI/actions/runs/45766786688) passed at this revision. The existing [Windows test ZIP](https://github.com/G1NYU/TSUGI/actions/runs/45765848932/artifacts/15091898640) is from `8d6b25b` and predates the follow-up source-review changes.
 
-A1 remains open for physical mixed-media recovery, durable interrupted multi-domain restore, wider source recovery and native chapter/download cleanup. A2.1 and B1.1 provide discovery only; application update installation and B1.2 extension update application remain pending. B2 native Mihon `.tachibk` import is still separate from the Tsugi JSON archive. See [data ownership and recovery limits](docs/portable-data-inventory.md) and [Windows recovery acceptance](docs/windows-recovery-acceptance.md). No top-level Cycle II milestone is closed by the current visual/audio follow-up.
+The visual/audio follow-up is published at `5f865e2bd8c24711ab0a6ba7e3ef4ae7d21633fa`; [Unified Windows 45772199864](https://github.com/G1NYU/TSUGI/actions/runs/45772199864) passed. The next implementation batch adds A1 persistent restore checkpoints, B1.2 exact-byte extension updates with private native recovery, and B2 native-format Mihon import into exact existing titles. See [import and update recovery](docs/reader-import-and-update-recovery.md) for behavior, limits and verification entry points; PROGRESS.md records the published batch revision and its CI result.
+
+A1 still needs physical mixed-media acceptance, wider source recovery and native chapter/download cleanup. A2.1 remains discovery only; application update installation is pending. B1 still includes Feed, richer source metadata/preferences/filtering and live-provider acceptance. B2 still needs sanitized exporter-produced and physical fixtures; history timelines, tracker mappings and automatic reconstruction of missing titles are not imported. The metadata journal provides reviewed recovery across stores, not one atomic global rollback. No top-level Cycle II milestone is marked closed by this batch.
+
+The user explicitly approved future development pushes in this chat and requested substantially more roadmap implementation before another app test. Continue source/runtime CI on `feature/tsugi-read-runtime`; defer packaging and physical acceptance until the consolidated batch is ready. The stable release remains unchanged.
 
 ### Reader visual follow-up (user review)
 
 Tighten global search and library: one search field, meaningful per-source headings/counts, compact responsive cover shelves and unified collection filters. Preserve source-specific results and the existing cover loading/fallback logic. Keep B2 native Mihon backup migration as an explicit separate milestone.
 
-2026-11-26 clarification: apply the track-table reference across the entire desktop application and its categories. Decorative solid rules are also removed; use tonal rows, grouped section backgrounds and spacing throughout. Reader global search keeps each source title, results or empty/error message within one alternating band. This follow-up is a local implementation until its approved branch push and CI verification are recorded in PROGRESS.md.
+2026-11-26 clarification: apply the track-table reference across the entire desktop application and its categories. Decorative solid rules are also removed; use tonal rows, grouped section backgrounds and spacing throughout. Reader global search keeps each source title, results or empty/error message within one alternating band. This follow-up is published and CI-verified at `5f865e2`; the same tonal grouping applies to the new recovery, import and extension-update controls.

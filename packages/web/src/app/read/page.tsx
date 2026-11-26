@@ -21,6 +21,9 @@ type Nodes<T> = { nodes: T[]; totalCount: number };
 type Source = { id: string; name: string; lang: string; displayName?: string; supportsLatest: boolean };
 type Store = { indexUrl: string; name: string };
 type Extension = { storeIndexUrl?: string | null; pkgName: string; name: string; lang: string; versionName: string; isInstalled: boolean; isObsolete: boolean; hasUpdate?: boolean };
+type ExtensionUpdateResult = { package: string; status: 'updated' | 'rolled-back'; versionName: string; checkpointId: string; error?: string };
+type ExtensionUpdateNotice = { package: string; name: string; status: 'updated' | 'rolled-back' | 'failed'; message: string };
+function extensionUpdateLabel(name: string) { return t({ id: 'Select update for {name}', message: `Select update for ${name}` }); }
 type Manga = { id: number | string; sourceId?: string; categories?: { nodes: { id: number }[] }; title: string; author?: string | null; artist?: string | null; genre?: string[]; thumbnailUrl?: string | null; description?: string | null; inLibrary: boolean; unreadCount?: number; lastReadChapter?: { id: number; name: string; lastPageRead: number; pageCount: number; isRead: boolean; lastReadAt?: number | string } | null };
 type Details = { manga: Manga; chapters: Chapter[] };
 type Catalogue = { mangas: Manga[]; hasNextPage: boolean };
@@ -101,6 +104,11 @@ export function ReadPage({ visible }: {
   const [trackers, setTrackers] = React.useState<Nodes<Tracker> | null>(null);
   const [trackingOpen, setTrackingOpen] = React.useState(false);
   const [extensionFailures, setExtensionFailures] = React.useState<Record<string, string>>({});
+  const [selectedExtensions, setSelectedExtensions] = React.useState<string[]>([]);
+  const [extensionUpdateNotices, setExtensionUpdateNotices] = React.useState<ExtensionUpdateNotice[]>([]);
+  const [updatingExtension, setUpdatingExtension] = React.useState('');
+  const [stoppingExtensions, setStoppingExtensions] = React.useState(false);
+  const stopExtensionUpdates = React.useRef(false);
   const active = React.useRef(true);
 
   async function run(work: () => Promise<void>) {
@@ -153,7 +161,9 @@ export function ReadPage({ visible }: {
   }
   async function loadExtensions(next = 0, term = appliedFilter, store = storeFilter, language = extensionLanguage, state = extensionState) {
     await loadStores();
-    setExtensions(await readRequest<Nodes<Extension>>({ kind: 'extensions', offset: next, query: term || undefined, store: store || undefined, language: language.trim() || undefined, installed: state === 'all' ? undefined : state !== 'available', updatesOnly: state === 'updates' }));
+    const result = await readRequest<Nodes<Extension>>({ kind: 'extensions', offset: next, query: term || undefined, store: store || undefined, language: language.trim() || undefined, installed: state === 'all' ? undefined : state !== 'available', updatesOnly: state === 'updates' });
+    setExtensions(result);
+    setSelectedExtensions(previous => previous.filter(pkg => result.nodes.some(extension => extension.pkgName === pkg && extension.isInstalled && extension.hasUpdate && !extension.isObsolete)));
     setOffset(next);
     setAppliedFilter(term);
   }
@@ -289,6 +299,43 @@ export function ReadPage({ visible }: {
       await loadExtensions(offset);
     } catch (error) {
       setExtensionFailures((old) => ({ ...old, [extension.pkgName]: error instanceof Error ? error.message : t({ id: "Extension operation failed.", message: "Extension operation failed." }) }));
+    }
+  }
+  async function updateExtensions(candidates: Extension[]) {
+    const batch = candidates.filter(extension => extension.isInstalled && extension.hasUpdate && !extension.isObsolete).slice(0, 100);
+    if (!batch.length) return;
+    stopExtensionUpdates.current = false; setStoppingExtensions(false); setExtensionUpdateNotices([]);
+    try {
+      for (const extension of batch) {
+        if (stopExtensionUpdates.current || !active.current) break;
+        setUpdatingExtension(extension.name);
+        setExtensionFailures(previous => { const next = { ...previous }; delete next[extension.pkgName]; return next; });
+        try {
+          const result = await readRequest<ExtensionUpdateResult>({ kind: 'update-extension', package: extension.pkgName });
+          if (result.package !== extension.pkgName || !['updated', 'rolled-back'].includes(result.status)) throw Error(t({ id: "The extension update returned an invalid result. Check the installed version before retrying.", message: "The extension update returned an invalid result. Check the installed version before retrying." }));
+          const version = result.versionName;
+          const message = result.status === 'updated' ? t({ id: 'Updated to {version}.', message: `Updated to ${version}.` }) : result.error || t({ id: "The update failed. The previous Reader state was restored.", message: "The update failed. The previous Reader state was restored." });
+          if (!active.current) break;
+          setExtensionUpdateNotices(previous => [...previous, { package: extension.pkgName, name: extension.name, status: result.status, message }]);
+          if (result.status === 'rolled-back') {
+            setExtensionFailures(previous => ({ ...previous, [extension.pkgName]: message }));
+            break;
+          }
+          setSelectedExtensions(previous => previous.filter(pkg => pkg !== extension.pkgName));
+        } catch (reason) {
+          if (!active.current) break;
+          const message = reason instanceof Error ? reason.message : t({ id: "Extension update failed.", message: "Extension update failed." });
+          setExtensionFailures(previous => ({ ...previous, [extension.pkgName]: message }));
+          setExtensionUpdateNotices(previous => [...previous, { package: extension.pkgName, name: extension.name, status: 'failed', message }]);
+          break;
+        }
+      }
+    } finally {
+      if (active.current) {
+        setUpdatingExtension(''); setStoppingExtensions(false);
+        await loadExtensions(offset);
+        await loadSources();
+      }
     }
   }
   if (reader && details) return <ChapterReader key={reader.chapter.id} title={details.manga.title} visible={visible} onMusic={desktopArea?.openMusic} onAppSettings={desktopArea?.openSettings}
@@ -525,10 +572,25 @@ export function ReadPage({ visible }: {
             <button className="tsugi-read-action" disabled={busy}><Trans id="Search">Search</Trans></button>
           </form>
           {extensions && <p className="mb-3 text-sm text-[--tsugi-muted]">{extensions.totalCount.toLocaleString()} <Trans id="matching extensions">matching extensions</Trans></p>}
-          {extensionState === 'updates' && <p className="mb-3 text-sm text-[--tsugi-muted]"><Trans id="Updates reported by the reading runtime. Applying updates is not enabled yet.">Updates reported by the reading runtime. Applying updates is not enabled yet.</Trans></p>}
+          {extensionState === 'updates' && <p className="mb-3 text-sm text-[--tsugi-muted]"><Trans id="Each update requires approval in a native window. Updates run one at a time with a recovery copy and stop if an update fails or is cancelled.">Each update requires approval in a native window. Updates run one at a time with a recovery copy and stop if an update fails or is cancelled.</Trans></p>}
+          {extensions?.nodes.some(extension => extension.isInstalled && extension.hasUpdate && !extension.isObsolete) && <div className="mb-4 flex flex-wrap items-center gap-3">
+            <button className="tsugi-read-action" disabled={busy} onClick={() => setSelectedExtensions(extensions.nodes.filter(extension => extension.isInstalled && extension.hasUpdate && !extension.isObsolete).map(extension => extension.pkgName))}><Trans id="Select updates on this page">Select updates on this page</Trans></button>
+            <button className="tsugi-read-action" disabled={busy || !selectedExtensions.length} onClick={() => void run(() => updateExtensions(extensions.nodes.filter(extension => selectedExtensions.includes(extension.pkgName))))}><Trans id="Update selected">Update selected</Trans> ({selectedExtensions.length})</button>
+            {!!selectedExtensions.length && <button className="tsugi-read-action" disabled={busy} onClick={() => setSelectedExtensions([])}><Trans id="Clear selection">Clear selection</Trans></button>}
+          </div>}
+          {updatingExtension && <div className="mb-4 flex flex-wrap items-center gap-3" role="status"><span><Trans id="Reviewing or updating {updatingExtension}…">Reviewing or updating {updatingExtension}…</Trans></span><button className="tsugi-read-action" disabled={stoppingExtensions} onClick={() => { stopExtensionUpdates.current = true; setStoppingExtensions(true); }}>{stoppingExtensions ? t({ id: "Stopping after this update…", message: "Stopping after this update…" }) : t({ id: "Stop after current update", message: "Stop after current update" })}</button></div>}
+          {extensionUpdateNotices.length > 0 && <section className="mb-4" aria-label={t({ id: "Extension update results", message: "Extension update results" })} aria-live="polite">
+            {extensionUpdateNotices.map(notice => <div key={notice.package} className="tsugi-read-row"><span><strong className="block">{notice.name}</strong><span className="block text-sm">{notice.status === 'rolled-back' && <Trans id="Previous state restored. ">Previous state restored. </Trans>}{notice.message}</span></span></div>)}
+          </section>}
           {!stores.length && !busy && <button className="tsugi-read-action" onClick={() => { setTab('settings'); openSettings('repositories'); }}><Trans id="Add an extension repository">Add an extension repository</Trans></button>}
           {extensions && !extensions.nodes.length && !busy && <p className="py-6 text-[--tsugi-muted]"><Trans id="No matching extensions.">No matching extensions.</Trans></p>}
-          {extensions?.nodes.map((extension) => <div key={extension.pkgName} className="tsugi-read-row flex-wrap"><span className="min-w-0"><span className="block font-medium">{extension.name}{extension.isInstalled && extension.hasUpdate === true && <small className="ms-2 text-[--tsugi-accent]"><Trans id="Update available">Update available</Trans></small>}{extension.isInstalled && extension.isObsolete && <small className="ms-2 text-[--tsugi-muted]"><Trans id="Obsolete">Obsolete</Trans></small>}</span><span className="block break-all text-xs text-[--tsugi-muted]">{extension.lang} · {extension.versionName} · {stores.find((store) => store.indexUrl === extension.storeIndexUrl)?.name || extension.pkgName}</span></span><button className="tsugi-read-action" disabled={busy || (!extension.isInstalled && extension.isObsolete)} onClick={() => void run(() => changeExtension(extension))}>{extension.isInstalled ? t({ id: "Uninstall", message: "Uninstall" }) : t({ id: "Install", message: "Install" })}</button>{extensionFailures[extension.pkgName] && <p className="basis-full text-xs text-[--tsugi-muted]" role="alert">{extensionFailures[extension.pkgName]}</p>}</div>)}
+          {extensions?.nodes.map((extension) => <div key={extension.pkgName} className="tsugi-read-row flex-wrap">
+            {extension.isInstalled && extension.hasUpdate && !extension.isObsolete && <input type="checkbox" aria-label={extensionUpdateLabel(extension.name)} disabled={busy} checked={selectedExtensions.includes(extension.pkgName)} onChange={event => setSelectedExtensions(previous => event.target.checked ? [...previous, extension.pkgName] : previous.filter(pkg => pkg !== extension.pkgName))} />}
+            <span className="min-w-0 flex-1"><span className="block font-medium">{extension.name}{extension.isInstalled && extension.hasUpdate === true && <small className="ms-2 text-[--tsugi-accent]"><Trans id="Update available">Update available</Trans></small>}{extension.isInstalled && extension.isObsolete && <small className="ms-2 text-[--tsugi-muted]"><Trans id="Obsolete">Obsolete</Trans></small>}</span><span className="block break-all text-xs text-[--tsugi-muted]">{extension.lang} · {extension.versionName} · {stores.find((store) => store.indexUrl === extension.storeIndexUrl)?.name || extension.pkgName}</span></span>
+            {extension.isInstalled && extension.hasUpdate && !extension.isObsolete && <button className="tsugi-read-action" disabled={busy} onClick={() => void run(() => updateExtensions([extension]))}><Trans id="Update">Update</Trans></button>}
+            <button className="tsugi-read-action" disabled={busy || (!extension.isInstalled && extension.isObsolete)} onClick={() => void run(() => changeExtension(extension))}>{extension.isInstalled ? t({ id: "Uninstall", message: "Uninstall" }) : t({ id: "Install", message: "Install" })}</button>
+            {extensionFailures[extension.pkgName] && <p className="basis-full text-xs text-[--tsugi-muted]" role="alert">{extensionFailures[extension.pkgName]}</p>}
+          </div>)}
           {!!extensions?.totalCount && <div className="mt-4 flex items-center justify-between gap-3"><button className="tsugi-read-action" disabled={busy || offset === 0} onClick={() => void run(() => loadExtensions(Math.max(0, offset - 100)))}><Trans id="Previous">Previous</Trans></button><span>{offset + extensions.nodes.length} / {extensions.totalCount}</span><button className="tsugi-read-action" disabled={busy || offset + 100 >= extensions.totalCount} onClick={() => void run(() => loadExtensions(offset + 100))}><Trans id="Next">Next</Trans></button></div>}
         </section> : browseTab === 'search' ? <section className="tsugi-global-search-workspace">
           <div className="tsugi-search-console">

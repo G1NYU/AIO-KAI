@@ -1,6 +1,6 @@
 //! Isolated Windows reading runtime broker. No arbitrary GraphQL or
-//! webview-visible credentials. Explicit repository metadata operations only;
-//! executable extensions are not installed yet. Not wired to the app.
+//! webview-visible credentials. Executable extension changes require a
+//! native-owned trust review and exact runtime/storage ownership checks.
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -14,6 +14,10 @@ use std::time::{Duration, Instant};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use crate::bridge::MangaProgressPatch;
+
+#[path = "read_extension_update.rs"]
+mod extension_update;
+pub use extension_update::ExtensionUpdateReview;
 
 const VERSION: &str = "v2.4.2373";
 const USER: &str = "tsugi-read";
@@ -526,12 +530,12 @@ pub enum CatalogueMode<'a> {
 // Create the reading root with a protected DACL before any credential is
 // written. Inspect real filesystem handles (including reparse-point checks)
 // rather than parsing localized command output or trusting an inherited ACL.
-mod private_storage {
+pub(crate) mod private_storage {
     use super::*;
     use std::ffi::c_void;
     use std::os::windows::ffi::OsStrExt;
     use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
-    use std::ptr::{null, null_mut};
+    use std::ptr::null_mut;
 
     const INVALID: &str = "Reading storage permissions are not private.";
     const FILE_ALL_ACCESS: u32 = 0x001f01ff;
@@ -597,14 +601,14 @@ mod private_storage {
         }
     }
 
-    pub(super) struct CurrentUser {
+    pub(crate) struct CurrentUser {
         // TOKEN_USER begins with a SID_AND_ATTRIBUTES, whose first field
         // is a pointer into this aligned, owned token-information buffer.
         buffer: Vec<usize>,
     }
 
     impl CurrentUser {
-        pub(super) fn get() -> Result<Self, &'static str> {
+        pub(crate) fn get() -> Result<Self, &'static str> {
             let mut raw = null_mut();
             // SAFETY: the process pseudo-handle is valid; raw is an out pointer.
             if unsafe { OpenProcessToken(GetCurrentProcess(), 0x0008, &mut raw) } == 0
@@ -654,7 +658,7 @@ mod private_storage {
             String::from_utf16(unsafe { std::slice::from_raw_parts(raw, len) }).map_err(|_| INVALID)
         }
 
-        pub(super) fn create_root(&self, path: &Path) -> Result<bool, &'static str> {
+        pub(crate) fn create_root(&self, path: &Path) -> Result<bool, &'static str> {
             let sid = self.sid_string()?;
             // Explicit owner and one inheritable full-access ACE for the
             // current user only. P prevents inheritance from the parent.
@@ -662,7 +666,18 @@ mod private_storage {
             create_with_descriptor(path, &descriptor)
         }
 
-        pub(super) fn verify(&self, path: &Path, directory: bool) -> Result<(), &'static str> {
+        pub(crate) fn verify(&self, path: &Path, directory: bool) -> Result<(), &'static str> {
+            self.verify_policy(path, directory, false)
+        }
+
+        /// Descendants may inherit the verified root's single private ACE.
+        /// Keep the protected, explicit-user root policy separate so an
+        /// inherited application-data directory can never become our root.
+        pub(crate) fn verify_descendant(&self, path: &Path, directory: bool) -> Result<(), &'static str> {
+            self.verify_policy(path, directory, true)
+        }
+
+        fn verify_policy(&self, path: &Path, directory: bool, descendant: bool) -> Result<(), &'static str> {
             let file = fs::OpenOptions::new()
                 .access_mode(READ_CONTROL | FILE_READ_ATTRIBUTES)
                 .custom_flags(OPEN_REPARSE_POINT | BACKUP_SEMANTICS)
@@ -695,14 +710,14 @@ mod private_storage {
             // Administrators ACE or accept arbitrary group ownership.
             // WinBuiltinAdministratorsSid = 26.
             let user_owned = unsafe { EqualSid(owner, self.sid()) } != 0;
-            let admin_owned_file = !directory && unsafe { IsWellKnownSid(owner, 26) } != 0;
-            if !user_owned && !admin_owned_file {
+            let admin_owned = (!directory || descendant) && unsafe { IsWellKnownSid(owner, 26) } != 0;
+            if !user_owned && !admin_owned {
                 return Err("Reading storage owner is not permitted.");
             }
             if unsafe { GetSecurityDescriptorControl(raw, &mut control, &mut revision) } == 0 {
                 return Err("Could not inspect reading storage DACL control flags.");
             }
-            if control & 0x0004 == 0 || (directory && control & 0x1000 == 0) {
+            if control & 0x0004 == 0 || (directory && !descendant && control & 0x1000 == 0) {
                 return Err("Reading storage DACL protection flags are invalid.");
             }
             if unsafe { (*acl).count } != 1 {
@@ -719,7 +734,9 @@ mod private_storage {
             let valid = unsafe {
                 (*ace).kind == 0 && (*ace).size >= 16
                     && (*ace).mask == FILE_ALL_ACCESS
-                    && if directory { (*ace).flags == 3 } else { matches!((*ace).flags, 0 | 16) }
+                    && if directory {
+                        (*ace).flags == 3 || (descendant && (*ace).flags == 19)
+                    } else { matches!((*ace).flags, 0 | 16) }
             };
             if !valid {
                 return Err("Reading storage ACE type, mask or inheritance flags are invalid.");
@@ -762,7 +779,7 @@ mod private_storage {
     }
 
     #[cfg(test)]
-    pub(super) fn create_public_fixture(path: &Path, user: &CurrentUser) {
+    pub(crate) fn create_public_fixture(path: &Path, user: &CurrentUser) {
         let sid = user.sid_string().unwrap();
         assert!(create_with_descriptor(path, &format!("O:{sid}D:P(A;OICI;FA;;;WD)")).unwrap());
     }
@@ -791,12 +808,17 @@ impl ReadStorage {
             fs::OpenOptions::new().read(true).write(true).create_new(true).open(&lock_path)
         } else {
             // Do not adopt an arbitrary existing Suwayomi directory.
-            for path in [&lock_path, &key_path, &config_path] {
+            // A crash during checkpoint recovery can temporarily displace
+            // server.conf. Authenticate storage through the lock/key first.
+            for path in [&lock_path, &key_path] {
                 user.verify(path, false)?;
             }
             fs::OpenOptions::new().read(true).write(true).open(&lock_path)
         }.map_err(|_| "Could not open reading storage lock.")?;
         lock.try_lock().map_err(|_| "Reading data is already in use.")?;
+        // Recover before requiring server.conf, while still refusing foreign
+        // storage and retaining the exclusive lock through every replacement.
+        crate::read_checkpoint::recover_pending(data)?;
         let password = if fresh {
             let mut entropy = [0u8; 32];
             getrandom::fill(&mut entropy).map_err(|_| "Could not secure reading runtime.")?;
@@ -1003,22 +1025,14 @@ pub struct ReadRuntime {
     client: ReadClient,
     job: Option<ReadJob>,
     _storage: ReadStorage,
+    runtime_path: std::path::PathBuf,
+    data_path: std::path::PathBuf,
 }
 
 impl ReadRuntime {
     pub fn start(runtime: &Path, data: &Path) -> Result<Self, &'static str> {
         let runtime = std::path::absolute(runtime)
             .map_err(|_| "Reading runtime is missing.")?;
-        let java = runtime.join("jre/bin/java.exe");
-        let jar = runtime.join("bin/Suwayomi-Server.jar");
-        let launcher = runtime.join("launcher");
-        if !java.is_file() || !jar.is_file()
-            || !launcher.join("TsugiReadLauncher.class").is_file()
-        {
-            return Err("Reading runtime is incomplete.");
-        }
-        let classpath = std::env::join_paths([&launcher, &jar])
-            .map_err(|_| "Invalid reading runtime path.")?;
         let data = std::path::absolute(data)
             .map_err(|_| "Could not locate reading data directory.")?;
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
@@ -1029,6 +1043,29 @@ impl ReadRuntime {
             .port();
         let storage = ReadStorage::open(&data, port)?;
         drop(listener);
+        let (child, client, job) = Self::spawn(&runtime, &data, &storage, port)?;
+        let mut managed = Self {
+            child,
+            client,
+            job: Some(job),
+            _storage: storage,
+            runtime_path: runtime,
+            data_path: data,
+        };
+        managed.await_ready()?;
+        Ok(managed)
+    }
+
+    /// Launch or restart while the caller retains the same exclusive data lock.
+    fn spawn(runtime: &Path, data: &Path, storage: &ReadStorage, port: u16) -> Result<(Child, ReadClient, ReadJob), &'static str> {
+        let java = runtime.join("jre/bin/java.exe");
+        let jar = runtime.join("bin/Suwayomi-Server.jar");
+        let launcher = runtime.join("launcher");
+        if !java.is_file() || !jar.is_file() || !launcher.join("TsugiReadLauncher.class").is_file() {
+            return Err("Reading runtime is incomplete.");
+        }
+        let classpath = std::env::join_paths([&launcher, &jar])
+            .map_err(|_| "Invalid reading runtime path.")?;
         let job = ReadJob::new()?;
         let mut child = Command::new(java)
             .arg(format!("-Djava.io.tmpdir={}", storage.temp_dir.display()))
@@ -1065,15 +1102,13 @@ impl ReadRuntime {
             return Err(error);
         }
         let client = ReadClient::new(port, child.id(), &storage.password);
-        let mut managed = Self {
-            child,
-            client,
-            job: Some(job),
-            _storage: storage,
-        };
+        Ok((child, client, job))
+    }
+
+    fn await_ready(&mut self) -> Result<(), &'static str> {
         let deadline = Instant::now() + READY_TIMEOUT;
         while Instant::now() < deadline {
-            if managed
+            if self
                 .child
                 .try_wait()
                 .map_err(|_| "Could not check reading runtime.")?
@@ -1081,13 +1116,31 @@ impl ReadRuntime {
             {
                 return Err("Reading runtime exited during startup.");
             }
-            if managed.client.query(ReadOperation::Status).is_ok() {
-                managed.client.verify_authentication()?;
-                return Ok(managed);
+            if self.client.query(ReadOperation::Status).is_ok() {
+                self.client.verify_authentication()?;
+                return Ok(());
             }
             std::thread::sleep(Duration::from_millis(500));
         }
         Err("Reading runtime did not become ready.")
+    }
+
+    fn restart_after_stop(&mut self) -> Result<(), &'static str> {
+        if self.child.try_wait().map_err(|_| "Could not check reading runtime.")?.is_none() {
+            return Err("Reading runtime must be stopped before recovery.");
+        }
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|_| "Could not allocate reading port.")?;
+        let port = listener.local_addr().map_err(|_| "Could not allocate reading port.")?.port();
+        drop(listener);
+        let (child, client, job) = Self::spawn(&self.runtime_path, &self.data_path, &self._storage, port)?;
+        self.child = child;
+        self.client = client;
+        self.job = Some(job);
+        if let Err(error) = self.await_ready() {
+            let _ = self.shutdown();
+            return Err(error);
+        }
+        Ok(())
     }
 
     pub fn query(&self, operation: ReadOperation) -> Result<Value, &'static str> {
@@ -1279,7 +1332,7 @@ impl ReadRuntime {
     fn extension_record(&self, package: &str) -> Result<Value, &'static str> {
         extension_package(package)?;
         let value = self.client.document(
-            "query TsugiExtension($pkg: String!) { extension(pkgName: $pkg) { pkgName name storeIndexUrl versionName versionCodeLong isInstalled isObsolete apkUrl jarUrl } }",
+            "query TsugiExtension($pkg: String!) { extension(pkgName: $pkg) { pkgName name storeIndexUrl apkName versionName versionCodeLong isInstalled hasUpdate isObsolete apkUrl jarUrl source { nodes { id } totalCount } } }",
             "extension",
             json!({"pkg": package}),
         )?;
@@ -1874,6 +1927,15 @@ mod tests {
         let probe_file = probe.join("probe.txt");
         fs::write(&probe_file, b"fixture").unwrap();
         user.verify(&probe_file, false).expect("verify inherited file permissions");
+        let descendant = probe.join("inherited");
+        fs::create_dir(&descendant).unwrap();
+        assert!(user.verify(&descendant, true).is_err(), "inherited directory cannot replace the protected root policy");
+        user.verify_descendant(&descendant, true).expect("private inherited child directory is supported");
+        fs::write(descendant.join("fixture"), b"private").unwrap();
+        user.verify_descendant(&descendant.join("fixture"), false).unwrap();
+        let weakened = probe.join("public-child");
+        private_storage::create_public_fixture(&weakened, &user);
+        assert!(user.verify_descendant(&weakened, true).is_err(), "public child ACL must be rejected");
         fs::remove_dir_all(&probe).unwrap();
         let first = ReadStorage::open(&data, 12345).expect("initialize private reading storage");
         user.verify(&data, true).unwrap();
@@ -1896,6 +1958,32 @@ mod tests {
         private_storage::create_public_fixture(&public, &user);
         assert!(ReadStorage::open(&public, 12345).is_err());
         assert!(!public.join(".tsugi-read.key").exists());
+        fs::remove_dir_all(parent).unwrap();
+    }
+
+    #[test]
+    fn reading_storage_recovers_displaced_config_before_validation() {
+        let mut entropy = [0u8; 16];
+        getrandom::fill(&mut entropy).unwrap();
+        let unique: String = entropy.iter().map(|b| format!("{b:02x}")).collect();
+        let parent = std::env::temp_dir().join(format!("tsugi-read-config-recovery-{unique}"));
+        fs::create_dir(&parent).unwrap();
+        let data = parent.join("private");
+        let storage = ReadStorage::open(&data, 12345).unwrap();
+        let original = fs::read(data.join("server.conf")).unwrap();
+        let password = storage.password.clone();
+        let checkpoint = crate::read_checkpoint::create(&data).unwrap();
+        let displaced = data.join("extension-recovery/pending/displaced");
+        fs::create_dir(&displaced).unwrap();
+        fs::rename(data.join("server.conf"), displaced.join("server.conf")).unwrap();
+        drop(checkpoint);
+        drop(storage);
+        let restored = ReadStorage::open(&data, 12346).expect("restore config under lock before verifying it");
+        assert!(restored.password == password);
+        assert!(fs::read(data.join("server.conf")).unwrap() == original);
+        private_storage::CurrentUser::get().unwrap().verify(&data.join("server.conf"), false).unwrap();
+        assert!(ReadStorage::open(&data, 12347).is_err(), "exclusive lock remains held after recovery");
+        drop(restored);
         fs::remove_dir_all(parent).unwrap();
     }
 
@@ -2036,6 +2124,10 @@ mod tests {
     }
 
     fn fixture_index_with_jar(jar_url: Option<&str>) -> Vec<u8> {
+        fixture_index_version(jar_url, 1)
+    }
+
+    fn fixture_index_version(jar_url: Option<&str>, version: u64) -> Vec<u8> {
         let mut resources = Vec::new();
         field(&mut resources, 1, b"https://example.invalid/fixture.apk");
         field(&mut resources, 2, b"https://example.invalid/fixture.png");
@@ -2053,8 +2145,8 @@ mod tests {
         field(&mut extension, 3, &resources);
         field(&mut extension, 4, b"1.6");
         varint(40, &mut extension);
-        varint(1, &mut extension);
-        field(&mut extension, 6, b"1.6.1");
+        varint(version, &mut extension);
+        field(&mut extension, 6, format!("1.6.{version}").as_bytes());
         varint(56, &mut extension);
         varint(1, &mut extension);
         field(&mut extension, 8, &source);
@@ -2071,11 +2163,12 @@ mod tests {
         store
     }
 
-    struct FixtureStore {
-        url: String,
+    pub(super) struct FixtureStore {
+        pub(super) url: String,
         stop: Arc<AtomicBool>,
         requests: Arc<AtomicUsize>,
         worker: Option<JoinHandle<()>>,
+        release: Arc<std::sync::Mutex<(Vec<u8>, Option<Vec<u8>>)>>,
     }
 
     impl FixtureStore {
@@ -2083,7 +2176,7 @@ mod tests {
             Self::with_jar(None)
         }
 
-        fn with_jar(jar: Option<Vec<u8>>) -> Self {
+        pub(super) fn with_jar(jar: Option<Vec<u8>>) -> Self {
             let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
             let port = listener.local_addr().unwrap().port();
             listener.set_nonblocking(true).unwrap();
@@ -2091,9 +2184,11 @@ mod tests {
             let stopped = Arc::clone(&stop);
             let requests = Arc::new(AtomicUsize::new(0));
             let served = Arc::clone(&requests);
+            let jar_url = format!("http://127.0.0.1:{port}/tsugi-fixture-v1.6.1.jar");
+            let body = fixture_index_with_jar(jar.as_ref().map(|_| jar_url.as_str()));
+            let release = Arc::new(std::sync::Mutex::new((body, jar)));
+            let published = Arc::clone(&release);
             let worker = std::thread::spawn(move || {
-                let jar_url = format!("http://127.0.0.1:{port}/tsugi-fixture-v1.6.1.jar");
-                let body = fixture_index_with_jar(jar.as_ref().map(|_| jar_url.as_str()));
                 while !stopped.load(Ordering::Acquire) {
                     let Ok((mut stream, _)) = listener.accept() else {
                         std::thread::sleep(Duration::from_millis(20));
@@ -2109,6 +2204,7 @@ mod tests {
                         request.push(byte);
                         if request.ends_with(b"\r\n\r\n") { break; }
                     }
+                    let (body, jar) = &*published.lock().unwrap();
                     if request.starts_with(b"GET /tsugi-fixture-v1.6.1.jar HTTP/1.") && jar.is_some() {
                         let jar = jar.as_ref().unwrap();
                         let header = format!("HTTP/1.1 200 OK\r\nContent-Type: application/java-archive\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", jar.len());
@@ -2129,7 +2225,13 @@ mod tests {
                 stop,
                 requests,
                 worker: Some(worker),
+                release,
             }
+        }
+
+        pub(super) fn replace_jar(&self, version: u64, jar: Vec<u8>) {
+            let url = self.url.replace("/index.pb", "/tsugi-fixture-v1.6.1.jar");
+            *self.release.lock().unwrap() = (fixture_index_version(Some(&url), version), Some(jar));
         }
     }
 

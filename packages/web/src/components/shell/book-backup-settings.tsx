@@ -3,6 +3,8 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { BOOK_BACKUP_LIMIT,captureBookBackup,parseBookBackup,previewBookRestore,type BookRestorePlan } from '@/lib/backup/books';
 import { restoreBookMetadata } from '@/app/read/book-library';
+import { reviewRestoreSection,runRestoreSection,type RestoreSectionReview } from '@/lib/backup/restore-session';
+import { restoreSessionFeedback } from './restore-session-feedback';
 
 export function BookBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
   const [preview,setPreview]=React.useState<BookRestorePlan|null>(null);
@@ -10,6 +12,7 @@ export function BookBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
   const [progress,setProgress]=React.useState('');
   const [notice,setNotice]=React.useState('');
   const [error,setError]=React.useState('');
+  const [review,setReview]=React.useState<{entry?:string;session?:RestoreSectionReview}>({});
   const onProgress=(done:number,total:number)=>setProgress(t`Checking local books: ${done} / ${total}`);
   const begin=()=>{setPreview(null);setProgress('');setNotice('');setError('');setBusy(true);};
   function activeBook(){return !!document.querySelector('[data-ui="tsugi-book-reader"]');}
@@ -27,14 +30,16 @@ export function BookBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
     }catch{setError(t`Could not back up all book metadata. Check local files, storage and backup limits.`);}
     finally{setBusy(false);setProgress('');}
   }
-  async function load(file:File|undefined){
+  async function load(file:File|undefined,entry?:string){
     if(!file)return;
     begin();
     try{
+      const session=reviewRestoreSection('books',entry);
       if(file.size>BOOK_BACKUP_LIMIT)throw new Error('size');
       const backup=parseBookBackup(await file.text());
       setPreview(await previewBookRestore(backup,onProgress));
-    }catch{setError(t`Could not review this book backup. No reading progress was changed.`);}
+      setReview({entry,session});
+    }catch(reason){setError(restoreSessionFeedback(reason)??t`Could not review this book backup. No reading progress was changed.`);}
     finally{setBusy(false);setProgress('');}
   }
   async function apply(){
@@ -42,10 +47,10 @@ export function BookBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
     if(activeBook()){setError(t`Close the current book before restoring progress.`);return;}
     setBusy(true);setError('');setNotice('');
     try{
-      await restoreBookMetadata(preview.changes);
+      await runRestoreSection('books',review.entry,review.session,()=>restoreBookMetadata(preview.changes));
       setPreview(null);window.dispatchEvent(new Event('tsugi-book-metadata-restored'));
       setNotice(t`Matched book metadata and progress restored. Existing files were not replaced.`);
-    }catch{setPreview(null);setError(t`The book library changed or storage rejected the restore. Nothing was committed. Preview the backup again.`);}
+    }catch(reason){setPreview(null);setError(restoreSessionFeedback(reason)??t`The book library changed or storage rejected the restore. Nothing was committed. Preview the backup again.`);}
     finally{setBusy(false);}
   }
   const count=(state:BookRestorePlan['rows'][number]['state'])=>preview?.rows.filter(row=>row.state===state).length??0;
@@ -59,7 +64,7 @@ export function BookBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
       }}/>
     </label>
     {busy&&<p role="status">{progress||t`Working with book metadata…`}</p>}
-    {archiveEntry!==undefined&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(new File([archiveEntry],'books.json',{type:'application/json'}))}><Trans>Review archived books</Trans></button>}
+    {archiveEntry!==undefined&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(new File([archiveEntry],'books.json',{type:'application/json'}),archiveEntry)}><Trans>Review archived books</Trans></button>}
     {preview&&<div className="space-y-3">
       <h4><Trans>Book restore preview</Trans></h4>
       <dl className="grid grid-cols-2 gap-2 text-sm">

@@ -5,6 +5,9 @@ import assert from 'node:assert/strict';
 import { pdfFixture, epubFixture } from './ebook-fixtures.mjs';
 import { verifyAppSeparatorsBrowser } from './app-separators-browser.mjs';
 import { verifyMusicAudioBrowser } from './music-audio-browser.mjs';
+import { verifyRestoreSessionBrowser } from './restore-session-browser.mjs';
+import { verifyExtensionUpdatesBrowser } from './extension-updates-browser.mjs';
+import { verifyMihonImportBrowser } from './mihon-import-browser.mjs';
 import { pathToFileURL } from 'node:url';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -349,6 +352,8 @@ try {
     await restore.getByRole('heading',{name:'Portable backup preview',exact:true}).waitFor();
     await restore.getByText(/Reader sources represented:/).waitFor();
     assert.equal(await destination.evaluate(()=>document.documentElement.dataset.tsugiTheme),before);
+    await restore.getByRole('button',{name:'Prepare restore checkpoint',exact:true}).click();
+    await restore.getByRole('status').filter({hasText:'Restore checkpoint prepared.'}).waitFor();
     const pref=settings.getByRole('region',{name:'Preferences backup',exact:true});
     await pref.getByRole('button',{name:'Review archived preferences'}).click();
     await pref.getByRole('button',{name:'Apply preferences'}).click();
@@ -367,6 +372,8 @@ try {
   await portable.getByRole('alert').filter({hasText:'Invalid, damaged or unsupported portable backup. Nothing was restored.'}).waitFor();
   await portable.locator('input[type=file]').setInputFiles({name:'portable.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(archiveData))});
   await portable.getByRole('heading',{name:'Portable backup preview',exact:true}).waitFor();
+  await portable.getByRole('button',{name:'Prepare restore checkpoint',exact:true}).click();
+  await portable.getByRole('status').filter({hasText:'Restore checkpoint prepared.'}).waitFor();
   await bootSettings.getByRole('button',{name:'Default',exact:true}).click();
   await page.waitForFunction(()=>document.documentElement.dataset.tsugiTheme==='sumi');
   await prefs.getByRole('button',{name:'Review archived preferences',exact:true}).click();
@@ -383,7 +390,10 @@ try {
   await musicBackup.getByRole('heading',{name:'Music restore preview',exact:true}).waitFor();
   await portable.getByRole('button',{name:'Close portable backup',exact:true}).click();
   assert.equal(await musicBackup.getByRole('button',{name:'Merge music library',exact:true}).count(),0,'closing an archive invalidates outstanding section reviews');
-  console.log('PASS: validated portable archive and explicit per-domain restore review.');
+  await portable.getByRole('checkbox',{name:'I have reviewed the current state and want to finish this restore record.'}).check();
+  await portable.getByRole('button',{name:'Finish restore record',exact:true}).click();
+  await portable.getByRole('status').filter({hasText:'Restore record finished.'}).waitFor();
+  console.log('PASS: validated portable archive, checkpoint, explicit per-domain review and finish.');
   const shelfData={...mangaData,categories:['Recovered shelf','Empty shelf'],manga:mangaData.manga.map(row=>({...row,categories:row.identity===savedManga.identity?['Recovered shelf']:[],chapters:[]}))};
   await mangaBackup.locator('input[type=file]').setInputFiles({name:'shelves.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(shelfData))});
   await mangaBackup.getByRole('heading',{name:'Category restore preview',exact:true}).waitFor();
@@ -396,15 +406,19 @@ try {
   assert.equal(await mangaBackup.getByRole('button',{name:'Restore matched categories',exact:true}).isEnabled(),false,'reimport is idempotent');
   await mangaBackup.getByRole('button',{name:'Cancel manga restore',exact:true}).click();
   console.log('PASS: reviewed shelf recovery preserves empty shelves and is idempotent.');
+  const checkpointCopies=await page.evaluate(()=>window.__readerFixture.managedBackups.length);
+  assert.equal(checkpointCopies,2,'incoming and pre-restore metadata copies remain available');
   await portable.getByRole('button',{name:'Save managed backup',exact:true}).click();
   await portable.getByRole('status').filter({hasText:'Managed backup written and verified:'}).waitFor();
-  await portable.getByRole('button',{name:'Open and verify',exact:true}).click();
+  const savedManagedName=await page.evaluate(()=>window.__readerFixture.managedBackups.at(-1).row.name);
+  const savedManagedRow=portable.locator('.tsugi-read-row').filter({hasText:savedManagedName});
+  await savedManagedRow.getByRole('button',{name:'Open and verify',exact:true}).click();
   await portable.getByRole('heading',{name:'Portable backup preview',exact:true}).waitFor();
-  assert.equal(await page.evaluate(()=>window.__readerFixture.managedBackups.length),1);
+  assert.equal(await page.evaluate(()=>window.__readerFixture.managedBackups.length),checkpointCopies+1);
   assert.equal(await page.evaluate(()=>document.documentElement.dataset.tsugiTheme),'carbon','opening a managed copy does not apply preferences');
   await portable.getByRole('button',{name:'Close portable backup',exact:true}).click();
-  await page.evaluate(()=>{window.__readerFixture.managedBackups[0].archive='damaged';});
-  await portable.getByRole('button',{name:'Open and verify',exact:true}).click();
+  await page.evaluate(()=>{window.__readerFixture.managedBackups.at(-1).archive='damaged';});
+  await savedManagedRow.getByRole('button',{name:'Open and verify',exact:true}).click();
   await portable.getByRole('alert').filter({hasText:'Could not verify this managed backup.'}).waitFor();
   assert.equal(await portable.getByRole('heading',{name:'Portable backup preview',exact:true}).count(),0);
   console.log('PASS: managed backup bridge save, list, reopen and damaged copy rejection.');
@@ -414,7 +428,7 @@ try {
   await storage.getByText('Partial scan',{exact:false}).waitFor();
   assert.equal(await storage.locator('progress').count(),9);
   await storage.getByRole('progressbar',{name:'Downloaded manga chapters',exact:true}).waitFor();
-  assert.equal(await page.evaluate(()=>window.__readerFixture.managedBackups.length),1,'storage scan does not modify backups');
+  assert.equal(await page.evaluate(()=>window.__readerFixture.managedBackups.length),checkpointCopies+1,'storage scan does not modify backups');
   // Populate only this browser fixture's artwork cache. A non-artwork row must survive.
   await page.evaluate(async()=>{
     const db=await new Promise((ok,fail)=>{
@@ -465,7 +479,7 @@ try {
   await portable.getByRole('combobox',{name:'Backup frequency'}).selectOption('daily');
   await portable.getByRole('combobox',{name:'Scheduled copy retention'}).selectOption('7');
   await page.evaluate(()=>{const key='tsugi-backup-schedule-v1';const state=JSON.parse(localStorage.getItem(key));localStorage.setItem(key,JSON.stringify({...state,dueMs:Date.now()-1}));window.dispatchEvent(new Event('focus'));});
-  assert.equal(await page.evaluate(()=>window.__readerFixture.managedBackups.length),1,'settings dialog defers due backup');
+  assert.equal(await page.evaluate(()=>window.__readerFixture.managedBackups.length),checkpointCopies+1,'settings dialog defers due backup');
 
   await bootSettings.getByRole('button', { name: 'Default', exact: true }).click();
   await bootSettings.getByRole('button', { name: 'Silver', exact: true }).click();
@@ -473,8 +487,8 @@ try {
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'sumi' && document.documentElement.dataset.tsugiAccent === 'silver');
   await bootSettings.waitFor({state:'hidden'});
   await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
-  await page.waitForFunction(()=>window.__readerFixture.managedBackups.length===2&&JSON.parse(localStorage.getItem('tsugi-backup-schedule-v1')).result==='saved');
-  assert.ok(await page.evaluate(()=>window.__readerFixture.managedBackups[1].row.name.startsWith('tsugi-auto-backup-')));
+  await page.waitForFunction(count=>window.__readerFixture.managedBackups.length===count+2&&JSON.parse(localStorage.getItem('tsugi-backup-schedule-v1')).result==='saved',checkpointCopies);
+  assert.ok(await page.evaluate(()=>window.__readerFixture.managedBackups.at(-1).row.name.startsWith('tsugi-auto-backup-')));
   await page.evaluate(()=>{const key='tsugi-backup-schedule-v1';const state=JSON.parse(localStorage.getItem(key));localStorage.setItem(key,JSON.stringify({...state,cadence:'off',dueMs:0}));window.dispatchEvent(new Event('tsugi-backup-schedule-change'));});
   console.log('PASS: opt-in schedule defers during settings, then saves verified automatic copy.');
   assert.deepEqual(await landing.locator('.tsugi-index-link').allTextContents(), ['Movies & TV', 'Music', 'Read', 'Vault']);
@@ -1400,4 +1414,7 @@ try {
   assert.deepEqual(errors, []);
   await verifyAppSeparatorsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyMusicAudioBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyRestoreSessionBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyExtensionUpdatesBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyMihonImportBrowser({ browser, origin, installDesktopFixture, screenshotDir });
 } finally { await browser.close(); }

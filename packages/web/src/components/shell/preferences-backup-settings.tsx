@@ -2,9 +2,11 @@ import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { applyPreferencesBackup, capturePreferencesBackup, MAX_PREFERENCES_BACKUP_BYTES, parsePreferencesBackup, preferenceRestoreBaseline, type PreferencesBackup } from '@/lib/backup/preferences';
+import { reviewRestoreSection,runRestoreSection,type RestoreSectionReview } from '@/lib/backup/restore-session';
+import { restoreSessionFeedback } from './restore-session-feedback';
 
 export function PreferencesBackupSettings({onApplied,archiveEntry}:{onApplied():void;archiveEntry?:string}) {
-  const [review,setReview]=React.useState<{file:PreferencesBackup; baseline:ReadonlyMap<string,string|null>}|null>(null);
+  const [review,setReview]=React.useState<{file:PreferencesBackup;baseline:ReadonlyMap<string,string|null>;entry?:string;session?:RestoreSectionReview}|null>(null);
   const preview=review?.file;
   const [notice,setNotice]=React.useState('');
   const [error,setError]=React.useState('');
@@ -22,32 +24,37 @@ export function PreferencesBackupSettings({onApplied,archiveEntry}:{onApplied():
       setNotice(t`Preferences export requested. Check your downloads.`);
     } catch {setError(t`Could not export preferences. Check device storage.`);}
   }
-  async function load(file:File|undefined) {
+  async function load(file:File|undefined,entry?:string) {
     setReview(null);setNotice('');setError('');
     if(!file)return;
     setBusy(true);
     try {
+      const session=reviewRestoreSection('preferences',entry);
       if(file.size>MAX_PREFERENCES_BACKUP_BYTES)throw new Error('size');
       const parsed=parsePreferencesBackup(await file.text());
-      setReview({file:parsed,baseline:preferenceRestoreBaseline(parsed)});
-    } catch {setError(t`Invalid or unsupported Tsugi preferences file. Nothing was changed.`);}
+      setReview({file:parsed,baseline:preferenceRestoreBaseline(parsed),entry,session});
+    } catch(reason) {setError(restoreSessionFeedback(reason)??t`Invalid or unsupported Tsugi preferences file. Nothing was changed.`);}
     finally {setBusy(false);}
   }
-  function apply() {
+  async function apply() {
     if(!review)return;
-    setError('');setNotice('');
-    const outcome=applyPreferencesBackup(review.file,review.baseline);
-    if(outcome==='applied'){
-      setReview(null);onApplied();
-      setNotice(t`Preferences restored. Reopen the reader or player, or restart Tsugi if necessary, to apply every setting.`);
-    } else if(outcome==='stale'){
+    setError('');setNotice('');setBusy(true);
+    try{
+      const outcome=await runRestoreSection('preferences',review.entry,review.session,
+        ()=>applyPreferencesBackup(review.file,review.baseline),value=>value==='applied');
       setReview(null);
-      setError(t({id:'Preferences changed after review. Preview the file again before restoring.',message:'Preferences changed after review. Preview the file again before restoring.'}));
-    } else {
-      setError(outcome==='rollback-failed'
-        ?t`Storage blocked recovery. Some preferences may have changed. Export or review the current settings before retrying.`
-        :t`Could not restore preferences. Previous values were retained.`);
-    }
+      if(outcome==='applied'){
+        onApplied();
+        setNotice(t`Preferences restored. Reopen the reader or player, or restart Tsugi if necessary, to apply every setting.`);
+      } else if(outcome==='stale'){
+        setError(t({id:'Preferences changed after review. Preview the file again before restoring.',message:'Preferences changed after review. Preview the file again before restoring.'}));
+      } else {
+        setError(outcome==='rollback-failed'
+          ?t`Storage blocked recovery. Some preferences may have changed. Export or review the current settings before retrying.`
+          :t`Could not restore preferences. Previous values were retained.`);
+      }
+    }catch(reason){setReview(null);setError(restoreSessionFeedback(reason)??t`The preference restore could not be confirmed. Review the current settings before retrying.`);}
+    finally{setBusy(false);}
   }
   return <section className="tsugi-app-general" aria-label={t`Preferences backup`}>
     <h3><Trans>Preferences backup</Trans></h3>
@@ -60,7 +67,7 @@ export function PreferencesBackupSettings({onApplied,archiveEntry}:{onApplied():
         }}/>
       </label>
     </div>
-    {archiveEntry!==undefined&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(new File([archiveEntry],'preferences.json',{type:'application/json'}))}><Trans>Review archived preferences</Trans></button>}
+    {archiveEntry!==undefined&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(new File([archiveEntry],'preferences.json',{type:'application/json'}),archiveEntry)}><Trans>Review archived preferences</Trans></button>}
     {preview&&<div className="min-w-0 space-y-3">
       <h4><Trans>Restore preview</Trans></h4>
       <p><Trans>Only the settings below will be restored. Your collections and credentials will not change. Export your current preferences first if you want to keep a copy.</Trans></p>
@@ -74,8 +81,8 @@ export function PreferencesBackupSettings({onApplied,archiveEntry}:{onApplied():
       </dl>
       <details><summary><Trans>Reader preferences</Trans></summary><pre className="whitespace-pre-wrap break-all text-xs">{JSON.stringify(preview.settings.reader,null,2)}</pre></details>
       <div className="flex flex-wrap gap-2">
-        <button type="button" className="tsugi-read-action" onClick={apply}><Trans>Apply preferences</Trans></button>
-        <button type="button" className="tsugi-read-action" onClick={()=>setReview(null)}><Trans>Cancel restore</Trans></button>
+        <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void apply()}><Trans>Apply preferences</Trans></button>
+        <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>setReview(null)}><Trans>Cancel restore</Trans></button>
       </div>
     </div>}
     {error&&<p role="alert">{error}</p>}

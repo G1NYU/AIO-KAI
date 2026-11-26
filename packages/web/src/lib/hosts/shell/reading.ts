@@ -16,7 +16,7 @@ export type ReadAction =
   | { kind: 'assign-category'; mangaId: number; categoryId: number; assigned: boolean }
   | { kind: 'add-store' | 'remove-store'; index: string }
   | { kind: 'extensions'; offset: number; query?: string; store?: string; language?: string; installed?: boolean; updatesOnly?: boolean }
-  | { kind: 'install-extension' | 'uninstall-extension'; package: string }
+  | { kind: 'install-extension' | 'update-extension' | 'uninstall-extension'; package: string }
   | { kind: 'catalogue'; source: string; page: number; mode: 'popular' | 'latest' | 'search'; query?: string }
   | { kind: 'manga' | 'chapter' | 'cover'; id: number }
   | { kind: 'set-library'; id: number; inLibrary: boolean }
@@ -46,7 +46,7 @@ export async function readRequest<T>(action: ReadAction): Promise<T> {
   if (action.kind === 'prepare' ? !supportsReadingSection() : !supportsReading()) throw new Error(t({ id: "Reading is not available in this app.", message: "Reading is not available in this app." }));
   const request = 'read-' + Date.now() + '-' + ++sequence;
   const response = await ask({ type: 'read-request', request, action }, 'read-result', {
-    timeoutMs: action.kind === 'prepare' ? 20 * 60_000 : action.kind === 'tracker-login' ? 240_000 : 180_000, matches: (message) => message.request === request,
+    timeoutMs: action.kind === 'prepare' ? 20 * 60_000 : action.kind === 'update-extension' ? 10 * 60_000 : action.kind === 'tracker-login' ? 240_000 : 180_000, matches: (message) => message.request === request,
   });
   if (response.error || response.data == null) throw new Error(response.error || t({ id: "Reading request returned no data.", message: "Reading request returned no data." }));
   return response.data as T;

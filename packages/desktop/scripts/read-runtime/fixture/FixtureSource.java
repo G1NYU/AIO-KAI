@@ -4,12 +4,13 @@ import eu.kanade.tachiyomi.source.online.HttpSource;
 import eu.kanade.tachiyomi.source.model.FilterList;
 import eu.kanade.tachiyomi.source.model.MangasPage;
 import eu.kanade.tachiyomi.source.model.SManga;
+import eu.kanade.tachiyomi.source.model.SChapter;
 import java.util.List;
 import java.util.Locale;
 import rx.Observable;
 
 /** Original deterministic source; no external network requests. */
-public final class FixtureSource extends HttpSource {
+public class FixtureSource extends HttpSource {
     @Override public long getId() { return 12345L; }
     @Override public String getName() { return "Tsugi Fixture"; }
     @Override public String getLang() { return "en"; }
@@ -36,5 +37,17 @@ public final class FixtureSource extends HttpSource {
     }
     @Override public Observable<MangasPage> fetchSearchManga(int page, String query, FilterList filters) {
         return Observable.just(catalogue(page, query));
+    }
+
+    @Override public Observable<SManga> fetchMangaDetails(SManga manga) {
+        return Observable.just(manga);
+    }
+
+    @Override public Observable<List<SChapter>> fetchChapterList(SManga manga) {
+        SChapter chapter = SChapter.Companion.create();
+        chapter.setUrl("/original-comic/chapter-1");
+        chapter.setName("Original chapter");
+        chapter.setChapterNumber(1.0f);
+        return Observable.just(List.of(chapter));
     }
 }
