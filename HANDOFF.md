@@ -10,7 +10,7 @@ The candidate is a development portable ZIP. Stable release publication remains 
 
 - Full reviewed UI/YouTube/Mihon/Discord implementation: [`75d85da`](https://github.com/G1NYU/TSUGI/commit/75d85da5775784c3a2132edc26e86a4c2d649e9f), exact reviewed tree `42417bb9ab7a15e836008a2f94b33c25a0b84a49`.
 - Windows repair: [`a0729e9`](https://github.com/G1NYU/TSUGI/commit/a0729e99bb5d3f263437ea67d57e9cfd8e476908), tree `9c855fba1245888d697b2448423c4850b5936443`.
-- Final web-only cleanup removes four broad Junction/Nocturne control-wrapper background fills, preserving layout, typography, artwork backdrop and functional control surfaces. Its focused browser helper and production build pass. Its publication/package identity is recorded after the final run below.
+- Final visual cleanup: [`60fc65f`](https://github.com/G1NYU/TSUGI/commit/60fc65f810f311eddab5cd8493ef26bf15698109), tree `3ade4c729a9d462b915ebf872b0b780a3f51b875`. It removes four broad Junction/Nocturne control-wrapper fills and verifies their transparency. The non-forced publication has the same source tree as local reviewed commit `7ec43e7`; native source and historical `PROGRESS.md` are byte-identical to `a0729e9`.
 
 The Git CLI has no configured write credentials. Publication uses the connected GitHub Git Data API: upload complete intended files, verify the resulting tree against the local reviewed tree, create a commit with the checked remote parent, and update the branch non-forcibly with an expected-head lease. Fetch again and confirm tree equality. API-created and local review commit IDs may differ; their verified source trees must be identical.
 
@@ -31,24 +31,36 @@ Controlled browser results are not physical Windows acceptance. Exact-recording 
 
 | Check | Evidence |
 | --- | --- |
-| Full web suite, typecheck, lint, pinned ebooks and production build | [Unified web job at 75d85da](https://github.com/G1NYU/TSUGI/actions/runs/45841593243/job/139984389419): **376 tests in 35 files**, **57 browser checkpoints**, all successful. |
-| Actual Windows native core | [Windows job at a0729e9](https://github.com/G1NYU/TSUGI/actions/runs/45844069713/job/139994499675): **150 passed, 0 failed, 17 intentionally ignored**. |
+| Full web suite, typecheck, lint, pinned ebooks and production build | [Final Unified web job at 60fc65f](https://github.com/G1NYU/TSUGI/actions/runs/45846178709/job/140000327760): **376 tests in 35 files**, **57 browser checkpoints**, all successful, including the new unframed-player assertion. |
+| Actual Windows native core | [Final Windows job at 60fc65f](https://github.com/G1NYU/TSUGI/actions/runs/45846178709/job/140002040685): **150 passed, 0 failed, 17 intentionally ignored**. |
 | Native media tools and executable | Same Windows job: bundled-media fixture explicitly invoked (**1 passed**), optimized application compilation, staging and upload all passed. |
 | Actual pinned Reader runtime | [Reader run 45844069787](https://github.com/G1NYU/TSUGI/actions/runs/45844069787): **60 broker tests passed**, one helper ignored; **42 CBZ checks passed**; **12 packaged JVM cases passed**, none failed or ignored. |
 | Vault engine | [Vault run 45844069930](https://github.com/G1NYU/TSUGI/actions/runs/45844069930): all nine scenario/probe checks plus aggregate success, no failed assertions. |
 | Final player cleanup | Four focused real-component checkpoints passed: all three layouts, normal/short/narrow geometry, brush/lyrics clearance and actual original PCM waveform/playback/queue/seek/minimise. Junction and Nocturne captures visually inspected. Declared ebook preparation, Lingui extraction and standalone bundling passed through installed Node CLI entry points; the pnpm wrapper refuses the existing symlinked dependency directory. Generated locale changes were restored. |
+| Assembled portable application | [Final package job](https://github.com/G1NYU/TSUGI/actions/runs/45846178709/job/140004560732): actual executable probes, first/repeated Reader setup, pinned server authentication and loopback checks, staging and upload all passed. |
+| Independently downloaded portable ZIP | **450 entries passed CRC validation**; exact build identity, pinned tools and corresponding source checksums, required notices, five illustrations and five fonts verified. |
 
 The first Windows run exposed two new audio fixture failures. Their repair canonicalizes the pinned DLL path and uses a bounded, byte-preserving native subprocess producer with an explicit readiness handshake and cleanup guards. Tests still require exact file bytes before EOF, cancellation before producer shutdown, size limits and closed file handles. Both failures are cleared on actual Windows. No per-format Windows decode timings were printed on success; do not invent them.
 
 The first Reader run exposed a real integration defect: pinned Suwayomi uses `pageCount=-1` for unknown chapters. The repair accepts only integer `-1..=i32::MAX`, maps the unknown sentinel to portable 0, and preserves the exact signed value inside native review/staleness/post-restore checks. Unknown counts cannot authorize partial-page restoration. The Windows Mihon case now verifies reconstruction, exact source identity, chapters/history/categories/local tracker references, repeat-import idempotence, stale review rejection and forced rollback across restart. The eleven previous runtime cases also pass.
 
-Final web-only changes leave all desktop source identical to a0729e9. Reader and Vault path-filtered workflows therefore do not need another run solely for the CSS/test changes. The final Unified package must still complete its own web/native/build/assembled-package gates.
+Final web-only changes leave all desktop source identical to a0729e9. Reader and Vault path-filtered workflows therefore do not need another run solely for the CSS/test changes. The final Unified run independently passed its web/native/build/assembled-package gates on 60fc65f, attempt 1, without a retry.
 
-## Final package gate
+## Verified Windows download
 
-Pending at this handoff checkpoint: publish the final visual cleanup, wait for its Unified workflow, download the actual artifact and verify its exact `BUILD-INFO.json`, every ZIP entry CRC, required bundled tools/source notices, five illustrations and five fonts. Record its actual commit/run/attempt, ZIP size/SHA-256, executable SHA-256 and artifact link. Do not deliver an older intermediate ZIP as the final candidate.
+Download [Tsugi-Windows-x64-test](https://github.com/G1NYU/TSUGI/actions/runs/45846178709/artifacts/15131768541), built by [Unified run 45846178709](https://github.com/G1NYU/TSUGI/actions/runs/45846178709), attempt 1. The workflow completed successfully for `60fc65f810f311eddab5cd8493ef26bf15698109`; release publication was skipped. The Actions artifact expires on 3 December 2026.
 
-The package must pass `--check-vault-engine`, `--check-media-tools`, the pre-setup Reader probe, preparation/repeated preparation and authenticated pinned runtime checks. Remove the temporary test-installed Reader tools before packaging so the normal first-run setup remains applicable. Stable release publication must remain skipped.
+The actual downloaded artifact archive matches GitHub's SHA-256. Its inner portable ZIP was then checked separately: all 450 entries passed CRC validation, the exact repository/commit/run/attempt/ref in `BUILD-INFO.json` matched, and required paths, tool/source hashes, source notices, all five illustrations and all five fonts passed. No legacy launcher or bundled `read-tools` directory remains.
+
+| Downloaded item | Bytes | SHA-256 |
+| --- | ---: | --- |
+| GitHub artifact wrapper | 176,792,432 | `d272ffe73048181669eadf96d148fb8c44584f7a45388d4d73fdd540ee7b71e8` |
+| Inner `Tsugi-windows-x64-test.zip` | 176,932,132 | `000ee15b535826b1678a3ce59f01eb71ef83f6d96dfc598d12659cd321bbb695` |
+| Packaged `current/Tsugi.exe` | — | `883f6feedc17f04392d4f7a8ee563124cffd241f8ca930a8c459688a0aa41596` |
+
+The assembled executable returned 0 for `--check-vault-engine` and `--check-media-tools`. Reader returned the expected 2 before setup, then 0 for preparation, the post-setup check and repeated preparation. The prepared pinned v2.4.2373 server passed authenticated GraphQL, missing/invalid credential rejection and loopback binding checks. The temporary test-installed Reader tools were removed before ZIP creation, retaining normal first-run setup.
+
+Extract the complete inner ZIP into a new writable folder, retain the working installation and open `current/Tsugi.exe`. Keep the `.portable` marker. Choose Read → Set up reading on first use; the pinned runtime is downloaded and verified once.
 
 ## Remaining acceptance and next work
 
