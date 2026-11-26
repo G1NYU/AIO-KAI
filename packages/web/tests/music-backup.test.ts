@@ -44,6 +44,14 @@ describe('credential-free music backup',()=>{
     expect(applyMusicMerge(backup,plan.baseline)).toBe('stale');
     expect(JSON.parse(values.get(KEY)!)[0].name).toBe('Renamed');
   });
+  it('does not count the same native row twice when metadata and native identities overlap',()=>{
+    values.set(KEY,JSON.stringify([{...list,tracks:[list.tracks[0],{id:'another',title:'Native',artist:'Artist'}]}]));
+    const backup=captureMusicBackup();
+    values.set(KEY,JSON.stringify([{...list,tracks:[list.tracks[0]]}]));
+    const plan=previewMusicMerge(backup);
+    expect(plan.duplicates).toBe(1);expect(plan.addedTracks).toBe(1);
+    expect(plan.next[0].tracks).toHaveLength(2);
+  });
   it('rejects unknown fields, non-native opaque identities and oversized backups',()=>{
     values.set(KEY,JSON.stringify([list]));
     const backup=captureMusicBackup();

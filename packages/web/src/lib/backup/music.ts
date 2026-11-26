@@ -8,7 +8,6 @@ const MAX_TRACKS = 1000;
 const UUID = /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i;
 const VIDEO = /^[\w-]{11}$/;
 const BROWSE = /^(?:MPRE|UC|VL|MPLA|OLAK5uy_)[\w-]{1,175}$/;
-const PORTABLE = /^portable:[a-f\d-]{36}:\d{1,5}$/i;
 const FAV = 'tsugi-saved-tracks';
 export type MusicBackup = { format:'tsugi-music-library'; version:1; playlists:MusicPlaylist[] };
 export type MusicMerge = { next:MusicPlaylist[]; addedLists:number; addedTracks:number; duplicates:number; conflicts:number; metadataOnly:number; blocked:boolean };
@@ -73,10 +72,18 @@ function readRaw():MusicPlaylist[] {
     text(row.name,80);
     if(ids.has(id)||!Array.isArray(row.tracks)||row.tracks.length>MAX_TRACKS)throw new Error('invalid-library');
     ids.add(id);
+    if(row.collection!==undefined){
+      const x=obj(row.collection);
+      if(typeof x.sourceId!=='string'||!/^[a-f\d-]{32,40}$/i.test(x.sourceId)||typeof x.id!=='string'||!x.id.trim()||x.id.length>350||!['album','playlist','artist'].includes(String(x.type)))throw new Error('invalid-collection');
+    }
     for(const t of row.tracks){
       const track=obj(t);
       // Validate existing metadata without rewriting existing records.
-      trackFields(track); text(track.id,350);
+      trackFields(track);
+      // Opaque provider IDs may contain URLs; never export those IDs. They
+      // remain intact in the existing library, which is not an export.
+      if(typeof track.id!=='string'||!track.id.trim()||track.id.length>350)throw new Error('invalid-track');
+      if(track.sourceId!==undefined&&(typeof track.sourceId!=='string'||!/^[a-f\d-]{32,40}$/i.test(track.sourceId)))throw new Error('invalid-source');
     }
   }
   return lists as MusicPlaylist[];
@@ -93,7 +100,7 @@ export function parseMusicBackup(data:string):MusicBackup {
   const root=obj(JSON.parse(data));
   allowed(root,['format','version','playlists']);
   if(root.format!=='tsugi-music-library'||root.version!==1||!Array.isArray(root.playlists)||root.playlists.length>MAX_LISTS)throw new Error('format');
-  const ids=new Set<string>();
+  const ids=new Set<string>(), collections=new Set<string>();
   const playlists:MusicPlaylist[]=root.playlists.map(value=>{
     const row=obj(value);
     allowed(row,['id','name','tracks','collection']);
@@ -104,13 +111,16 @@ export function parseMusicBackup(data:string):MusicBackup {
     if(row.collection!==undefined){
       if(!collection)throw new Error('collection');
       allowed(obj(row.collection),['id','type','sourceId']);
+      const key=JSON.stringify([collection.sourceId,collection.type,collection.id]);
+      if(collections.has(key))throw new Error('duplicate-collection');
+      collections.add(key);
     }
-    const tracks:SavedMusicTrack[]=row.tracks.map(value=>{
+    const tracks:SavedMusicTrack[]=row.tracks.map((value,index)=>{
       const raw=obj(value);allowed(raw,['id','title','artist','album','duration','isrc','sourceId']);
       const fields=trackFields(raw);
       if(raw.isrc!==undefined&&!fields.isrc)throw new Error('isrc');
       if(publicTrack(raw))return {...fields,id:raw.id as string,sourceId:YOUTUBE_MUSIC_ID};
-      if(raw.sourceId!==undefined||typeof raw.id!=='string'||!PORTABLE.test(raw.id)||!fields.artist.trim())throw new Error('track-id');
+      if(raw.sourceId!==undefined||raw.id!==portableId(id,index)||!fields.artist.trim())throw new Error('track-id');
       return {...fields,id:raw.id};
     });
     return {id,name,tracks,...(collection?{collection}:{})};
@@ -120,7 +130,7 @@ export function parseMusicBackup(data:string):MusicBackup {
 function sameCollection(a:SavedCollectionIdentity|undefined,b:SavedCollectionIdentity|undefined) {
   return !!a&&!!b&&a.id===b.id&&a.sourceId===b.sourceId&&a.type===b.type;
 }
-function metadata(t:SavedMusicTrack) {return JSON.stringify([t.title,t.artist,t.album??'',t.isrc??'']);}
+function metadata(t:SavedMusicTrack) {const f=trackFields(obj(t));return JSON.stringify([f.title,f.artist||'—',f.album??'',f.isrc??'']);}
 function identity(t:SavedMusicTrack) {return t.sourceId===YOUTUBE_MUSIC_ID&&VIDEO.test(t.id)?'yt:'+t.id:'meta:'+metadata(t);}
 
 /** Merge only: no current collections or tracks are deleted or overwritten.
@@ -139,18 +149,34 @@ export function planMusicMerge(backup:MusicBackup,current=readRaw()):MusicMerge 
     }
     const target=byId??byCollection;
     if(!target){next.push({...incoming,tracks:[...incoming.tracks]});addedLists++;addedTracks+=incoming.tracks.length;continue;}
-    const counts=new Map<string,number>(), metaCounts=new Map<string,number>();
-    for(const t of target.tracks){
-      const k=identity(t),m=metadata(t);
-      counts.set(k,(counts.get(k)??0)+1);metaCounts.set(m,(metaCounts.get(m)??0)+1);
-    }
+    const native=new Map<string,number[]>(), meta=new Map<string,number[]>();
+    const push=(map:Map<string,number[]>,key:string,index:number)=>{
+      const queue=map.get(key);if(queue)queue.push(index);else map.set(key,[index]);
+    };
+    target.tracks.forEach((t,index)=>{
+      if(t.sourceId===YOUTUBE_MUSIC_ID&&VIDEO.test(t.id))push(native,identity(t),index);
+      push(meta,metadata(t),index);
+    });
+    const consumed=new Set<number>(), matched=new Set<number>();
+    const take=(queue:number[]|undefined)=>{
+      while(queue?.length){
+        const index=queue.pop()!;
+        if(!consumed.has(index)){consumed.add(index);return true;}
+      }
+      return false;
+    };
+    // Match exact native identities first, then metadata. Each existing row
+    // can satisfy at most one incoming occurrence, including mixed identities.
+    incoming.tracks.forEach((t,index)=>{
+      if(t.sourceId&&take(native.get(identity(t))))matched.add(index);
+    });
+    incoming.tracks.forEach((t,index)=>{
+      if(!t.sourceId&&take(meta.get(metadata(t))))matched.add(index);
+    });
     const used=new Set(target.tracks.map(t=>t.id));
     let serial=0;
-    for(const t of incoming.tracks){
-      const countsForTrack=t.sourceId?counts:metaCounts;
-      const key=t.sourceId?identity(t):metadata(t);
-      const n=countsForTrack.get(key)??0;
-      if(n>0){countsForTrack.set(key,n-1);duplicates++;continue;}
+    for(const [index,t] of incoming.tracks.entries()){
+      if(matched.has(index)){duplicates++;continue;}
       let id=t.id;
       if(!t.sourceId){
         while(used.has(id))id=portableId(target.id,serial++);
