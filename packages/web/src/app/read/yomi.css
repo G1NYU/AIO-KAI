@@ -454,8 +454,8 @@
 .yomi-book-reader .tsugi-book-preferences input[type='range'] { accent-color:var(--tsugi-accent); max-width:160px; }
 .yomi-book-reader iframe { min-height:460px; height:calc(100dvh - 210px); border:0; border-radius:12px; }
 .yomi-setup { max-width:none; }
-.yomi-setup > .yomi-banner { max-width:1100px; }
-.yomi-setup > section:not(.yomi-banner) { max-width:860px; padding:26px; border-radius:14px; background:var(--tsugi-surface); }
+.yomi-setup > .yomi-banner { width:100%; max-width:1100px; }
+.yomi-setup > section:not(.yomi-banner) { width:100%; max-width:1100px; padding:26px; border-radius:14px; background:var(--tsugi-surface); }
 .yomi-setup .tsugi-read-action { padding:10px 16px; min-height:40px; border:0; border-radius:8px; background:var(--tsugi-panel); font-size:13px; }
 .yomi-setup .tsugi-read-action:first-child { background:var(--tsugi-accent); color:var(--tsugi-on-accent); }
 

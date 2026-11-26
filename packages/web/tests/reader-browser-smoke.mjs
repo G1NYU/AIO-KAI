@@ -1559,6 +1559,9 @@ try {
   const setup=page.locator('[data-page="read-setup"]');
   await setup.getByRole('heading',{name:'Mihon-compatible extensions',exact:true}).waitFor();
   await setup.getByText("Already use Mihon, Komikku or another Tachiyomi-compatible fork? Tsugi supports the same compatible extension repositories. After setup, add a trusted repository URL in Settings → Browse → Sources → Extension repositories, then install individual extensions from Extensions. Sources are not bundled, and compatibility varies by extension.",{exact:true}).waitFor();
+  const bannerWidth = await setup.locator(':scope > .yomi-banner').evaluate(el => el.getBoundingClientRect().width);
+  const cardWidth = await setup.locator(':scope > section:not(.yomi-banner)').evaluate(el => el.getBoundingClientRect().width);
+  assert.ok(Math.abs(bannerWidth - cardWidth) < 2, `Reader setup card and artwork banner must share a width: ${bannerWidth} vs ${cardWidth}`);
   await capture('13-reader-setup-compatibility');
   assert.deepEqual(errors, []);
   await verifyLandscapeDecorationBrowser({ browser, origin, installDesktopFixture, screenshotDir });
