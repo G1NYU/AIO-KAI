@@ -157,3 +157,7 @@ Acceptance: presence disabled/cleared, lock recovery, capture limitation documen
 - Never export credentials, expose private URLs, run untrusted extensions silently, or blur the boundary between cached assets/downloads and valuable user state. No destructive automatic migration.
 - Each milestone: inspect actual pinned capabilities, implement smallest complete feature slice, unit/bridge/browser regression checks, Windows runtime/package validation where relevant, physical acceptance for live providers and upgrade/restore; update PROGRESS.md with commit, evidence, remaining risks. Existing stable release must stay available. No unsupported claim of feature completion.
 - First action: A1 inventory of state and ownership, archive schema and secret exclusions; concurrently map B1 extension-update schema read-only. Do not start automatic downloads, sync or updater writes until their recovery/storage prerequisites are validated.
+
+### Cycle II implementation checkpoint
+
+A1.1 preferences-only export/preview/restore implemented as a bounded first slice, pending validation. It is not a full portable backup. See [data ownership inventory and upstream research](docs/portable-data-inventory.md). A1 remains in progress; A2 and B1 mutations are not started.

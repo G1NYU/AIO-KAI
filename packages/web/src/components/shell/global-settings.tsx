@@ -10,6 +10,7 @@ import { notifyEclipseAppearance } from '@/lib/music/eclipse-appearance';
 import { storage } from '@/lib/storage';
 import { readStartupArea, saveStartupArea, type StartupArea } from '@/lib/desktop-area';
 import { appBridge } from '@/lib/hosts/shell/bridge';
+import { PreferencesBackupSettings } from './preferences-backup-settings';
 
 const IMPORT_COLORS_KEY = 'tsugi-global-import-colors-v1';
 const importedColors = () => storage.get<boolean>(IMPORT_COLORS_KEY) !== false;
@@ -166,6 +167,11 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
       <p><Trans>Choose how the expanded player opens. Imported layouts retain their own composition.</Trans></p>
     </section>
     <GlobalAppearanceSettings />
+    <PreferencesBackupSettings onApplied={()=>{
+      setStartup(readStartupArea()); setLayout(readPlayerStage().id); setMatrix(readMatrixMode());
+      announce(readPlayerTheme()); notifyEclipseAppearance();
+      window.dispatchEvent(new Event('tsugi-player-preferences-change'));
+    }} />
     <section className="tsugi-app-about" aria-label={t`About Tsugi`}>
       <h3 className="font-semibold text-[--tsugi-ink]"><Trans>About Tsugi</Trans></h3>
       {bridge?.version && <p><Trans>Version</Trans> · {bridge.version}</p>}

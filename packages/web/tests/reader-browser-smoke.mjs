@@ -232,6 +232,14 @@ try {
   await startup.selectOption('music');
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('tsugi-startup-area-v1'))), 'music');
   await startup.selectOption('auto');
+  const prefs=bootSettings.getByRole('region',{name:'Preferences backup',exact:true});
+  const file={format:'tsugi-preferences',version:1,settings:{theme:'carbon',accent:'amber',startup:'auto',matrix:'wave',layout:'default',audioProfile:'flat',reader:{mode:'scroll',width:55,gap:false,rtl:false,fit:'width',background:'black',focus:false,autoNext:false,wheelZoom:true,resume:true}}};
+  await prefs.locator('input[type=file]').setInputFiles({name:'preferences.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(file))});
+  await prefs.getByRole('heading',{name:'Restore preview',exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>document.documentElement.dataset.tsugiTheme),'mocha');
+  await prefs.getByRole('button',{name:'Apply preferences',exact:true}).click();
+  await page.waitForFunction(()=>document.documentElement.dataset.tsugiTheme==='carbon'&&document.documentElement.dataset.tsugiAccent==='amber');
+  await prefs.getByRole('status').waitFor();
   await bootSettings.getByRole('button', { name: 'Default', exact: true }).click();
   await bootSettings.getByRole('button', { name: 'Silver', exact: true }).click();
   await bootSettings.getByRole('button', { name: 'Close', exact: true }).click();

@@ -1,0 +1,31 @@
+# Portable data ownership — A1 initial audit and B1 research
+
+Baseline: `bacd508` on feature/tsugi-read-runtime. Initial audit, not a claim that every dynamic store has been inventoried. All unclassified stores are excluded by default until reviewed.
+
+| Domain | Verified persistence / owner | Backup decision |
+|---|---|---|
+| Built-in preferences | WebView localStorage via lib/storage.ts; player-theme.ts, player-layout.ts, audio-profiles.ts, desktop-area.tsx, reader-preferences.ts | A1.1 explicit typed projection; no arbitrary storage dump |
+| Imported Studio layouts | tsugi-desktop-player-stage-v1 contains original imported JSON | Not exported in A1.1; later project only safe declarative data, no raw unknown fields |
+| Music library | tsugi-independent-playlists-v1; lib/music/library.ts | Later validated playlist/collection metadata; artwork URL can carry secrets, omit unless independently proven safe |
+| Music connections | aiostreams-desktop-music-sources-v1 / remember flag | Never copy raw manifest/URL; preserve stable non-secret identities, require reconnect for private sources |
+| Music history | tsugi-recent-music-v1; metadata only but artworkURL and IDs need review | Later bounded projection; no resolved URLs |
+| Music queue | lib/music/queue.ts transforms in-memory queue | Verify persistence before promising backup/resume |
+| Local music | lib/music/remembered-folder.ts, IndexedDB file handles | Handles are device permissions, not portable files; reconnect folder on restore |
+| Video | aiostreams-web-servers / aiostreams-web-server; server-owned history; synced settings cache in lib/settings/store.ts | No credential cache or server-owned watch progress. Review server base separately; never copy arbitrary logo or private URL |
+| Video login | jellyfin_credentials and per-server signed-out state | Explicit exclusion |
+| Books | IndexedDB tsugi-local-books-v1, books/files stores; book-library.ts | Metadata/position and file identity; books are Blob payloads, not merely external references. Optional book media export separate from settings; no orphan progress restore |
+| Vault / downloads | lib/downloads/store.ts IndexedDB and native downloads.json; core downloads/vault_engine | Exclude raw jobs, signed URLs and file content from settings backup; later safe references/metadata only. Keep cleanup separate |
+| Native app | app/src/main.rs portable data/ root, players.json, downloads.json, mpv config, logs, subtitles | Classify each; no whole-directory zip, no logs/subtitles/raw mpv config by default |
+| Reader | app/src/reading.rs managed runtime, core reader bridge, separate runtime DB | Use supported consistent semantic export; do not copy live database. Need verify backup schema and credential exclusions |
+| Trackers/TorBox | separate account connections and runtime secrets | Explicit exclusion; reconnect after restore |
+
+A1.1 format is intentionally **tsugi-preferences / version 1**, JSON, 16 KiB limit, exact fields and closed enum/type validation. It is not the final multi-domain archive. Unknown fields/version rejected; import previews before writes. Ordinary storage failures roll back completed writes, but power loss and a blocked rollback remain limitations; durable journaling and native transactions are A1 follow-ups. Selecting built-in palette disables imported palette colors; imported layout selection is excluded (null = keep current layout). Existing validated imported template stays on device. No source URL, media, token, history or arbitrary string is serialized. Browser download initiation is not proof of disk persistence.
+
+## B1 — Extension updates (read-only research)
+- [Wotaku directory](https://wotaku.wiki/ext/) and [Mihon-specific page](https://wotaku.wiki/ext/mihon) list several independent extension repositories; use as documentation/discovery, not a built-in trusted allowlist.
+- [Keiyoushi distribution](https://github.com/keiyoushi/extensions) documents an index.pb repository; [source project](https://github.com/keiyoushi/extensions-source) is separate. Use user-registered repositories and test with authorized fixtures, not a hardcoded single-provider updater.
+- [Pinned runtime packaging script](../packages/desktop/scripts/fetch-read-tools.ps1) pins Suwayomi Server v2.4.2373.
+- [Pinned ExtensionMutation.kt](https://github.com/Suwayomi/Suwayomi-Server/blob/v2.4.2373/server/src/main/kotlin/suwayomi/tachidesk/graphql/mutations/ExtensionMutation.kt) explicitly exposes UpdateExtensionInput(id, patch), UpdateExtensionsInput(ids, patch), and UpdateExtensionPatch(install, update, uninstall). Update is gated by hasUpdate and calls Extension.updateExtension; install is distinct. Context7 latest docs corroborate, but pinned source governs.
+- Tsugi's current ReadAction/extension UI has refresh, filter, install, uninstall only. Add typed hasUpdate metadata and a distinct update operation after recovery safeguards. Verify package/repository identity, source IDs, data preservation, failed updates, and exact installed vs available version semantics against pinned runtime before live mutation. No APK fetching or installing in this research step.
+
+Next: finish state inventory (including dynamic synced settings, native reader storage, book metadata/progress, source IDs), investigate semantic reader backup endpoints, extend the versioned format with validated library projections, durable recovery and secret exclusion tests. No automatic updater or extension mutation before those gates.
