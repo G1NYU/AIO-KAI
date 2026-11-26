@@ -4,7 +4,7 @@ import { t } from '@lingui/core/macro';
 import { MANGA_BACKUP_LIMIT,collectLocalManga,snapshotManga,parseMangaBackup,planMangaRestore,type MangaRestorePlan } from '@/lib/backup/manga';
 import { readRequest,supportsReading } from '@/lib/hosts/shell/reading';
 
-export function MangaBackupSettings(){
+export function MangaBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
   const [preview,setPreview]=React.useState<MangaRestorePlan|null>(null);
   const [busy,setBusy]=React.useState(false);
   const [progress,setProgress]=React.useState('');
@@ -64,6 +64,7 @@ export function MangaBackupSettings(){
     <button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>void download()}><Trans>Export manga progress</Trans></button>
     <label className="min-w-0"><span><Trans>Preview manga progress restore</Trans></span><input type="file" accept=".json,application/json" className="tsugi-read-input w-full min-w-0 max-w-full" disabled={busy} onChange={event=>{const file=event.target.files?.[0];event.target.value='';void load(file);}}/></label>
     {busy&&<p role="status">{progress||t`Working with manga progress…`}</p>}
+    {archiveEntry!==undefined&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(new File([archiveEntry],'manga.json',{type:'application/json'}))}><Trans>Review archived manga</Trans></button>}
     {preview&&<div className="space-y-3">
       <h4><Trans>Manga restore preview</Trans></h4>
       <dl className="grid grid-cols-2 gap-2 text-sm">

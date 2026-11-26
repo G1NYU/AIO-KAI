@@ -14,6 +14,8 @@ import { PreferencesBackupSettings } from './preferences-backup-settings';
 import { MusicBackupSettings } from './music-backup-settings';
 import { BookBackupSettings } from './book-backup-settings';
 import { MangaBackupSettings } from './manga-backup-settings';
+import { PortableArchiveSettings } from './portable-archive-settings';
+import type { ArchiveKind, PortableArchive } from '@/lib/backup/archive';
 
 const IMPORT_COLORS_KEY = 'tsugi-global-import-colors-v1';
 const importedColors = () => storage.get<boolean>(IMPORT_COLORS_KEY) !== false;
@@ -103,6 +105,8 @@ export function GlobalAppearanceSettings() {
   </section>;
 }
 export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:boolean;onClose():void;hasReadSection?:boolean}) {
+  const [archive,setArchive]=React.useState<PortableArchive|null>(null);
+  const archived=(kind:ArchiveKind)=>archive?.entries.find(entry=>entry.kind===kind)?.payload;
   const [startup,setStartup] = React.useState(readStartupArea);
   const [layout,setLayout] = React.useState(() => readPlayerStage().id);
   const [matrix,setMatrix] = React.useState<MatrixMode>(readMatrixMode);
@@ -170,14 +174,15 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
       <p><Trans>Choose how the expanded player opens. Imported layouts retain their own composition.</Trans></p>
     </section>
     <GlobalAppearanceSettings />
-    <PreferencesBackupSettings onApplied={()=>{
+    <PortableArchiveSettings archive={archive} onArchive={setArchive} />
+    <PreferencesBackupSettings archiveEntry={archived('preferences')} onApplied={()=>{
       setStartup(readStartupArea()); setLayout(readPlayerStage().id); setMatrix(readMatrixMode());
       announce(readPlayerTheme()); notifyEclipseAppearance();
       window.dispatchEvent(new Event('tsugi-player-preferences-change'));
     }} />
-    <MusicBackupSettings />
-    <BookBackupSettings />
-    <MangaBackupSettings />
+    <MusicBackupSettings archiveEntry={archived('music')} />
+    <BookBackupSettings archiveEntry={archived('books')} />
+    <MangaBackupSettings archiveEntry={archived('manga')} />
     <section className="tsugi-app-about" aria-label={t`About Tsugi`}>
       <h3 className="font-semibold text-[--tsugi-ink]"><Trans>About Tsugi</Trans></h3>
       {bridge?.version && <p><Trans>Version</Trans> · {bridge.version}</p>}

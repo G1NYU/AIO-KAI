@@ -52,7 +52,7 @@ Baseline: [official v0.1.0](https://github.com/G1NYU/TSUGI/releases/tag/v0.1.0);
 
 | ID | Priority | Milestone | Initial state |
 |---|---|---|---|
-| A1 | P0 | Portable backup, restore, storage management | Planned |
+| A1 | P0 | Portable backup, restore, storage management | In progress: domain recovery validated; unified archive pending CI; durable backups/storage open |
 | A2 | P0 | Safe Tsugi-native application updates | Planned |
 | B1 | P1 | Extension updates and source management | Partial; first Reader priority |
 | B2 | P1 | Native Mihon backup and CSV migration/import | Partial; existing title-only batch import |

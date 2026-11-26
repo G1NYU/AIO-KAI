@@ -4,7 +4,7 @@ import { Trans } from '@lingui/react/macro';
 import { BOOK_BACKUP_LIMIT,captureBookBackup,parseBookBackup,previewBookRestore,type BookRestorePlan } from '@/lib/backup/books';
 import { restoreBookMetadata } from '@/app/read/book-library';
 
-export function BookBackupSettings(){
+export function BookBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
   const [preview,setPreview]=React.useState<BookRestorePlan|null>(null);
   const [busy,setBusy]=React.useState(false);
   const [progress,setProgress]=React.useState('');
@@ -59,6 +59,7 @@ export function BookBackupSettings(){
       }}/>
     </label>
     {busy&&<p role="status">{progress||t`Working with book metadata…`}</p>}
+    {archiveEntry!==undefined&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(new File([archiveEntry],'books.json',{type:'application/json'}))}><Trans>Review archived books</Trans></button>}
     {preview&&<div className="space-y-3">
       <h4><Trans>Book restore preview</Trans></h4>
       <dl className="grid grid-cols-2 gap-2 text-sm">

@@ -3,7 +3,7 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { applyMusicMerge, captureMusicBackup, parseMusicBackup, previewMusicMerge, MUSIC_BACKUP_LIMIT, type MusicBackup } from '@/lib/backup/music';
 
-export function MusicBackupSettings(){
+export function MusicBackupSettings({archiveEntry}:{archiveEntry?:string}={}){
   const [backup,setBackup]=React.useState<MusicBackup|null>(null);
   const [preview,setPreview]=React.useState<ReturnType<typeof previewMusicMerge>|null>(null);
   const [notice,setNotice]=React.useState('');
@@ -55,6 +55,7 @@ export function MusicBackupSettings(){
         const file=event.target.files?.[0];event.target.value='';void load(file);
       }}/>
     </label>
+    {archiveEntry!==undefined&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(new File([archiveEntry],'music.json',{type:'application/json'}))}><Trans>Review archived music</Trans></button>}
     {preview&&<div className="space-y-3">
       <h4><Trans>Music restore preview</Trans></h4>
       <dl className="grid grid-cols-2 gap-2 text-sm">

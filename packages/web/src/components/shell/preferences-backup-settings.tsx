@@ -3,7 +3,7 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { applyPreferencesBackup, capturePreferencesBackup, MAX_PREFERENCES_BACKUP_BYTES, parsePreferencesBackup, type PreferencesBackup } from '@/lib/backup/preferences';
 
-export function PreferencesBackupSettings({onApplied}:{onApplied():void}) {
+export function PreferencesBackupSettings({onApplied,archiveEntry}:{onApplied():void;archiveEntry?:string}) {
   const [preview,setPreview]=React.useState<PreferencesBackup|null>(null);
   const [notice,setNotice]=React.useState('');
   const [error,setError]=React.useState('');
@@ -45,7 +45,7 @@ export function PreferencesBackupSettings({onApplied}:{onApplied():void}) {
     }
   }
   return <section className="tsugi-app-general" aria-label={t`Preferences backup`}>
-    <h3><Trans>Data &amp; storage</Trans></h3>
+    <h3><Trans>Preferences backup</Trans></h3>
     <p><Trans>Back up built-in appearance, startup, visualizer, sound profile and reader preferences. This is a preferences file only: libraries, downloads, credentials, source URLs and custom Studio layouts are not included.</Trans></p>
     <div className="flex flex-wrap gap-2">
       <button type="button" className="tsugi-read-action" disabled={busy} onClick={download}><Trans>Export preferences</Trans></button>
@@ -55,6 +55,7 @@ export function PreferencesBackupSettings({onApplied}:{onApplied():void}) {
         }}/>
       </label>
     </div>
+    {archiveEntry!==undefined&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(new File([archiveEntry],'preferences.json',{type:'application/json'}))}><Trans>Review archived preferences</Trans></button>}
     {preview&&<div className="min-w-0 space-y-3">
       <h4><Trans>Restore preview</Trans></h4>
       <p><Trans>Only the settings below will be restored. Your collections and credentials will not change. Export your current preferences first if you want to keep a copy.</Trans></p>
