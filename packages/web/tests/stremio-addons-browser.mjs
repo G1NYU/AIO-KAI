@@ -247,7 +247,7 @@ export function installStremioFixture(initializeStartup=true){
         const groups=profile.sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(source=>{
           if(f.boardFixture&&source.sourceId===104)return {sourceId:source.sourceId,reviewId:null,options:[],error:'request'};
           const id=++f.sequence;f.streamReviews.push({id,sourceId:source.sourceId,subtitles:false});
-          return {sourceId:source.sourceId,reviewId:id,error:null,options:[{name:'HD fixture',supported:true,reason:'direct-https',language:null},...(f.boardFixture&&source.sourceId===102?[{name:'Alternate HD fixture',detail:'1080p HEVC',supported:true,reason:'direct-https',language:null}]:[]),{name:'Unsupported fixture',supported:false,reason:'unsupported-transport',language:null}]};
+          return {sourceId:source.sourceId,reviewId:id,error:null,options:[{name:'HD fixture',...(f.boardFixture&&source.sourceId===102?{detail:'720p AAC\n700 MB · uncached'}:{}),supported:true,reason:'direct-https',language:null},...(f.boardFixture&&source.sourceId===102?[{name:'Alternate HD fixture',detail:'1080p HEVC\nTrueHD Atmos · 8.5 GB · cached',supported:true,reason:'direct-https',language:null}]:[]),{name:'Unsupported fixture',supported:false,reason:'unsupported-transport',language:null}]};
         });
         if(a.kind==='begin-stream-options'){
           const queryId=++f.sequence;f.progressive={queryId,mediaType:a.mediaType,videoId:a.videoId,groups};
@@ -438,6 +438,24 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.equal(await groups.locator('[data-stream-source="102"]').count(),1);
     await provider.selectOption('all');
     assert.equal(await groups.getByRole('button',{name:'Play',exact:true}).count(),2);
+    const audioFilter=groups.getByRole('combobox',{name:'Audio format filter',exact:true});
+    const sizeFilter=groups.getByRole('combobox',{name:'File size filter',exact:true});
+    const cacheFilter=groups.getByRole('combobox',{name:'Provider cache filter',exact:true});
+    await audioFilter.selectOption('AAC');
+    assert.equal(await groups.getByRole('button',{name:'Play',exact:true}).count(),1);
+    await sizeFilter.selectOption('under-1');
+    await cacheFilter.selectOption('uncached');
+    assert.equal(await groups.getByRole('button',{name:'Play',exact:true}).count(),1);
+    await cacheFilter.selectOption('cached');
+    assert.equal(await groups.getByRole('button',{name:'Play',exact:true}).count(),0);
+    await audioFilter.selectOption('Atmos');
+    await sizeFilter.selectOption('5-to-15');
+    assert.equal(await groups.locator('[data-ui="version"]').filter({hasText:'Alternate HD fixture'}).getByRole('button',{name:'Play',exact:true}).count(),1);
+    await page.setViewportSize({width:390,height:844});
+    const filterGeometry=await groups.locator('[data-ui="watch-version-filters"]').evaluate(node=>({width:node.clientWidth,scroll:node.scrollWidth}));
+    assert.ok(filterGeometry.scroll<=filterGeometry.width+1,'reported stream filters wrap without horizontal overflow');
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-stream-selector-narrow.png'),animations:'disabled'});
+    await page.setViewportSize({width:1600,height:900});
     await page.keyboard.press('Escape');
     await groups.waitFor({state:'detached'});
     await item.locator('[data-ui="watch-play-title"]').click();
@@ -472,8 +490,11 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await versions.locator('[data-stream-source="104"]').getByRole('button',{name:'Retry provider',exact:true}).click();
     await versions.getByText('Recovered fixture',{exact:true}).waitFor();
     await versions.getByRole('combobox',{name:'Quality filter',exact:true}).selectOption('1080p');
+    await versions.getByRole('combobox',{name:'Audio format filter',exact:true}).selectOption('TrueHD');
+    await versions.getByRole('combobox',{name:'File size filter',exact:true}).selectOption('5-to-15');
+    await versions.getByRole('combobox',{name:'Provider cache filter',exact:true}).selectOption('cached');
     assert.equal(await versions.getByRole('button',{name:'Switch stream',exact:true}).count(),1);
-    await versions.getByText('1080p HEVC',{exact:true}).waitFor();
+    await versions.locator('[data-ui="version"]').filter({hasText:'Alternate HD fixture'}).getByText(/1080p HEVC/).waitFor();
     await versions.locator('[data-ui="version"]').filter({hasText:'Alternate HD fixture'}).getByRole('button',{name:'Switch stream',exact:true}).click();
     await page.waitForFunction(()=>window.__stremioFixture.mediaCalls.filter(m=>m.type==='stremio-consume-grant').length===2);
     await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
