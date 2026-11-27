@@ -1,0 +1,37 @@
+/* Native Watch shares the existing TSUGI palette and artwork scale. */
+.tsugi-watch-board {display:grid;gap:24px;min-width:0;}
+.tsugi-watch-board-toolbar {display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;}
+.tsugi-watch-search {display:flex;flex:1 1 220px;min-width:0;align-items:center;gap:8px;}
+.tsugi-watch-search>svg {flex:none;width:20px;height:20px;color:var(--tsugi-muted);}
+.tsugi-watch-search input {width:100%;min-width:0;}
+.tsugi-watch-board-toolbar select {max-width:100%;}
+.tsugi-watch-shelf {display:grid;gap:12px;min-width:0;scroll-margin-top:64px;}
+.tsugi-watch-shelf-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;min-width:0;}
+.tsugi-watch-shelf-heading>div:first-child {min-width:0;overflow-wrap:anywhere;}
+.tsugi-watch-shelf h3 {font-family:Georgia,'Times New Roman',serif;font-weight:600;font-size:clamp(1.25rem,2vw,1.65rem);line-height:1.4;color:var(--tsugi-ink);}
+.tsugi-watch-shelf small,.tsugi-watch-muted,.tsugi-watch-board-status {color:var(--tsugi-muted);}
+.tsugi-watch-shelf-track,.tsugi-watch-continue-track {display:flex;gap:14px;overflow-x:auto;min-width:0;max-width:100%;padding:4px 3px 12px;scroll-snap-type:x proximity;}
+.tsugi-watch-poster-card {flex:0 0 clamp(116px,11vw,178px);display:grid;align-content:start;gap:8px;min-width:0;text-align:start;color:var(--tsugi-ink);background:transparent;scroll-snap-align:start;}
+.tsugi-watch-poster {display:grid;place-items:center;width:100%;aspect-ratio:2/3;overflow:hidden;background:var(--tsugi-surface);border-radius:var(--tsugi-radius-art,12px);}
+.tsugi-watch-poster img {display:block;width:100%;height:100%;object-fit:cover;}
+.tsugi-watch-poster svg {width:36px;height:36px;color:var(--tsugi-muted);}
+.tsugi-watch-poster-card strong {font-size:.88rem;line-height:1.4;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;}
+.tsugi-watch-poster-card:is(:hover,:focus-visible) .tsugi-watch-poster {outline:2px solid var(--tsugi-accent);outline-offset:2px;}
+.tsugi-watch-board button:focus-visible,.tsugi-watch-board input:focus-visible,.tsugi-watch-board select:focus-visible {outline:2px solid var(--tsugi-focus);outline-offset:2px;}
+.tsugi-watch-resume-card {flex:0 0 216px;display:grid;gap:8px;min-height:100px;padding:12px;min-width:0;text-align:start;background:var(--tsugi-surface);color:var(--tsugi-ink);border-radius:var(--tsugi-radius-art,12px);overflow-wrap:anywhere;}
+.tsugi-watch-resume-card progress {width:100%;height:5px;accent-color:var(--tsugi-accent);}
+.tsugi-watch-board-status {display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:.85rem;}
+.tsugi-watch-empty {display:grid;justify-items:start;gap:12px;padding:24px 0;color:var(--tsugi-muted);}
+.tsugi-watch-empty>svg {width:32px;height:32px;}
+.tsugi-watch-empty h3 {font-size:1.2rem;font-weight:600;color:var(--tsugi-ink);}
+.tsugi-watch-detail {order:-1;scroll-margin-top:64px;padding:20px 0;border-bottom:1px solid var(--tsugi-line);min-width:0;}
+.tsugi-watch-stream-groups {display:grid;gap:14px;}
+.tsugi-watch-stream-group {display:grid;gap:8px;min-width:0;}
+.tsugi-watch-stream-group h5 {font-size:.95rem;font-weight:650;}
+.tsugi-watch-stream-row {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;min-width:0;padding:12px;background:var(--tsugi-surface);border-radius:var(--tsugi-radius-art,12px);}
+.tsugi-watch-stream-row>span {min-width:0;overflow-wrap:anywhere;}
+.tsugi-watch-stream-row small {display:block;color:var(--tsugi-muted);}
+@media(max-width:760px){.tsugi-watch-board{gap:16px;}.tsugi-watch-search{flex-basis:100%;}.tsugi-watch-poster-card{flex-basis:126px;}.tsugi-watch-resume-card{flex-basis:190px;}}
+
+/* Keep catalogue state mounted while selecting streams, without background controls competing with the active media review. */
+.tsugi-watch-board[hidden]{display:none!important;}

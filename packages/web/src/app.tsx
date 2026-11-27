@@ -178,9 +178,9 @@ function Standalone() {
   const openVault = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(null); setArea('vault'); }, []);
   const openVaultMusic = React.useCallback((track: {id:string;title:string}) => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(track); setArea('vault'); }, []);
   const openVideo = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setReadVisited(false); setArea('video'); }, []);
-  const [watchPane,setWatchPane]=React.useState<WatchEntryPane>('addons');
+  const [watchPane,setWatchPane]=React.useState<WatchEntryPane>('home');
   const openWatchPane=React.useCallback((pane:WatchEntryPane)=>{setResumeTarget(null);setVaultComicTarget(null);setReadVisited(false);setWatchPane(pane);setArea('watch');},[]);
-  const openWatch=React.useCallback(()=>openWatchPane('addons'),[openWatchPane]);
+  const openWatch=React.useCallback(()=>openWatchPane('home'),[openWatchPane]);
   const openWelcome = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setArea('welcome'); }, []);
   const openVideoDownloads = React.useCallback(() => { openVideo(); navigate(to.downloads); }, [openVideo]);
   const openResume = React.useCallback((target: ResumeTarget) => {

@@ -1,7 +1,10 @@
 /* The desktop's native window controls overlay the top strip. Keep the
  * direct Watch header and profile picker below it at every window width. */
-.tsugi-direct-watch {padding:32px;padding-block-start:calc(var(--tsugi-window-strip,40px) + 24px);max-width:1440px;margin:auto;color:var(--tsugi-ink);}
+.tsugi-direct-watch {padding:32px;padding-block-start:calc(var(--tsugi-window-strip,40px) + 24px);max-width:none;margin:auto;color:var(--tsugi-ink);}
 .tsugi-direct-watch>div>header {margin-bottom:24px;}
+.tsugi-direct-watch .tsugi-watch-picker {min-height:min(72vh,780px);}
+.tsugi-direct-watch .tsugi-watch-content {min-width:0;}
+@media(min-width:761px){.tsugi-direct-watch .tsugi-watch-nav-item:nth-child(5) {margin-top:18px;}}
 .tsugi-direct-player {position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;justify-content:space-between;color:white;}
 .tsugi-direct-player header,.tsugi-direct-player footer {padding:24px;display:flex;gap:12px;background:linear-gradient(180deg,rgba(0,0,0,.85),transparent);}
 .tsugi-direct-player header {justify-content:space-between;align-items:flex-start;}

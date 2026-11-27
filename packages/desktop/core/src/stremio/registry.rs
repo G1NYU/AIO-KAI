@@ -47,6 +47,7 @@ pub enum Action {
     Catalog { source_id: u32, media_type: String, catalog_id: String, extras: BTreeMap<String,String> },
     Metadata { source_id: u32, media_type: String, item_id: String },
     ItemOptions { source_id: u32, media_type: String, video_id: String, subtitles: bool },
+    AllStreamOptions { media_type: String, video_id: String },
     PrepareMedia { review_id: u32, option_index: usize, start_ms: u64 },
     MalAnimeList,
     MalAnimeImport { entries: Vec<MalAnimeEntry> },
@@ -126,6 +127,7 @@ struct Registry {
     pending: Option<Reviewed>,
     import: Option<accounts::Flow>,
     media_review: Option<MediaReview>,
+    stream_reviews: Vec<MediaReview>,
     grant: Option<MediaGrant>,
     mdblist: mdblist::Connection,
     history: history::History,
@@ -177,6 +179,7 @@ impl Registry {
         if self.pending.as_ref().is_some_and(|p| p.created.elapsed() >= REVIEW_TTL) { self.pending = None; }
         if self.import.as_ref().is_some_and(|p| p.expired()) { self.import = None; }
         if self.media_review.as_ref().is_some_and(|p|p.created.elapsed()>=REVIEW_TTL){self.media_review=None;}
+        self.stream_reviews.retain(|p|p.created.elapsed()<REVIEW_TTL);
         if self.mal_review.as_ref().is_some_and(|p|p.created.elapsed()>=REVIEW_TTL){self.mal_review=None;}
         if self.grant.as_ref().is_some_and(|p|p.created.elapsed()>=Duration::from_secs(15)){self.grant=None;}
     }
@@ -196,10 +199,39 @@ impl Registry {
     fn source_index(&self, id: u32) -> Result<usize> {
         self.sources.iter().position(|source| source.id == id).ok_or("unknown-source")
     }
+    /// Resolve one selected video against every compatible enabled source,
+    /// retaining exact native-only reviews and independent provider outcomes.
+    fn review_all_streams(&mut self,kind:&str,video:&str,fetcher:impl Fn(&Source,&str,&str)->Result<Vec<OptionSummary>>+Sync)->Result<Value>{
+        if !super::type_valid(kind)||!super::id_valid(video){return Err("invalid-resource");}
+        self.media_review=None;self.stream_reviews.clear();
+        let eligible:Vec<_>=self.sources.iter().filter(|source|source.enabled&&source.manifest.supports(ItemResource::Stream,kind,video)).collect();
+        let mut groups=Vec::with_capacity(eligible.len());
+        let mut reviews=Vec::with_capacity(eligible.len());
+        let mut sequence=self.sequence;
+        for chunk in eligible.chunks(4){
+            let results=thread::scope(|scope|{
+                let fetch=&fetcher;
+                let workers:Vec<_>=chunk.iter().map(|source|scope.spawn(move||fetch(source,kind,video))).collect();
+                workers.into_iter().map(|worker|worker.join().unwrap_or(Err("request"))).collect::<Vec<_>>()
+            });
+            for (source,result) in chunk.iter().zip(results){
+                match result{
+                    Ok(rows)=>{
+                        sequence=sequence.checked_add(1).ok_or("source-limit")?;
+                        groups.push(json!({"sourceId":source.id,"reviewId":sequence,"options":rows,"error":null}));
+                        reviews.push(MediaReview{id:sequence,source_id:source.id,media_type:kind.to_owned(),video_id:video.to_owned(),subtitles:false,rows,created:Instant::now()});
+                    }
+                    Err(error)=>groups.push(json!({"sourceId":source.id,"reviewId":null,"options":[],"error":error})),
+                }
+            }
+        }
+        self.sequence=sequence;self.stream_reviews=reviews;
+        Ok(json!({"mediaType":kind,"videoId":video,"groups":groups}))
+    }
     fn execute(&mut self, action: Action) -> Result<Value> {
         self.expire();
         self.grant=None;
-        if matches!(&action,Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::ItemOptions{..}|Action::Metadata{..}|Action::Catalog{..}) {self.media_review=None;}
+        if matches!(&action,Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::ItemOptions{..}|Action::AllStreamOptions{..}|Action::Metadata{..}|Action::Catalog{..}) {self.media_review=None;self.stream_reviews.clear();}
         if matches!(&action,Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::Catalog{..}){self.mal_review=None;}
         match action {
             Action::List => Ok(self.list()),
@@ -284,7 +316,7 @@ impl Registry {
                 if !source.enabled { return Err("disabled-source"); }
                 let page = source.endpoint.catalog(&source.manifest,&media_type,&catalog_id,&extras)?;
                 let items: Vec<_> = page.items.iter().map(|item| json!({
-                    "id":item.id,"mediaType":item.kind,"name":item.name
+                    "id":item.id,"mediaType":item.kind,"name":item.name,"poster":item.poster
                 })).collect();
                 self.mal_review=Some(MalCatalogReview{source_id,items:page.items.into_iter().map(|item|(item.kind,item.id,item.name)).collect(),created:Instant::now()});
                 Ok(json!({"sourceId":source_id,"mediaType":media_type,"catalogId":catalog_id,
@@ -307,9 +339,14 @@ impl Registry {
                 self.media_review=Some(MediaReview{id,source_id,media_type,video_id,subtitles,rows:options,created:Instant::now()});
                 Ok(data)
             }
+            Action::AllStreamOptions {media_type,video_id}=>{
+                self.review_all_streams(&media_type,&video_id,|source,kind,video|source.endpoint.item_options(&source.manifest,ItemResource::Stream,kind,video))
+            }
             Action::PrepareMedia {review_id,option_index,start_ms}=>{
                 if start_ms>604800000{return Err("invalid-media-selection");}
-                let review=self.media_review.take().filter(|p|p.id==review_id).ok_or("expired-review")?;
+                let single=self.media_review.take();
+                let grouped=std::mem::take(&mut self.stream_reviews);
+                let review=single.into_iter().chain(grouped).find(|p|p.id==review_id).ok_or("expired-review")?;
                 if !self.sources[self.source_index(review.source_id)?].enabled{return Err("disabled-source");}
                 let option=review.rows.get(option_index).filter(|row|row.supported).ok_or("invalid-media-selection")?;
                 let url=option.url.clone().ok_or("invalid-media-selection")?;
@@ -438,6 +475,30 @@ mod tests {
         registry.media_review=Some(review);
         registry.execute(Action::SetEnabled{source_id:id,enabled:false}).unwrap();
         assert_eq!(registry.execute(Action::PrepareMedia{review_id:100,option_index:0,start_ms:0}),Err("expired-review"));
+    }
+    #[test]
+    fn grouped_stream_reviews_keep_order_isolate_errors_and_select_exact_source(){
+        let mut registry=Registry::default();
+        let ids:Vec<_>=["first","failed","third","disabled"].into_iter().map(|name|{
+            let id=stage(&mut registry,name);
+            registry.execute(Action::Install{review_id:id}).unwrap();id
+        }).collect();
+        registry.execute(Action::SetEnabled{source_id:ids[3],enabled:false}).unwrap();
+        let response=registry.review_all_streams("movie","tt123",|source,_,_|{
+            if source.id==ids[1]{return Err("network");}
+            Ok(vec![OptionSummary{name:"HD".into(),supported:true,reason:"direct-https",language:None,url:Some(format!("https://cdn.example.org/{}?token=private-fixture",source.id))}])
+        }).unwrap();
+        let groups=response["groups"].as_array().unwrap();
+        assert_eq!(groups.iter().map(|g|g["sourceId"].as_u64().unwrap() as u32).collect::<Vec<_>>(),ids[..3]);
+        assert_eq!(groups[1]["error"],"network");
+        assert!(!response.to_string().contains("private-fixture"));
+        let first=groups[0]["reviewId"].as_u64().unwrap() as u32;
+        let third=groups[2]["reviewId"].as_u64().unwrap() as u32;
+        registry.execute(Action::PrepareMedia{review_id:first,option_index:0,start_ms:0}).unwrap();
+        assert!(registry.grant.take().unwrap().load().url.contains(&format!("/{}?",ids[0])));
+        assert_eq!(registry.execute(Action::PrepareMedia{review_id:third,option_index:0,start_ms:0}),Err("expired-review"));
+        let empty=registry.review_all_streams("series","tt123:1:1",|_,_,_|panic!("incompatible resource queried")).unwrap();
+        assert_eq!(empty["groups"],json!([]));
     }
     #[test]
     fn review_is_one_use_explicit_and_never_returns_configured_url() {

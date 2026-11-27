@@ -254,10 +254,35 @@ impl Manifest {
     }
 }
 
+// Conventional public artwork paths only. Arbitrary addon image URLs can
+// contain credentials or direct the renderer to a private host.
+fn public_poster(value: &Value) -> Option<String> {
+    let raw=value.as_str()?;
+    if raw.len()>512 || raw.chars().any(|c|c.is_control()||c.is_whitespace()) || raw.contains('\\'){return None;}
+    let url=Url::parse(raw).ok()?;
+    if url.scheme()!="https"||url.port().is_some()||!url.username().is_empty()||url.password().is_some()||
+        url.query().is_some()||url.fragment().is_some(){return None;}
+    let parts:Vec<_>=url.path_segments()?.collect();
+    let safe_file=|s:&str|{
+        let Some((stem,ext))=s.rsplit_once('.')else{return false;};
+        !stem.is_empty()&&stem.len()<=80&&stem.bytes().all(|b|b.is_ascii_alphanumeric()||matches!(b,b'_'|b'-'))&&
+            matches!(ext,"jpg"|"jpeg"|"png"|"webp")
+    };
+    let digits=|s:&str|!s.is_empty()&&s.len()<=12&&s.bytes().all(|b|b.is_ascii_digit());
+    let valid=match (url.host_str()?,parts.as_slice()){
+        ("image.tmdb.org",["t","p",size,file])=>matches!(*size,"w92"|"w154"|"w185"|"w342"|"w500"|"w780"|"original")&&safe_file(file),
+        ("images.metahub.space",["poster",size,id,"img"])=>matches!(*size,"small"|"medium"|"large")&&id.strip_prefix("tt").is_some_and(digits),
+        ("cdn.myanimelist.net",["images","anime",folder,file])=>digits(folder)&&safe_file(file),
+        ("media.kitsu.io",["anime","poster_images",id,file])=>digits(id)&&safe_file(file),
+        _=>false
+    };
+    valid.then(||url.to_string())
+}
 pub struct CatalogItem {
     pub kind: String,
     pub id: String,
     pub name: String,
+    pub poster: Option<String>,
 }
 pub struct CatalogPage {
     pub items: Vec<CatalogItem>,
@@ -276,7 +301,7 @@ impl CatalogPage {
             let name = row["name"].as_str()?;
             if row["type"].as_str()? != kind || !id_valid(id) || !text_valid(name, 512) ||
                 !seen.insert(id) { return None; }
-            Some(CatalogItem { kind: kind.to_owned(), id: id.to_owned(), name: name.to_owned() })
+            Some(CatalogItem { kind: kind.to_owned(), id: id.to_owned(), name: name.to_owned(), poster: public_poster(&row["poster"]) })
         }).collect();
         // Invalid/duplicate sibling rows still count toward the source offset.
         // No guessed fixed page length or cross-provider cursor.
@@ -409,6 +434,16 @@ mod tests {
             "Location: https://example.invalid/private\r\n".into(),||{});
         assert_eq!(fetch(&Url::parse(&base).unwrap(),32),Err("request"));
         server.join().unwrap();
+    }
+    #[test]
+    fn catalogue_posters_only_expose_public_cdn_paths(){
+        let page=CatalogPage::parse(br#"{"metas":[{"id":"tt123","type":"movie","name":"Film","poster":"https://image.tmdb.org/t/p/w342/abc123.jpg"},{"id":"tt456","type":"movie","name":"Private","poster":"https://image.tmdb.org/t/p/w342/abc.jpg?token=private-fixture"},{"id":"tt789","type":"movie","name":"Unknown","poster":"https://example.org/config/private-fixture.jpg"}]}"#,"movie",0,false).unwrap();
+        assert_eq!(page.items[0].poster.as_deref(),Some("https://image.tmdb.org/t/p/w342/abc123.jpg"));
+        assert!(page.items[1..].iter().all(|i|i.poster.is_none()));
+        for raw in ["http://image.tmdb.org/t/p/w342/a.jpg","https://image.tmdb.org.example.org/t/p/w342/a.jpg","https://user:secret@image.tmdb.org/t/p/w342/a.jpg","https://image.tmdb.org:444/t/p/w342/a.jpg","https://image.tmdb.org/t/p/w342/%2Fprivate.jpg","https://images.metahub.space/poster/medium/not-imdb/img"]{
+            assert!(public_poster(&json!(raw)).is_none());
+        }
+        assert!(public_poster(&json!("https://images.metahub.space/poster/medium/tt123/img")).is_some());
     }
     #[test]
     fn response_and_manifest_bounds_reject_malformed_payloads() {

@@ -14,7 +14,7 @@ export function installStremioFixture(initializeStartup=true){
   const send=host.send.bind(host),subscribe=host.subscribe.bind(host),listeners=new Set();
   const manifest={id:'org.fixture',name:'Original addon fixture',version:'1.0.0',resources:['catalog','stream','subtitles'],configurable:false,configurationRequired:false,p2p:false,adult:false,catalogs:[{id:'search',mediaType:'movie',name:'Original films',extras:[{name:'search',required:true,options:[],optionsLimit:null},{name:'skip',required:false,options:[],optionsLimit:null}]}]};
   const emptyRefract=()=>({connected:false,username:null,enabled:false,pending:0,sent:0,skipped:0,retryAt:0,lastError:null});
-  const f=window.__stremioFixture={calls:[],profiles:[{profileId:1,name:'Default',sources:[],history:[],mdblistConnected:false,refract:emptyRefract()}],active:1,pending:null,import:null,sequence:1,mediaReview:null,mediaGrant:null,mediaCalls:[],presenceMessages:[],refractSyncAttempts:0};
+  const f=window.__stremioFixture={calls:[],profiles:[{profileId:1,name:'Default',sources:[],history:[],mdblistConnected:false,refract:emptyRefract()}],active:1,pending:null,import:null,sequence:1,mediaReview:null,streamReviews:[],mediaGrant:null,mediaCalls:[],presenceMessages:[],refractSyncAttempts:0};
   f.emitPlayer=message=>{for(const listener of listeners)listener(message);};
   // Controlled native delivery notification. No real provider traffic and
   // no renderer-side registry request is needed to advance this fixture.
@@ -49,7 +49,7 @@ export function installStremioFixture(initializeStartup=true){
       case 'profile-list':return emit(profileState());
       case 'profile-create':f.profiles.push({profileId:++f.sequence,name:raw.name,sources:[],history:[],mdblistConnected:false,refract:emptyRefract()});return emit(profileState());
       case 'profile-rename':f.profiles.find(p=>p.profileId===raw.profileId).name=raw.name;return emit(profileState());
-      case 'profile-switch':f.active=raw.profileId;f.pending=null;f.import=null;f.mediaReview=null;f.mediaGrant=null;return emit(profileState());
+      case 'profile-switch':f.active=raw.profileId;f.pending=null;f.import=null;f.mediaReview=null;f.streamReviews=[];f.mediaGrant=null;return emit(profileState());
       case 'profile-remove':{
         const target=f.profiles.find(p=>p.profileId===raw.profileId);
         if(!target||target.profileId===f.active||target.name!==raw.confirmedName)return emit(null,'profile-confirmation');
@@ -59,6 +59,7 @@ export function installStremioFixture(initializeStartup=true){
     if(raw.kind!=='profile-request'||raw.profileId!==f.active)return emit(null,'profile-changed');
     const a=raw.action,profile=f.profiles.find(p=>p.profileId===f.active);
     const reply=data=>emit({...data,profileId:raw.profileId});
+    if(['catalog','metadata','item-options','all-stream-options','install','remove','move','set-enabled','import-apply'].includes(a.kind)){f.mediaReview=null;f.streamReviews=[];}
     switch(a.kind){
       case 'list':return reply({sources:profile.sources});
       case 'mal-anime-list':return reply({entries:profile.malAnime??[],matches:profile.malMatches??[]});
@@ -175,6 +176,20 @@ export function installStremioFixture(initializeStartup=true){
         profile.sources.push({sourceId:f.pending,enabled:true,manifest});f.pending=null;return reply({sources:profile.sources});
       case 'set-enabled':profile.sources=profile.sources.map(s=>s.sourceId===a.sourceId?{...s,enabled:a.enabled}:s);return reply({sources:profile.sources});
       case 'remove':profile.sources=profile.sources.filter(s=>s.sourceId!==a.sourceId);return reply({sources:profile.sources});
+      case 'metadata':{
+        const source=profile.sources.find(s=>s.sourceId===a.sourceId&&s.enabled&&s.manifest.resources.includes('meta'));
+        if(!f.boardFixture||!source||source.sourceId!==103)return emit(null,'unsupported-resource');
+        const videos=a.mediaType==='series'?[{id:'ttanime:1:1',name:'Episode one',season:1,episode:1},{id:'ttanime:1:2',name:'Episode two',season:1,episode:2}]:[];
+        return reply({sourceId:a.sourceId,mediaType:a.mediaType,itemId:a.itemId,metadata:{id:a.itemId,name:a.mediaType==='series'?'Fixture anime series':'Fixture cinema film',mediaType:a.mediaType,description:'Metadata from the separate metadata addon.',videos}});
+      }
+      case 'all-stream-options':{
+        const groups=profile.sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(source=>{
+          if(f.boardFixture&&source.sourceId===104)return {sourceId:source.sourceId,reviewId:null,options:[],error:'request'};
+          const id=++f.sequence;f.streamReviews.push({id,subtitles:false});
+          return {sourceId:source.sourceId,reviewId:id,error:null,options:[{name:'HD fixture',supported:true,reason:'direct-https',language:null},{name:'Unsupported fixture',supported:false,reason:'unsupported-transport',language:null}]};
+        });
+        return reply({mediaType:a.mediaType,videoId:a.videoId,groups});
+      }
       case 'item-options':{
         if(!profile.sources.some(s=>s.sourceId===a.sourceId&&s.enabled)||a.videoId!=='tt123')return emit(null,'unsupported-resource');
         const id=++f.sequence;
@@ -184,12 +199,20 @@ export function installStremioFixture(initializeStartup=true){
           [{name:'HD fixture',supported:true,reason:'direct-https',language:null},{name:'Unsupported fixture',supported:false,reason:'unsupported-transport',language:null}]});
       }
       case 'prepare-media':{
-        const review=f.mediaReview;f.mediaReview=null;
+        const review=f.mediaReview?.id===a.reviewId?f.mediaReview:f.streamReviews.find(r=>r.id===a.reviewId);f.mediaReview=null;f.streamReviews=[];
         if(review?.id!==a.reviewId||a.optionIndex!==0)return emit(null,'expired-review');
         f.mediaGrant={id:++f.sequence,subtitles:review.subtitles,startMs:a.startMs};
         return reply({grantId:f.mediaGrant.id,subtitles:review.subtitles});
       }
       case 'catalog':{
+        if(f.boardFixture){
+          const source=profile.sources.find(s=>s.sourceId===a.sourceId&&s.enabled);
+          const catalogue=source?.manifest.catalogs.find(c=>c.id===a.catalogId&&c.mediaType===a.mediaType);
+          if(!catalogue)return emit(null,'unsupported-resource');
+          if(a.catalogId==='broken')return emit(null,'request');
+          const items=a.mediaType==='series'?[{id:'ttanime',mediaType:'series',name:'Fixture anime series',poster:'https://image.tmdb.org/t/p/w342/anime.jpg'}]:[{id:'ttboard',mediaType:'movie',name:'Fixture cinema film',poster:'https://image.tmdb.org/t/p/w342/cinema.jpg'}];
+          return reply({sourceId:a.sourceId,mediaType:a.mediaType,catalogId:a.catalogId,items,sourceCount:items.length,nextSkip:null});
+        }
         if(!profile.sources.some(s=>s.sourceId===a.sourceId&&s.enabled)||a.catalogId!=='search'||a.mediaType!=='movie'||a.extras.search!=='original')return emit(null,'invalid-extras');
         const skip=Number(a.extras.skip??0);
         const items=[{id:skip===0?'tt123':'tt456',name:skip===0?'First original film':'Second original film',mediaType:'movie'}];
@@ -202,7 +225,63 @@ export function installStremioFixture(initializeStartup=true){
   function assertFixtureUrl(url){if(url!=='https://example.invalid/private-fixture/manifest.json?token=fixture')throw Error('unexpected fixture endpoint');}
 }
 
+async function verifyContentFirstWatch({browser,origin,installDesktopFixture,screenshotDir}){
+  const page=await browser.newPage({viewport:{width:1600,height:900}});
+  try{
+    await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
+    await page.addInitScript({content:'('+installDesktopFixture.toString()+')();('+installStremioFixture.toString()+')();('+function(){
+      const f=window.__stremioFixture;f.boardFixture=true;f.sequence=110;
+      localStorage.setItem('tsugi.landscape.local-only','true');
+      const addon=(sourceId,name,resources,catalogs=[],enabled=true)=>({sourceId,enabled,manifest:{id:'fixture.'+sourceId,name,version:'1.0.0',resources,configurable:false,configurationRequired:false,p2p:false,adult:false,catalogs}});
+      const catalog=(id,mediaType,name,extras=[])=>({id,mediaType,name,extras});
+      f.profiles[0].sources=[
+        addon(101,'Catalogue only',['catalog'],[catalog('films','movie','Popular films'),catalog('anime','series','Trending anime'),catalog('broken','movie','Unavailable catalogue')]),
+        addon(102,'Streaming only',['stream']),
+        addon(103,'Metadata only',['meta']),
+        addon(104,'Failed stream addon',['stream']),
+        addon(105,'Disabled addon',['catalog','stream'],[catalog('disabled','movie','Disabled films')],false)
+      ];
+    }.toString()+')();'});
+    await page.goto(origin);
+    await page.getByRole('button',{name:'Movies & TV',exact:true}).first().click();
+    const watch=page.locator('[data-page="direct-watch"]');
+    await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 5 addons',exact:true}).click();
+    const board=watch.locator('[data-ui="watch-catalogue-board"]');
+    const film=board.getByRole('button',{name:'Fixture cinema film',exact:true});
+    await film.waitFor();
+    await board.getByText('This catalogue is unavailable.',{exact:true}).waitFor();
+    assert.equal(await board.getByText('Disabled films',{exact:true}).count(),0);
+    assert.equal(await watch.getByRole('heading',{name:'Installed addons',exact:true}).count(),0);
+    if(screenshotDir){await mkdir(screenshotDir,{recursive:true});await page.screenshot({path:join(screenshotDir,'watch-content-board.png'),animations:'disabled'});}
+    await film.click();
+    const groups=watch.locator('[data-ui="watch-stream-groups"]');
+    await groups.getByText('Streaming only',{exact:true}).waitFor();
+    await groups.getByText('This addon could not return streams. Other sources remain available.',{exact:true}).waitFor();
+    assert.equal(await groups.getByRole('button',{name:'Play',exact:true}).count(),1);
+    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='metadata'&&a.action.sourceId===103)));
+    assert.equal(await page.evaluate(()=>window.__stremioFixture.mediaCalls.some(a=>a.type==='stremio-consume-grant')),false);
+    await groups.getByRole('button',{name:'Play',exact:true}).click();
+    const player=watch.locator('[data-ui="direct-watch-player"]');
+    await player.getByRole('button',{name:'Pause',exact:true}).waitFor();
+    await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
+    await player.waitFor({state:'detached'});
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime',exact:true}).click();
+    const anime=watch.locator('[data-ui="mal-anime-library"]');
+    await anime.locator('[data-ui="watch-catalogue-board"]').getByRole('button',{name:'Fixture anime series',exact:true}).click();
+    const item=watch.locator('[data-ui="watch-item-details"]');
+    await item.getByLabel('Video',{exact:true}).selectOption('ttanime:1:2');
+    await groups.getByRole('button',{name:'Play',exact:true}).click();
+    await player.getByRole('button',{name:'Pause',exact:true}).waitFor();
+    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='all-stream-options'&&a.action.videoId==='ttanime:1:2')));
+    assert.equal(await page.evaluate(()=>window.__stremioFixture.profiles[0].malAnime?.length??0),0);
+    await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
+    await player.waitFor({state:'detached'});
+    console.log('PASS: imported standalone Watch profile loads ordered shelves, isolates failures, resolves metadata and streams across addons, and plays an exact anime episode without MAL or a media server.');
+  }finally{await page.close();}
+}
+
 export async function verifyStremioAddonsBrowser({browser,origin,installDesktopFixture,screenshotDir}){
+  await verifyContentFirstWatch({browser,origin,installDesktopFixture,screenshotDir});
   const page=await browser.newPage();
   try{
     await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
@@ -404,9 +483,9 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await firstLaunch.getByRole('button',{name:'Movies & TV',exact:true}).first().click();
     const watch=firstLaunch.locator('[data-page="direct-watch"]');
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 0 addons',exact:true}).click();
-    await watch.getByRole('heading',{name:'Your addon stack.',exact:true}).waitFor();
+    await watch.getByRole('heading',{name:'Movies & TV',exact:true}).waitFor();
     const watchGlyphs=await watch.locator('.tsugi-watch-nav [data-movie-glyph]').evaluateAll(nodes=>nodes.map(node=>({name:node.getAttribute('data-movie-glyph'),fill:node.getAttribute('fill'),stroke:node.getAttribute('stroke')})));
-    assert.equal(watchGlyphs.length,10);assert.equal(new Set(watchGlyphs.map(g=>g.name)).size,10);assert.ok(watchGlyphs.every(g=>g.fill==='currentColor'&&g.stroke==='none'));
+    assert.equal(watchGlyphs.length,12);assert.equal(new Set(watchGlyphs.map(g=>g.name)).size,12);assert.ok(watchGlyphs.every(g=>g.fill==='currentColor'&&g.stroke==='none'));
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Add addon',exact:true}).click();
     await watch.getByLabel('Configured manifest URL').fill('https://example.invalid/private-fixture/manifest.json?token=fixture');
     await watch.getByRole('checkbox').check();
@@ -706,7 +785,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.ok(headerClearance.controlsBottom>=32&&headerClearance.headerTop>=headerClearance.controlsBottom+8,`Watch header must clear the native window controls: ${JSON.stringify(headerClearance)}`);
     if(screenshotDir)await firstLaunch.screenshot({path:join(screenshotDir,'watch-workspace-narrow.png'),animations:'disabled'});
     console.log('Watch history, direct Watch Rich Presence, MDBList connection/pagination/isolation and narrow layout passed');
-    await watch.getByRole('button',{name:'Home',exact:true}).click();
+    await watch.getByRole('button',{name:'All media',exact:true}).click();
     await firstLaunch.locator('[data-page="desktop-landing"]').waitFor();
     console.log('First launch profile and account import entry and optional skip passed');
   }finally{await firstLaunch.close();}

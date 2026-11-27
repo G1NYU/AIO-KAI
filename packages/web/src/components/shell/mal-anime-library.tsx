@@ -3,6 +3,7 @@ import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
 import { MalCollectionPanel } from './mal-collection-panel';
 import { AnimeDiscovery } from './anime-discovery';
+import { WatchCatalogueBoard } from './watch-catalogue-board';
 import { BrushHeading } from '@/components/brush-heading';
 import { LandscapeDecoration } from '@/components/landscape-decoration';
 import { AnimeCover } from './anime-cover';
@@ -15,7 +16,7 @@ import './anime-hub.css';
 type Item=CatalogPage['items'][number];
 type View='home'|'discover'|'movies'|'list'|'history'|'connections';
 type Props={
-  profileId:number; sources:AddonSource[]; busy:boolean;historyActive:boolean;setupOnly?:boolean;
+  profileId:number; sources:AddonSource[]; busy:boolean;historyActive:boolean;setupOnly?:boolean;detailOpen?:boolean;
   run(work:()=>Promise<void>):Promise<void>;
   openTitle(item:Item,sourceId?:number):void; openHistory(progress:WatchProgress):void;clearTitle():void; openAddons():void;
 };
@@ -44,7 +45,7 @@ function HistoryShelf({rows,busy,open,full=false}:{rows:WatchHistoryEntry[]|null
   </section>;
 }
 
-export function MalAnimeLibrary({profileId,sources,busy,historyActive,setupOnly=false,run,openTitle,openHistory,clearTitle,openAddons}:Props){
+export function MalAnimeLibrary({profileId,sources,busy,historyActive,setupOnly=false,detailOpen=false,run,openTitle,openHistory,clearTitle,openAddons}:Props){
   const [collection,setCollection]=React.useState<MalAnimeCollection|null>(null);
   const [history,setHistory]=React.useState<WatchHistoryEntry[]|null>(null);
   const [view,setView]=React.useState<View>(setupOnly?'list':'home');
@@ -69,7 +70,7 @@ export function MalAnimeLibrary({profileId,sources,busy,historyActive,setupOnly=
       catalog.extras.every(extra=>!extra.required||extra.name==='search'||extra.name==='skip'));
   const chosen=catalogs.find(row=>row.key===catalogue);
   const matchedIds=new Set(collection?.matches.map(row=>identity(row.mediaType,row.itemId))??[]);
-  const animeHistory=history?.filter(({progress:p})=>matchedIds.has(identity(p.mediaType,p.itemId)))??null;
+  const animeHistory=history?.filter(({progress:p})=>p.mediaType==='anime'||matchedIds.has(identity(p.mediaType,p.itemId)))??null;
   async function reload(){await run(async()=>setCollection(await listMalAnime(profileId)));}
   async function reloadHistory(){await run(async()=>{setHistory(null);setHistory(await listWatchHistory(profileId));});}
   React.useEffect(()=>{
@@ -103,8 +104,8 @@ export function MalAnimeLibrary({profileId,sources,busy,historyActive,setupOnly=
     await run(async()=>{const next=await matchMalAnime(profileId,entry.malId,sourceId,item);setCollection(next);setReview(null);setPage(null);saved=true;});
     if(saved)openTitle(item,sourceId);
   }
-  if(!collection)return <section className="space-y-3" data-ui="mal-anime-library"><h2><Trans id="Anime collection">Anime collection</Trans></h2><button className="tsugi-read-action" disabled={busy} onClick={()=>void reload()}><Trans id="Load anime collection">Load anime collection</Trans></button></section>;
-  const rows=collection.entries;
+  if(!collection&&setupOnly)return <section className="space-y-3" data-ui="mal-anime-library"><h2><Trans id="Anime collection">Anime collection</Trans></h2><button className="tsugi-read-action" disabled={busy} onClick={()=>void reload()}><Trans id="Load anime collection">Load anime collection</Trans></button></section>;
+  const rows=collection?.entries??[];
   return <section className="tsugi-anime-hub space-y-5" data-ui="mal-anime-library">
     <nav className="tsugi-anime-nav" aria-label={t({id:'Anime Hub sections',message:'Anime Hub sections'})}>
       {([
@@ -113,10 +114,6 @@ export function MalAnimeLibrary({profileId,sources,busy,historyActive,setupOnly=
         ['history',t({id:'History',message:'History'})],['connections',t({id:'Connections',message:'Connections'})]
       ] as const).filter(([id])=>!setupOnly||id==='list'||id==='connections').map(([id,label])=><button key={id} type="button" aria-current={view===id?'page':undefined} disabled={busy} onClick={()=>navigate(id)}>{label}</button>)}
     </nav>
-    <section className="tsugi-anime-connections" data-ui="anime-connection-shortcuts">
-      <button type="button" disabled={busy} onClick={()=>navigate('list')}><strong><Trans id="MyAnimeList">MyAnimeList</Trans></strong><small><Trans id="Anime MAL import shortcut">Import anime list</Trans></small></button>
-      <button type="button" disabled={busy} onClick={()=>navigate('connections')}><strong><Trans id="Refract">Refract</Trans></strong><small><Trans id="Anime Refract shortcut">Connect personal key</Trans></small></button>
-    </section>
     {view==='connections'&&<section className="space-y-4" data-ui="anime-connections">
       <h2><Trans id="Anime connections">Anime connections</Trans></h2>
       <p><Trans id="Anime connections description">Import your MyAnimeList export without signing in, or connect a Refract personal key to track compatible completed movies and individual episodes in this Watch profile.</Trans></p>
@@ -131,22 +128,29 @@ export function MalAnimeLibrary({profileId,sources,busy,historyActive,setupOnly=
         <div className="tsugi-anime-hero-copy"><span className="tsugi-anime-eyebrow"><Trans id="Your next world">Your next world</Trans></span>
           <BrushHeading as="h2" className="tsugi-anime-brush"><Trans id="Anime Hub">Anime Hub</Trans></BrushHeading>
           <p><Trans id="Anime Hub description">One home for anime series, films and the stories you want to return to. Discover through your addons, or bring your MyAnimeList collection.</Trans></p>
-          <p className="tsugi-anime-stats">{rows.length} <Trans id="imported titles">imported titles</Trans> · {collection.matches.length} <Trans id="matched sources">matched sources</Trans></p>
+          <p className="tsugi-anime-stats">{rows.length} <Trans id="imported titles">imported titles</Trans> · {collection?.matches.length??0} <Trans id="matched sources">matched sources</Trans></p>
           <div className="flex flex-wrap gap-2"><button className="tsugi-anime-primary" disabled={busy} onClick={()=>navigate('discover')}><Trans id="Discover anime">Discover anime</Trans></button><button className="tsugi-read-action" disabled={busy} onClick={()=>navigate('list')}><Trans id="My List">My List</Trans></button></div>
         </div>
         <div className="tsugi-anime-hero-controls"><button type="button" aria-label={t({id:'Previous bundled illustration',message:'Previous bundled illustration'})} onClick={()=>setHero(i=>(i+artwork.length-1)%artwork.length)}>‹</button><span>{hero+1} / {artwork.length}</span><button type="button" aria-label={t({id:'Next bundled illustration',message:'Next bundled illustration'})} onClick={()=>setHero(i=>(i+1)%artwork.length)}>›</button></div>
       </section>
+      {!setupOnly&&<WatchCatalogueBoard key="anime-home" profileId={profileId} sources={sources} busy={busy} active={historyActive} paused={detailOpen||!!entry} scope="anime" run={run} openTitle={openTitle} openAddons={openAddons}/>}
       <HistoryShelf rows={animeHistory} busy={busy} open={openHistory}/>
       <Shelf title={t({id:'Watching in My List',message:'Watching in My List'})} rows={rows.filter(row=>row.status==='active')} busy={busy} onSelect={choose} covers={coverEnabled}/>
       <Shelf title={t({id:'Anime films in My List',message:'Anime films in My List'})} rows={rows.filter(row=>row.format.toLowerCase()==='movie')} busy={busy} onSelect={choose} covers={coverEnabled}/>
       <Shelf title={t({id:'Plan to watch',message:'Plan to watch'})} rows={rows.filter(row=>row.status==='planned')} busy={busy} onSelect={choose} covers={coverEnabled}/>
     </>}
+    {view==='movies'&&!setupOnly&&<WatchCatalogueBoard key="anime-films" profileId={profileId} sources={sources} busy={busy} active={historyActive} paused={detailOpen||!!entry} scope="anime-films" run={run} openTitle={openTitle} openAddons={openAddons}/>}
     {view==='discover'&&<AnimeDiscovery profileId={profileId} sources={sources} busy={busy} run={run} openTitle={openTitle} clearTitle={clearTitle} openAddons={openAddons}/>}
     {view==='history'&&<><HistoryShelf rows={animeHistory} full busy={busy} open={openHistory}/><button className="tsugi-read-action" disabled={busy} onClick={()=>void reloadHistory()}><Trans id="Reload history">Reload history</Trans></button></>}
-    {(view==='home'||view==='list'||view==='movies')&&<MalCollectionPanel key={view} kind="anime" entries={rows} busy={busy} selectedId={selected} run={run} onSelect={setupOnly?undefined:choose} renderArtwork={coverEnabled?row=><AnimeCover malId={row.malId} enabled/>:undefined}
+    {!collection&&view==='list'&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void reload()}><Trans id="Load anime collection">Load anime collection</Trans></button>}
+    {collection&&(view==='home'||view==='list'||view==='movies')&&<MalCollectionPanel key={view} kind="anime" entries={rows} busy={busy} selectedId={selected} run={run} onSelect={setupOnly?undefined:choose} renderArtwork={coverEnabled?row=><AnimeCover malId={row.malId} enabled/>:undefined}
       formatScope={view==='movies'?'movie':undefined} isAssigned={row=>collection.matches.some(match=>match.malId===row.malId)}
       onImport={async entries=>setCollection(await importMalAnime(profileId,entries))}
       onRemove={async id=>{setCollection(await removeMalAnime(profileId,id));if(selected===id){setSelected(null);reset();}}}/>}
+    <section className="tsugi-anime-connections" data-ui="anime-connection-shortcuts">
+      <button type="button" disabled={busy} onClick={()=>navigate('list')}><strong><Trans id="MyAnimeList">MyAnimeList</Trans></strong><small><Trans id="Anime MAL import shortcut">Import anime list</Trans></small></button>
+      <button type="button" disabled={busy} onClick={()=>navigate('connections')}><strong><Trans id="Refract">Refract</Trans></strong><small><Trans id="Anime Refract shortcut">Connect personal key</Trans></small></button>
+    </section>
     {setupOnly&&view==='list'&&<p><Trans id="Anime onboarding import note">Imported titles are available in Anime Hub after setup. Choose playback sources there whenever you are ready.</Trans></p>}
     {!setupOnly&&entry&&<section ref={selectionRef} tabIndex={-1} aria-labelledby="mal-source-title" className="tsugi-anime-source space-y-3" data-ui="mal-anime-source">
       <div className="flex flex-wrap items-center justify-between gap-2"><h4 id="mal-source-title" className="break-words">{entry.title}</h4><button className="tsugi-read-action" disabled={busy} onClick={()=>{setSelected(null);reset();}}><Trans id="Close">Close</Trans></button></div>

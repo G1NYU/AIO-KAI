@@ -9,12 +9,12 @@ import { useMediaPresence } from '@/lib/rich-presence';
 import { usePlayerPage } from '@/app/player/page';
 import './watch.css';
 
-export function DirectWatchPage({openWelcome,openVideo,initialPane='addons'}:{openWelcome:()=>void;openVideo:()=>void;initialPane?:WatchEntryPane}){
+export function DirectWatchPage({openWelcome,openVideo,initialPane='home'}:{openWelcome:()=>void;openVideo:()=>void;initialPane?:WatchEntryPane}){
   const [playing,setPlaying]=React.useState<WatchPlayback|null>(null);
   const [historyError,setHistoryError]=React.useState(false);
   return <main data-page="direct-watch" className="tsugi-direct-watch">
     <div hidden={!!playing} inert={!!playing}>
-      <header className="flex flex-wrap gap-3 justify-between"><button type="button" className="tsugi-read-action" onClick={openWelcome}><Trans>Home</Trans></button><button type="button" className="tsugi-read-action" onClick={openVideo}><Trans>Connect to a media server</Trans></button></header>
+      <header className="flex flex-wrap gap-3 justify-between"><button type="button" className="tsugi-read-action" onClick={openWelcome}><Trans id="All media">All media</Trans></button><button type="button" className="tsugi-read-action" onClick={openVideo}><Trans>Connect to a media server</Trans></button></header>
       {historyError&&<p role="alert"><Trans>Watch progress could not be confirmed saved. Check your history before resuming.</Trans></p>}
       <StremioAddonSettings workspace initialPane={initialPane} onPlay={setPlaying} historyActive={!playing}/>
     </div>

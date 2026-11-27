@@ -5,7 +5,7 @@ import type { ResumeRow, ResumeTarget } from './up-next';
 /** A desktop-only mode above the AIOStreams (Jellyfin) session boundary. */
 export type DesktopArea = 'welcome' | 'video' | 'music' | 'read' | 'vault' | 'watch';
 
-export type WatchEntryPane = 'addons' | 'anime' | 'stremio' | 'nuvio';
+export type WatchEntryPane = 'home' | 'addons' | 'anime' | 'stremio' | 'nuvio';
 
 export type DesktopAreaActions = {
   openWelcome(): void;
