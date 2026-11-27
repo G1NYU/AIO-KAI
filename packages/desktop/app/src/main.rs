@@ -753,7 +753,7 @@ pub fn handle(
             if let Some(p) = player.as_ref() { p.cancel_soundcloud_search(request); }
         }
         Inbound::TorboxRequest { request, .. } => emit(Outbound::TorboxResult { request, data: None, error: Some("unsupported".into()) }),
-        Inbound::StremioRequest { request, .. } => emit(Outbound::StremioResult { request, data: None, error: Some("unsupported".into()) }),
+        Inbound::StremioRequest { request, .. } | Inbound::StremioConsumeGrant { request, .. } => emit(Outbound::StremioResult { request, data: None, error: Some("unsupported".into()) }),
         Inbound::TsugiReleaseCheck { request } => emit(Outbound::TsugiReleaseResult { request, data: None, error: Some("Tsugi release discovery is unavailable in this session.".into()) }),
         Inbound::BackupRequest { request, .. } => emit(Outbound::BackupResult { request, data: None, error: Some("Managed backups are unavailable in this desktop session.".into()) }),
         Inbound::ReadRequest { request, .. } => {

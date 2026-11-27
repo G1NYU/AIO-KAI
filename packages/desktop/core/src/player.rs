@@ -543,7 +543,7 @@ impl Player {
     /// Errs only on refused requests; mpv's own errors reach the page as a message.
     pub fn load(&self, load: &Load, local: &dyn Fn(&str) -> bool) -> Result<(), String> {
         let mut file = Loadfile::new(load, local)?;
-        log::info!("load url={} options={}", file.url, file.options.join(","));
+        log::info!("load media (address and options omitted)");
         if let Some(playable) = self
             .youtube
             .lock()
@@ -593,7 +593,7 @@ impl Player {
         local: &dyn Fn(&str) -> bool,
     ) -> Result<(), String> {
         playback::check_url(url, local)?;
-        log::info!("add subtitle url={url}");
+        log::info!("add external subtitle (address omitted)");
         if let Some(id) = replace {
             self.send(Request::Command(vec!["sub-remove".into(), id.to_string()]));
         }
@@ -853,7 +853,7 @@ fn serve(mpv: &Mpv, emit: &Emit, inbox: &mpsc::Receiver<Request>) {
             Request::Command(args) => {
                 let refs: Vec<&str> = args.iter().map(String::as_str).collect();
                 if let Err(e) = mpv.command(&refs) {
-                    fail(format!("mpv command {args:?}: {e}"));
+                    fail(format!("mpv command {}: {e}",args.first().map(String::as_str).unwrap_or("unknown")));
                 }
             }
             Request::SetProp(name, value) => {

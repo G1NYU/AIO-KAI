@@ -347,6 +347,8 @@ pub fn run(app: App) {
             #[cfg(windows)]
             let stremio = stremio.clone();
             #[cfg(windows)]
+            let mut active_watch:Option<(u32,String,String)>=None;
+            #[cfg(windows)]
             let reading = reading.clone();
             #[cfg(windows)]
             let (backup_root, backup_busy) = (backup_root.clone(), backup_busy.clone());
@@ -374,7 +376,38 @@ pub fn run(app: App) {
                     };
                     #[cfg(windows)]
                     let message = match message {
+                        message @ (bridge::Inbound::PlayerLoad { .. } | bridge::Inbound::PlayerStop { .. }) => {
+                            active_watch=None;
+                            if let Some(worker)=&stremio{worker.invalidate_grant();}
+                            message
+                        }
+                        bridge::Inbound::StremioConsumeGrant { request, grant_id } => {
+                            if request.is_empty()||request.len()>128||!request.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-'){return;}
+                            let result=(||{
+                                let grant=stremio.as_ref().and_then(|worker|worker.take_grant(grant_id)).ok_or("expired-review")?;
+                                let owner=player.borrow();
+                                let p=owner.as_ref().ok_or("unsupported")?;
+                                let (profile,kind,video)=grant.identity();
+                                let identity=(profile,kind.to_owned(),video.to_owned());
+                                if grant.is_subtitle(){
+                                    if active_watch.as_ref()!=Some(&identity){return Err("invalid-media-selection");}
+                                    let (url,language)=grant.subtitle();
+                                    p.add_subtitle_url(url,"Addon subtitle",language,None,&|_|false).map_err(|_|"request")?;
+                                }else{
+                                    p.stop_music_audio();
+                                    p.load(&grant.load(),&|_|false).map_err(|_|"request")?;
+                                    active_watch=Some(identity);
+                                }
+                                Ok(serde_json::json!({"grantId":grant_id,"accepted":true,"subtitles":grant.is_subtitle()}))
+                            })();
+                            let (data,error)=match result{Ok(data)=>(Some(data),None),Err(error)=>(None,Some(error.to_owned()))};
+                            send(UserEvent::Emit(receive_script(&Outbound::StremioResult{request,data,error})));
+                            return;
+                        }
                         bridge::Inbound::StremioRequest { request, action } => {
+                            if matches!(&action,aiostreams_desktop_core::stremio::registry::Action::ProfileSwitch{..}|aiostreams_desktop_core::stremio::registry::Action::ProfileRemove{..}){
+                                if active_watch.take().is_some()&&let Some(p)=player.borrow().as_ref(){p.stop();}
+                            }
                             let error = match &stremio {
                                 Some(worker) => {
                                     if worker.request(request.clone(), action) { return; }

@@ -1,10 +1,10 @@
 //! Native addon review and source registry. Profile scoping and Windows
 //! protected persistence are handled in the profiles and store modules.
-use super::{Endpoint, Manifest, Declaration, Result, ItemResource};
+use super::{Endpoint, Manifest, Declaration, Result, ItemResource, items::OptionSummary};
 use crate::bridge::Outbound;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::{collections::{BTreeMap, BTreeSet}, fmt, sync::mpsc, thread, time::{Duration, Instant}};
+use std::{collections::{BTreeMap, BTreeSet}, fmt, sync::{mpsc, Arc, Mutex}, thread, time::{Duration, Instant}};
 
 mod accounts;
 pub use accounts::Provider as ImportProvider;
@@ -39,6 +39,7 @@ pub enum Action {
     Catalog { source_id: u32, media_type: String, catalog_id: String, extras: BTreeMap<String,String> },
     Metadata { source_id: u32, media_type: String, item_id: String },
     ItemOptions { source_id: u32, media_type: String, video_id: String, subtitles: bool },
+    PrepareMedia { review_id: u32, option_index: usize, start_ms: u64 },
 }
 impl fmt::Debug for Action {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -62,12 +63,38 @@ struct Source {
     enabled: bool,
 }
 
+#[derive(Clone)]
+struct MediaReview {
+    id:u32, source_id:u32, media_type:String, video_id:String, subtitles:bool,
+    rows:Vec<OptionSummary>, created:Instant,
+}
+/// Short-lived native-only handoff. Never serialized or formatted with Debug.
+#[derive(Clone)]
+pub struct MediaGrant {
+    id:u32, profile_id:u32, media_type:String, video_id:String,
+    url:String, language:Option<String>, subtitles:bool, start_ms:u64, created:Instant,
+}
+impl MediaGrant {
+    pub fn id(&self)->u32{self.id}
+    pub fn identity(&self)->(u32,&str,&str){(self.profile_id,&self.media_type,&self.video_id)}
+    pub fn is_subtitle(&self)->bool{self.subtitles}
+    pub fn subtitle(&self)->(&str,&str){(&self.url,self.language.as_deref().unwrap_or(""))}
+    pub fn load(&self)->crate::playback::Load{
+        crate::playback::Load{url:self.url.clone(),headers:BTreeMap::new(),start_ms:self.start_ms as f64,
+            append:false,live:false,audio_languages:Vec::new(),subtitle_languages:Vec::new(),
+            subtitle_mode:crate::playback::SubtitleMode::Default}
+    }
+}
+#[derive(Default)]
+struct GrantSlot { generation:u64, grant:Option<MediaGrant> }
 #[derive(Clone, Default)]
 struct Registry {
     sequence: u32,
     sources: Vec<Source>,
     pending: Option<Reviewed>,
     import: Option<accounts::Flow>,
+    media_review: Option<MediaReview>,
+    grant: Option<MediaGrant>,
 }
 
 /// Only bounded display fields and declared capabilities cross the bridge.
@@ -100,6 +127,8 @@ impl Registry {
     fn expire(&mut self) {
         if self.pending.as_ref().is_some_and(|p| p.created.elapsed() >= REVIEW_TTL) { self.pending = None; }
         if self.import.as_ref().is_some_and(|p| p.expired()) { self.import = None; }
+        if self.media_review.as_ref().is_some_and(|p|p.created.elapsed()>=REVIEW_TTL){self.media_review=None;}
+        if self.grant.as_ref().is_some_and(|p|p.created.elapsed()>=Duration::from_secs(15)){self.grant=None;}
     }
     fn check_endpoint(&self, endpoint: &Endpoint) -> Result<()> {
         if self.sources.len() >= MAX_SOURCES { return Err("source-limit"); }
@@ -119,6 +148,8 @@ impl Registry {
     }
     fn execute(&mut self, action: Action) -> Result<Value> {
         self.expire();
+        self.grant=None;
+        if matches!(&action,Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::ItemOptions{..}|Action::Metadata{..}|Action::Catalog{..}) {self.media_review=None;}
         match action {
             Action::List => Ok(self.list()),
             Action::ImportConnect { provider,email,password } => self.import_connect(provider,&email,&password),
@@ -186,22 +217,40 @@ impl Registry {
                 if !source.enabled{return Err("disabled-source");}
                 let resource=if subtitles{ItemResource::Subtitles}else{ItemResource::Stream};
                 let options=source.endpoint.item_options(&source.manifest,resource,&media_type,&video_id)?;
-                Ok(json!({"sourceId":source_id,"mediaType":media_type,"videoId":video_id,"subtitles":subtitles,"options":options}))
+                self.sequence=self.sequence.checked_add(1).ok_or("source-limit")?;
+                let id=self.sequence;
+                let data=json!({"sourceId":source_id,"mediaType":media_type,"videoId":video_id,"subtitles":subtitles,"reviewId":id,"options":options});
+                self.media_review=Some(MediaReview{id,source_id,media_type,video_id,subtitles,rows:options,created:Instant::now()});
+                Ok(data)
+            }
+            Action::PrepareMedia {review_id,option_index,start_ms}=>{
+                if start_ms>604800000{return Err("invalid-media-selection");}
+                let review=self.media_review.take().filter(|p|p.id==review_id).ok_or("expired-review")?;
+                if !self.sources[self.source_index(review.source_id)?].enabled{return Err("disabled-source");}
+                let option=review.rows.get(option_index).filter(|row|row.supported).ok_or("invalid-media-selection")?;
+                let url=option.url.clone().ok_or("invalid-media-selection")?;
+                self.sequence=self.sequence.checked_add(1).ok_or("source-limit")?;
+                let id=self.sequence;
+                self.grant=Some(MediaGrant{id,profile_id:0,media_type:review.media_type,video_id:review.video_id,
+                    url,language:option.language.clone(),subtitles:review.subtitles,start_ms,created:Instant::now()});
+                Ok(json!({"grantId":id,"subtitles":review.subtitles}))
             }
             _ => Err("profile-required"),
         }
     }
 }
 
-pub struct Worker(mpsc::SyncSender<(String,Action)>);
+pub struct Worker(mpsc::SyncSender<(String,Action,u64)>,Arc<Mutex<GrantSlot>>);
 impl Worker {
     #[cfg(windows)]
     pub fn start(root: std::path::PathBuf, emit: impl Fn(Outbound) + Send + 'static) -> Self {
-        let (tx,rx) = mpsc::sync_channel::<(String,Action)>(2);
+        let (tx,rx) = mpsc::sync_channel::<(String,Action,u64)>(2);
+        let slot=Arc::new(Mutex::new(GrantSlot::default()));
+        let worker_slot=slot.clone();
         thread::spawn(move || {
             let mut opened = store::Store::open(&root);
             loop {
-                let (request,action)=match rx.recv_timeout(Duration::from_secs(30)){
+                let (request,action,generation)=match rx.recv_timeout(Duration::from_secs(30)){
                     Ok(message)=>message,
                     Err(mpsc::RecvTimeoutError::Timeout)=>{
                         if let Ok((_,profiles))=&mut opened{profiles.expire_all();}
@@ -224,6 +273,12 @@ impl Worker {
                     Ok((_,profiles)) => profiles.execute(action),
                     Err(error) => Err(*error),
                 };
+                if let Ok((_,profiles))=&mut opened{
+                    let grant=profiles.take_grant();
+                    if result.is_ok()&&let Some(grant)=grant&&let Ok(mut slot)=worker_slot.lock(){
+                        if slot.generation==generation{slot.grant=Some(grant);}
+                    }
+                }
                 let (data,error) = match result {
                     Ok(data) => (Some(data),None),
                     Err(error) => (None,Some(error.to_owned())),
@@ -231,12 +286,24 @@ impl Worker {
                 emit(Outbound::StremioResult { request,data,error });
             }
         });
-        Self(tx)
+        Self(tx,slot)
     }
     pub fn request(&self, request: String, action: Action) -> bool {
-        !request.is_empty() && request.len() <= 128 &&
-            request.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') &&
-            self.0.try_send((request,action)).is_ok()
+        if request.is_empty()||request.len()>128||!request.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-'){return false;}
+        let Ok(mut slot)=self.1.lock() else{return false;};
+        // A newer request immediately invalidates a pending handoff, even
+        // when the worker is occupied and the newer request cannot enqueue.
+        slot.grant=None;
+        let Some(generation)=slot.generation.checked_add(1) else{return false;};
+        slot.generation=generation;
+        self.0.try_send((request,action,generation)).is_ok()
+    }
+    pub fn take_grant(&self,id:u32)->Option<MediaGrant>{
+        let mut slot=self.1.lock().ok()?;
+        slot.grant.take().filter(|grant|grant.id==id&&grant.created.elapsed()<Duration::from_secs(15))
+    }
+    pub fn invalidate_grant(&self){
+        if let Ok(mut slot)=self.1.lock(){slot.grant=None;slot.generation=slot.generation.saturating_add(1);}
     }
 }
 

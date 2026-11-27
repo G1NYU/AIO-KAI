@@ -57,7 +57,7 @@ fn name_valid(name: &str) -> bool {
 }
 fn source_action(action: &Action) -> bool {
     matches!(action,Action::List|Action::Review{..}|Action::Install{..}|Action::CancelReview{..}|
-        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|
+        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::PrepareMedia{..}|
         Action::ImportConnect{..}|Action::ImportNuvioProfile{..}|Action::ImportReview{..}|Action::ImportApply{..}|Action::ImportCancel{..})
 }
 pub(super) fn is_mutation(action: &Action) -> bool {
@@ -85,6 +85,12 @@ impl Profiles {
         })).collect();
         json!({"activeProfileId":self.active,"profiles":profiles})
     }
+    pub(super) fn take_grant(&mut self)->Option<super::MediaGrant>{
+        let index=self.index(self.active).ok()?;
+        let mut grant=self.profiles[index].registry.grant.take()?;
+        grant.profile_id=self.active;
+        Some(grant)
+    }
     pub(super) fn expire_all(&mut self){for profile in &mut self.profiles{profile.registry.expire();}}
     pub(super) fn execute(&mut self, action:Action) -> Result<Value> {
         match action {
@@ -109,7 +115,7 @@ impl Profiles {
                 if self.active!=profile_id {
                     // Reviews cannot survive a profile switch. Source ids
                     // are globally unique and never reused by another profile.
-                    for profile in &mut self.profiles {profile.registry.pending=None;profile.registry.import=None;}
+                    for profile in &mut self.profiles {profile.registry.pending=None;profile.registry.import=None;profile.registry.media_review=None;profile.registry.grant=None;}
                     self.active=profile_id;
                 }
                 Ok(self.list())
@@ -177,7 +183,7 @@ impl Profiles {
                 if manifest.behavior_hints.configuration_required{return Err("profile-store");}
                 sources.push(Source{id:source.id,endpoint,manifest,enabled:source.enabled});
             }
-            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,pending:None,import:None}});
+            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,..Registry::default()}});
         }
         if !profiles.iter().any(|p|p.id==saved.active){return Err("profile-store");}
         Ok(Self{active:saved.active,sequence:saved.sequence,profiles})

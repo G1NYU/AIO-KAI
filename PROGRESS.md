@@ -1329,3 +1329,6 @@ User supplied TSUGI-Watch-Interactive-Fixed.html and annotated welcome screensho
 
 ## 2026-11-27 — D4 item response foundation
 - Native exact metadata/video, stream and subtitle resource parsing and profile-scoped requests; bounded payloads, direct HTTPS classification, no signed media URLs in item display responses. Watch catalogue items now open actual metadata, episode/video selection and per-addon stream/subtitle compatibility previews. Native fixtures cover exact IDs, duplicate videos, wrong metadata, URL and transport rejection. No player launch or external account credential changes in this commit. Next: native one-use media grants, direct Watch player, and subtitle attachment; live providers and browser/Windows CI still required.
+
+## 2026-11-27 — Native direct media handoff
+- Native option reviews now retain exact supported HTTPS URLs only in memory; opaque, one-use, short-lived grants bind the reviewed choice and current profile/video. Any newer request invalidates unconsumed grants. Trusted Windows shell consumes the grant into the existing mpv player or adds a subtitle only when the active Watch identity matches. Ordinary player load/stop invalidates the handoff. Removed raw URL/options logging from native load and command-error paths. Still requires front-end direct-player wiring and browser/native verification; no EXE packaging.

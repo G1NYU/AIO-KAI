@@ -364,6 +364,7 @@ pub enum Inbound {
     SoundcloudCancel { request: String },
     TorboxRequest { request: String, operation: String, value: String },
     StremioRequest { request: String, action: crate::stremio::registry::Action },
+    StremioConsumeGrant { request: String, grant_id: u32 },
     ReadRequest {
         request: String,
         action: ReadAction,

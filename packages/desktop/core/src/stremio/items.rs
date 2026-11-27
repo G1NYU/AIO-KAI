@@ -1,6 +1,6 @@
 //! Bounded item responses from installed HTTP addons. Exact video identities
 //! are retained. Signed media URLs are inspected natively and never included
-//! in display responses; this module does not launch a player.
+//! in display responses. The registry keeps exact reviewed playable options in memory.
 use super::{Endpoint, Manifest, ItemResource, Result, fetch, id_valid, type_valid, text_valid, MAX_URL};
 use serde::Serialize;
 use serde_json::Value;
@@ -28,13 +28,15 @@ pub(super) struct Metadata {
     pub description: Option<String>,
     pub videos: Vec<Video>,
 }
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all="camelCase")]
 pub(super) struct OptionSummary {
     pub name: String,
     pub supported: bool,
     pub reason: &'static str,
     pub language: Option<String>,
+    #[serde(skip)]
+    pub url: Option<String>,
 }
 
 fn display(value: Option<&Value>, max: usize) -> Option<String> {
@@ -103,7 +105,8 @@ fn parse_options(bytes:&[u8],resource:ItemResource)->Result<Vec<OptionSummary>>{
             else if !valid { (false,"invalid-media-url") }
             else if proxy { (false,"proxy-headers") }
             else { (true,"direct-https") };
-        OptionSummary{name,supported,reason,language}
+        let url=if supported{row.get("url").and_then(Value::as_str).map(str::to_owned)}else{None};
+        OptionSummary{name,supported,reason,language,url}
     }).collect())
 }
 impl Endpoint {
