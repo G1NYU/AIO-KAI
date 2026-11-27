@@ -1,11 +1,12 @@
 //! Fixed app-owned Windows profile store. User-scope DPAPI, no plaintext
 //! staging files, and no fallback that silently overwrites unreadable data.
 use super::{profiles::{Profiles,SNAPSHOT_LIMIT},Result};
-use std::{fs::{self,File,OpenOptions},io::{Read,Write},os::windows::fs::MetadataExt,path::{Path,PathBuf},ptr::{null,null_mut}};
+use std::{fs::{self,File,OpenOptions},io::{Read,Write},os::windows::fs::{MetadataExt,OpenOptionsExt},path::{Path,PathBuf},ptr::{null,null_mut}};
 use windows_sys::Win32::{Foundation::LocalFree,Security::Cryptography::{CryptProtectData,CryptUnprotectData,CRYPT_INTEGER_BLOB,CRYPTPROTECT_UI_FORBIDDEN}};
 
 const CIPHER_LIMIT:usize=SNAPSHOT_LIMIT+64*1024;
 const NAME:&str="profiles-v1.dpapi";
+const LOCK:&str="profiles-v1.lock";
 const MAGIC:&[u8]=b"TSUGI-STREMIO-PROFILES-V1\0";
 const REPARSE:u32=0x400;
 
@@ -60,11 +61,27 @@ fn decode(cipher:&[u8])->Result<Profiles>{
     let data=plaintext.strip_prefix(MAGIC).ok_or("profile-store")?;
     Profiles::decode(data)
 }
-pub(super) struct Store{root:PathBuf}
+// An exclusive Windows file handle prevents separate desktop processes from
+// draining the same queue or replacing each other's encrypted snapshots.
+pub(super) struct Store{root:PathBuf,_lock:File}
 impl Store{
     pub(super) fn open(root:&Path)->Result<(Self,Profiles)>{
-        let store=Self{root:root.canonicalize().map_err(|_|"profile-store")?};
-        let path=directory(&store.root)?.join(NAME);
+        let root=root.canonicalize().map_err(|_|"profile-store")?;
+        let dir=directory(&root)?;
+        let lock_path=dir.join(LOCK);
+        match fs::symlink_metadata(&lock_path){
+            Ok(meta) if !regular(&meta)=>return Err("profile-store"),
+            Ok(_)=>(),
+            Err(e) if e.kind()==std::io::ErrorKind::NotFound=>(),
+            Err(_)=>return Err("profile-store"),
+        }
+        // FILE_FLAG_OPEN_REPARSE_POINT + exclusive sharing: never follow a
+        // substituted junction/symlink or permit another writer to open it.
+        let lock=OpenOptions::new().read(true).write(true).create(true).truncate(false)
+            .share_mode(0).custom_flags(0x00200000).open(&lock_path).map_err(|_|"profile-store")?;
+        if !regular(&lock.metadata().map_err(|_|"profile-store")?){return Err("profile-store");}
+        let store=Self{root,_lock:lock};
+        let path=dir.join(NAME);
         let profiles=match fs::symlink_metadata(&path){
             Ok(_)=>decode(&read(&path)?)?,
             Err(e) if e.kind()==std::io::ErrorKind::NotFound=>Profiles::default(),
@@ -127,12 +144,16 @@ mod tests{
         let path=root.0.join("stremio").join(NAME);
         let cipher=fs::read(&path).unwrap();
         assert!(!cipher.windows(b"Synthetic profile sentinel".len()).any(|w|w==b"Synthetic profile sentinel"));
-        let (_,mut restored)=Store::open(&root.0).ok().unwrap();
+        assert!(Store::open(&root.0).is_err());
+        drop(store);
+        let (store,mut restored)=Store::open(&root.0).ok().unwrap();
         assert_eq!(restored.execute(Action::ProfileList).unwrap(),profiles.execute(Action::ProfileList).unwrap());
         restored.execute(Action::ProfileRename{profile_id:2,name:"Renamed".into()}).unwrap();
         store.save(&restored).unwrap();
-        let (_,mut reopened)=Store::open(&root.0).ok().unwrap();
+        drop(store);
+        let (store,mut reopened)=Store::open(&root.0).ok().unwrap();
         assert_eq!(reopened.execute(Action::ProfileList).unwrap(),restored.execute(Action::ProfileList).unwrap());
+        drop(store);
         fs::write(&path,b"corrupt fixture").unwrap();
         assert!(Store::open(&root.0).is_err());
         assert_eq!(fs::read(&path).unwrap(),b"corrupt fixture");

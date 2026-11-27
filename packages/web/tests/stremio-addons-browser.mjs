@@ -13,6 +13,19 @@ function installStremioFixture(){
   const emptyRefract=()=>({connected:false,username:null,enabled:false,pending:0,sent:0,skipped:0,retryAt:0,lastError:null});
   const f=window.__stremioFixture={calls:[],profiles:[{profileId:1,name:'Default',sources:[],history:[],mdblistConnected:false,refract:emptyRefract()}],active:1,pending:null,import:null,sequence:1,mediaReview:null,mediaGrant:null,mediaCalls:[],presenceMessages:[],refractSyncAttempts:0};
   f.emitPlayer=message=>{for(const listener of listeners)listener(message);};
+  // Controlled native delivery notification. No real provider traffic and
+  // no renderer-side registry request is needed to advance this fixture.
+  f.tickRefract=()=>{
+    const profile=f.profiles.find(p=>p.profileId===f.active);
+    if(!profile.refract.enabled||!profile.refract.pending||profile.refract.retryAt>Date.now())return false;
+    if(++f.refractSyncAttempts===1){
+      profile.refract.retryAt=Date.now()+60000;profile.refract.lastError='refract-network';
+    }else{
+      profile.refract.pending--;profile.refract.sent++;profile.refract.retryAt=0;profile.refract.lastError=null;
+    }
+    f.emitPlayer({type:'refract-status-changed',profileId:profile.profileId,data:structuredClone(profile.refract),error:null});
+    return true;
+  };
   host.subscribe=listener=>{listeners.add(listener);const remove=subscribe(listener);return()=>{listeners.delete(listener);remove();};};
   host.send=message=>{
     if(message.type==='presence'||message.type==='discord-configure')f.presenceMessages.push(structuredClone(message));
@@ -74,16 +87,8 @@ function installStremioFixture(){
       case 'refract-disconnect':
         if(profile.refract.pending&&!a.discardPending)return emit(null,'refract-pending');
         profile.refract=emptyRefract();return reply(profile.refract);
-      case 'refract-sync':{
-        if(!profile.refract.enabled)return emit(null,'refract-paused');
-        if(!profile.refract.pending||profile.refract.retryAt>Date.now())return reply(profile.refract);
-        if(++f.refractSyncAttempts===1){
-          profile.refract.retryAt=Date.now()+60000;profile.refract.lastError='refract-network';
-        }else{
-          profile.refract.pending--;profile.refract.sent++;profile.refract.retryAt=0;profile.refract.lastError=null;
-        }
-        return reply(profile.refract);
-      }
+      case 'refract-sync':
+        return profile.refract.enabled?reply(profile.refract):emit(null,'refract-paused');
       case 'refract-watchlist':
         if(!profile.refract.connected)return emit(null,'refract-disconnected');
         if(a.mediaType!=='movie'||a.itemId!=='tt123')return emit(null,'refract-unmatched');
@@ -357,6 +362,9 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal(await firstLaunch.evaluate(()=>JSON.stringify(localStorage).includes('rfk_fixture-only')),false);
     const track=refract.getByRole('checkbox',{name:'Track completed movies and episodes',exact:true});
     assert.equal(await track.isChecked(),false);
+    const checkboxLayout=await track.evaluate(node=>({display:getComputedStyle(node.closest('label')).display,control:node.getBoundingClientRect().top,text:node.closest('label').querySelector('span').getBoundingClientRect().top}));
+    assert.equal(checkboxLayout.display,'flex');
+    assert.ok(Math.abs(checkboxLayout.control-checkboxLayout.text)<=8,'Tracking checkbox and caption should share one row');
     await track.check();
     await firstLaunch.waitForFunction(()=>window.__stremioFixture.profiles.find(p=>p.profileId===1).refract.enabled);
     await refractKey.fill('rfk_other_account');
@@ -467,6 +475,12 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Refract',exact:true}).click();
     await refractConnect.waitFor();
     assert.equal(await refract.getByText('Fixture member',{exact:true}).count(),0);
+    assert.equal(await firstLaunch.evaluate(()=>{
+      const f=window.__stremioFixture;
+      f.emitPlayer({type:'refract-status-changed',profileId:1,data:structuredClone(f.profiles.find(p=>p.profileId===1).refract),error:null});
+      return f.tickRefract();
+    }),false);
+    assert.equal(await refract.getByText('Fixture member',{exact:true}).count(),0);
     await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 1 addons',exact:true}).click();
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Watch history',exact:true}).click();
@@ -478,17 +492,24 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Refract',exact:true}).click();
     await refract.getByText('Fixture member',{exact:true}).waitFor();
     await refract.getByText('Pending: 1',{exact:true}).waitFor();
-    await refract.getByRole('button',{name:'Sync next watch',exact:true}).click();
+    // Native delivery attempts and retries update the settings without
+    // a user clicking Sync or a status request invalidating a media grant.
+    const syncRequests=await firstLaunch.evaluate(()=>window.__stremioFixture.calls.filter(a=>a.kind==='profile-request'&&a.action.kind==='refract-sync').length);
+    assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.tickRefract()),true);
     await refract.getByText('Refract could not be reached. Local Watch history is preserved.',{exact:true}).waitFor();
-    await firstLaunch.evaluate(()=>{window.__stremioFixture.profiles.find(p=>p.profileId===1).refract.retryAt=0;});
-    await refract.getByRole('button',{name:'Refresh Refract status',exact:true}).click();
+    assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.tickRefract()),false);
     await refract.getByRole('button',{name:'Sync next watch',exact:true}).click();
+    await refract.getByText('Pending: 1',{exact:true}).waitFor();
+    assert.equal(await firstLaunch.evaluate(()=>{
+      const f=window.__stremioFixture;f.profiles.find(p=>p.profileId===1).refract.retryAt=0;return f.tickRefract();
+    }),true);
     await refract.getByText('Sent: 1',{exact:true}).waitFor();
+    assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.calls.filter(a=>a.kind==='profile-request'&&a.action.kind==='refract-sync').length),syncRequests+1);
     await refract.getByText('Pending: 0',{exact:true}).waitFor();
     await refract.getByRole('button',{name:'Disconnect',exact:true}).click();
     await refract.getByRole('button',{name:'Confirm disconnect',exact:true}).click();
     await refractConnect.waitFor();
-    console.log('Refract personal-key connection, profile isolation, watchlist protection, opt-in queue and retry passed');
+    console.log('Refract personal-key connection, profile isolation, watchlist protection, native status notifications and automatic retry fixture passed');
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'MDBList',exact:true}).click();
     await mdb.getByText('Connected to MDBList for this profile.',{exact:true}).waitFor();
     await mdb.getByRole('button',{name:'Disconnect',exact:true}).click();

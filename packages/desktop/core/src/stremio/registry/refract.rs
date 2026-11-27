@@ -5,7 +5,7 @@ use super::super::{read_bounded,text_valid,Result};
 use super::history::Progress;
 use serde::{Deserialize,Serialize};
 use serde_json::{json,Value};
-use std::{collections::BTreeSet,time::{Duration,SystemTime,UNIX_EPOCH}};
+use std::{collections::BTreeSet,sync::{Arc,Mutex},time::{Duration,SystemTime,UNIX_EPOCH}};
 use url::Url;
 
 const API:&str="https://getrefract.app/v1";
@@ -151,7 +151,7 @@ fn request_id()->Result<String>{
 #[cfg(not(windows))]
 fn request_id()->Result<String>{Err("unsupported")}
 
-#[derive(Clone,Serialize,Deserialize)]
+#[derive(Clone,PartialEq,Eq,Serialize,Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Job{identity:Identity,watched_at:u64,request_id:String,attempts:u32}
 impl Job{
@@ -238,8 +238,7 @@ fn resolve(key:&str,identity:&Identity)->Remote<Match>{
     let url=identity.lookup().map_err(Failure::new)?;
     unique_match(get(key,url.as_str())?,&identity.kind).map_err(Failure::new)
 }
-fn send_watch(key:&str,job:&Job)->Remote<()>{
-    let matched=resolve(key,&job.identity)?;
+fn send_watch(key:&str,job:&Job,matched:Match)->Remote<()>{
     let watched_at=instant(job.watched_at).map_err(Failure::new)?;
     let bearer=format!("Bearer {key}");let agent=agent();
     if job.identity.kind==Kind::Movie{
@@ -256,6 +255,43 @@ fn send_watch(key:&str,job:&Job)->Remote<()>{
             .map_err(|_|Failure::new("refract-network"))?,false)?;
     }
     Ok(())
+}
+// A single native delivery is permitted to cross the lookup/write boundary
+// only while its owner is current. The gate is held for the transition, not
+// for network I/O. The actor can cancel lookup or reject an account change
+// after the mutation is authorized; it never blocks waiting for a request.
+#[derive(Clone,Copy,PartialEq,Eq)]
+enum Phase{Lookup,Writing,Cancelled}
+#[derive(Clone)]
+pub(super) struct Delivery{
+    key:String,member_id:String,job:Job,gate:Arc<Mutex<Phase>>,
+}
+pub(super) struct DeliveryResult(Option<Remote<()>>);
+impl Delivery{
+    pub(super) fn cancel_before_write(&self)->bool{
+        let Ok(mut phase)=self.gate.lock()else{return false;};
+        if *phase==Phase::Writing{return false;}
+        *phase=Phase::Cancelled;true
+    }
+    fn begin_write(&self)->bool{
+        let Ok(mut phase)=self.gate.lock()else{return false;};
+        if *phase!=Phase::Lookup{return false;}
+        *phase=Phase::Writing;true
+    }
+    pub(super) fn run(&self)->DeliveryResult{
+        let matched=resolve(&self.key,&self.job.identity);
+        if !self.begin_write(){return DeliveryResult(None);}
+        DeliveryResult(Some(matched.and_then(|m|send_watch(&self.key,&self.job,m))))
+    }
+    #[cfg(test)]
+    pub(super) fn succeeded_for_test(&self)->DeliveryResult{
+        assert!(self.begin_write());
+        DeliveryResult(Some(Ok(())))
+    }
+    pub(super) fn interrupted(&self)->DeliveryResult{
+        if self.cancel_before_write(){DeliveryResult(None)}
+        else{DeliveryResult(Some(Err(Failure::new("refract-network"))))}
+    }
 }
 #[derive(Clone,Default)]
 pub(super) struct Connection{saved:Option<Saved>}
@@ -315,13 +351,31 @@ impl Connection{
             Err(code)=>{saved.skipped=saved.skipped.saturating_add(1);saved.last_error=Some(code.into());}
         }
     }
-    pub(super) fn sync(&mut self)->Result<Value>{
-        let now=now_ms()?;
-        let saved=self.saved.as_mut().ok_or("refract-disconnected")?;
+    // Explicit "sync next" requests now acknowledge queue state; the same
+    // scheduler handles both manual and automatic delivery, with one flight.
+    pub(super) fn sync(&self)->Result<Value>{
+        let saved=self.saved.as_ref().ok_or("refract-disconnected")?;
         if !saved.enabled{return Err("refract-paused");}
-        if saved.jobs.is_empty()||saved.retry_at>now{return Ok(self.status());}
-        match send_watch(&saved.key,&saved.jobs[0]){
-            Ok(())=>{saved.jobs.remove(0);saved.sent=saved.sent.saturating_add(1);saved.last_error=None;saved.retry_at=0;},
+        Ok(self.status())
+    }
+    pub(super) fn delivery(&self)->Option<Delivery>{
+        let saved=self.saved.as_ref()?;
+        if !saved.enabled||saved.retry_at>now_ms().ok()?{return None;}
+        Some(Delivery{key:saved.key.clone(),member_id:saved.member_id.clone(),job:saved.jobs.first()?.clone(),
+            gate:Arc::new(Mutex::new(Phase::Lookup))})
+    }
+    pub(super) fn finish_delivery(&mut self,delivery:&Delivery,result:&DeliveryResult)->Result<bool>{
+        let Some(outcome)=result.0.as_ref()else{return Ok(false);};
+        let Some(saved)=self.saved.as_mut()else{return Ok(false);};
+        // Commit only the exact queued job and its original account, even if
+        // another profile is now active. Never mutate the replacement queue.
+        if !saved.enabled||saved.key!=delivery.key||saved.member_id!=delivery.member_id||
+            saved.jobs.first()!=Some(&delivery.job){return Ok(false);}
+        let now=now_ms()?;
+        match outcome{
+            Ok(())=>{saved.jobs.remove(0);saved.sent=saved.sent.saturating_add(1);
+                if saved.last_error.as_deref()!=Some("refract-queue-full"){saved.last_error=None;}
+                saved.retry_at=0;},
             Err(error)=>{
                 saved.last_error=Some(error.code.into());
                 if matches!(error.code,"refract-unmatched"|"refract-rejected"|"refract-protected"){
@@ -333,7 +387,7 @@ impl Connection{
                 }
             }
         }
-        Ok(self.status())
+        Ok(true)
     }
     pub(super) fn watchlist(&mut self,media_type:&str,item_id:&str,add:bool)->Result<Value>{
         let saved=self.saved.as_mut().ok_or("refract-disconnected")?;
@@ -433,6 +487,37 @@ mod tests{
         assert!(!c.status().to_string().contains("rfk_fixture-only"));
         assert_eq!(c.status()["enabled"],false);
         assert!(Connection::restored(Some(Saved{key:"invalid".into(),..c.saved().unwrap()})).is_err());
+    }
+    #[cfg(windows)]
+    #[test]
+    fn automatic_delivery_guard_retry_and_stale_result(){
+        let mut c=connection();c.enable(true).unwrap();
+        let p=progress("movie","tt123","tt123");
+        let id="00000000-0000-4000-8000-000000000001";
+        c.enqueue(&p,1609459200123,Some(id));
+        let cancelled=c.delivery().unwrap();
+        assert!(cancelled.cancel_before_write());
+        assert!(!cancelled.begin_write());
+        assert!(!c.finish_delivery(&cancelled,&DeliveryResult(None)).unwrap());
+        assert_eq!(c.status()["pending"],1);
+        let failed=c.delivery().unwrap();assert!(failed.begin_write());
+        assert!(!failed.cancel_before_write());
+        assert!(c.finish_delivery(&failed,&DeliveryResult(Some(Err(Failure{code:"refract-rate",retry_ms:60000})))).unwrap());
+        assert_eq!(c.status()["pending"],1);
+        assert_eq!(c.status()["lastError"],"refract-rate");
+        assert!(c.delivery().is_none());
+        assert_eq!(c.saved.as_ref().unwrap().jobs[0].request_id,id);
+        c.saved.as_mut().unwrap().retry_at=0;
+        let next=c.delivery().unwrap();assert_eq!(next.job.watched_at,failed.job.watched_at);
+        assert_eq!(next.job.request_id,failed.job.request_id);
+        assert!(next.begin_write());
+        assert!(!c.finish_delivery(&failed,&DeliveryResult(Some(Ok(())))).unwrap());
+        c.saved.as_mut().unwrap().key="rfk_replacement".into();
+        assert!(!c.finish_delivery(&next,&DeliveryResult(Some(Ok(())))).unwrap());
+        c.saved.as_mut().unwrap().key="rfk_fixture-only".into();
+        assert!(c.finish_delivery(&next,&DeliveryResult(Some(Ok(())))).unwrap());
+        assert!(!c.finish_delivery(&next,&DeliveryResult(Some(Ok(())))).unwrap());
+        assert_eq!(c.status()["pending"],0);assert_eq!(c.status()["sent"],1);
     }
     #[cfg(windows)]
     #[test]

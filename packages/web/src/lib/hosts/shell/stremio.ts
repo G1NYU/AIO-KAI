@@ -270,7 +270,7 @@ export async function mdblistPage(profileId:number,listId:number,offset:number){
 
 export type RefractStatus={connected:boolean;username:string|null;enabled:boolean;pending:number;sent:number;skipped:number;retryAt:number;lastError:string|null};
 const refractErrors=new Set(['refract-auth','refract-scope','refract-rate','refract-network','refract-request','refract-response','refract-rejected','refract-conflict','refract-unmatched','refract-queue-full','refract-clock','refract-protected','unsupported']);
-function refractState(v:unknown):RefractStatus{
+export function refractState(v:unknown):RefractStatus{
   const row=obj(v),connected=bool(row.connected),enabled=bool(row.enabled);
   const username=row.username===null?null:str(row.username,256);
   const pending=integer(row.pending,0,256),sent=integer(row.sent,0,0xffffffff),skipped=integer(row.skipped,0,0xffffffff),retryAt=integer(row.retryAt,0,253402300799999);

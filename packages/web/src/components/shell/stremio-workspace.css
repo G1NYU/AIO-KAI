@@ -42,7 +42,7 @@
   display:grid; grid-template-columns:200px minmax(0,1fr); gap:24px; min-width:0;
 }
 .tsugi-watch-workspace-banner {
-  grid-column:1/-1; min-height:180px; padding:24px; display:flex; align-items:flex-end;
+  grid-column:1/-1; min-height:180px; padding:24px; display:flex; align-items:flex-end; gap:16px;
   border-radius:var(--tsugi-radius-panel);
   background:linear-gradient(90deg,var(--tsugi-canvas),color-mix(in srgb,var(--tsugi-canvas) 32%,transparent)),var(--tsugi-watch-art) center/cover;
 }
@@ -59,6 +59,21 @@
 .tsugi-watch-nav-item:hover { color:var(--tsugi-ink); }
 .tsugi-watch-content { display:flex; flex-direction:column; gap:16px; min-width:0; padding:0 12px 24px; }
 .tsugi-watch-content h4 { font-size:1.25rem; font-weight:650; }
+/* The shared settings form uses grid labels; consent and tracking toggles
+ * need an inline row, not a checkbox above its caption. */
+.tsugi-watch-content label:has(>input[type='checkbox']) {
+  display:flex; align-items:flex-start; gap:8px;
+}
+.tsugi-watch-content label:has(>input[type='checkbox'])>input {
+  flex:none; margin-top:2px;
+}
+.tsugi-watch-content [data-ui='watch-refract'] { max-width:760px; }
+.tsugi-watch-content [data-ui='watch-refract'] a {
+  color:var(--tsugi-ink); text-decoration:underline; text-underline-offset:3px;
+}
+.tsugi-watch-content [data-ui='watch-mdblist'] form,
+.tsugi-watch-content [data-ui='watch-mdblist']>label { max-width:640px; }
+
 @media(max-width:760px) {
   .tsugi-watch-setup .tsugi-intro-content { padding:16px; }
   .tsugi-watch-picker-content { padding:32px 12px; }

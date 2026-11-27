@@ -620,6 +620,7 @@ pub enum Outbound {
     SoundcloudSearchResult { request: String, tracks: Vec<Value>, complete: bool, error: Option<String> },
     TorboxResult { request: String, data: Option<Value>, error: Option<String> },
     StremioResult { request: String, data: Option<Value>, error: Option<String> },
+    RefractStatusChanged { #[serde(rename="profileId")] profile_id:u32, data:Option<Value>, error:Option<String> },
     BackupResult { request: String, data: Option<Value>, error: Option<String> },
     TsugiReleaseResult { request: String, data: Option<Value>, error: Option<String> },
     ReadResult {

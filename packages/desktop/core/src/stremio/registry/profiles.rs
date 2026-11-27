@@ -69,7 +69,7 @@ fn source_action(action: &Action) -> bool {
 pub(super) fn is_mutation(action: &Action) -> bool {
     match action {
         Action::ProfileCreate{..}|Action::ProfileRename{..}|Action::ProfileSwitch{..}|Action::ProfileRemove{..} => true,
-        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::RefractConnect{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractSync|Action::RefractWatchlist{..}),
+        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::RefractConnect{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractWatchlist{..}),
         _ => false,
     }
 }
@@ -98,6 +98,18 @@ impl Profiles {
         Some(grant)
     }
     pub(super) fn expire_all(&mut self){for profile in &mut self.profiles{profile.registry.expire();}}
+    #[cfg(windows)]
+    pub(super) fn refract_delivery(&self)->Option<(u32,super::refract::Delivery)>{
+        let profile=&self.profiles[self.index(self.active).ok()?];
+        Some((profile.id,profile.registry.refract.delivery()?))
+    }
+    #[cfg(windows)]
+    pub(super) fn finish_refract(&mut self,profile_id:u32,delivery:&super::refract::Delivery,result:&super::refract::DeliveryResult)->Result<Option<Value>>{
+        let Ok(index)=self.index(profile_id)else{return Ok(None);};
+        let connection=&mut self.profiles[index].registry.refract;
+        if !connection.finish_delivery(delivery,result)?{return Ok(None);}
+        Ok(Some(connection.status()))
+    }
     pub(super) fn execute(&mut self, action:Action) -> Result<Value> {
         match action {
             Action::ProfileList => Ok(self.list()),

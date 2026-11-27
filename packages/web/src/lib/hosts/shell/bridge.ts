@@ -30,6 +30,7 @@ export type ShellMessage =
   | { type: 'tsugi-release-result'; request: string; data: unknown; error: string | null }
   | { type: 'torbox-result'; request: string; data: unknown; error: string | null }
   | { type: 'stremio-result'; request: string; data: unknown; error: string | null }
+  | { type: 'refract-status-changed'; profileId: number; data: unknown; error: string | null }
   | { type: 'soundcloud-search-result'; request: string; tracks: unknown[]; complete: boolean; error: string | null }
   | {
       type: 'youtube-resolved';

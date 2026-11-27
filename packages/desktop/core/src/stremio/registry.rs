@@ -15,6 +15,8 @@ pub use accounts::Provider as ImportProvider;
 mod profiles;
 #[cfg(windows)]
 mod store;
+#[cfg(windows)]
+mod refract_delivery;
 
 const MAX_SOURCES: usize = 16;
 const REVIEW_TTL: Duration = Duration::from_secs(300);
@@ -293,42 +295,53 @@ impl Worker {
         let worker_slot=slot.clone();
         thread::spawn(move || {
             let mut opened = store::Store::open(&root);
+            let mut delivery = refract_delivery::AutoSync::new();
             loop {
-                let (request,action,generation)=match rx.recv_timeout(Duration::from_secs(30)){
-                    Ok(message)=>message,
-                    Err(mpsc::RecvTimeoutError::Timeout)=>{
-                        if let Ok((_,profiles))=&mut opened{profiles.expire_all();}
-                        continue;
-                    }
+                let message=match rx.recv_timeout(Duration::from_millis(500)){
+                    Ok(message)=>Some(message),
+                    Err(mpsc::RecvTimeoutError::Timeout)=>None,
                     Err(mpsc::RecvTimeoutError::Disconnected)=>break,
                 };
                 if let Ok((_,profiles))=&mut opened{profiles.expire_all();}
-                let result = match &mut opened {
-                    Ok((storage,profiles)) if profiles::is_mutation(&action) => {
-                        // Commit to memory only after the encrypted snapshot
-                        // has been flushed, verified and atomically replaced.
-                        let mut next = profiles.clone();
-                        next.execute(action).and_then(|data| {
-                            storage.save(&next)?;
-                            *profiles = next;
-                            Ok(data)
-                        })
+                if let Some((request,action,generation))=message{
+                    // Account-sensitive changes cancel an uncommitted lookup;
+                    // once a write starts they fail busy instead of racing it.
+                    let permitted=delivery.permit(&action);
+                    let result = if !permitted{Err("busy")}else{match &mut opened {
+                        Ok((storage,profiles)) if profiles::is_mutation(&action) => {
+                            // Commit to memory only after the encrypted snapshot
+                            // has been flushed, verified and atomically replaced.
+                            let mut next = profiles.clone();
+                            next.execute(action).and_then(|data| {
+                                storage.save(&next)?;
+                                *profiles = next;
+                                Ok(data)
+                            })
+                        }
+                        Ok((_,profiles)) => profiles.execute(action),
+                        Err(error) => Err(*error),
+                    }};
+                    if let Ok((_,profiles))=&mut opened{
+                        let grant=profiles.take_grant();
+                        if result.is_ok()&&let Some(grant)=grant&&let Ok(mut slot)=worker_slot.lock(){
+                            if slot.generation==generation{slot.grant=Some(grant);}
+                        }
                     }
-                    Ok((_,profiles)) => profiles.execute(action),
-                    Err(error) => Err(*error),
-                };
-                if let Ok((_,profiles))=&mut opened{
-                    let grant=profiles.take_grant();
-                    if result.is_ok()&&let Some(grant)=grant&&let Ok(mut slot)=worker_slot.lock(){
-                        if slot.generation==generation{slot.grant=Some(grant);}
-                    }
+                    let (data,error) = match result {
+                        Ok(data) => (Some(data),None),
+                        Err(error) => (None,Some(error.to_owned())),
+                    };
+                    emit(Outbound::StremioResult { request,data,error });
                 }
-                let (data,error) = match result {
-                    Ok(data) => (Some(data),None),
-                    Err(error) => (None,Some(error.to_owned())),
-                };
-                emit(Outbound::StremioResult { request,data,error });
+                // Delivery never calls Worker::request or executes a registry
+                // action. In particular it cannot invalidate media grants.
+                if let Ok((storage,profiles))=&mut opened{
+                    delivery.tick(storage,profiles,&emit);
+                }
             }
+            // Drop cancels lookup and joins any already authorized write
+            // before releasing the exclusive profile store handle.
+            drop(delivery);
         });
         Self(tx,slot)
     }

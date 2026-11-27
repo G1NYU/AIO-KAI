@@ -3,8 +3,9 @@ import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
 import {
   AddonError, refractStatus, refractConnect, refractEnable, refractDisconnect,
-  refractSync, refractWatchlist, type RefractStatus,
+  refractSync, refractWatchlist, refractState, type RefractStatus,
 } from '@/lib/hosts/shell/stremio';
+import { appBridge } from '@/lib/hosts/shell/bridge';
 
 function feedback(code:string){
   switch(code){
@@ -20,6 +21,7 @@ function feedback(code:string){
     case 'refract-pending': return t`Confirm that you want to discard unsent Refract watches before disconnecting.`;
     case 'refract-conflict': return t`Refract reported a conflict. The pending watch has been kept for retry.`;
     case 'refract-network': return t`Refract could not be reached. Local Watch history is preserved.`;
+    case 'busy': return t`A Refract write is already in progress. Try again shortly.`;
     case 'profile-changed': return t`The active profile changed. Reopen Refract for that profile.`;
     case 'profile-store': case 'profile-store-limit': return t`The protected profile store could not confirm this change. Refresh before retrying.`;
     default: return t`Refract could not complete the request. Local Watch history is preserved.`;
@@ -42,8 +44,16 @@ export function RefractSettings({profileId,busy,run}:CommonProps){
   }
   React.useEffect(()=>{
     mounted.current=true;
+    // Native status notifications do not make registry requests or invalidate
+    // media grants. Ignore notifications belonging to other Watch profiles.
+    const unsubscribe=appBridge()?.subscribe(message=>{
+      if(!mounted.current||message.type!=='refract-status-changed'||message.profileId!==profileId)return;
+      if(message.error){setError(feedback(message.error));return;}
+      try{setStatus(refractState(message.data));setError('');}
+      catch{setError(feedback('refract-response'));}
+    });
     const timer=setTimeout(()=>void perform(()=>refractStatus(profileId)),0);
-    return ()=>{mounted.current=false;clearTimeout(timer);};
+    return ()=>{mounted.current=false;clearTimeout(timer);unsubscribe?.();};
   },[profileId]);
   function connect(e:React.FormEvent<HTMLFormElement>){
     e.preventDefault();
@@ -62,7 +72,7 @@ export function RefractSettings({profileId,busy,run}:CommonProps){
     {status?.connected&&<>
       <p><Trans>Connected to Refract:</Trans> <strong className="break-words">{status.username}</strong></p>
       <label className="flex items-start gap-2"><input type="checkbox" checked={status.enabled} disabled={busy} onChange={e=>void perform(()=>refractEnable(profileId,e.target.checked))}/><span><Trans>Track completed movies and episodes</Trans></span></label>
-      <p><Trans>Completed movies and individual episodes are queued with their original time. Completing one episode does not mark the entire series as watched. Sync queued watches to send them to Refract. Older local history is not uploaded automatically; episode rewatches are not appended. Avoid enabling another tracker that sends the same watches.</Trans></p>
+      <p><Trans>Completed movies and individual episodes are queued with their original time. Completing one episode does not mark the entire series as watched. While TSUGI is open, queued watches for the active Watch profile sync automatically and retry after temporary failures. Older local history is not uploaded automatically; episode rewatches are not appended. Avoid enabling another tracker that sends the same watches.</Trans></p>
       <div className="flex flex-wrap gap-4" aria-live="polite">
         <span><Trans>Pending:</Trans> {status.pending}</span><span><Trans>Sent:</Trans> {status.sent}</span><span><Trans>Skipped:</Trans> {status.skipped}</span>
       </div>
