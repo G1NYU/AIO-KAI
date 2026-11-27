@@ -228,7 +228,8 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   }
   async function fetchStreams(item:Title,video:string,autoStart=false,metadata:AddonMetadata|null=null,entry:WatchProgress|null=null){
     if(profileId===undefined||!video)return;
-    const response=await loadAllAddonStreams(profileId,item.mediaType,video,watchVideoRoutes(item,video,metadata??details));
+    const resolvedMetadata=metadata??(details?.id===item.id&&details.mediaType===item.mediaType?details:null);
+    const response=await loadAllAddonStreams(profileId,item.mediaType,video,watchVideoRoutes(item,video,resolvedMetadata));
     if(!mounted.current)return;
     // The installed source order is the standalone equivalent of the server's
     // preferred-version order. Never race untrusted media URLs or bypass grants.
@@ -239,7 +240,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     if(!first)return;
     const index=first.rows.findIndex(row=>row.supported);
     const startMs=entry&&!entry.completed&&entry.positionMs<entry.durationMs?entry.positionMs:0;
-    try{await launchStream(item,video,metadata,first,index,startMs,entry?.episodeTitle??null);}
+    try{await launchStream(item,video,resolvedMetadata,first,index,startMs,entry?.episodeTitle??null);}
     catch{if(mounted.current)setNotice(t`Automatic playback could not start. Choose a stream below.`);}
   }
   async function resolveMetadata(item:Title,preferredSourceId?:number,allowMapping=true):Promise<{item:Title;metadata:AddonMetadata|null}>{
