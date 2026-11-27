@@ -260,7 +260,7 @@ pub fn run(app: App) {
     let release_busy = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     // The same exact bundled Windows origin gate as managed backups.
     #[cfg(windows)]
-    let stremio = backup_root.as_ref().map(|_| Rc::new(aiostreams_desktop_core::stremio::registry::Worker::start({
+    let stremio = backup_root.as_ref().map(|root| Rc::new(aiostreams_desktop_core::stremio::registry::Worker::start(root.clone(), {
         let proxy = proxy.clone();
         move |message| { let _ = proxy.send_event(UserEvent::Emit(receive_script(&message))); }
     })));

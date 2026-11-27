@@ -1,11 +1,14 @@
-//! Native-only, session-scoped registry. The trusted bundled page can review
-//! a configured endpoint, then install that exact reviewed manifest. No disk
-//! credential store or background network activity is introduced here.
+//! Native addon review and source registry. Profile scoping and Windows
+//! protected persistence are handled in the profiles and store modules.
 use super::{Endpoint, Manifest, Declaration, Result};
 use crate::bridge::Outbound;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{collections::{BTreeMap, BTreeSet}, fmt, sync::mpsc, thread, time::{Duration, Instant}};
+
+mod profiles;
+#[cfg(windows)]
+mod store;
 
 const MAX_SOURCES: usize = 16;
 const REVIEW_TTL: Duration = Duration::from_secs(300);
@@ -13,6 +16,12 @@ const REVIEW_TTL: Duration = Duration::from_secs(300);
 #[derive(Deserialize)]
 #[serde(tag="kind", rename_all="kebab-case", rename_all_fields="camelCase", deny_unknown_fields)]
 pub enum Action {
+    ProfileList,
+    ProfileCreate { name: String },
+    ProfileRename { profile_id: u32, name: String },
+    ProfileSwitch { profile_id: u32 },
+    ProfileRemove { profile_id: u32, confirmed_name: String },
+    ProfileRequest { profile_id: u32, action: Box<Action> },
     List,
     Review { url: String },
     Install { review_id: u32 },
@@ -29,12 +38,14 @@ impl fmt::Debug for Action {
     }
 }
 
+#[derive(Clone)]
 struct Reviewed {
     id: u32,
     endpoint: Endpoint,
     manifest: Manifest,
     created: Instant,
 }
+#[derive(Clone)]
 struct Source {
     id: u32,
     endpoint: Endpoint,
@@ -42,7 +53,7 @@ struct Source {
     enabled: bool,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Registry {
     sequence: u32,
     sources: Vec<Source>,
@@ -148,18 +159,34 @@ impl Registry {
                 Ok(json!({"sourceId":source_id,"mediaType":media_type,"catalogId":catalog_id,
                     "items":items,"sourceCount":page.source_count,"nextSkip":page.next_skip}))
             }
+            _ => Err("profile-required"),
         }
     }
 }
 
 pub struct Worker(mpsc::SyncSender<(String,Action)>);
 impl Worker {
-    pub fn start(emit: impl Fn(Outbound) + Send + 'static) -> Self {
+    #[cfg(windows)]
+    pub fn start(root: std::path::PathBuf, emit: impl Fn(Outbound) + Send + 'static) -> Self {
         let (tx,rx) = mpsc::sync_channel::<(String,Action)>(2);
         thread::spawn(move || {
-            let mut registry = Registry::default();
+            let mut opened = store::Store::open(&root);
             while let Ok((request,action)) = rx.recv() {
-                let (data,error) = match registry.execute(action) {
+                let result = match &mut opened {
+                    Ok((storage,profiles)) if profiles::is_mutation(&action) => {
+                        // Commit to memory only after the encrypted snapshot
+                        // has been flushed, verified and atomically replaced.
+                        let mut next = profiles.clone();
+                        next.execute(action).and_then(|data| {
+                            storage.save(&next)?;
+                            *profiles = next;
+                            Ok(data)
+                        })
+                    }
+                    Ok((_,profiles)) => profiles.execute(action),
+                    Err(error) => Err(*error),
+                };
+                let (data,error) = match result {
                     Ok(data) => (Some(data),None),
                     Err(error) => (None,Some(error.to_owned())),
                 };

@@ -40,6 +40,7 @@ fn encode(value: &str) -> String {
     out
 }
 
+#[derive(Clone)]
 pub struct Endpoint(Url);
 impl Endpoint {
     /// Initial support is explicit HTTPS HTTP-transport manifests only.
@@ -109,13 +110,13 @@ impl ItemResource {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize, serde::Serialize)]
 #[serde(untagged)]
 enum Declaration {
     Name(String),
     Detailed { name: String, types: Vec<String>, #[serde(default, rename="idPrefixes")] id_prefixes: Vec<String> },
 }
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize, serde::Serialize)]
 #[serde(rename_all="camelCase")]
 pub struct CatalogExtra {
     pub name: String,
@@ -126,7 +127,7 @@ pub struct CatalogExtra {
     #[serde(default)]
     pub options_limit: Option<u32>,
 }
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize, serde::Serialize)]
 pub struct Catalog {
     #[serde(rename="type")]
     pub kind: String,
@@ -136,7 +137,7 @@ pub struct Catalog {
     #[serde(default)]
     pub extra: Vec<CatalogExtra>,
 }
-#[derive(Default, Deserialize)]
+#[derive(Default, Clone, Deserialize, serde::Serialize)]
 #[serde(rename_all="camelCase")]
 pub struct BehaviorHints {
     #[serde(default)]
@@ -148,7 +149,7 @@ pub struct BehaviorHints {
     #[serde(default)]
     pub adult: bool,
 }
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize, serde::Serialize)]
 #[serde(rename_all="camelCase")]
 pub struct Manifest {
     pub id: String,
