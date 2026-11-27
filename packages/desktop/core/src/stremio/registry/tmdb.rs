@@ -42,6 +42,78 @@ impl Connection{
     }
     pub(super) fn disconnect(&mut self){self.key=None;}
 }
+// The native metadata worker returns public image paths and bounded display
+// fields only; never the upstream payload or protected API key.
+fn image(v:&Value,size:&str)->Option<String>{
+    let file=v.as_str()?.strip_prefix('/')?;
+    let (name,ext)=file.rsplit_once('.')?;
+    if name.is_empty()||name.len()>80||!name.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-'||b==b'_')||!matches!(ext,"jpg"|"jpeg"|"png"|"webp"){return None;}
+    Some(format!("https://image.tmdb.org/t/p/{size}/{file}"))
+}
+fn clean(v:&Value,max:usize)->Option<String>{
+    let value=v.as_str()?.trim().chars().filter(|c|!c.is_control()).take(max).collect::<String>();
+    (!value.is_empty()).then_some(value)
+}
+fn rating(v:&Value)->Option<f64>{v.as_f64().filter(|n|n.is_finite()&&(0.0..=10.0).contains(n))}
+fn number(v:&Value)->Option<u64>{v.as_u64().filter(|n|*n>0&&*n<=9_999_999_999)}
+fn kind(media_type:&str)->Result<&'static str>{match media_type{"movie"|"anime.movie"=>Ok("movie"),"series"|"anime.series"=>Ok("tv"),_=>Err("tmdb-not-found")}}
+fn tmdb_id(kind:&str,id:u64)->String{format!("tmdb:{kind}:{id}")}
+fn summary(row:&Value,kind:&str)->Option<Value>{
+    if row["adult"].as_bool()==Some(true){return None;}
+    let id=number(&row["id"])?;
+    let name=clean(&row[if kind=="movie"{"title"}else{"name"}],512)?;
+    let date=clean(&row[if kind=="movie"{"release_date"}else{"first_air_date"}],32);
+    Some(json!({"id":tmdb_id(kind,id),"mediaType":if kind=="movie"{"movie"}else{"series"},"name":name,
+        "poster":image(&row["poster_path"],"w500"),"background":image(&row["backdrop_path"],"w1280"),"description":clean(&row["overview"],4096),
+        "releaseInfo":date,"tmdbRating":rating(&row["vote_average"]),"identities":[tmdb_id(kind,id)]}))
+}
+impl Connection{
+    fn request(&self,path:&str,query:&[(&str,String)])->Result<Value>{
+        get(self.key.as_deref().ok_or("tmdb-auth")?,path,query)
+    }
+    pub(super) fn search(&self,query:&str)->Result<Value>{
+        let query=query.trim();
+        if query.is_empty()||query.chars().count()>512||query.chars().any(char::is_control){return Err("invalid-resource");}
+        let raw=self.request("search/multi",&[("query",query.to_owned()),("include_adult","false".into())])?;
+        let rows=raw["results"].as_array().ok_or("tmdb-response")?;
+        let items:Vec<_>=rows.iter().take(60).filter_map(|row|match row["media_type"].as_str(){Some("movie")=>summary(row,"movie"),Some("tv")=>summary(row,"tv"),_=>None}).collect();
+        Ok(json!({"items":items}))
+    }
+    fn resolve(&self,kind:&str,id:&str)->Result<u64>{
+        if let Some(value)=id.strip_prefix("tmdb:"){
+            let number=if let Some((prefix,n))=value.split_once(':'){if prefix!=kind{return Err("tmdb-not-found");}n}else{value};
+            return number.parse::<u64>().ok().filter(|n|*n>0&&*n<=9_999_999_999).ok_or("tmdb-not-found");
+        }
+        if !id.strip_prefix("tt").is_some_and(|n|!n.is_empty()&&n.len()<=12&&n.bytes().all(|b|b.is_ascii_digit())){return Err("tmdb-not-found");}
+        let raw=self.request(&format!("find/{id}"),&[("external_source","imdb_id".into())])?;
+        let rows=raw[if kind=="movie"{"movie_results"}else{"tv_results"}].as_array().ok_or("tmdb-response")?;
+        rows.first().and_then(|r|number(&r["id"])).ok_or("tmdb-not-found")
+    }
+    pub(super) fn title(&self,media_type:&str,item_id:&str)->Result<Value>{
+        let kind=kind(media_type)?;let id=self.resolve(kind,item_id)?;
+        let row=self.request(&format!("{kind}/{id}"),&[("append_to_response","external_ids,images,credits".into()),("include_image_language","en,null".into())])?;
+        if number(&row["id"])!=Some(id){return Err("tmdb-response");}
+        let mut item=summary(&row,kind).ok_or("tmdb-response")?;
+        let imdb=row["external_ids"]["imdb_id"].as_str().filter(|s|s.strip_prefix("tt").is_some_and(|n|!n.is_empty()&&n.len()<=12&&n.bytes().all(|b|b.is_ascii_digit())));
+        if let Some(imdb)=imdb{item["imdbId"]=json!(imdb);item["identities"]=json!([tmdb_id(kind,id),imdb]);}
+        item["tmdbId"]=json!(id);
+        item["logo"]=json!(row["images"]["logos"].as_array().and_then(|rows|rows.iter().find_map(|r|image(&r["file_path"],"w500"))));
+        item["genres"]=json!(row["genres"].as_array().into_iter().flatten().filter_map(|r|clean(&r["name"],80)).take(16).collect::<Vec<_>>());
+        item["cast"]=json!(row["credits"]["cast"].as_array().into_iter().flatten().filter_map(|r|clean(&r["name"],128)).take(12).collect::<Vec<_>>());
+        item["runtime"]=json!(row["runtime"].as_u64().or_else(||row["episode_run_time"].as_array().and_then(|a|a.first()).and_then(Value::as_u64)).filter(|n|*n>0&&*n<=1440));
+        Ok(json!({"item":item}))
+    }
+    pub(super) fn season(&self,id:u64,season:u32)->Result<Value>{
+        if id==0||id>9_999_999_999||season>1000{return Err("invalid-resource");}
+        let row=self.request(&format!("tv/{id}/season/{season}"),&[])?;
+        if row["season_number"].as_u64()!=Some(season as u64){return Err("tmdb-response");}
+        let episodes:Vec<_>=row["episodes"].as_array().ok_or("tmdb-response")?.iter().take(500).filter_map(|e|{
+            let n=e["episode_number"].as_u64().filter(|n|*n<=10000)?;
+            Some(json!({"episode":n,"name":clean(&e["name"],512),"description":clean(&e["overview"],4096),"thumbnail":image(&e["still_path"],"w500"),"runtime":e["runtime"].as_u64().filter(|n|*n>0&&*n<=1440),"tmdbRating":rating(&e["vote_average"])}))
+        }).collect();
+        Ok(json!({"tmdbId":id,"season":season,"episodes":episodes}))
+    }
+}
 #[cfg(test)]
 mod tests{
     use super::*;

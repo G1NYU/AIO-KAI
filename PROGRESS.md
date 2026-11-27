@@ -1514,3 +1514,7 @@ Browser fixture extends the existing tainted-field support-summary test with lin
 - Implemented bounded native fan-out (12 workers), individual completed-provider reviews, exact-query polling/cancellation, stale completion rejection, and early playback without waiting for every provider. The original native grant/player path is preserved.
 - Standalone selector is now a dedicated cinematic, title-specific route rather than a narrow drawer; provider order and resume controls are retained. Added native early-selection regression and browser fixture protocol coverage.
 - Verification pending the cumulative Windows workflow; not an EXE or P1 completion claim.
+
+### Recovery P2/P3 — TMDB metadata and cinematic presentation
+- Connected protected TMDB key to read-only native search, title and season endpoints; explicit identifiers only, public artwork URL validation, no credential exposure. Added grouped Series-first/Movie-second search, metadata-only catalogue search, exact-alias reconciliation, full-width title/featured artwork and episode still enrichment.
+- Fixed initial setup-screen CSS loader failure found in CI run 46049270168. Remaining acceptance: visual/runtime CI, persistent favorites/queue, Continue Watching art, final search overlay and P4/P5. No completion checkboxes yet.

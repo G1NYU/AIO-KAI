@@ -18,7 +18,7 @@ import { isWatchMovie, titleIdentityRoutes, mergeAliasMetadata, watchVideoRoutes
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { AddonError, retryAddonImport, cancelAddonImport, type ImportResult, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, beginAddonStreams, pollAddonStreams, cancelAddonStreams, retryAddonStreams, type AddonStreamGroup, type AddonMetadata, type AddonVideo, type AddonOptions, prepareAddonMedia, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry } from '@/lib/hosts/shell/stremio';
+import { AddonError, retryAddonImport, cancelAddonImport, type ImportResult, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, beginAddonStreams, pollAddonStreams, cancelAddonStreams, retryAddonStreams, type AddonStreamGroup, type AddonMetadata, type AddonVideo, type AddonOptions, prepareAddonMedia, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry, loadTmdbTitle, loadTmdbSeason, type TmdbTitle, type TmdbEpisode } from '@/lib/hosts/shell/stremio';
 
 function feedback(reason: unknown) {
   const code=reason instanceof AddonError?reason.code:'request';
@@ -84,6 +84,8 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const [page,setPage]=React.useState<CatalogPage|null>(null);
   const [title,setTitle]=React.useState<CatalogPage['items'][number]|null>(null);
   const [details,setDetails]=React.useState<AddonMetadata|null>(null);
+  const [cinema,setCinema]=React.useState<TmdbTitle|null>(null);
+  const [seasonArt,setSeasonArt]=React.useState<TmdbEpisode[]>([]);
   const [videoId,setVideoId]=React.useState('');
   const [seasonChoice,setSeasonChoice]=React.useState<string|null>(null);
   const [sourceOpen,setSourceOpen]=React.useState(false);
@@ -135,7 +137,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   }
   function closeStreams(){if(flight.current)return;stopStreams();setSourceOpen(false);if(!suppressSourceFocus.current)requestAnimationFrame(()=>sourceTrigger.current?.focus({preventScroll:true}));}
   React.useEffect(()=>{if(sourceOpen)streamBack.current?.focus({preventScroll:true});},[sourceOpen]);
-  function clearTitle(){stopStreams();setTitle(null);setDetails(null);setVideoId('');setSeasonChoice(null);setSourceOpen(false);setOptions(null);setResumeEntry(null);setStreamGroups(null);setAutomatic(false);}
+  function clearTitle(){stopStreams();setCinema(null);setSeasonArt([]);setTitle(null);setDetails(null);setVideoId('');setSeasonChoice(null);setSourceOpen(false);setOptions(null);setResumeEntry(null);setStreamGroups(null);setAutomatic(false);}
   function rememberBrowse(){
     browseTrigger.current=document.activeElement instanceof HTMLElement?document.activeElement:null;
     const ancestors:Element[]=[];
@@ -274,6 +276,10 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   }
   async function resolveMetadata(item:Title,preferredSourceId?:number,allowMapping=true):Promise<{item:Title;metadata:AddonMetadata|null}>{
     if(profileId===undefined)return {item,metadata:null};
+    // Obtain an explicit TMDB/IMDb alias before looking for exact addon metadata.
+    if(!item.imdbId&&/^tmdb:/.test(item.id)){
+      try{const tmdb=await loadTmdbTitle(profileId,item.mediaType,item.id);item={...item,imdbId:tmdb.imdbId,identities:tmdb.identities,poster:item.poster??tmdb.poster,background:item.background??tmdb.background};}catch{/* Addon metadata remains usable. */}
+    }
     const candidates=sources.filter(source=>source.enabled&&source.manifest.resources.includes('meta'));
     candidates.sort((a,b)=>Number(b.sourceId===preferredSourceId)-Number(a.sourceId===preferredSourceId));
     async function lookup(target:Title,publicSource:boolean,alternate=false){
@@ -436,6 +442,10 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const videos=details?.videos??[];
   const seasons=[...new Set(videos.map(seasonOf))].sort((a,b)=>a==='other'?1:b==='other'?-1:Number(a)-Number(b));
   const selectedVideo=videos.find(v=>v.id===videoId);
+  const titleKey=title?.id,titleKind=title?.mediaType,titleImdb=title?.imdbId;
+  React.useEffect(()=>{setCinema(null);if(profileId===undefined||!titleKey||!titleKind)return;let current=true;void loadTmdbTitle(profileId,titleKind,titleImdb??titleKey).then(item=>{if(current)setCinema(item);}).catch(()=>{});return ()=>{current=false;};},[profileId,titleKey,titleKind,titleImdb]);
+  const cinemaId=cinema?.tmdbId;
+  React.useEffect(()=>{setSeasonArt([]);if(profileId===undefined||!cinemaId||cinema?.mediaType!=='series'||!/^\d+$/.test(selectedSeason))return;let current=true;void loadTmdbSeason(profileId,cinemaId,Number(selectedSeason)).then(items=>{if(current)setSeasonArt(items);}).catch(()=>{});return ()=>{current=false;};},[profileId,cinemaId,cinema?.mediaType,selectedSeason]);
   const selectedSeason=seasonChoice!==null&&seasons.includes(seasonChoice)?seasonChoice:selectedVideo?seasonOf(selectedVideo):seasons.find(s=>s!=='0'&&s!=='other')??seasons[0]??'other';
   const seasonVideos=videos.filter(v=>seasonOf(v)===selectedSeason).sort((a,b)=>(a.episode??Number.MAX_SAFE_INTEGER)-(b.episode??Number.MAX_SAFE_INTEGER));
   if(workspace&&!entered)return <section className="tsugi-watch-picker" data-ui="watch-profile-picker" aria-labelledby={titleId}>
@@ -637,19 +647,20 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     {workspace&&pane==='mdblist'&&profileReady&&profileId!==undefined&&<MdblistSettings key={profileId} profileId={profileId} openTitle={item=>void openTitle(item)}/>}
     {workspace&&pane==='refract'&&(historyActive||setupConnections)&&profileReady&&profileId!==undefined&&<RefractSettings key={profileId} profileId={profileId} busy={busy} run={run}/>}
     {workspace&&title&&<section ref={detailRef} tabIndex={-1} className={automatic?'space-y-3 tsugi-watch-detail':'space-y-3'} data-ui="watch-item-details">
-      <div className="tsugi-watch-title-hero" data-has-backdrop={!!details?.background||undefined}>
-        {details?.background&&<div className="tsugi-watch-title-backdrop" aria-hidden="true"><Artwork src={details.background} alt=""/></div>}
+      <div className="tsugi-watch-title-hero" data-has-backdrop={!!(cinema?.background||details?.background||title.background||details?.poster||title.poster)||undefined}>
+        {(cinema?.background||details?.background||title.background||details?.poster||title.poster)&&<div className="tsugi-watch-title-backdrop" aria-hidden="true"><Artwork src={[cinema?.background,details?.background,title.background,details?.poster,title.poster].filter((value):value is string=>!!value)} alt=""/></div>}
         <div className="tsugi-watch-title-art"><Artwork src={[details?.poster,title.poster].filter((value):value is string=>!!value)} alt={title.name}/></div>
         <div className="tsugi-watch-title-copy">
-          <div className="flex items-center justify-between gap-3 flex-wrap"><h4>{details?.name??title.name}</h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={closeTitle}><Trans>Close title</Trans></button></div>
+          <div className="flex items-center justify-between gap-3 flex-wrap"><h4 className="tsugi-watch-title-name">{cinema?.logo?<><Artwork src={cinema.logo} alt="" className="tsugi-watch-title-logo"/><span className="sr-only">{details?.name??title.name}</span></>:details?.name??title.name}</h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={closeTitle}><Trans>Close title</Trans></button></div>
           <div className="tsugi-watch-title-meta">
             <span>{isWatchMovie(title.mediaType)?t`Movie`:title.mediaType==='anime'?t`Anime`:t`Series`}</span>
-            {details?.releaseInfo&&<span>{details.releaseInfo}</span>}
+            {(details?.releaseInfo||cinema?.releaseInfo)&&<span>{details?.releaseInfo??cinema?.releaseInfo?.slice(0,4)}</span>}
             {details?.imdbRating!==undefined&&<span><Trans>IMDb</Trans> {details.imdbRating.toFixed(1)}/10</span>}
-            {details?.runtime&&<span>{details.runtime}</span>}
+            {cinema?.tmdbRating!==undefined&&<span><Trans>TMDB</Trans> {cinema.tmdbRating.toFixed(1)}/10</span>}
+            {details?.runtime?<span>{details.runtime}</span>:cinema?.runtime?<span><Trans>{cinema.runtime} min</Trans></span>:null}
           </div>
           {details?.genres?.length? <p className="tsugi-watch-muted">{details.genres.join(' · ')}</p>:null}
-          {(details?.description||title.description)&&<p className="break-words">{details?.description??title.description}</p>}
+          {(cinema?.description||details?.description||title.description)&&<p className="break-words">{cinema?.description??details?.description??title.description}</p>}
           {automatic&&isWatchMovie(title.mediaType)&&videoId&&<button type="button" data-ui="watch-play-title" className="tsugi-read-action tsugi-series-primary justify-self-start" disabled={busy} onClick={()=>selectVideo(videoId)}>{resumeMs>0?<Trans>Resume</Trans>:<Trans>Play</Trans>}</button>}
         </div>
       </div>
@@ -661,7 +672,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       {resumeMs>0&&<p><Trans>Saved playback position:</Trans> {watchTime(resumeMs)}</p>}
       {automatic&&<div className="flex flex-wrap gap-2"><button type="button" className="tsugi-read-action" disabled={busy} onClick={searchTitleInAddons}><Trans>Search this title across addons</Trans></button>{desktopArea?.openServerSearch&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>desktopArea.openServerSearch?.(title.name)}><Trans>Find on AIOStreams / media server</Trans></button>}</div>}
       {onPlay&&profileReady&&profileId!==undefined&&['movie','series'].includes(title.mediaType)&&<RefractWatchlist key={JSON.stringify([profileId,title.mediaType,title.id])} profileId={profileId} mediaType={title.mediaType} itemId={title.id} busy={busy} run={run}/>}
-      <div className="flex flex-wrap gap-2">{sources.filter(s=>s.enabled&&s.manifest.resources.includes('meta')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readMetadata(title,s.sourceId)}><Trans>Details</Trans> · {s.manifest.name}</button>)}</div>
+      <details className="tsugi-watch-provider-details"><summary><Trans>Metadata sources</Trans></summary><div className="flex flex-wrap gap-2">{sources.filter(s=>s.enabled&&s.manifest.resources.includes('meta')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readMetadata(title,s.sourceId)}><Trans>Details</Trans> · {s.manifest.name}</button>)}</div></details>
       {!automatic&&videos.length>0&&<label className="block"><Trans>Video</Trans><select aria-label={t`Video`} className="tsugi-read-input w-full" value={videoId} disabled={busy} onChange={e=>selectVideo(e.target.value)}><option value=""><Trans>Select an episode or video</Trans></option>{videos.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></label>}
       {automatic&&(!isWatchMovie(title.mediaType)||videos.length>1)&&videos.length>0&&<section className="space-y-3" data-ui="watch-episode-grid">
         <div className="flex flex-wrap items-center justify-between gap-3"><h4>{isWatchMovie(title.mediaType)?<Trans>Videos</Trans>:<Trans>Episodes</Trans>} ({seasonVideos.length})</h4>
@@ -669,12 +680,12 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
             {seasons.map(s=><option key={s} value={s}>{s==='other'?t`Other episodes`:s==='0'?t`Specials (season 0)`:t`Season ${s}`}</option>)}
           </select>
         </div>
-        <div className="tsugi-watch-episode-list">{seasonVideos.map(video=><button key={video.id} type="button" className="tsugi-read-action tsugi-watch-episode" data-video-id={video.id} aria-current={videoId===video.id?'true':undefined} disabled={busy} onClick={()=>selectVideo(video.id)}>
+        <div className="tsugi-watch-episode-list">{seasonVideos.map(video=>{const match=seasonArt.filter(episode=>episode.episode===video.episode);const art=match.length===1?match[0]:undefined;return <button key={video.id} type="button" className="tsugi-read-action tsugi-watch-episode" data-video-id={video.id} aria-current={videoId===video.id?'true':undefined} disabled={busy} onClick={()=>selectVideo(video.id)}>
           {video.episode!==null&&<span className="tsugi-watch-muted tabular-nums">{String(video.episode).padStart(2,'0')}</span>}
-          {video.thumbnail&&<span className="tsugi-watch-episode-art" aria-hidden="true"><Artwork src={video.thumbnail} alt=""/></span>}
-          <span className="min-w-0 flex-1 break-words"><strong>{video.name}</strong>{video.description&&<span className="block tsugi-watch-muted line-clamp-2 text-sm">{video.description}</span>}</span>
+          <span className="tsugi-watch-episode-art" aria-hidden="true"><Artwork src={[art?.thumbnail,video.thumbnail,cinema?.background,details?.background].filter((value):value is string=>!!value)} alt=""/></span>
+          <span className="min-w-0 flex-1 break-words"><strong>{video.name}</strong>{(video.description||art?.description)&&<span className="block tsugi-watch-muted line-clamp-2 text-sm">{video.description??art?.description}</span>}{art?.runtime&&<small className="tsugi-watch-muted"><Trans>{art.runtime} min</Trans></small>}</span>
           <span className="ms-auto"><Trans>Watch</Trans></span>
-        </button>)}</div>
+        </button>})}</div>
       </section>}
       {!videoId&&!videos.length&&<p><Trans>Select a video from a compatible metadata addon before requesting streams.</Trans></p>}
       {automatic&&sourceOpen&&createPortal(<section className="tsugi-watch-stream-page" role="dialog" aria-modal="true" aria-label={t`Choose your stream`} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();closeStreams();}}}>

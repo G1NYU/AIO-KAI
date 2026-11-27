@@ -223,6 +223,9 @@ export function installStremioFixture(initializeStartup=true){
         const videos=!f.emptyMetadata&&a.mediaType==='series'?[{id:'tt90002:1:1',name:'Episode one',season:1,episode:1,thumbnail:'https://image.tmdb.org/t/p/w300/episode.jpg',description:'Episode overview from the provider.'},{id:'tt90002:1:2',name:'Episode two',season:1,episode:2},{id:'tt90002:0:1',name:'Special',season:0,episode:1},{id:'tt90002:2:1',name:'Second season',season:2,episode:1},{id:'tt90002:extra',name:'Unnumbered episode',season:null,episode:null}]:[];
         return reply({sourceId:a.sourceId,mediaType:a.mediaType,itemId:a.itemId,metadata:{id:a.itemId,name:a.mediaType==='series'?'Fixture anime series':'Fixture cinema film',mediaType:a.mediaType,description:'Metadata from the separate metadata addon.',poster:'https://image.tmdb.org/t/p/w500/detail.jpg',background:'https://images.metahub.space/background/medium/tt90001/img',imdbRating:8.6,releaseInfo:'2024',runtime:'57 min',genres:['Drama'],cast:['Fixture Actor'],directors:['Fixture Director'],videos}});
       }
+      case 'tmdb-search':return reply({items:[]});
+      case 'tmdb-title':return emit(null,'tmdb-not-found');
+      case 'tmdb-season':return reply({tmdbId:a.tmdbId,season:a.season,episodes:[]});
       case 'begin-stream-options':
       case 'all-stream-options':{
         f.streamQuery={mediaType:a.mediaType,videoId:a.videoId,sourceIds:profile.sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(s=>s.sourceId)};
@@ -321,7 +324,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       const catalog=(id,mediaType,name,extras=[])=>({id,mediaType,name,extras});
       const searchExtra={name:'search',required:false,options:[],optionsLimit:null};
       f.profiles[0].sources=[
-        addon(101,'Catalogue only',['catalog'],[catalog('films','movie','Popular films',[searchExtra]),catalog('anime','series','Trending anime'),catalog('broken','movie','Unavailable catalogue'),catalog('duplicate-search','movie','More films',[{...searchExtra,required:true}])]),
+        addon(101,'Catalogue only',['catalog','meta'],[catalog('films','movie','Popular films',[searchExtra]),catalog('anime','series','Trending anime'),catalog('broken','movie','Unavailable catalogue'),catalog('duplicate-search','movie','More films',[{...searchExtra,required:true}])]),
         addon(102,'Streaming only',['stream']),
         addon(103,'Metadata only',['meta']),
         addon(104,'Failed stream addon',['stream']),
@@ -450,12 +453,13 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await item.locator('[data-video-id="tt90002:extra"]').waitFor();
     await season.selectOption('1');
     await item.getByText('Episode overview from the provider.',{exact:true}).waitFor();
-    assert.equal(await item.locator('.tsugi-watch-episode-art').count(),1);
+    assert.equal(await item.locator('.tsugi-watch-episode-art').count(),2);
     const episode=item.locator('[data-video-id="tt90002:1:2"]');
     await episode.click();
     await groups.getByRole('button',{name:'Play',exact:true}).first().waitFor();
     await page.keyboard.press('Escape');
     await groups.waitFor({state:'detached'});
+    await item.locator('details.tsugi-watch-provider-details summary').click();
     const metadataButton=item.getByRole('button',{name:/Details.*Metadata only/});
     await page.evaluate(()=>{window.__stremioFixture.failMetadata=true;});
     await metadataButton.click();

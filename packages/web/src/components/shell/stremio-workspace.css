@@ -153,3 +153,23 @@
 .tsugi-watch-stream-inner h3{font-size:20px;font-weight:650}
 .tsugi-watch-stream-inner [data-stream-source]{padding:14px 0 10px}
 .tsugi-watch-stream-inner [data-stream-source] h5{font-size:15px;letter-spacing:.01em}
+
+.tsugi-watch-title-hero[data-has-backdrop]{grid-template-columns:minmax(0,1fr);min-height:clamp(370px,45vw,610px);align-content:end;padding:clamp(24px,4vw,52px);border-radius:var(--tsugi-radius-panel)}
+.tsugi-watch-title-hero[data-has-backdrop] .tsugi-watch-title-art{display:none}
+.tsugi-watch-title-backdrop{inset:0}
+.tsugi-watch-title-backdrop img{width:100%;height:100%;object-fit:cover;object-position:center 30%}
+.tsugi-watch-title-backdrop::after{background:linear-gradient(90deg,var(--tsugi-canvas) 0%,color-mix(in srgb,var(--tsugi-canvas) 84%,transparent) 26%,transparent 100%),linear-gradient(0deg,var(--tsugi-canvas),transparent 75%)}
+.tsugi-watch-title-copy{max-width:min(700px,88%);gap:18px}
+.tsugi-watch-title-name{font-family:var(--tsugi-font);font-size:clamp(32px,4vw,56px)!important;line-height:1.08;font-weight:750;letter-spacing:-.045em}
+.tsugi-watch-title-logo{max-width:min(360px,70vw);max-height:110px;object-fit:contain;object-position:left center}
+.tsugi-watch-title-copy>p{line-height:1.6}
+.tsugi-watch-episode-list{gap:12px}
+.tsugi-watch-episode{min-height:112px;gap:18px;padding:12px;border:1px solid transparent;background:color-mix(in srgb,var(--tsugi-surface) 85%,transparent);border-radius:var(--tsugi-radius-art)}
+.tsugi-watch-episode:hover{border-color:var(--tsugi-line)}
+.tsugi-watch-episode-art{width:clamp(115px,16vw,210px);border-radius:var(--tsugi-radius-art)}
+.tsugi-watch-episode-art img{width:100%;height:100%;object-fit:cover}
+.tsugi-watch-episode strong{font-size:16px;font-weight:650}
+.tsugi-watch-provider-details{font-size:12px;color:var(--tsugi-muted)}
+.tsugi-watch-provider-details summary{cursor:pointer;padding:8px 0}
+.tsugi-watch-stream-page{background:var(--tsugi-canvas);color:var(--tsugi-ink);font-family:var(--tsugi-font)}
+.tsugi-watch-stream-background::after{background:linear-gradient(180deg,color-mix(in srgb,var(--tsugi-canvas) 48%,transparent),var(--tsugi-canvas) 86%)}

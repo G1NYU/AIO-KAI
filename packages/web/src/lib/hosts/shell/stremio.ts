@@ -26,7 +26,7 @@ export const publicCinemeta:AddonSource={
 export interface AddonReview { reviewId: number; manifest: AddonManifest }
 export interface CatalogPage {
   sourceId: number; mediaType: string; catalogId: string;
-  items: { id: string; name: string; mediaType: string; poster?: string; description?: string; background?: string; imdbId?: string; identities?:string[] }[]; sourceCount: number; nextSkip: number | null;
+  items: { id: string; name: string; mediaType: string; poster?: string; description?: string; background?: string; imdbId?: string; identities?:string[]; releaseInfo?:string; tmdbRating?:number; logo?:string }[]; sourceCount: number; nextSkip: number | null;
 }
 export type Mutation = { kind: 'install'; reviewId: number } | { kind: 'set-enabled'; sourceId: number; enabled: boolean }
   | { kind: 'move'; sourceId: number; position: number } | { kind: 'remove'; sourceId: number };
@@ -43,8 +43,9 @@ export type WatchHistoryEntry={progress:WatchProgress;updatedAt:number};
 type WatchHistoryAction={kind:'watch-history'}|{kind:'watch-record';progress:WatchProgress;viewingId?:string}|({kind:'watch-remove'}&Pick<WatchProgress,'mediaType'|'itemId'|'videoId'>);
 type RefractAction={kind:'refract-threshold';percent:number|null}|{kind:'watch-complete';mediaType:string;itemId:string;videoId:string;updatedAt:number}|{kind:'refract-status'}|{kind:'refract-connect';key:string}|{kind:'refract-enable';enabled:boolean}|{kind:'refract-disconnect';discardPending:boolean}|{kind:'refract-sync'}|{kind:'refract-watchlist';mediaType:string;itemId:string;add:boolean};
 type MalAnimeAction={kind:'mal-anime-list'}|{kind:'mal-anime-import';entries:MalEntry[]}|{kind:'mal-anime-remove';malId:number}|{kind:'mal-anime-match';malId:number;sourceId:number;mediaType:string;itemId:string}|{kind:'mal-anime-unmatch';malId:number};
+type TmdbAction={kind:'tmdb-search';query:string}|{kind:'tmdb-title';mediaType:string;itemId:string}|{kind:'tmdb-season';tmdbId:number;season:number};
 type SetupAction={kind:'watch-setup-status'}|{kind:'tmdb-connect';key:string}|{kind:'tmdb-disconnect'};
-type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | SetupAction | WatchHistoryAction | RefractAction | MalAnimeAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
+type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | SetupAction | TmdbAction | WatchHistoryAction | RefractAction | MalAnimeAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
 export type RemoteAddonProfile={profileIndex:number;name:string;usesPrimaryAddons:boolean;locked:boolean};
 export type ImportCandidate={candidateId:number;name:string;host:string;enabled:boolean;alreadyInstalled:boolean};
 type ImportBase={importId:number;provider:ImportProvider};
@@ -207,6 +208,27 @@ export async function loadAddonCatalog(profileId:number,action:CatalogAction):Pr
   return {sourceId:action.sourceId,mediaType:action.mediaType,catalogId:action.catalogId,items,sourceCount,nextSkip};
 }
 
+type MetadataItem=CatalogPage['items'][number];
+function parseTmdbItem(value:unknown):MetadataItem{
+  const row=obj(value),id=str(row.id,64),mediaType=str(row.mediaType,32);
+  if(!((mediaType==='movie'&&/^tmdb:movie:[1-9][0-9]{0,9}$/.test(id))||(mediaType==='series'&&/^tmdb:tv:[1-9][0-9]{0,9}$/.test(id))))return fail();
+  const imdbId=typeof row.imdbId==='string'&&/^tt[0-9]{1,12}$/.test(row.imdbId)?row.imdbId:undefined;
+  return {id,mediaType,name:str(row.name,512),poster:publicAddonPoster(row.poster),background:publicAddonPoster(row.background),logo:publicAddonPoster(row.logo),description:optionalDisplay(row.description,4096),releaseInfo:optionalDisplay(row.releaseInfo,64),tmdbRating:tmdbRating(row.tmdbRating),imdbId,identities:titleIdentities(row.identities)};
+}
+function tmdbRating(value:unknown){return typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=10?value:undefined;}
+export async function searchTmdb(profileId:number,query:string){return array((await scoped(profileId,{kind:'tmdb-search',query})).items,60,parseTmdbItem);}
+export type TmdbTitle=MetadataItem&{tmdbId:number;genres?:string[];cast?:string[];runtime?:number};
+export async function loadTmdbTitle(profileId:number,mediaType:string,itemId:string):Promise<TmdbTitle>{
+  const row=obj((await scoped(profileId,{kind:'tmdb-title',mediaType,itemId})).item),item=parseTmdbItem(row),tmdbId=integer(row.tmdbId,1,9999999999);
+  if(Number(item.id.split(':').at(-1))!==tmdbId)return fail();
+  return {...item,tmdbId,genres:optionalDisplayList(row.genres,16,80),cast:optionalDisplayList(row.cast,12,128),runtime:row.runtime==null?undefined:integer(row.runtime,1,1440)};
+}
+export type TmdbEpisode={episode:number;name?:string;description?:string;thumbnail?:string;runtime?:number;tmdbRating?:number};
+export async function loadTmdbSeason(profileId:number,tmdbId:number,season:number):Promise<TmdbEpisode[]>{
+  const v=await scoped(profileId,{kind:'tmdb-season',tmdbId,season});
+  if(v.tmdbId!==tmdbId||v.season!==season)return fail();
+  return array(v.episodes,500,value=>{const row=obj(value);return {episode:integer(row.episode,0,10000),name:optionalDisplay(row.name,512),description:optionalDisplay(row.description,4096),thumbnail:publicAddonPoster(row.thumbnail),runtime:row.runtime==null?undefined:integer(row.runtime,1,1440),tmdbRating:tmdbRating(row.tmdbRating)};});
+}
 function parseAccountImport(v:unknown):AccountImport{
   const data=obj(v);
   if(data.provider!=='stremio'&&data.provider!=='nuvio')return fail();
