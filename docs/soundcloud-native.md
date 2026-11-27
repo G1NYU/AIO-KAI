@@ -18,10 +18,7 @@ Remembering connections is opt-in; the fixed provider is reconstructed rather
 than accepting a saved arbitrary endpoint.
 
 Playback uses a canonical `https://api.soundcloud.com/tracks/<decimal-id>`
-target. The native worker requests complete public AAC formats and prefers
-native HLS, refuses missing fragments, bounds the progressive audio spool to
-64 MiB, and uses the existing independent mpv engine for decode, seek,
-volume and playback state. Native HLS writes intermediate fragments even for
+target. The native worker prefers complete public AAC/M4A, then complete Opus or MP3, preferring HTTP before native HLS within each format. It excludes preview, premium and download formats, refuses missing fragments, bounds the progressive audio spool to 64 MiB, and uses the existing independent mpv engine for decode, seek, volume and playback state. Native HLS writes intermediate fragments even for
 stdout media, so the tool uses an owner-only temporary directory and contained
 process. Browser session credentials are not passed to SoundCloud. No preview,
 DRM bypass, private-token URL, premium login, SoundCloud download/export,
