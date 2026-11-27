@@ -292,25 +292,29 @@ impl Registry{
         self.pending=None;
         let mut data=self.list();
         data["rejected"]=json!(failed.iter().map(Self::import_failure).collect::<Vec<_>>());
-        let retryable:Vec<_>=failed.into_iter().filter(|row|row.reason!="duplicate"&&row.reason!="configuration-required").collect();
-        data["retryImportId"]=json!(if retryable.is_empty(){None}else{Some(id)});
-        if !retryable.is_empty(){
+        let can_retry=failed.iter().any(Self::retryable_import_failure);
+        data["retryImportId"]=json!(if can_retry{Some(id)}else{None});
+        if can_retry{
             // Only failed manifest endpoints remain in volatile native memory.
             // No login token, password or unselected account entries are retried.
-            self.import=Some(Flow{id,provider:flow.provider,created:Instant::now(),stage:Stage::Retry{failed:retryable,account_order}});
+            self.import=Some(Flow{id,provider:flow.provider,created:Instant::now(),stage:Stage::Retry{failed,account_order}});
         }
         Ok(data)
     }
+    fn retryable_import_failure(row:&Failed)->bool{row.reason!="duplicate"&&row.reason!="configuration-required"}
     pub(super) fn import_retry(&mut self,id:u32)->Result<Value>{
         self.import_retry_with(id,&|candidate|candidate.endpoint.manifest())
     }
     fn import_retry_with(&mut self,id:u32,fetch:&(impl Fn(&Candidate)->Result<Manifest>+Sync))->Result<Value>{
         let Some(flow)=self.import.as_ref().filter(|flow|flow.id==id&&!flow.expired()) else{return Err("expired-review");};
         let Stage::Retry{failed,account_order}=&flow.stage else{return Err("expired-review");};
-        let chosen:Vec<_>=failed.iter().map(|row|row.candidate.clone()).collect();
+        let chosen:Vec<_>=failed.iter().filter(|row|Self::retryable_import_failure(row)).map(|row|row.candidate.clone()).collect();
+        let retained:Vec<_>=failed.iter().filter(|row|!Self::retryable_import_failure(row)).cloned().collect();
         let account_order=account_order.clone();
         let provider=flow.provider;
-        let (rows,failed)=self.review_import_candidates(&chosen,fetch);
+        let (rows,mut failed)=self.review_import_candidates(&chosen,fetch);
+        failed.extend(retained);
+        failed.sort_by_key(|row|row.candidate.id);
         self.import=Some(Flow{id,provider,created:Instant::now(),stage:Stage::Reviewed{rows,failed,account_order}});
         self.import_apply(id)
     }
