@@ -24,7 +24,7 @@ export function StremioAddonSettings(){
   const [error,setError]=React.useState('');
   const [notice,setNotice]=React.useState('');
   const [selection,setSelection]=React.useState<{sourceId:number;catalogIndex:number}|null>(null);
-  const [filters,setFilters]=React.useState<Record<string,string>>({});
+  const [filters,setFilters]=React.useState<Map<string,string>>(()=>new Map());
   const [page,setPage]=React.useState<CatalogPage|null>(null);
   const mounted=React.useRef(false);
   const flight=React.useRef(false);
@@ -45,7 +45,7 @@ export function StremioAddonSettings(){
     return ()=>{mounted.current=false;const id=pending.current;pending.current=null;if(id!==null)void cancelAddonReview(id).catch(()=>{});};
   },[]);
   function clearPage(){setPage(null);seen.current.clear();}
-  function choose(next:typeof selection){setSelection(next);setFilters({});clearPage();}
+  function choose(next:typeof selection){setSelection(next);setFilters(new Map());clearPage();}
   async function inspect(){
     const candidate=url.trim();
     if(!candidate||!consent||flight.current)return;
@@ -66,10 +66,10 @@ export function StremioAddonSettings(){
     setReview(null);pending.current=null;
     await run(async()=>{await cancelAddonReview(id);});
   }
-  const validFilters=!!catalog&&catalog.extras.every(e=>e.name==='skip'||!e.required||!!filters[e.name]?.trim());
+  const validFilters=!!catalog&&catalog.extras.every(e=>e.name==='skip'||!e.required||!!filters.get(e.name)?.trim());
   async function load(skip:number){
     if(!source||!catalog||!validFilters||flight.current)return;
-    const extras=Object.fromEntries(catalog.extras.filter(e=>e.name!=='skip'&&filters[e.name]?.trim()).map(e=>[e.name,filters[e.name]]));
+    const extras=Object.fromEntries(catalog.extras.filter(e=>e.name!=='skip'&&filters.get(e.name)?.trim()).map(e=>[e.name,filters.get(e.name)!]));
     if(catalog.extras.some(e=>e.name==='skip'&&(skip>0||e.required)))extras.skip=String(skip);
     await run(async()=>{
       if(skip===0)clearPage();
@@ -121,10 +121,10 @@ export function StremioAddonSettings(){
       </select></label>
       {catalog.extras.filter(e=>e.name!=='skip').map(extra=>{
         const label=extra.name==='search'?t`Search`:extra.name==='genre'?t`Genre`:extra.name;
-        const update=(value:string)=>{setFilters(old=>({...old,[extra.name]:value}));clearPage();};
+        const update=(value:string)=>{setFilters(old=>new Map(old).set(extra.name,value));clearPage();};
         return <label key={extra.name}>{label}{extra.options.length?
-          <select className="tsugi-menu-select w-full" required={extra.required} disabled={busy} value={filters[extra.name]??''} onChange={e=>update(e.target.value)}><option value="">{t`Select`}</option>{extra.options.map((o,index)=><option key={index} value={o}>{o}</option>)}</select>:
-          <input className="tsugi-read-input w-full min-w-0" maxLength={512} required={extra.required} disabled={busy} value={filters[extra.name]??''} onChange={e=>update(e.target.value)}/>}</label>;
+          <select className="tsugi-menu-select w-full" required={extra.required} disabled={busy} value={filters.get(extra.name)??''} onChange={e=>update(e.target.value)}><option value="">{t`Select`}</option>{extra.options.map((o,index)=><option key={index} value={o}>{o}</option>)}</select>:
+          <input className="tsugi-read-input w-full min-w-0" maxLength={512} required={extra.required} disabled={busy} value={filters.get(extra.name)??''} onChange={e=>update(e.target.value)}/>}</label>;
       })}
       <button type="submit" className="tsugi-read-action" disabled={busy||!validFilters}><Trans>Load catalogue</Trans></button>
       {page&&<><p>{page.items.length} <Trans>titles on this page</Trans></p><ul className="max-h-64 overflow-auto">{page.items.map(item=><li className="tsugi-read-row break-words" key={item.id}>{item.name}</li>)}</ul>
