@@ -333,7 +333,7 @@ try {
   await page.route('https://cdn.myanimelist.net/images/manga/1/2.jpg', route => route.fulfill({ contentType: 'image/png', body: image }));
   await page.goto(origin, { waitUntil: 'domcontentloaded' });
   const landing = page.locator('[data-page="desktop-landing"]');
-  await landing.getByRole('button', { name: 'Movies & TV', exact: true }).waitFor();
+  await landing.locator('.tsugi-world-card[data-world="video"]').waitFor();
   const onboarding = page.locator('[data-ui="tsugi-onboarding"]');
   assert.equal(await landing.getAttribute('data-view'), 'welcome');
   assert.equal(await onboarding.isVisible(), false, 'first launch does not force setup');
@@ -368,10 +368,11 @@ try {
   await onboarding.getByRole('button', { name: 'Enter Tsugi' }).click();
   await onboarding.waitFor({ state: 'hidden' });
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await landing.getByRole('button', { name: 'Movies & TV', exact: true }).waitFor();
+  await landing.locator('.tsugi-world-card[data-world="video"]').waitFor();
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'mocha' && document.documentElement.dataset.tsugiAccent === 'blue');
   assert.equal(await onboarding.isVisible(), false, 'onboarding does not reopen after completion');
   assert.equal(await landing.getAttribute('data-view'), 'home');
+  await landing.locator('.tsugi-world-shared-rail').getByRole('button',{name:'Movies & TV',exact:true}).waitFor();
   assert.equal(await landing.locator('.tsugi-world-hero img').getAttribute('src'),'/design/shared/hero-train.webp');
   assert.ok(!welcomeArt.includes(await landing.locator('.tsugi-world-hero img').getAttribute('src')),'distinct returning-home hero');
   await landing.getByRole('heading', { name: 'Welcome, Fixture.', exact: true }).waitFor();
@@ -382,7 +383,7 @@ try {
   await onboarding.getByRole('button',{name:'Skip for now',exact:true}).click();
   await onboarding.waitFor({state:'hidden'});
   await page.setViewportSize({ width:1440,height:900 });
-  await landing.getByRole('button', { name: 'App settings', exact: true }).click();
+  await landing.locator('.tsugi-world-toolbar').getByRole('button', { name: 'App settings', exact: true }).click();
   const bootSettings = page.getByRole('dialog');
   assert.equal(await bootSettings.getByLabel('Default visualizer').inputValue(),'wave');
   const startup = bootSettings.getByLabel('Open on startup');
@@ -456,7 +457,7 @@ try {
     await destination.getByRole('button',{name:'Explore first',exact:true}).click();
     assert.equal(await destination.locator('[data-page="desktop-landing"]').getAttribute('data-view'),'home');
     assert.equal(await destination.locator('[data-ui="tsugi-onboarding"]').isVisible(),false);
-    await destination.getByRole('button',{name:'App settings',exact:true}).click();
+    await destination.locator('[data-page="desktop-landing"] .tsugi-world-toolbar').getByRole('button',{name:'App settings',exact:true}).click();
     const settings=destination.getByRole('dialog');
     const restore=settings.getByRole('region',{name:'Portable backup',exact:true});
     const before=await destination.evaluate(()=>document.documentElement.dataset.tsugiTheme);
@@ -605,7 +606,11 @@ try {
   await page.evaluate(()=>{const key='tsugi-backup-schedule-v1';const state=JSON.parse(localStorage.getItem(key));localStorage.setItem(key,JSON.stringify({...state,cadence:'off',dueMs:0}));window.dispatchEvent(new Event('tsugi-backup-schedule-change'));});
   console.log('PASS: opt-in schedule defers during settings, then saves verified automatic copy.');
   assert.deepEqual(await landing.locator('.tsugi-world-card').evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label'))), ['Movies & TV', 'Music', 'Read', 'Vault']);
-  assert.equal(await landing.locator('.tsugi-world-card .tsugi-media-icon').count(), 4);
+  assert.equal(await landing.locator('.tsugi-world-card .tsugi-world-card-top .tsugi-media-icon').count(), 4);
+  const homeArtwork=landing.locator('.tsugi-world-card .tsugi-world-minimal-art .tsugi-media-icon');
+  assert.equal(await homeArtwork.count(),4);
+  assert.equal(new Set(await homeArtwork.evaluateAll(nodes=>nodes.map(node=>node.innerHTML))).size,4,'each returning-home world has distinct artwork');
+  assert.equal(await landing.locator('.tsugi-world-card img').count(),0,'returning Home uses minimalist cards, not onboarding illustration repeats');
   assert.equal(await page.locator('html').getAttribute('class').then(value => value.includes('tsugi-desktop-boot')), true);
   const assertLauncherGeometry = async () => {
     const hero = await landing.locator('.tsugi-world-hero').boundingBox();
@@ -617,11 +622,13 @@ try {
     }));
     assert.ok(buttons.every(button => Math.abs(button.y - buttons[0].y) < 2 && Math.abs(button.width - buttons[0].width) < 2), 'equal-width illustrated destinations on one baseline');
     assert.ok(await landing.evaluate(node => node.scrollWidth <= node.clientWidth + 1), 'launcher has no horizontal overflow');
-    await landing.locator('.tsugi-world-card img').evaluateAll(images => Promise.all(images.map(image => image.decode())));
+    const artBounds=await homeArtwork.evaluateAll(nodes=>nodes.map(node=>{const {width,height}=node.getBoundingClientRect();return {width,height};}));
+    assert.equal(artBounds.length,4);
+    assert.ok(artBounds.every(({width,height})=>width>0&&height>0),'all four world illustrations have visible geometry');
     await landing.locator('.tsugi-world-hero img').evaluate(image => image.decode());
   };
   await assertLauncherGeometry();
-  const wordmarkAsset = await landing.locator('.tsugi-world-brand .tsugi-brand-wordmark').evaluate(async node => {
+  const wordmarkAsset = await landing.locator('.tsugi-world-shared-rail .tsugi-rail-signature .tsugi-brand-wordmark').evaluate(async node => {
     const mask = getComputedStyle(node, '::before').maskImage;
     const url = mask.match(/^url\(["']?(.*?)["']?\)$/)?.[1];
     if (!url) return null;
@@ -638,7 +645,7 @@ try {
   await page.setViewportSize({ width: 440, height: 700 });
   assert.ok(await landing.evaluate(node => node.scrollWidth <= node.clientWidth + 1), 'compact illustrated home has no horizontal overflow');
   await page.setViewportSize({ width: 1440, height: 900 });
-  await landing.getByRole('button', { name: 'Vault', exact: true }).click();
+  await landing.locator('.tsugi-world-card[data-world="vault"]').click();
   const vault = page.locator('[data-page="vault"]');
   await vault.waitFor();
   assert.equal(await vault.locator('[data-ui="tsugi-desktop-rail"] [aria-current="page"]').getAttribute('aria-label'), 'Vault');
@@ -711,7 +718,7 @@ try {
   await capture('01-vault');
   await vault.getByRole('button', { name: 'All media', exact: true }).click();
   await landing.waitFor();
-  await landing.getByRole('button', { name: 'Movies & TV', exact: true }).click();
+  await landing.locator('.tsugi-world-card[data-world="video"]').click();
   const entry = page.locator('.tsugi-video-entry');
   const field = entry.getByRole('textbox', { name: /Server address/ });
   await field.waitFor();
@@ -748,11 +755,11 @@ try {
   await mediaNav.getByRole('button', { name: 'All media', exact: true }).click();
   await landing.waitFor();
   console.log('PASS: centered unboxed movie setup, consistent controls and palette-independent field focus.');
-  await page.getByRole('button', { name: 'App settings', exact: true }).click();
+  await landing.locator('.tsugi-world-toolbar').getByRole('button', { name: 'App settings', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Carbon', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'carbon' && document.documentElement.style.getPropertyValue('--background') === document.documentElement.style.getPropertyValue('--tsugi-canvas'));
   await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
-  await page.locator('[data-page="desktop-landing"]').getByRole('button', { name: 'Read', exact: true }).click();
+  await landing.locator('.tsugi-world-card[data-world="read"]').click();
   const rail = page.locator('.tsugi-reading-rail');
   const readMedia = page.locator('.tsugi-read-media-header');
   const railGeometry = async (locator) => locator.evaluate(node => {
@@ -1548,7 +1555,7 @@ try {
   // Reload the actual application, re-enter Read/Books, and check saved file
   // metadata and PDF page survive a full page reload.
   await page.reload({waitUntil:'domcontentloaded'});
-  await landing.getByRole('button',{name:'Read',exact:true}).click();
+  await landing.locator('.tsugi-world-card[data-world="read"]').click();
   await page.locator('[data-page="read"] .tsugi-reading-rail').getByRole('button',{name:'Books',exact:true}).click();
   await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi Original EPUB'}).waitFor();
   await books.locator('.tsugi-manga-card').filter({hasText:'Tsugi PDF Fixture'}).click();
@@ -1634,7 +1641,7 @@ try {
   console.log('PASS: completed Vault file import into persistent Books and session Music; duplicate book guarded.');
   await page.evaluate(()=>localStorage.setItem('tsugi-startup-area-v1',JSON.stringify('welcome')));
   await page.goto(origin+'/?readerSetup=1',{waitUntil:'domcontentloaded'});
-  await page.locator('[data-page="desktop-landing"]').getByRole('button',{name:'Read',exact:true}).click();
+  await landing.locator('.tsugi-world-card[data-world="read"]').click();
   const setup=page.locator('[data-page="read-setup"]');
   await setup.getByRole('heading',{name:'Mihon-compatible extensions',exact:true}).waitFor();
   await setup.getByText("Already use Mihon, Komikku or another Tachiyomi-compatible fork? Tsugi supports the same compatible extension repositories. After setup, add a trusted repository URL in Settings → Browse → Sources → Extension repositories, then install individual extensions from Extensions. Sources are not bundled, and compatibility varies by extension.",{exact:true}).waitFor();

@@ -258,6 +258,8 @@ export function installStremioFixture(initializeStartup=true){
       }
       case 'poll-stream-options':{
         if(!f.progressive||f.progressive.queryId!==a.queryId||!f.streamQuery)return emit(null,'expired-review');
+        const pending=f.progressive.groups.slice(1);
+        if(f.holdStreamCompletion&&pending.length)return reply({...f.progressive,groups:f.progressive.groups.slice(0,1),pendingSourceIds:pending.map(g=>g.sourceId),done:false});
         return reply({...f.progressive,pendingSourceIds:[],done:true});
       }
       case 'cancel-stream-options':{
@@ -280,7 +282,11 @@ export function installStremioFixture(initializeStartup=true){
           [{name:'HD fixture',supported:true,reason:'direct-https',language:null},{name:'Unsupported fixture',supported:false,reason:'unsupported-transport',language:null}]});
       }
       case 'prepare-media':{
-        const review=f.mediaReview?.id===a.reviewId?f.mediaReview:f.streamReviews.find(r=>r.id===a.reviewId);f.mediaReview=null;f.streamReviews=[];f.streamQuery=null;
+        const review=f.mediaReview?.id===a.reviewId?f.mediaReview:f.streamReviews.find(r=>r.id===a.reviewId);
+        if(f.holdStreamCompletion&&f.progressive&&f.streamQuery&&review?.id===a.reviewId){
+          f.preparedWhilePending={videoId:f.streamQuery.videoId,sourceId:review.sourceId,pendingSourceIds:f.progressive.groups.slice(1).map(g=>g.sourceId)};
+        }
+        f.mediaReview=null;f.streamReviews=[];f.streamQuery=null;
         if(review?.id!==a.reviewId||(a.optionIndex!==0&&!(f.boardFixture&&a.optionIndex===1&&!review.subtitles)))return emit(null,'expired-review');
         f.mediaCalls.push({type:'prepare-media',optionIndex:a.optionIndex,startMs:a.startMs});
         f.mediaGrant={id:++f.sequence,subtitles:review.subtitles,startMs:a.startMs};
@@ -409,6 +415,12 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await groups.getByRole('heading',{name:'Streaming only',exact:true}).waitFor();
     await groups.getByRole('button',{name:'Play',exact:true}).first().waitFor();
     await assertArtwork(page.locator('.tsugi-watch-stream-background'));
+    const streamPage=page.getByRole('dialog',{name:'Choose your stream',exact:true});
+    const streamBounds=await streamPage.boundingBox();
+    const streamHeader=await streamPage.locator('.tsugi-watch-stream-header').boundingBox();
+    const windowBounds=await page.locator('[data-ui="window-controls"]').boundingBox();
+    assert.ok(streamBounds&&streamHeader&&windowBounds&&streamBounds.y===0&&streamHeader.y>=windowBounds.y+windowBounds.height+8,'stream selector covers the viewport and clears native controls');
+    assert.ok(await page.evaluate(()=>!!document.elementFromPoint(Math.floor(window.innerWidth/2),20)?.closest('.tsugi-watch-stream-page')),'previous page cannot show through the title-bar strip');
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-stream-selector.png'),animations:'disabled'});
     await groups.getByText('This addon could not return streams. Other sources remain available.',{exact:true}).waitFor();
     assert.equal(await groups.getByRole('button',{name:'Play',exact:true}).count(),2);
@@ -540,10 +552,15 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await page.waitForFunction(()=>!document.querySelector('[data-ui="watch-item-details"] select')?.disabled);
     assert.equal(await episode.getAttribute('aria-current'),'true');
     assert.equal(await item.locator('[data-video-id]').count(),2);
-    await page.evaluate(()=>{window.__stremioFixture.emptyMetadata=false;});
+    await page.evaluate(()=>{const f=window.__stremioFixture;f.emptyMetadata=false;f.holdStreamCompletion=true;f.preparedWhilePending=null;});
     await episode.click();
-    await groups.getByRole('button',{name:'Play',exact:true}).first().click();
+    await page.getByRole('status').filter({hasText:'1 providers still loading'}).waitFor();
+    assert.equal(await groups.locator('[data-stream-source="104"]').count(),0);
+    await groups.locator('[data-stream-source="102"]').getByRole('button',{name:'Play',exact:true}).first().click();
     await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
+    assert.deepEqual(await page.evaluate(()=>window.__stremioFixture.preparedWhilePending),{videoId:'tt90002:1:2',sourceId:102,pendingSourceIds:[104]});
+    await page.evaluate(()=>{window.__stremioFixture.holdStreamCompletion=false;});
+    console.log('PASS: exact episode selected while a second provider remains pending.');
     await player.hover();
     assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&['all-stream-options','begin-stream-options'].includes(a.action.kind)&&a.action.videoId==='tt90002:1:2')));
     assert.equal(await page.evaluate(()=>window.__stremioFixture.profiles[0].malAnime?.length??0),0);
@@ -1245,6 +1262,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     // The shared rail hides the legacy outer header; measure the visible workspace instead.
     const visibleHeader=watch.locator('[data-ui="stremio-addon-settings"] > header');
     await visibleHeader.waitFor({state:'visible'});
+    assert.equal(await visibleHeader.locator('.tsugi-watch-header-brand').isVisible(),false,'shared rail is the only visible Watch brand');
     assert.equal(await watch.locator(':scope > div > header').isVisible(),false,'Shared rail replaces the legacy Watch header');
     const controls=await firstLaunch.locator('[data-ui="window-controls"]').boundingBox();
     const header=await visibleHeader.boundingBox();

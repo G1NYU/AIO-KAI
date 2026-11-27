@@ -69,8 +69,9 @@ jobs:
           path: ${{ runner.temp }}/tsugi-design-screenshots/*.png
           if-no-files-found: ignore
           retention-days: 7
+      # Verify production compilation on normal feature-branch pushes too.
+      # Artifact uploads, native packaging and publication retain their separate gates.
       - name: Build standalone web
-        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package tsugi]')))
         run: pnpm -F @aiostreams/web build:standalone
       - uses: actions/upload-artifact@v7
         if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package tsugi]')))
