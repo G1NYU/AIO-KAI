@@ -34,11 +34,14 @@ describe('reader experience regression guards', () => {
     expect(visibleReadingPage([{ index: 4, top: 0, bottom: 100 }, { index: 5, top: 115, bottom: 500 }], 50)).toBe(4);
   });
   it('keeps human-readable translation IDs throughout reader surfaces', () => {
-    for (const path of ['page.tsx', 'chapter-reader.tsx', 'reader-settings.tsx']) {
+    for (const path of ['page.tsx', 'chapter-reader.tsx', 'reader-settings.tsx', 'mal-manga-library.tsx']) {
       const source = readFileSync(new URL('../src/app/read/' + path, import.meta.url), 'utf8');
       expect(source).not.toMatch(/\bt\x60|<Trans>/);
       expect(source).toContain('id=');
     }
+    const malPanel = readFileSync(new URL('../src/components/shell/mal-collection-panel.tsx', import.meta.url), 'utf8');
+    expect(malPanel).not.toMatch(/\bt\x60|<Trans>/);
+    expect(malPanel).toContain('id=');
     const landing = readFileSync(new URL('../src/app/desktop-landing/page.tsx', import.meta.url), 'utf8');
     expect(landing).toContain("id: 'Read', message: 'Read'");
     const bridge = readFileSync(new URL('../src/lib/hosts/shell/reading.ts', import.meta.url), 'utf8');

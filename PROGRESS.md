@@ -1,5 +1,7 @@
 # AIO-KAI development handoff
 
+- MAL import follow-up (2026-11-27): the exact parser from e58bf05 passed strict standalone TypeScript and 17 Chromium assertions. Unified 45951114091 passed typecheck/lint/native tests but failed the Reader explicit translation-ID guard (436 web tests passed, one failed). The repair applies explicit IDs and expands the existing guard; cumulative CI remains required.
+
 ## 2026-11-27 — MAL collections and D5 verification
 
 - [cb30dba](https://github.com/G1NYU/TSUGI/commit/cb30dbae813caaae3dd959e3107818fa3894254a) passed [Unified Windows 45949501631](https://github.com/G1NYU/TSUGI/actions/runs/45949501631), including 215 native tests (18 ignored) and cumulative web CI.

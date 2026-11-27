@@ -129,32 +129,32 @@ export function MalMangaLibrary({busy,run,onOpen,openExtensions}:Props){
     catch{throw Error(t({ id:'MAL source saved assignment unconfirmed',message: 'The title was saved in Reader, but the MAL assignment could not be confirmed. Reload the collection and review it again.'}));}
     await onOpen(verified.manga);
   }
-  if(!collection)return <section className="space-y-3"><p role="alert"><Trans id="MAL collection read failed">The imported manga collection could not be read. It has not been reset.</Trans></p><button className="tsugi-read-action" disabled={busy} onClick={()=>setCollection(safeLoad())}><Trans>Reload imported collection</Trans></button></section>;
+  if(!collection)return <section className="space-y-3"><p role="alert"><Trans id="MAL collection read failed">The imported manga collection could not be read. It has not been reset.</Trans></p><button className="tsugi-read-action" disabled={busy} onClick={()=>setCollection(safeLoad())}><Trans id="Reload imported collection">Reload imported collection</Trans></button></section>;
   return <div className="space-y-5" data-ui="mal-manga-library">
     <MalCollectionPanel kind="manga" entries={collection.entries} busy={busy} selectedId={selected} run={run}
       onSelect={choose} isAssigned={row=>collection.links.some(link=>link.malId===row.malId)}
       onImport={async entries=>{update(mergeMalEntries(collection.entries,entries,'manga'),collection.links);}}
       onRemove={async id=>{update(collection.entries.filter(row=>row.malId!==id),collection.links.filter(row=>row.malId!==id));if(selected===id){setSelected(null);setReview(null);setResults(null);}}}/>
     {entry&&<section ref={selectionRef} className="space-y-3" data-ui="mal-manga-source">
-      <div className="flex flex-wrap gap-2 items-center justify-between"><h3 className="font-semibold break-words"><Trans>Choose a reading source</Trans> · {entry.title}</h3><button className="tsugi-read-action" disabled={busy} onClick={()=>setSelected(null)}><Trans>Close</Trans></button></div>
-      <p><Trans>MAL chapter counts are kept separately. Choosing a source does not mark chapters read or change your MAL account.</Trans></p>
-      {link&&<button className="tsugi-read-action" disabled={busy} onClick={()=>void run(openSaved)}><Trans>Open saved source</Trans></button>}
+      <div className="flex flex-wrap gap-2 items-center justify-between"><h3 className="font-semibold break-words"><Trans id="Choose a reading source">Choose a reading source</Trans> · {entry.title}</h3><button className="tsugi-read-action" disabled={busy} onClick={()=>setSelected(null)}><Trans id="Close">Close</Trans></button></div>
+      <p><Trans id="MAL chapter counts are kept separately. Choosing a source does not mark chapters read or change your MAL account.">MAL chapter counts are kept separately. Choosing a source does not mark chapters read or change your MAL account.</Trans></p>
+      {link&&<button className="tsugi-read-action" disabled={busy} onClick={()=>void run(openSaved)}><Trans id="Open saved source">Open saved source</Trans></button>}
       <div className="flex flex-wrap gap-2">
-        <button className="tsugi-read-action" disabled={busy} onClick={()=>void run(inventory)}><Trans>Reload installed sources</Trans></button>
-        <button className="tsugi-read-action" disabled={busy} onClick={openExtensions}><Trans>Browse extensions</Trans></button>
+        <button className="tsugi-read-action" disabled={busy} onClick={()=>void run(inventory)}><Trans id="Reload installed sources">Reload installed sources</Trans></button>
+        <button className="tsugi-read-action" disabled={busy} onClick={openExtensions}><Trans id="Browse extensions">Browse extensions</Trans></button>
       </div>
-      {sources?.length===0&&<p><Trans>Install an extension from a trusted repository first.</Trans></p>}
+      {sources?.length===0&&<p><Trans id="Install an extension from a trusted repository first.">Install an extension from a trusted repository first.</Trans></p>}
       {!!sources?.length&&<form className="flex flex-wrap gap-2" onSubmit={event=>{event.preventDefault();void run(()=>search());}}>
         <select className="tsugi-read-input min-w-0" aria-label={t({ id:'MAL reading source',message: 'Reading source'})} value={source} disabled={busy} onChange={event=>{setSource(event.target.value);setReview(null);setResults(null);}}>
-          <option value=""><Trans>Select a source</Trans></option>{sources.map(row=><option key={row.id} value={row.id}>{row.displayName||row.name} · {row.lang}</option>)}
+          <option value=""><Trans id="Select a source">Select a source</Trans></option>{sources.map(row=><option key={row.id} value={row.id}>{row.displayName||row.name} · {row.lang}</option>)}
         </select>
         <input className="tsugi-read-input min-w-0 grow" maxLength={200} aria-label={t({ id:'MAL source title search',message: 'Search imported manga'})} value={query} disabled={busy} onChange={event=>{setQuery(event.target.value);setReview(null);setResults(null);}}/>
-        <button className="tsugi-read-action" disabled={busy||!source||!query.trim()}><Trans>Search source</Trans></button>
+        <button className="tsugi-read-action" disabled={busy||!source||!query.trim()}><Trans id="Search source">Search source</Trans></button>
       </form>}
-      {results?.mangas.map(row=><button key={row.id} type="button" className="tsugi-read-row w-full text-left" disabled={busy} onClick={()=>void run(()=>inspect(row))}><span className="min-w-0 break-words">{row.title}{row.author&&<small className="block">{row.author}</small>}</span><span><Trans>Review</Trans></span></button>)}
-      {results?.mangas.length===0&&<p><Trans>No matches on this source. Try another title or extension.</Trans></p>}
-      {results?.hasNextPage&&results.page<100&&<button className="tsugi-read-action" disabled={busy} onClick={()=>void run(()=>search(results.page+1))}><Trans>Next page</Trans></button>}
-      {review&&<section className="space-y-2" data-ui="mal-manga-match"><h4><Trans>Review source match</Trans></h4><p>{entry.title} → {review.manga.title}</p><p>{review.chapters.length} <Trans>chapters found</Trans></p><button className="tsugi-read-action" disabled={busy} onClick={()=>void run(apply)}><Trans>Save source and open manga</Trans></button></section>}
+      {results?.mangas.map(row=><button key={row.id} type="button" className="tsugi-read-row w-full text-left" disabled={busy} onClick={()=>void run(()=>inspect(row))}><span className="min-w-0 break-words">{row.title}{row.author&&<small className="block">{row.author}</small>}</span><span><Trans id="Review">Review</Trans></span></button>)}
+      {results?.mangas.length===0&&<p><Trans id="No matches on this source. Try another title or extension.">No matches on this source. Try another title or extension.</Trans></p>}
+      {results?.hasNextPage&&results.page<100&&<button className="tsugi-read-action" disabled={busy} onClick={()=>void run(()=>search(results.page+1))}><Trans id="Next page">Next page</Trans></button>}
+      {review&&<section className="space-y-2" data-ui="mal-manga-match"><h4><Trans id="Review source match">Review source match</Trans></h4><p>{entry.title} → {review.manga.title}</p><p>{review.chapters.length} <Trans id="chapters found">chapters found</Trans></p><button className="tsugi-read-action" disabled={busy} onClick={()=>void run(apply)}><Trans id="Save source and open manga">Save source and open manga</Trans></button></section>}
     </section>}
   </div>;
 }
