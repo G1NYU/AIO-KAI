@@ -1612,6 +1612,6 @@ try {
   await verifyVaultAudioImportsBrowser({ browser, origin, installDesktopFixture });
   await verifySupportSummaryBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyReaderDownloadsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyStremioAddonsBrowser({ browser, origin, installDesktopFixture });
+  await verifyStremioAddonsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyLocalComicImportBrowser({ browser, origin, installDesktopFixture, screenshotDir });
 } finally { await browser.close(); }

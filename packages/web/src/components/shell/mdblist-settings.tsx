@@ -8,6 +8,7 @@ export function MdblistSettings({profileId,openTitle}:{profileId:number;openTitl
   const [key,setKey]=React.useState(''),[busy,setBusy]=React.useState(false),[error,setError]=React.useState('');
   const [lists,setLists]=React.useState<Awaited<ReturnType<typeof mdblistLists>>>([]);
   const [listId,setListId]=React.useState(''),[page,setPage]=React.useState<Awaited<ReturnType<typeof mdblistPage>>|null>(null);
+  const validListId=/^[1-9]\d{0,9}$/.test(listId)&&Number(listId)<=0xffffffff;
   const mounted=React.useRef(false),flight=React.useRef(false);
   const seen=React.useRef(new Set<string>());
   async function run(work:()=>Promise<void>){
@@ -24,7 +25,8 @@ export function MdblistSettings({profileId,openTitle}:{profileId:number;openTitl
     return ()=>{mounted.current=false;clearTimeout(timer);};
   },[profileId]);
   async function load(offset:number){
-    const id=Number(listId);if(!Number.isSafeInteger(id)||id<1||id>0xffffffff)return;
+    if(!validListId)return;
+    const id=Number(listId);
     await run(async()=>{
       if(offset===0){setPage(null);seen.current.clear();}
       const result=await mdblistPage(profileId,id,offset);
@@ -35,7 +37,11 @@ export function MdblistSettings({profileId,openTitle}:{profileId:number;openTitl
       setPage(old=>{
         const items=offset===0?[]:old?.items??[];
         const ids=new Set(items.map(item=>JSON.stringify([item.mediaType,item.id])));
-        const merged=[...items,...result.items.filter(item=>!ids.has(JSON.stringify([item.mediaType,item.id])))];
+        const merged=[...items,...result.items.filter(item=>{
+          const identity=JSON.stringify([item.mediaType,item.id]);
+          if(ids.has(identity))return false;
+          ids.add(identity);return true;
+        })];
         return {items:merged.slice(0,5000),nextOffset:merged.length>=5000?null:result.nextOffset};
       });
     });
@@ -52,7 +58,7 @@ export function MdblistSettings({profileId,openTitle}:{profileId:number;openTitl
       <div className="flex flex-wrap gap-2"><button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void run(async()=>{const result=await mdblistLists(profileId);if(mounted.current)setLists(result);})}><Trans>Load my lists</Trans></button>
         <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void run(async()=>{const result=await mdblistDisconnect(profileId);if(mounted.current){setConnected(result);setLists([]);setPage(null);setListId('');}})}><Trans>Disconnect</Trans></button></div>
       {lists.length>0&&<label><Trans>My lists</Trans><select className="tsugi-menu-select w-full" value={listId} onChange={e=>{setListId(e.target.value);setPage(null);}} disabled={busy}><option value=""><Trans>Select a list</Trans></option>{lists.map(list=><option key={list.id} value={list.id}>{list.name} · {list.count}</option>)}</select></label>}
-      <form className="space-y-2" onSubmit={e=>{e.preventDefault();void load(0);}}><label><Trans>MDBList list ID</Trans><input className="tsugi-read-input w-full" inputMode="numeric" value={listId} onChange={e=>{setListId(e.target.value);setPage(null);}} disabled={busy}/></label><button className="tsugi-read-action" type="submit" disabled={busy||!/^[1-9]\d{0,9}$/.test(listId)}><Trans>Load list</Trans></button></form>
+      <form className="space-y-2" onSubmit={e=>{e.preventDefault();void load(0);}}><label><Trans>MDBList list ID</Trans><input className="tsugi-read-input w-full" inputMode="numeric" value={listId} onChange={e=>{setListId(e.target.value);setPage(null);}} disabled={busy}/></label><button className="tsugi-read-action" type="submit" disabled={busy||!validListId}><Trans>Load list</Trans></button></form>
       {page&&<><ul className="max-h-96 overflow-auto">{page.items.map(item=><li className="tsugi-read-row flex-wrap" key={item.mediaType+':'+item.id}><button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>openTitle(item)}>{item.name}</button><span className="text-sm">{Object.entries(item.ratings).map(([source,value])=>source.toUpperCase()+' '+value+'/100').join(' · ')}</span></li>)}</ul>
       {page.nextOffset!==null&&<button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>void load(page.nextOffset!)}><Trans>Next page</Trans></button>}</>}
     </>}

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 
 function installStremioFixture(){
   if(window.top!==window)return;
@@ -8,10 +10,11 @@ function installStremioFixture(){
   host.stremioAddons=true;
   const send=host.send.bind(host),subscribe=host.subscribe.bind(host),listeners=new Set();
   const manifest={id:'org.fixture',name:'Original addon fixture',version:'1.0.0',resources:['catalog','stream','subtitles'],configurable:false,configurationRequired:false,p2p:false,adult:false,catalogs:[{id:'search',mediaType:'movie',name:'Original films',extras:[{name:'search',required:true,options:[],optionsLimit:null},{name:'skip',required:false,options:[],optionsLimit:null}]}]};
-  const f=window.__stremioFixture={calls:[],profiles:[{profileId:1,name:'Default',sources:[],history:[]}],active:1,pending:null,import:null,sequence:1,mediaReview:null,mediaGrant:null,mediaCalls:[]};
+  const f=window.__stremioFixture={calls:[],profiles:[{profileId:1,name:'Default',sources:[],history:[],mdblistConnected:false}],active:1,pending:null,import:null,sequence:1,mediaReview:null,mediaGrant:null,mediaCalls:[],presenceMessages:[]};
   f.emitPlayer=message=>{for(const listener of listeners)listener(message);};
   host.subscribe=listener=>{listeners.add(listener);const remove=subscribe(listener);return()=>{listeners.delete(listener);remove();};};
   host.send=message=>{
+    if(message.type==='presence'||message.type==='discord-configure')f.presenceMessages.push(structuredClone(message));
     if(message.type==='stremio-consume-grant'){
       const grant=f.mediaGrant;f.mediaGrant=null;f.mediaCalls.push({type:message.type,grantId:message.grantId});
       queueMicrotask(()=>{
@@ -27,7 +30,7 @@ function installStremioFixture(){
     const profileState=()=>({activeProfileId:f.active,profiles:f.profiles.map(p=>({profileId:p.profileId,name:p.name,sourceCount:p.sources.length}))});
     switch(raw.kind){
       case 'profile-list':return emit(profileState());
-      case 'profile-create':f.profiles.push({profileId:++f.sequence,name:raw.name,sources:[],history:[]});return emit(profileState());
+      case 'profile-create':f.profiles.push({profileId:++f.sequence,name:raw.name,sources:[],history:[],mdblistConnected:false});return emit(profileState());
       case 'profile-rename':f.profiles.find(p=>p.profileId===raw.profileId).name=raw.name;return emit(profileState());
       case 'profile-switch':f.active=raw.profileId;f.pending=null;f.import=null;f.mediaReview=null;f.mediaGrant=null;return emit(profileState());
       case 'profile-remove':{
@@ -41,6 +44,23 @@ function installStremioFixture(){
     const reply=data=>emit({...data,profileId:raw.profileId});
     switch(a.kind){
       case 'list':return reply({sources:profile.sources});
+      case 'mdblist-status':return reply({connected:profile.mdblistConnected});
+      case 'mdblist-connect':{
+        if(a.key!=='fixture-mdblist-key')return emit(null,'mdblist-auth');
+        profile.mdblistConnected=true;return reply({connected:true});
+      }
+      case 'mdblist-disconnect':profile.mdblistConnected=false;return reply({connected:false});
+      case 'mdblist-lists':
+        return profile.mdblistConnected?reply({lists:[{id:42,name:'Fixture list',count:3}]}):emit(null,'mdblist-disconnected');
+      case 'mdblist-page':{
+        if(!profile.mdblistConnected)return emit(null,'mdblist-disconnected');
+        if(a.listId===43)return emit(null,'mdblist-rate');
+        if(a.listId!==42)return emit(null,'mdblist-not-found');
+        const film={id:'tt123',mediaType:'movie',name:'MDBList fixture film',ratings:{imdb:85,unknown:100}};
+        const series={id:'tmdb:tv:99',mediaType:'series',name:'MDBList fixture series',ratings:{}};
+        const second={id:'tt456',mediaType:'movie',name:'MDBList second film',ratings:{tmdb:70}};
+        return reply(a.offset===0?{items:[film,series],nextOffset:2}:{items:[film,second,second],nextOffset:a.offset+3});
+      }
       case 'watch-history':return reply({history:profile.history});
       case 'watch-record':{
         const p=a.progress;
@@ -123,7 +143,7 @@ function installStremioFixture(){
   function assertFixtureUrl(url){if(url!=='https://example.invalid/private-fixture/manifest.json?token=fixture')throw Error('unexpected fixture endpoint');}
 }
 
-export async function verifyStremioAddonsBrowser({browser,origin,installDesktopFixture}){
+export async function verifyStremioAddonsBrowser({browser,origin,installDesktopFixture,screenshotDir}){
   const page=await browser.newPage();
   try{
     await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
@@ -254,12 +274,13 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
   const firstLaunch=await browser.newPage({viewport:{width:1440,height:900}});
   try{
     await firstLaunch.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
-    await firstLaunch.addInitScript({content:'('+installDesktopFixture.toString()+')();('+installStremioFixture.toString()+')();localStorage.removeItem("tsugi-onboarding-complete-v1");'});
+    await firstLaunch.addInitScript({content:'('+installDesktopFixture.toString()+')();('+installStremioFixture.toString()+')();localStorage.removeItem("tsugi-onboarding-complete-v1");localStorage.setItem("tsugi-discord-presence-v1",JSON.stringify({enabled:true,applicationId:"123456789012345678",privateMode:false,media:{video:true,music:true,manga:true,books:true}}));'});
     await firstLaunch.goto(origin,{waitUntil:'domcontentloaded'});
     const setup=firstLaunch.getByRole('dialog',{name:'Set up your addon profile',exact:true});
     const picker=setup.locator('[data-ui="watch-profile-picker"]');
     await picker.getByRole('button',{name:'Default 0 addons',exact:true}).waitFor();
     assert.equal(await setup.locator('[data-ui="stremio-addon-settings"]').count(),0);
+    if(screenshotDir){await mkdir(screenshotDir,{recursive:true});await firstLaunch.screenshot({path:join(screenshotDir,'watch-profile-picker.png'),animations:'disabled'});}
     await picker.getByRole('button',{name:'Create profile',exact:true}).click();
     await picker.getByLabel('Profile name',{exact:true}).fill('Cinema');
     await picker.getByRole('button',{name:'Create and continue',exact:true}).click();
@@ -293,6 +314,35 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await watch.getByRole('checkbox').check();
     await watch.getByRole('button',{name:'Review addon',exact:true}).click();
     await watch.getByRole('button',{name:'Install into profile',exact:true}).click();
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'MDBList',exact:true}).click();
+    const mdb=watch.locator('[data-ui="watch-mdblist"]');
+    const key=mdb.getByLabel('MDBList API key',{exact:true});
+    const connect=mdb.getByRole('button',{name:'Verify and connect',exact:true});
+    await key.fill('fixture-rejected-key');assert.equal(await key.getAttribute('type'),'password');
+    await connect.click();await mdb.getByText('MDBList rejected the key or list access.',{exact:true}).waitFor();
+    assert.equal(await key.inputValue(),'');
+    await key.fill('fixture-mdblist-key');await connect.click();
+    await mdb.getByText('Connected to MDBList for this profile.',{exact:true}).waitFor();
+    assert.equal(await firstLaunch.evaluate(()=>JSON.stringify(localStorage).includes('fixture-mdblist-key')),false);
+    await mdb.getByRole('button',{name:'Load my lists',exact:true}).click();
+    await mdb.getByRole('combobox',{name:'My lists',exact:true}).selectOption('42');
+    const listId=mdb.getByLabel('MDBList list ID',{exact:true});
+    const loadList=mdb.getByRole('button',{name:'Load list',exact:true});
+    await listId.fill('4294967296');assert.equal(await loadList.isEnabled(),false);
+    await listId.fill('43');await loadList.click();
+    await mdb.getByText('MDBList is rate limiting requests. Try again later.',{exact:true}).waitFor();
+    await listId.fill('42');await loadList.click();
+    await mdb.getByText('IMDB 85/100',{exact:true}).waitFor();
+    assert.equal(await mdb.getByText('UNKNOWN 100/100',{exact:true}).count(),0);
+    await mdb.getByRole('button',{name:'Next page',exact:true}).click();
+    await mdb.getByRole('button',{name:'MDBList second film',exact:true}).waitFor();
+    assert.equal(await mdb.getByRole('button',{name:'MDBList fixture film',exact:true}).count(),1);
+    assert.equal(await mdb.getByRole('button',{name:'MDBList second film',exact:true}).count(),1);
+    await mdb.getByRole('button',{name:'Next page',exact:true}).click();
+    await mdb.getByText('MDBList repeated a page. Pagination stopped.',{exact:true}).waitFor();
+    await mdb.getByRole('button',{name:'MDBList fixture film',exact:true}).click();
+    await watch.locator('[data-ui="watch-item-details"]').getByRole('heading',{name:'MDBList fixture film',exact:true}).waitFor();
+    if(screenshotDir)await firstLaunch.screenshot({path:join(screenshotDir,'watch-mdblist.png'),animations:'disabled'});
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Your addons',exact:true}).click();
     await watch.getByRole('button',{name:'Browse catalogues',exact:true}).click();
     const catalog=watch.locator('[data-ui="stremio-catalog"]');
@@ -314,10 +364,14 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await player.getByText('Subtitle request accepted.',{exact:true}).waitFor();
     await firstLaunch.evaluate(()=>window.__stremioFixture.emitPlayer({type:'player-state',paused:false,positionMs:45000,durationMs:120000}));
     await player.getByText('00:00:45 / 00:02:00',{exact:true}).waitFor();
+    await firstLaunch.waitForFunction(()=>window.__stremioFixture.presenceMessages.filter(m=>m.type==='presence').at(-1)?.presence?.position===45000);
+    const presence=await firstLaunch.evaluate(()=>window.__stremioFixture.presenceMessages.filter(m=>m.type==='presence').at(-1).presence);
+    assert.deepEqual(presence,{media:'video',title:'First original film',subtitle:null,imdb:'tt123',position:45000,duration:120000,paused:false,browsing:false});
     await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
     await player.waitFor({state:'detached'});
     assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.mediaCalls.filter(a=>a.type==='stremio-consume-grant').length),2);
     assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.mediaCalls.some(a=>a.type==='player-stop')),true);
+    await firstLaunch.waitForFunction(()=>window.__stremioFixture.presenceMessages.filter(m=>m.type==='presence').at(-1)?.presence===null);
     const record=await firstLaunch.evaluate(()=>window.__stremioFixture.profiles.find(p=>p.profileId===1).history[0].progress);
     assert.deepEqual(record,{mediaType:'movie',itemId:'tt123',videoId:'tt123',title:'First original film',episodeTitle:null,positionMs:45000,durationMs:120000,completed:false});
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Watch history',exact:true}).click();
@@ -342,6 +396,9 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Watch history',exact:true}).click();
     await history.getByRole('button',{name:'Load history',exact:true}).click();
     await history.getByText('No Watch history for this profile.',{exact:true}).waitFor();
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'MDBList',exact:true}).click();
+    await mdb.getByLabel('MDBList API key',{exact:true}).waitFor();
+    assert.equal(await mdb.getByText('Connected to MDBList for this profile.',{exact:true}).count(),0);
     await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 1 addons',exact:true}).click();
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Watch history',exact:true}).click();
@@ -350,7 +407,17 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await history.getByRole('button',{name:'Remove from history',exact:true}).click();
     await history.getByRole('button',{name:'Confirm removal',exact:true}).click();
     await history.getByText('No Watch history for this profile.',{exact:true}).waitFor();
-    console.log('Watch history exact identity, checkpoints, resume, completion, profile isolation and reviewed removal passed');
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'MDBList',exact:true}).click();
+    await mdb.getByText('Connected to MDBList for this profile.',{exact:true}).waitFor();
+    await mdb.getByRole('button',{name:'Disconnect',exact:true}).click();
+    await mdb.getByLabel('MDBList API key',{exact:true}).waitFor();
+    await firstLaunch.setViewportSize({width:390,height:844});
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Your addons',exact:true}).click();
+    await watch.getByRole('heading',{name:'Your addon stack.',exact:true}).waitFor();
+    const narrow=await watch.evaluate(node=>({scrollWidth:node.scrollWidth,clientWidth:node.clientWidth,nav:node.querySelector('.tsugi-watch-nav').getBoundingClientRect().width,content:node.querySelector('.tsugi-watch-content').getBoundingClientRect().width}));
+    assert.ok(narrow.scrollWidth<=narrow.clientWidth+2,`Watch workspace overflow: ${JSON.stringify(narrow)}`);
+    if(screenshotDir)await firstLaunch.screenshot({path:join(screenshotDir,'watch-workspace-narrow.png'),animations:'disabled'});
+    console.log('Watch history, direct Watch Rich Presence, MDBList connection/pagination/isolation and narrow layout passed');
     await watch.getByRole('button',{name:'Home',exact:true}).click();
     await firstLaunch.locator('[data-page="desktop-landing"]').waitFor();
     console.log('First launch profile and account import entry and optional skip passed');
