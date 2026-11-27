@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { initialDesktopArea, allowsMusicPlayback } from '../src/lib/desktop-area';
+import { initialDesktopArea, allowsMusicPlayback, moviesEntryArea } from '../src/lib/desktop-area';
 
 describe('unified Tsugi launcher', () => {
+  it('retains configured server browsing and independent addon hubs',()=>{
+    expect(moviesEntryArea(true,true)).toBe('video');
+    expect(moviesEntryArea(true,false)).toBe('video');
+    expect(moviesEntryArea(false,true)).toBe('watch');
+    expect(moviesEntryArea(false,false)).toBe('video');
+  });
   it('starts on the media index whether a video server is saved or not', () => {
     expect(initialDesktopArea(true, false, true)).toBe('welcome');
     expect(initialDesktopArea(true, true, true)).toBe('welcome');

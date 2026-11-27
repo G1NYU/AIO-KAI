@@ -1,11 +1,12 @@
 //! One-time read-only external account imports. All account credentials and
 //! configured URLs stay native; no provider writes, token refresh, automatic
-//! addon contact or account persistence. Only selected manifests are fetched.
+//! addon contact or account persistence. Validated Stremio account manifests
+//! are reused; only selected missing or invalid manifests are fetched.
 use super::{Endpoint, Manifest, Registry, Source, Result, MAX_SOURCES, REVIEW_TTL, summary};
 use super::super::read_bounded;
 use serde::Deserialize;
 use serde_json::{json,Value};
-use std::{collections::BTreeSet,thread,time::{Duration,Instant}};
+use std::{collections::BTreeSet,sync::atomic::{AtomicUsize,Ordering},thread,time::{Duration,Instant}};
 use url::Url;
 
 const STREMIO:&str="https://api.strem.io/api/";
@@ -25,7 +26,15 @@ impl Provider {
 }
 
 #[derive(Clone)]
-struct Candidate {id:u32,name:String,endpoint:Endpoint,enabled:bool}
+struct Candidate {id:u32,name:String,endpoint:Endpoint,enabled:bool,cached_manifest:Option<Manifest>}
+impl Candidate {
+    fn manifest(&self)->Result<Manifest>{
+        match self.cached_manifest.as_ref().filter(|m|!m.behavior_hints.configuration_required){
+            Some(manifest)=>Ok(manifest.clone()),
+            None=>self.endpoint.manifest(),
+        }
+    }
+}
 #[derive(Clone)]
 struct RemoteProfile {index:u32,name:String,primary:bool,locked:bool}
 #[derive(Clone)]
@@ -87,7 +96,7 @@ fn safe_name(value:Option<&str>,fallback:&str)->String{
 }
 fn host(endpoint:&Endpoint)->&str{endpoint.0.host_str().unwrap_or("addon")}
 fn candidate(id:u32,endpoint:Endpoint,name:Option<&str>,enabled:bool)->Candidate{
-    let name=safe_name(name,host(&endpoint));Candidate{id,name,endpoint,enabled}
+    let name=safe_name(name,host(&endpoint));Candidate{id,name,endpoint,enabled,cached_manifest:None}
 }
 fn stremio_candidates(value:&Value)->Result<(Vec<Candidate>,usize)>{
     let addons=stremio_result(value)?["addons"].as_array().ok_or("account-response")?;
@@ -97,7 +106,11 @@ fn stremio_candidates(value:&Value)->Result<(Vec<Candidate>,usize)>{
         let Some(raw)=row["transportUrl"].as_str() else{continue;};
         let Ok(endpoint)=Endpoint::parse(raw) else{continue;};
         if !seen.insert(endpoint.0.as_str().to_owned()){continue;}
-        rows.push(candidate(index as u32+1,endpoint,row["manifest"]["name"].as_str(),true));
+        let mut entry=candidate(index as u32+1,endpoint,row["manifest"]["name"].as_str(),true);
+        // addonCollectionGet(update:false) already returns descriptors with full
+        // manifests. Apply the same size/schema checks as an HTTP manifest.
+        entry.cached_manifest=serde_json::to_vec(&row["manifest"]).ok().and_then(|bytes|Manifest::parse(&bytes).ok());
+        rows.push(entry);
     }
     let skipped=addons.len()-rows.len();Ok((rows,skipped))
 }
@@ -239,7 +252,7 @@ impl Registry{
         }
         let account_order = rows.iter().map(|row| row.endpoint.0.clone()).collect();
         let chosen:Vec<_>=rows.into_iter().filter(|c|selected.contains(&c.id)).collect();
-        let (ready,failed)=self.review_import_candidates(&chosen,&|candidate|candidate.endpoint.manifest());
+        let (ready,failed)=self.review_import_candidates(&chosen,&Candidate::manifest);
         let preview:Vec<_>=ready.iter().map(|row|json!({"candidateId":row.candidate.id,"name":row.candidate.name,
             "host":host(&row.candidate.endpoint),"enabled":row.candidate.enabled,"manifest":summary(&row.manifest)})).collect();
         let rejected=failed.iter().map(Self::import_failure).collect::<Vec<_>>();
@@ -252,23 +265,36 @@ impl Registry{
     fn review_import_candidates(&self,chosen:&[Candidate],fetch:&(impl Fn(&Candidate)->Result<Manifest>+Sync))->(Vec<Prepared>,Vec<Failed>){
         let mut ready=Vec::new();let mut failed=Vec::new();
         let slots=MAX_SOURCES-self.sources.len();
-        // Bounded parallel reads of explicitly selected manifests only.
-        // Retain input order; never expose configured URLs to the web layer.
-        for group in chosen.chunks(8){
-            let results=thread::scope(|scope|{
-                let workers:Vec<_>=group.iter().map(|candidate|{
-                    let duplicate=self.sources.iter().any(|source|source.endpoint.0==candidate.endpoint.0);
-                    scope.spawn(move||if duplicate{Err("duplicate")}else{fetch(candidate)})
-                }).collect();
-                workers.into_iter().map(|worker|worker.join().unwrap_or(Err("request"))).collect::<Vec<_>>()
-            });
-            for (candidate,result) in group.iter().zip(results){
-                match result{
-                    Ok(manifest) if manifest.behavior_hints.configuration_required=>failed.push(Failed{candidate:candidate.clone(),reason:"configuration-required"}),
-                    Ok(manifest) if ready.len()<slots=>ready.push(Prepared{candidate:candidate.clone(),manifest}),
-                    Ok(_)=>failed.push(Failed{candidate:candidate.clone(),reason:"source-limit"}),
-                    Err(reason)=>failed.push(Failed{candidate:candidate.clone(),reason}),
+        // Work-conserving bounded pool: a slow manifest does not stall the
+        // next eight. Keep result slots indexed by original account order.
+        let cursor=AtomicUsize::new(0);
+        let mut results:Vec<Option<Result<Manifest>>>=(0..chosen.len()).map(|_|None).collect();
+        thread::scope(|scope|{
+            let workers:Vec<_>=(0..chosen.len().min(8)).map(|_|{
+                let cursor=&cursor;
+                scope.spawn(move||{
+                    let mut completed=Vec::new();
+                    loop{
+                        let index=cursor.fetch_add(1,Ordering::Relaxed);
+                        let Some(candidate)=chosen.get(index)else{break;};
+                        let result=if self.sources.iter().any(|source|source.endpoint.0==candidate.endpoint.0){Err("duplicate")}else{fetch(candidate)};
+                        completed.push((index,result));
+                    }
+                    completed
+                })
+            }).collect();
+            for worker in workers{
+                if let Ok(completed)=worker.join(){
+                    for (index,result) in completed{results[index]=Some(result);}
                 }
+            }
+        });
+        for (candidate,result) in chosen.iter().zip(results){
+            match result.unwrap_or(Err("request")){
+                Ok(manifest) if manifest.behavior_hints.configuration_required=>failed.push(Failed{candidate:candidate.clone(),reason:"configuration-required"}),
+                Ok(manifest) if ready.len()<slots=>ready.push(Prepared{candidate:candidate.clone(),manifest}),
+                Ok(_)=>failed.push(Failed{candidate:candidate.clone(),reason:"source-limit"}),
+                Err(reason)=>failed.push(Failed{candidate:candidate.clone(),reason}),
             }
         }
         (ready,failed)
@@ -339,6 +365,43 @@ mod tests{
         assert_eq!(rows[0].endpoint.0.query(),Some("key=sentinel"));
         let data=candidate_summary(&rows[0],false).to_string();
         assert!(!data.contains("sentinel")&&!data.contains("private-fixture"));
+    }
+    #[test]
+    fn stremio_import_uses_full_validated_account_manifest(){
+        let payload=json!({"result":{"addons":[
+            {"transportUrl":"https://example.invalid/first/manifest.json","manifest":{"id":"fixture.cached","name":"Cached","version":"1","types":["movie"],"resources":["stream"]}},
+            {"transportUrl":"https://example.invalid/invalid/manifest.json","manifest":{"name":"Incomplete"}}
+        ]}});
+        let (rows,skipped)=stremio_candidates(&payload).unwrap();
+        assert_eq!(skipped,0);
+        assert!(rows[0].cached_manifest.is_some());
+        assert!(rows[1].cached_manifest.is_none());
+        let mut registry=Registry::default();
+        registry.import=Some(Flow{id:1,provider:Provider::Stremio,created:Instant::now(),stage:Stage::Candidates{rows,skipped}});
+        let review=registry.import_review(1,vec![1]).unwrap();
+        assert_eq!(review["ready"][0]["manifest"]["id"],"fixture.cached");
+        let applied=registry.import_apply(1).unwrap();
+        assert_eq!(applied["sources"][0]["manifest"]["id"],"fixture.cached");
+    }
+    #[test]
+    fn import_pool_does_not_wait_for_a_slow_first_batch(){
+        let registry=Registry::default();
+        let manifest=Manifest::parse(br#"{"id":"fixture","name":"Fixture","version":"1","types":["movie"],"resources":["stream"]}"#).unwrap();
+        let chosen:Vec<_>=(1..=35).map(|id|candidate(id,Endpoint::parse(&format!("https://example.invalid/{id}/manifest.json")).unwrap(),None,true)).collect();
+        let (tx,rx)=std::sync::mpsc::channel();
+        let rx=std::sync::Mutex::new(rx);
+        let (ready,failed)=registry.review_import_candidates(&chosen,&|candidate|{
+            if candidate.id==1{
+                rx.lock().unwrap().recv_timeout(Duration::from_secs(5)).map_err(|_|"batch-barrier")?;
+                return Err("network");
+            }
+            if candidate.id==9{let _=tx.send(());}
+            Ok(manifest.clone())
+        });
+        assert_eq!(failed.len(),1);
+        assert_eq!(failed[0].candidate.id,1);
+        assert_eq!(failed[0].reason,"network");
+        assert_eq!(ready.iter().map(|r|r.candidate.id).collect::<Vec<_>>(),(2..=35).collect::<Vec<_>>());
     }
     #[test]
     fn nuvio_preserves_order_enabled_state_and_rejects_wrong_profile(){

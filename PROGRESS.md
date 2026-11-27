@@ -1,3 +1,7 @@
+## 2026-11-27 — Recovery implementation: baseline and account-import latency
+
+Restored configured-server Movies entry without removing standalone hubs. Reuse validated Stremio account descriptors; fetch missing/invalid manifests with a bounded work-conserving pool rather than eight-at-a-time barriers. Preserve original order and failure categories. Added route, cached-manifest and 35-addon slow-first regressions. Source changes reviewed; native/browser CI pending. No package marker. Next: mandatory TMDB gate and independent progressive stream reviews, then Harbor search/detail/selector presentation. See [P0–P5](docs/tsugi-recovery-roadmap.md).
+
 ## 2026-11-27 — Mandatory recovery P0–P5
 
 [Authoritative recovery roadmap](docs/tsugi-recovery-roadmap.md). Maintainer confirms actual playback and sound work; preserve native player. Slow account import, delayed selector (734 streams eventually), incorrect search, missing artwork, sidebar/profile/home design issues and SoundCloud error are mandatory repairs. All stages open until acceptance evidence is recorded; no premature EXE. Prior optional setup and historical visual acceptance statuses are superseded. Next: integrate validated TMDB/account gate and preserve original server route, then remove import/stream batching barriers.

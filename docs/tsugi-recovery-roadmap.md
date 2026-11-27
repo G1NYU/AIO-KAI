@@ -16,11 +16,14 @@ Status convention: [ ] open; [x] verified with specific evidence. Code authored 
 - [ ] P1.4 Dedicated Harbor-style stream page, not the narrow right drawer. Full-width title/episode-specific backdrop, back/refresh, ordered providers with icons and progressive counts, formatted multiline stream labels, resolution/source/codec/audio/size/availability filters when data is available, clear play controls. No redundant quality labels or huge unresponsive lists; preserve valid selection index. Reuse shared version/player components.
 
 ## P2 — Search
+
+Presentation acceptance clarified by maintainer: while typing Family Guy, show a polished top match and distinct Series (first) and Movies (second) sections, with images, related-title ranking and descriptions; no flat mixed grid. Use Harbor's visual structure, not its branding.
 - [ ] P2.1 Actual TMDB metadata search/enrichment and AIOMetadata configured search support; metadata-capable search catalogues only. No arbitrary stream-only addon catalogues or non-search shelves. Respect addon and catalogue order. Separate Movies, Series and Anime; debounce and cancel obsolete queries; deterministic top match. Reconcile explicit aliases, avoid merging conflicting titles; preserve provider routes.
 - [ ] P2.2 Harbor-style centered search overlay, top match, clean media-type sections, poster/metadata rows, useful provider filters. No flattened random grid, blank poster floods, raw failures, catalogue pagination clutter or duplicate entries. Test Family Guy and anime queries against configured metadata.
 
 ## P3 — Metadata and artwork
 - [ ] P3.1 TMDB posters, title logos, cinematic backdrops and ratings/details, using correct IDs and authorized configured addon artwork/fallbacks. Never substitute unrelated illustration for a title. Full-width hero behind title details and home, no empty rectangle with isolated portrait.
+- [ ] P3.1a Title actions: real, persistent favorite and play-queue actions beside Play/Resume; reuse existing server controls and implement standalone actions against the selected profile, not inert buttons.
 - [ ] P3.2 Episode selector with correct season/episode stills (TMDB or addon), titles, synopsis, runtime, ratings when available, watched state. No per-addon Details buttons in the consumer title view. Keep provider troubleshooting in settings.
 - [ ] P3.3 Continue Watching uses actual episode still or title backdrop/poster and progress. Persist/recover artwork identity across restart; no unnecessary blank cards. Include anime-specific Tenrai/MAL/Kitsu fallback where exact artwork matches.
 
@@ -43,5 +46,6 @@ Status convention: [ ] open; [x] verified with specific evidence. Code authored 
 - Historical audit: [watch-journey-audit.md](watch-journey-audit.md).
 
 ## Evidence log
+- Implementation checkpoint: configured-server entry restored; valid account-supplied Stremio manifests reused and missing manifests reviewed in a bounded work-conserving pool. Added routing and native import tests. CI and live import timing remain pending; P0/P1 not complete.
 - Baseline: maintainer reports successful real playback and sound, but slow import and source loading, missing artwork and unacceptable UI. Stream screenshot shows 734 results eventually. Remaining stages open until verified.
 - Source investigation: registry.rs review_all_streams waits on chunks of eight and then returns a single result; accounts.rs review_import_candidates also waits at chunk boundaries. watch-catalogue-board.tsx renders a flat search grid and image={null} for Continue Watching. These are confirmed source-level defects. Do not confuse playback success with selector latency or claim a runtime timing measurement.

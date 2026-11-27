@@ -52,7 +52,7 @@ import { WindowControls } from './components/shell/window-controls';
 import { InputSetup } from './components/shell/input-setup';
 import { CrashReportDialog } from './components/shell/crash-report';
 import { SplashEnd } from './lib/splash';
-import { DesktopAreaContext, initialDesktopArea, readStartupArea, allowsMusicPlayback, type DesktopArea, type WatchEntryPane } from './lib/desktop-area';
+import { DesktopAreaContext, initialDesktopArea, moviesEntryArea, readStartupArea, allowsMusicPlayback, type DesktopArea, type WatchEntryPane } from './lib/desktop-area';
 import type { ResumeRow, ResumeTarget } from './lib/up-next';
 import { DesktopLandingPage } from './app/desktop-landing/page';
 import { DirectWatchPage } from './app/watch/page';
@@ -181,7 +181,10 @@ function Standalone() {
   const [initialWatchProfile,setInitialWatchProfile]=React.useState<number>();
   const [watchPane,setWatchPane]=React.useState<WatchEntryPane>('hubs');
   const openWatchPane=React.useCallback((pane:WatchEntryPane,profileId?:number)=>{setInitialWatchProfile(profileId);setResumeTarget(null);setVaultComicTarget(null);setReadVisited(false);setWatchPane(pane);setArea('watch');},[]);
-  const openMovies=React.useCallback((profileId?:number)=>{if(!appBridge()?.stremioAddons)openVideo();else openWatchPane('hubs',profileId);},[openVideo,openWatchPane]);
+  const openMovies=React.useCallback((profileId?:number)=>{
+    if(moviesEntryArea(!!base,!!appBridge()?.stremioAddons)==='video')openVideo();
+    else openWatchPane('hubs',profileId);
+  },[base,openVideo,openWatchPane]);
   const openServerSearch=React.useCallback((title:string)=>{openVideo();navigate(to.search(title));},[openVideo]);
   const openWelcome = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setArea('welcome'); }, []);
   const openVideoDownloads = React.useCallback(() => { openVideo(); navigate(to.downloads); }, [openVideo]);

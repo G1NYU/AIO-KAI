@@ -65,6 +65,11 @@ export function initialDesktopArea(
   return hasSavedServer && !hasReadSection ? 'video' : 'welcome';
 }
 
+/** Do not replace a configured server's proven Movies & TV workspace. */
+export function moviesEntryArea(hasSavedServer:boolean,supportsAddons:boolean):'video'|'watch' {
+  return hasSavedServer||!supportsAddons?'video':'watch';
+}
+
 /** Music is intentionally exclusive with the native video environment. */
 export function allowsMusicPlayback(area: DesktopArea): boolean {
   return area !== 'video' && area !== 'watch';
