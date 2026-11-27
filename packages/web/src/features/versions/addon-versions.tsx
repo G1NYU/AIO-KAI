@@ -16,9 +16,12 @@ function qualityOf(row:AddonOption):Quality|undefined{
 }
 
 const codecs=['HEVC','AVC','AV1','VP9'] as const;
-function codecOf(row:AddonOption){const label=row.name+' '+(row.detail??'');return /\\b(?:hevc|h[ .]?265|x265)\\b/i.test(label)?'HEVC':/\\b(?:avc|h[ .]?264|x264)\\b/i.test(label)?'AVC':/\\bav1\\b/i.test(label)?'AV1':/\\bvp9\\b/i.test(label)?'VP9':undefined;}
+function codecOf(row:AddonOption){const label=row.name+' '+(row.detail??'');return /\b(?:hevc|h[ .]?265|x265)\b/i.test(label)?'HEVC':/\b(?:avc|h[ .]?264|x264)\b/i.test(label)?'AVC':/\bav1\b/i.test(label)?'AV1':/\bvp9\b/i.test(label)?'VP9':undefined;}
+// Protocol/edition labels, not prose.
+/* eslint-disable lingui/no-unlocalized-strings */
 const editions=['WEB','BluRay','Remux','HDTV'] as const;
-function editionOf(row:AddonOption){const label=row.name+' '+(row.detail??'');return /\\bremux\\b/i.test(label)?'Remux':/blu[ .-]?ray|bdrip/i.test(label)?'BluRay':/web[ .-]?(?:dl|rip)|\\bweb\\b/i.test(label)?'WEB':/\\bhdtv\\b/i.test(label)?'HDTV':undefined;}
+function editionOf(row:AddonOption){const label=row.name+' '+(row.detail??'');return /\bremux\b/i.test(label)?'Remux':/blu[ .-]?ray|bdrip/i.test(label)?'BluRay':/web[ .-]?(?:dl|rip)|\bweb\b/i.test(label)?'WEB':/\bhdtv\b/i.test(label)?'HDTV':undefined;}
+/* eslint-enable lingui/no-unlocalized-strings */
 
 /** The same reviewed addon choices appear on the title and inside the player.
  * Rows carry only native review handles, never playback URLs. */
