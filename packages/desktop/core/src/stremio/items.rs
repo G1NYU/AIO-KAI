@@ -1,7 +1,7 @@
 //! Bounded item responses from installed HTTP addons. Exact video identities
 //! are retained. Signed media URLs are inspected natively and never included
 //! in display responses. The registry keeps exact reviewed playable options in memory.
-use super::{Endpoint, Manifest, ItemResource, Result, fetch, id_valid, type_valid, text_valid, public_poster, MAX_URL};
+use super::{Endpoint, Manifest, ItemResource, Result, fetch, id_valid, type_valid, text_valid, public_poster, title_identities, MAX_URL};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeSet;
@@ -37,6 +37,7 @@ pub(super) struct Metadata {
     pub genres: Vec<String>,
     pub cast: Vec<String>,
     pub directors: Vec<String>,
+    pub identities: Vec<String>,
 }
 #[derive(Clone, Serialize)]
 #[serde(rename_all="camelCase")]
@@ -107,7 +108,7 @@ fn parse_meta(bytes:&[u8],kind:&str,id:&str)->Result<Metadata>{
     }
     // Movie identity is a valid video ID only when no explicit videos exist.
     // Never fabricate episode IDs for series or other media types.
-    if videos.is_empty()&&kind=="movie"{
+    if videos.is_empty()&&matches!(kind,"movie"|"anime.movie"){
         videos.push(Video{id:id.to_owned(),name:name.clone(),season:None,episode:None,thumbnail:None,description:None});
     }
     Ok(Metadata{id:id.to_owned(),media_type:kind.to_owned(),name,
@@ -120,7 +121,8 @@ fn parse_meta(bytes:&[u8],kind:&str,id:&str)->Result<Metadata>{
         runtime:display(meta.get("runtime"),64).or_else(||meta.get("runtime")?.as_u64().filter(|minutes|(1..=1440).contains(minutes)).map(|minutes|format!("{minutes} min"))),
         genres:display_list(meta.get("genres"),16,80),
         cast:display_list(meta.get("cast"),32,128),
-        directors:display_list(meta.get("director").or_else(||meta.get("directors")),16,128)})
+        directors:display_list(meta.get("director").or_else(||meta.get("directors")),16,128),
+        identities:title_identities(&payload["meta"],id,kind)})
 }
 fn parse_options(bytes:&[u8],resource:ItemResource)->Result<Vec<OptionSummary>>{
     let payload:Value=serde_json::from_slice(bytes).map_err(|_|"invalid-item")?;

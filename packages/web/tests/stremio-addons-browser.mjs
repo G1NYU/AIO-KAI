@@ -196,6 +196,8 @@ export function installStremioFixture(initializeStartup=true){
       case 'remove':profile.sources=profile.sources.filter(s=>s.sourceId!==a.sourceId);return reply({sources:profile.sources});
       case 'metadata':{
         const source=profile.sources.find(s=>s.sourceId===a.sourceId&&s.enabled&&s.manifest.resources.includes('meta'));
+        if(a.sourceId===0&&f.boardFixture&&a.itemId==='tt90007')return reply({sourceId:0,metadata:{id:a.itemId,mediaType:'movie',name:'Fixture alias movie',description:null,videos:[{id:a.itemId,name:'Fixture alias movie',season:null,episode:null}]}});
+        if(f.boardFixture&&source?.sourceId===103&&a.itemId==='tmdb:90007')return reply({sourceId:103,metadata:{id:a.itemId,mediaType:'movie',name:'Fixture alias movie',description:null,videos:[{id:a.itemId,name:'Fixture alias movie',season:null,episode:null}],identities:['tt90007','tmdb:90007']}});
         if(a.sourceId===0&&f.boardFixture&&a.itemId==='tt90003')return reply({sourceId:0,metadata:{id:a.itemId,mediaType:'movie',name:'Public movie fixture',description:'Public metadata without a catalogue addon.',videos:[]}});
         if(a.sourceId===0&&f.boardFixture&&a.itemId==='kitsu:90004'&&a.mediaType==='series')return reply({sourceId:0,metadata:{id:a.itemId,mediaType:'series',name:'Public anime discovery fixture',description:'Public mapped anime metadata.',videos:[{id:'kitsu:90004:1',name:'Episode one',season:1,episode:1},{id:'kitsu:90004:2',name:'Episode two',season:1,episode:2}]}});
         if(!f.boardFixture||!source||source.sourceId!==103)return emit(null,'unsupported-resource');
@@ -247,7 +249,8 @@ export function installStremioFixture(initializeStartup=true){
           if(a.catalogId==='broken')return emit(null,'request');
           const items=a.extras.search?(a.catalogId==='films'?[
             {id:'tmdb:90001',imdbId:'tt90001',mediaType:'movie',name:'Fixture cinema film',poster:'https://image.tmdb.org/t/p/w342/cinema.jpg'},
-            {id:'local:9',mediaType:'movie',name:'Another film'}
+            {id:'local:9',mediaType:'movie',name:'Another film'},
+            {id:'tmdb:90007',imdbId:'tt90007',mediaType:'movie',name:'Fixture alias movie'}
           ]:a.catalogId==='duplicate-search'?[
             {id:'tt90001',mediaType:'movie',name:'Fixture cinema film'},
             {id:'tt90005',mediaType:'movie',name:'Fixture cinema film sequel'}
@@ -388,6 +391,13 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await results.getByRole('button',{name:'Fixture cinema film sequel',exact:true}).waitFor();
     assert.equal(await results.getByRole('button',{name:'Fixture cinema film',exact:true}).count(),1);
     assert.equal(await results.locator('[data-ui="poster-card"]').first().getAttribute('aria-label'),'Fixture cinema film');
+    await results.getByRole('button',{name:'Fixture alias movie',exact:true}).click();
+    await item.locator('[data-ui="watch-play-title"]').click();
+    await groups.getByRole('button',{name:'Play',exact:true}).first().waitFor();
+    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='all-stream-options'&&a.action.videoId==='tmdb:90007'&&a.action.alternatives?.some(route=>route.videoId==='tt90007'&&route.mediaType==='movie'))));
+    await page.keyboard.press('Escape');
+    await groups.waitFor({state:'detached'});
+    await item.getByRole('button',{name:'Close title',exact:true}).click();
     await board.getByRole('button',{name:'Clear search',exact:true}).click();
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
     const anime=watch.locator('[data-ui="mal-anime-library"]');

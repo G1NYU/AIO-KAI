@@ -25,6 +25,7 @@ import { usePlaybackPrefs } from '@/lib/jellyfin/user-config';
 import type { BaseItemDto, SourceInfo } from '@/lib/jellyfin/types';
 import type { PlayerController } from '@/lib/playback/controller';
 import { useLatest } from '@/hooks/use-latest';
+import { adjacentWatchVideo, isWatchMovie } from '@/lib/hosts/shell/watch-identities';
 import './watch.css';
 
 function newViewingId(){
@@ -82,8 +83,8 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
   const [leftMs,setLeftMs]=React.useState(countdown*1000);
   const autoTried=React.useRef(false);
   const item=React.useMemo<BaseItemDto>(()=>({
-    Id:playback.videoId,Type:playback.mediaType==='movie'?'Movie':'Episode',
-    ...(playback.mediaType!=='movie'&&{SeriesId:'tsugi-watch:'+playback.profileId+':'+playback.itemId}),
+    Id:playback.videoId,Type:isWatchMovie(playback.mediaType)?'Movie':'Episode',
+    ...(!isWatchMovie(playback.mediaType)&&{SeriesId:'tsugi-watch:'+playback.profileId+':'+playback.itemId}),
     Name:playback.episodeTitle??playback.title,
     ...(playback.episodeTitle&&{SeriesName:playback.title}),
     ...(playback.videos.find(v=>v.id===playback.videoId)?.season!=null&&{ParentIndexNumber:playback.videos.find(v=>v.id===playback.videoId)!.season!}),
@@ -177,7 +178,7 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
     if(flight.current||closing.current)return;
     showDialog('versions');setTarget(video);setGroups(null);
     void run(async()=>{
-      const response=await loadAllAddonStreams(playback.profileId,playback.mediaType,video?.id??playback.videoId);
+      const response=await loadAllAddonStreams(playback.profileId,playback.mediaType,video?.id??playback.videoId,video&&video.id!==playback.videoId?video.routes:playback.routes);
       if(!mounted.current)return;
       const sorted=playback.streamSources.flatMap(s=>response.filter(g=>g.sourceId===s.sourceId));
       setGroups(sorted);
@@ -212,7 +213,7 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
         profileId:playback.profileId,mediaType:playback.mediaType,itemId:playback.itemId,
         videoId:video?.id??playback.videoId,title:playback.title,
         episodeTitle:video?.name??playback.episodeTitle,startMs,anime:playback.anime,
-        videos:playback.videos,streamSources:playback.streamSources,subtitleSources:playback.subtitleSources,
+        videos:playback.videos,routes:same?playback.routes:video?.routes,streamSources:playback.streamSources,subtitleSources:playback.subtitleSources,
         selection:{reviewId:result.reviewId,optionIndex:index}
       });
   }
@@ -236,9 +237,8 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
       if(mounted.current){setSubtitleApplied(true);setSubtitleOptions(null);}
     });
   }
-  const episodeAt=playback.videos.findIndex(v=>v.id===playback.videoId);
-  const next=episodeAt>=0?playback.videos[episodeAt+1]:undefined;
-  const previous=episodeAt>0?playback.videos[episodeAt-1]:undefined;
+  const next=isWatchMovie(playback.mediaType)?undefined:adjacentWatchVideo(playback.videos,playback.videoId,1);
+  const previous=isWatchMovie(playback.mediaType)?undefined:adjacentWatchVideo(playback.videos,playback.videoId,-1);
   const failure=state.error||(!state.started&&loadTimedOut);
   const segments=React.useMemo(()=>chapterSkips?chapterSegments(player.chapters??[],state.durationMs):[],[chapterSkips,player.chapters,state.durationMs]);
   const at=promptAt(state.durationMs,segments.find(s=>String(s.Type)==='Outro'),nextPrompt,lead);

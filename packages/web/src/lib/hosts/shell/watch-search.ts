@@ -22,7 +22,10 @@ function identity(item:Item,sourceId:number){
   const kind=item.mediaType==='anime.movie'?'movie':item.mediaType==='anime.series'?'series':item.mediaType;
   const imdb=imdbIdentity(item);
   if(imdb&&['movie','series'].includes(kind))return JSON.stringify([kind,imdb]);
-  if(/^(?:tmdb|kitsu|mal|anilist):[0-9]+$/.test(item.id))return JSON.stringify([item.mediaType,item.id]);
+  const tmdb=[item.id,...(item.identities??[])].find(id=>/^tmdb:(?:(?:movie|tv):)?[1-9][0-9]{0,9}$/.test(id)&&
+    !(kind==='movie'&&id.startsWith('tmdb:tv:')||kind==='series'&&id.startsWith('tmdb:movie:')));
+  if(tmdb&&['movie','series'].includes(kind))return JSON.stringify([kind,'tmdb:'+tmdb.split(':').at(-1)]);
+  if(/^(?:kitsu|mal|anilist):[0-9]+$/.test(item.id))return JSON.stringify([item.mediaType,item.id]);
   // An unknown provider-local identifier is not a global media identity.
   return JSON.stringify([item.mediaType,sourceId,item.id]);
 }

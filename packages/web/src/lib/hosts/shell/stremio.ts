@@ -26,7 +26,7 @@ export const publicCinemeta:AddonSource={
 export interface AddonReview { reviewId: number; manifest: AddonManifest }
 export interface CatalogPage {
   sourceId: number; mediaType: string; catalogId: string;
-  items: { id: string; name: string; mediaType: string; poster?: string; description?: string; background?: string; imdbId?: string }[]; sourceCount: number; nextSkip: number | null;
+  items: { id: string; name: string; mediaType: string; poster?: string; description?: string; background?: string; imdbId?: string; identities?:string[] }[]; sourceCount: number; nextSkip: number | null;
 }
 export type Mutation = { kind: 'install'; reviewId: number } | { kind: 'set-enabled'; sourceId: number; enabled: boolean }
   | { kind: 'move'; sourceId: number; position: number } | { kind: 'remove'; sourceId: number };
@@ -36,7 +36,7 @@ type ImportAction = {kind:'import-connect';provider:ImportProvider;email:string;
   | {kind:'import-nuvio-profile';importId:number;remoteProfile:number}
   | {kind:'import-review';importId:number;selected:number[]}
   | {kind:'import-apply';importId:number} | {kind:'import-cancel';importId:number};
-type ItemAction = {kind:'metadata';sourceId:number;mediaType:string;itemId:string} | {kind:'item-options';sourceId:number;mediaType:string;videoId:string;subtitles:boolean} | {kind:'all-stream-options';mediaType:string;videoId:string} | {kind:'retry-stream-options';sourceId:number;mediaType:string;videoId:string} | {kind:'prepare-media';reviewId:number;optionIndex:number;startMs:number};
+type ItemAction = {kind:'metadata';sourceId:number;mediaType:string;itemId:string} | {kind:'item-options';sourceId:number;mediaType:string;videoId:string;subtitles:boolean} | {kind:'all-stream-options';mediaType:string;videoId:string;alternatives?:VideoRoute[]} | {kind:'retry-stream-options';sourceId:number;mediaType:string;videoId:string} | {kind:'prepare-media';reviewId:number;optionIndex:number;startMs:number};
 type MdblistAction={kind:'mdblist-status'}|{kind:'mdblist-connect';key:string}|{kind:'mdblist-disconnect'}|{kind:'mdblist-lists'}|{kind:'mdblist-page';listId:number;offset:number};
 export type WatchProgress={mediaType:string;itemId:string;videoId:string;title:string;episodeTitle:string|null;positionMs:number;durationMs:number;completed:boolean};
 export type WatchHistoryEntry={progress:WatchProgress;updatedAt:number};
@@ -188,7 +188,8 @@ export async function loadAddonCatalog(profileId:number,action:CatalogAction):Pr
     const poster=publicAddonPoster(row.poster),background=publicAddonPoster(row.background),description=optionalDisplay(row.description,4096);
     const id=str(row.id,512);
     const imdbId=/^tt[0-9]{1,12}$/.test(id)?id:typeof row.imdbId==='string'&&/^tt[0-9]{1,12}$/.test(row.imdbId)?row.imdbId:undefined;
-    return {id,name:str(row.name,512),mediaType:action.mediaType,...(poster?{poster}:{}),...(background?{background}:{}),...(description?{description}:{}),...(imdbId?{imdbId}:{})};
+    const identities=titleIdentities(row.identities);
+    return {id,name:str(row.name,512),mediaType:action.mediaType,...(poster?{poster}:{}),...(background?{background}:{}),...(description?{description}:{}),...(imdbId?{imdbId}:{}),...(identities?{identities}:{})};
   });
   if(new Set(items.map(i=>i.id)).size!==items.length)return fail();
   const sourceCount=integer(v.sourceCount,items.length,500);
@@ -256,12 +257,21 @@ export async function reviewAddonImport(profileId:number,importId:number,provide
 export async function applyAddonImport(profileId:number,importId:number){return sources(await scoped(profileId,{kind:'import-apply',importId}));}
 export async function cancelAddonImport(profileId:number,importId:number){await scoped(profileId,{kind:'import-cancel',importId});}
 
-export type AddonVideo={id:string;name:string;season:number|null;episode:number|null;thumbnail?:string;description?:string};
+export type VideoRoute={mediaType:string;videoId:string};
+export type AddonVideo={id:string;name:string;season:number|null;episode:number|null;thumbnail?:string;description?:string;routes?:VideoRoute[]};
 export type AddonMetadata={id:string;mediaType:string;name:string;description:string|null;videos:AddonVideo[];
-  poster?:string;background?:string;releaseInfo?:string;imdbRating?:number;runtime?:string;genres?:string[];cast?:string[];directors?:string[]};
+  poster?:string;background?:string;releaseInfo?:string;imdbRating?:number;runtime?:string;genres?:string[];cast?:string[];directors?:string[];identities?:string[]};
 export type AddonOption={name:string;detail?:string;supported:boolean;reason:'direct-https'|'unsupported-transport'|'invalid-media-url'|'proxy-headers';language:string|null};
 function optionalDisplay(v:unknown,max:number):string|undefined{
   return typeof v==='string'&&v.trim()&&v.length<=max&&!/[\u0000-\u001f\u007f]/u.test(v)&&!v.includes('://')&&!/token=|password=/i.test(v)?v:undefined;
+}
+export function publicTitleIdentity(value:unknown):value is string{
+  return typeof value==='string'&&/^(?:tt[0-9]{1,12}|tmdb:(?:(?:movie|tv):)?[1-9][0-9]{0,9}|(?:kitsu|mal|anilist):[1-9][0-9]{0,9})$/.test(value);
+}
+function titleIdentities(value:unknown):string[]|undefined{
+  if(!Array.isArray(value))return undefined;
+  const ids=[...new Set(value.slice(0,8).filter(publicTitleIdentity))];
+  return ids.length?ids:undefined;
 }
 function optionalDisplayList(v:unknown,limit:number,max:number):string[]|undefined{
   if(!Array.isArray(v))return undefined;
@@ -281,7 +291,7 @@ export async function loadAddonMetadata(profileId:number,sourceId:number,mediaTy
     poster:publicAddonPoster(m.poster),background:publicAddonPoster(m.background),
     releaseInfo:optionalDisplay(m.releaseInfo,64),runtime:optionalDisplay(m.runtime,64),
     imdbRating:typeof m.imdbRating==='number'&&Number.isFinite(m.imdbRating)&&m.imdbRating>=0&&m.imdbRating<=10?m.imdbRating:undefined,
-    genres:optionalDisplayList(m.genres,16,80),cast:optionalDisplayList(m.cast,32,128),directors:optionalDisplayList(m.directors,16,128)};
+    genres:optionalDisplayList(m.genres,16,80),cast:optionalDisplayList(m.cast,32,128),directors:optionalDisplayList(m.directors,16,128),identities:titleIdentities(m.identities)};
 }
 export type AddonOptions={reviewId:number;rows:AddonOption[]};
 export async function loadAddonOptions(profileId:number,sourceId:number,mediaType:string,videoId:string,subtitles:boolean):Promise<AddonOptions>{
@@ -316,8 +326,9 @@ export async function retryAddonStreams(profileId:number,sourceId:number,mediaTy
   if(group.sourceId!==sourceId)return fail();
   return group;
 }
-export async function loadAllAddonStreams(profileId:number,mediaType:string,videoId:string):Promise<AddonStreamGroup[]>{
-  const v=await scoped(profileId,{kind:'all-stream-options',mediaType,videoId});
+export async function loadAllAddonStreams(profileId:number,mediaType:string,videoId:string,alternatives:VideoRoute[]=[]):Promise<AddonStreamGroup[]>{
+  const routes=alternatives.slice(0,8).map(route=>({mediaType:str(route.mediaType,32),videoId:str(route.videoId,512)}));
+  const v=await scoped(profileId,{kind:'all-stream-options',mediaType,videoId,...(routes.length?{alternatives:routes}:{})});
   if(v.mediaType!==mediaType||v.videoId!==videoId)return fail();
   const groups=array(v.groups,MAX_ADDON_SOURCES,parseStreamGroup);
   if(new Set(groups.map(g=>g.sourceId)).size!==groups.length||
@@ -344,7 +355,7 @@ export async function removeWatchHistory(profileId:number,progress:Pick<WatchPro
 
 export type WatchPlayback={
   profileId:number;mediaType:string;itemId:string;videoId:string;title:string;episodeTitle:string|null;
-  startMs:number;anime?:boolean;videos:AddonVideo[];streamSources:{sourceId:number;name:string}[];
+  startMs:number;anime?:boolean;videos:AddonVideo[];routes?:VideoRoute[];streamSources:{sourceId:number;name:string}[];
   subtitleSources:{sourceId:number;name:string}[];
 } & ({grantId:number;selection?:never}|{grantId?:never;selection:{reviewId:number;optionIndex:number}});
 export async function prepareAddonMedia(profileId:number,reviewId:number,optionIndex:number,subtitles:boolean,startMs=0){

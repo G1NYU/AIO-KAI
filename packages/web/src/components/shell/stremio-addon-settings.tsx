@@ -13,6 +13,7 @@ import { useDesktopArea, type WatchEntryPane } from '@/lib/desktop-area';
 import { settings, useSetting } from '@/lib/settings';
 import { WatchPlaybackSettings } from '@/app/settings/page';
 import { AddonVersionList } from '@/features/versions/addon-versions';
+import { isWatchMovie, titleIdentityRoutes, mergeAliasMetadata, watchVideoRoutes } from '@/lib/hosts/shell/watch-identities';
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
@@ -221,13 +222,13 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     if(!mounted.current)return;
     suppressSourceFocus.current=true;setSourceOpen(false);setOptions(null);setStreamGroups(null);
     onPlay({profileId,grantId,mediaType:item.mediaType,itemId:item.id,videoId:video,title:metadata?.name??item.name,
-      episodeTitle:item.mediaType==='movie'?null:metadata?.videos.find(v=>v.id===video)?.name??episodeTitle,
-      startMs,anime:pane==='anime'||item.mediaType==='anime'||item.id.startsWith('kitsu:'),videos:metadata?.videos??[],streamSources:sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(s=>({sourceId:s.sourceId,name:s.manifest.name})),
+      episodeTitle:isWatchMovie(item.mediaType)?null:metadata?.videos.find(v=>v.id===video)?.name??episodeTitle,
+      startMs,anime:pane==='anime'||item.mediaType.startsWith('anime')||item.id.startsWith('kitsu:'),videos:metadata?.videos??[],routes:watchVideoRoutes(item,video,metadata),streamSources:sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(s=>({sourceId:s.sourceId,name:s.manifest.name})),
       subtitleSources:sources.filter(s=>s.enabled&&s.manifest.resources.includes('subtitles')).map(s=>({sourceId:s.sourceId,name:s.manifest.name}))});
   }
   async function fetchStreams(item:Title,video:string,autoStart=false,metadata:AddonMetadata|null=null,entry:WatchProgress|null=null){
     if(profileId===undefined||!video)return;
-    const response=await loadAllAddonStreams(profileId,item.mediaType,video);
+    const response=await loadAllAddonStreams(profileId,item.mediaType,video,watchVideoRoutes(item,video,metadata??details));
     if(!mounted.current)return;
     // The installed source order is the standalone equivalent of the server's
     // preferred-version order. Never race untrusted media URLs or bypass grants.
@@ -245,20 +246,39 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     if(profileId===undefined)return {item,metadata:null};
     const candidates=sources.filter(source=>source.enabled&&source.manifest.resources.includes('meta'));
     candidates.sort((a,b)=>Number(b.sourceId===preferredSourceId)-Number(a.sourceId===preferredSourceId));
-    async function lookup(target:Title,publicSource:boolean){
+    async function lookup(target:Title,publicSource:boolean,alternate=false){
       let metadata:AddonMetadata|null=null;
-      for(const sourceId of [...candidates.map(source=>source.sourceId),...(publicSource?[0]:[])]){
+      const ids=(alternate?candidates.slice(0,4):candidates).map(source=>source.sourceId);
+      const ordered=alternate&&publicSource?[0,...ids]:[...ids,...(publicSource?[0]:[])];
+      for(const sourceId of ordered){
         try{
           const next=await loadAddonMetadata(profileId!,sourceId,target.mediaType,target.id);
           if(!metadata||next.videos.length)metadata=next;
-          if(target.mediaType==='movie'||next.videos.length)break;
+          if(isWatchMovie(target.mediaType)||next.videos.length)break;
         }catch{/* A provider may not support this exact identity. */}
         if(!mounted.current)return null;
       }
       return metadata;
     }
-    const exact=await lookup(item,/^tt[0-9]{1,12}$/.test(item.id)||/^kitsu:[1-9][0-9]{0,9}$/.test(item.id));
-    if(exact?.videos.length||exact&&item.mediaType==='movie')return {item,metadata:exact};
+    const publicSource=(id:string)=>/^tt[0-9]{1,12}$/.test(id)||/^kitsu:[1-9][0-9]{0,9}$/.test(id);
+    const exact=await lookup(item,publicSource(item.id));
+    let target=item,combined=exact;
+    // Resolve at most three explicit alternate title identities. The
+    // metadata lookup must succeed before an episode alias can be attached.
+    if(sources.some(source=>source.enabled&&source.manifest.resources.includes('stream'))){
+      for(const route of titleIdentityRoutes(item,exact).slice(0,3)){
+        if(!mounted.current)break;
+        const alias={...item,id:route.videoId,mediaType:route.mediaType};
+        const next=await lookup(alias,publicSource(alias.id),true);
+        if(!next)continue;
+        if(combined&&(combined.videos.length||isWatchMovie(target.mediaType))){
+          combined=mergeAliasMetadata(combined,next);
+        }else if(allowMapping&&(next.videos.length||isWatchMovie(alias.mediaType))){
+          target=alias;combined=combined?mergeAliasMetadata(next,combined):next;
+        }
+      }
+    }
+    if(combined?.videos.length||combined&&isWatchMovie(target.mediaType))return {item:target,metadata:combined};
     const mal=/^mal:([1-9][0-9]{0,9})$/.exec(item.id);
     if(!allowMapping||!mal||!sources.some(source=>source.enabled&&source.manifest.resources.includes('stream')))return {item,metadata:exact};
     // Resolve a public identity, never construct a video/episode ID ourselves.
@@ -273,7 +293,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       for(const mediaType of [item.mediaType,'anime']){
         const target={...item,id:'kitsu:'+kitsu,mediaType};
         const metadata=await lookup(target,true);
-        if(metadata?.videos.length||metadata&&mediaType==='movie')return {item:target,metadata};
+        if(metadata?.videos.length||metadata&&isWatchMovie(mediaType))return {item:target,metadata};
         if(!mounted.current)break;
       }
     }catch{/* Offline or unmapped: keep the original public detail and search fallback. */}
@@ -283,13 +303,13 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     if(flight.current||profileId===undefined)return;
     const auto=contentPane();
     rememberBrowse();clearTitle();setTitle(item);setAutomatic(auto);
-    if(item.mediaType==='movie')setVideoId(item.id);
+    if(isWatchMovie(item.mediaType))setVideoId(item.id);
     await run(async()=>{
       const resolved=await resolveMetadata(item,preferredSourceId);
       if(!mounted.current)return;
       const target=resolved.item,metadata=resolved.metadata;
       setTitle(target);setDetails(metadata);
-      const chosen=target.mediaType==='movie'?metadata?.videos[0]?.id??target.id:metadata?.videos.length===1?metadata.videos[0].id:'';
+      const chosen=isWatchMovie(target.mediaType)?metadata?.videos[0]?.id??target.id:metadata?.videos.length===1?metadata.videos[0].id:'';
       setVideoId(chosen);
     });
   }
@@ -316,14 +336,15 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       for(const video of next.videos){
         const previous=videos.get(video.id);
         videos.set(video.id,{...video,season:video.season??previous?.season??null,episode:video.episode??previous?.episode??null,
-          thumbnail:video.thumbnail??previous?.thumbnail,description:video.description??previous?.description});
+          thumbnail:video.thumbnail??previous?.thumbnail,description:video.description??previous?.description,routes:previous?.routes});
       }
       const merged:AddonMetadata={...next,description:next.description??details?.description??null,videos:[...videos.values()],
         poster:next.poster??details?.poster,background:next.background??details?.background,releaseInfo:next.releaseInfo??details?.releaseInfo,
         runtime:next.runtime??details?.runtime,imdbRating:next.imdbRating??details?.imdbRating,
-        genres:next.genres??details?.genres,cast:next.cast??details?.cast,directors:next.directors??details?.directors};
+        genres:next.genres??details?.genres,cast:next.cast??details?.cast,directors:next.directors??details?.directors,
+        identities:[...new Set([...(details?.identities??[]),...(next.identities??[])])].slice(0,8)};
       const preferred=videoId||resumeEntry?.videoId;
-      const chosen=preferred&&videos.has(preferred)?preferred:item.mediaType==='movie'?merged.videos[0]?.id??item.id:merged.videos.length===1?merged.videos[0].id:'';
+      const chosen=preferred&&videos.has(preferred)?preferred:isWatchMovie(item.mediaType)?merged.videos[0]?.id??item.id:merged.videos.length===1?merged.videos[0].id:'';
       setDetails(merged);setVideoId(chosen);
       setSourceOpen(false);
     });
@@ -579,14 +600,14 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
         <div className="tsugi-watch-title-copy">
           <div className="flex items-center justify-between gap-3 flex-wrap"><h4>{details?.name??title.name}</h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={closeTitle}><Trans>Close title</Trans></button></div>
           <div className="tsugi-watch-title-meta">
-            <span>{title.mediaType==='movie'?t`Movie`:title.mediaType==='anime'?t`Anime`:t`Series`}</span>
+            <span>{isWatchMovie(title.mediaType)?t`Movie`:title.mediaType==='anime'?t`Anime`:t`Series`}</span>
             {details?.releaseInfo&&<span>{details.releaseInfo}</span>}
             {details?.imdbRating!==undefined&&<span><Trans>IMDb</Trans> {details.imdbRating.toFixed(1)}/10</span>}
             {details?.runtime&&<span>{details.runtime}</span>}
           </div>
           {details?.genres?.length? <p className="tsugi-watch-muted">{details.genres.join(' · ')}</p>:null}
           {(details?.description||title.description)&&<p className="break-words">{details?.description??title.description}</p>}
-          {automatic&&title.mediaType==='movie'&&videoId&&<button type="button" data-ui="watch-play-title" className="tsugi-read-action tsugi-series-primary justify-self-start" disabled={busy} onClick={()=>selectVideo(videoId)}>{resumeMs>0?<Trans>Resume</Trans>:<Trans>Play</Trans>}</button>}
+          {automatic&&isWatchMovie(title.mediaType)&&videoId&&<button type="button" data-ui="watch-play-title" className="tsugi-read-action tsugi-series-primary justify-self-start" disabled={busy} onClick={()=>selectVideo(videoId)}>{resumeMs>0?<Trans>Resume</Trans>:<Trans>Play</Trans>}</button>}
         </div>
       </div>
       {(details?.cast?.length||details?.directors?.length)?<section className="tsugi-watch-credits" data-ui="watch-title-credits">
@@ -599,8 +620,8 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       {onPlay&&profileReady&&profileId!==undefined&&['movie','series'].includes(title.mediaType)&&<RefractWatchlist key={JSON.stringify([profileId,title.mediaType,title.id])} profileId={profileId} mediaType={title.mediaType} itemId={title.id} busy={busy} run={run}/>}
       <div className="flex flex-wrap gap-2">{sources.filter(s=>s.enabled&&s.manifest.resources.includes('meta')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readMetadata(title,s.sourceId)}><Trans>Details</Trans> · {s.manifest.name}</button>)}</div>
       {!automatic&&videos.length>0&&<label className="block"><Trans>Video</Trans><select aria-label={t`Video`} className="tsugi-read-input w-full" value={videoId} disabled={busy} onChange={e=>selectVideo(e.target.value)}><option value=""><Trans>Select an episode or video</Trans></option>{videos.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></label>}
-      {automatic&&(title.mediaType!=='movie'||videos.length>1)&&videos.length>0&&<section className="space-y-3" data-ui="watch-episode-grid">
-        <div className="flex flex-wrap items-center justify-between gap-3"><h4>{title.mediaType==='movie'?<Trans>Videos</Trans>:<Trans>Episodes</Trans>} ({seasonVideos.length})</h4>
+      {automatic&&(!isWatchMovie(title.mediaType)||videos.length>1)&&videos.length>0&&<section className="space-y-3" data-ui="watch-episode-grid">
+        <div className="flex flex-wrap items-center justify-between gap-3"><h4>{isWatchMovie(title.mediaType)?<Trans>Videos</Trans>:<Trans>Episodes</Trans>} ({seasonVideos.length})</h4>
           <select aria-label={t`Select season`} className="tsugi-menu-select" value={selectedSeason} disabled={busy} onChange={e=>setSeasonChoice(e.target.value)}>
             {seasons.map(s=><option key={s} value={s}>{s==='other'?t`Other episodes`:s==='0'?t`Specials (season 0)`:t`Season ${s}`}</option>)}
           </select>
@@ -618,7 +639,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
         onCloseAutoFocus={event=>{event.preventDefault();if(!suppressSourceFocus.current&&sourceTrigger.current?.isConnected)sourceTrigger.current.focus({preventScroll:true});}}
         contentClass="flex flex-col gap-3 overflow-y-auto p-4">
         <section className="space-y-3" data-ui="watch-stream-groups">
-          {selectedVideo&&title.mediaType!=='movie'&&<h4>{selectedVideo.name}</h4>}
+          {selectedVideo&&!isWatchMovie(title.mediaType)&&<h4>{selectedVideo.name}</h4>}
           <div className="flex items-center justify-between gap-2 flex-wrap"><h4><Trans>Available sources</Trans></h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={refreshStreams}><Trans>Refresh streams</Trans></button></div>
           {busy&&streamGroups===null&&<p role="status"><Trans>Finding streams from your addons…</Trans></p>}
           {streamGroups&&streamGroups.every(group=>group.error==='unsupported-resource')&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('addons')}><Trans>Manage addons</Trans></button>}

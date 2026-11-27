@@ -43,6 +43,9 @@ fn public_metadata_source(id:&str)->Result<Source>{
 }
 const REVIEW_TTL: Duration = Duration::from_secs(300);
 
+#[derive(Clone,Deserialize)]
+#[serde(rename_all="camelCase",deny_unknown_fields)]
+pub struct VideoRoute{media_type:String,video_id:String}
 #[derive(Deserialize)]
 #[serde(tag="kind", rename_all="kebab-case", rename_all_fields="camelCase", deny_unknown_fields)]
 pub enum Action {
@@ -69,7 +72,7 @@ pub enum Action {
     BrowseCatalog { source_id: u32, media_type: String, catalog_id: String, extras: BTreeMap<String,String> },
     Metadata { source_id: u32, media_type: String, item_id: String },
     ItemOptions { source_id: u32, media_type: String, video_id: String, subtitles: bool },
-    AllStreamOptions { media_type: String, video_id: String },
+    AllStreamOptions { media_type: String, video_id: String, #[serde(default)] alternatives:Vec<VideoRoute> },
     RetryStreamOptions { source_id:u32, media_type:String, video_id:String },
     PrepareMedia { review_id: u32, option_index: usize, start_ms: u64 },
     MalAnimeList,
@@ -123,7 +126,7 @@ struct MediaReview {
 }
 #[derive(Clone)]
 struct StreamQuery{
-    media_type:String,video_id:String,source_ids:BTreeSet<u32>,created:Instant,
+    media_type:String,video_id:String,routes:BTreeMap<u32,VideoRoute>,created:Instant,
 }
 /// Short-lived native-only handoff. Never serialized or formatted with Debug.
 #[derive(Clone)]
@@ -230,24 +233,33 @@ impl Registry {
     }
     /// Resolve one selected video against every compatible enabled source,
     /// retaining exact native-only reviews and independent provider outcomes.
-    fn review_all_streams(&mut self,kind:&str,video:&str,fetcher:impl Fn(&Source,&str,&str)->Result<Vec<OptionSummary>>+Sync)->Result<Value>{
-        if !super::type_valid(kind)||!super::id_valid(video){return Err("invalid-resource");}
+    fn review_all_streams(&mut self,kind:&str,video:&str,alternatives:&[VideoRoute],fetcher:impl Fn(&Source,&str,&str)->Result<Vec<OptionSummary>>+Sync)->Result<Value>{
+        if !super::type_valid(kind)||!super::id_valid(video)||alternatives.len()>8||
+            alternatives.iter().any(|route|!super::type_valid(&route.media_type)||!super::id_valid(&route.video_id)){return Err("invalid-resource");}
         self.media_review=None;self.stream_reviews.clear();self.stream_query=None;
+        let mut routes=vec![VideoRoute{media_type:kind.to_owned(),video_id:video.to_owned()}];
+        for route in alternatives{
+            if !routes.iter().any(|old|old.media_type==route.media_type&&old.video_id==route.video_id){routes.push(route.clone());}
+        }
         let providers:Vec<_>=self.sources.iter().filter(|source|source.enabled&&source.manifest.resources.iter().any(|resource|match resource{
             Declaration::Name(name)|Declaration::Detailed{name,..}=>name=="stream",
         })).collect();
-        let eligible:Vec<_>=providers.iter().copied().filter(|source|source.manifest.supports(ItemResource::Stream,kind,video)).collect();
-        let source_ids=eligible.iter().map(|source|source.id).collect();
+        // One bounded request per provider, using an exact declared-compatible
+        // route. The logical identity remains the same for subtitle grants,
+        // watch progress and source switching even when a provider uses an alias.
+        let eligible:Vec<_>=providers.iter().filter_map(|source|routes.iter().find(|route|
+            source.manifest.supports(ItemResource::Stream,&route.media_type,&route.video_id)).map(|route|(*source,route.clone()))).collect();
+        let selected_routes=eligible.iter().map(|(source,route)|(source.id,route.clone())).collect();
         let mut groups=BTreeMap::new();
         let mut reviews=Vec::with_capacity(eligible.len());
         let mut sequence=self.sequence;
         for chunk in eligible.chunks(8){
             let results=thread::scope(|scope|{
                 let fetch=&fetcher;
-                let workers:Vec<_>=chunk.iter().map(|source|scope.spawn(move||fetch(source,kind,video))).collect();
+                let workers:Vec<_>=chunk.iter().map(|(source,route)|scope.spawn(move||fetch(source,&route.media_type,&route.video_id))).collect();
                 workers.into_iter().map(|worker|worker.join().unwrap_or(Err("request"))).collect::<Vec<_>>()
             });
-            for (source,result) in chunk.iter().zip(results){
+            for ((source,_route),result) in chunk.iter().zip(results){
                 match result{
                     Ok(rows)=>{
                         sequence=sequence.checked_add(1).ok_or("source-limit")?;
@@ -265,17 +277,17 @@ impl Registry {
             "sourceId":source.id,"reviewId":null,"options":[],"error":"unsupported-resource"
         }))).collect();
         self.sequence=sequence;self.stream_reviews=reviews;
-        self.stream_query=Some(StreamQuery{media_type:kind.to_owned(),video_id:video.to_owned(),source_ids,created});
+        self.stream_query=Some(StreamQuery{media_type:kind.to_owned(),video_id:video.to_owned(),routes:selected_routes,created});
         Ok(json!({"mediaType":kind,"videoId":video,"groups":groups}))
     }
     fn retry_stream(&mut self,source_id:u32,kind:&str,video:&str,fetcher:impl FnOnce(&Source,&str,&str)->Result<Vec<OptionSummary>>)->Result<Value>{
         let query=self.stream_query.as_ref().filter(|query|query.created.elapsed()<REVIEW_TTL&&query.media_type==kind&&query.video_id==video).ok_or("expired-review")?;
-        if !query.source_ids.contains(&source_id){return Err("unsupported-resource");}
+        let route=query.routes.get(&source_id).ok_or("unsupported-resource")?.clone();
         let created=query.created;
         let source=&self.sources[self.source_index(source_id)?];
         if !source.enabled{return Err("disabled-source");}
-        if !source.manifest.supports(ItemResource::Stream,kind,video){return Err("unsupported-resource");}
-        let result=fetcher(source,kind,video);
+        if !source.manifest.supports(ItemResource::Stream,&route.media_type,&route.video_id){return Err("unsupported-resource");}
+        let result=fetcher(source,&route.media_type,&route.video_id);
         // Replace only the selected provider's native review.
         self.stream_reviews.retain(|review|review.source_id!=source_id);
         if created.elapsed()>=REVIEW_TTL{self.stream_query=None;self.stream_reviews.clear();return Err("expired-review");}
@@ -403,8 +415,8 @@ impl Registry {
                 self.media_review=Some(MediaReview{id,source_id,media_type,video_id,subtitles,rows:options,created:Instant::now()});
                 Ok(data)
             }
-            Action::AllStreamOptions {media_type,video_id}=>{
-                self.review_all_streams(&media_type,&video_id,|source,kind,video|source.endpoint.item_options(&source.manifest,ItemResource::Stream,kind,video))
+            Action::AllStreamOptions {media_type,video_id,alternatives}=>{
+                self.review_all_streams(&media_type,&video_id,&alternatives,|source,kind,video|source.endpoint.item_options(&source.manifest,ItemResource::Stream,kind,video))
             }
             Action::RetryStreamOptions{source_id,media_type,video_id}=>{
                 self.retry_stream(source_id,&media_type,&video_id,|source,kind,video|source.endpoint.item_options(&source.manifest,ItemResource::Stream,kind,video))
@@ -589,7 +601,7 @@ mod tests {
             registry.execute(Action::Install{review_id:id}).unwrap();id
         }).collect();
         registry.execute(Action::SetEnabled{source_id:ids[3],enabled:false}).unwrap();
-        let response=registry.review_all_streams("movie","tt123",|source,_,_|{
+        let response=registry.review_all_streams("movie","tt123",&[],|source,_,_|{
             if source.id==ids[1]{return Err("network");}
             Ok(vec![OptionSummary{name:"HD".into(),detail:None,supported:true,reason:"direct-https",language:None,url:Some(format!("https://cdn.example.org/{}?token=private-fixture",source.id))}])
         }).unwrap();
@@ -612,9 +624,31 @@ mod tests {
         registry.execute(Action::PrepareMedia{review_id:first,option_index:0,start_ms:0}).unwrap();
         assert!(registry.grant.take().unwrap().load().url.contains(&format!("/{}?",ids[0])));
         assert_eq!(registry.execute(Action::PrepareMedia{review_id:third,option_index:0,start_ms:0}),Err("expired-review"));
-        let empty=registry.review_all_streams("series","tt123:1:1",|_,_,_|panic!("incompatible resource queried")).unwrap();
+        let empty=registry.review_all_streams("series","tt123:1:1",&[],|_,_,_|panic!("incompatible resource queried")).unwrap();
         assert_eq!(empty["groups"].as_array().unwrap().len(),3);
         assert!(empty["groups"].as_array().unwrap().iter().all(|group|group["error"]=="unsupported-resource"&&group["reviewId"].is_null()));
+    }
+    #[test]
+    fn alternate_video_routes_preserve_logical_grant_identity(){
+        let mut registry=Registry::default();
+        let manifest=Manifest::parse(br#"{"id":"tmdb.fixture","name":"TMDB fixture","version":"1","types":["series"],"resources":[{"name":"stream","types":["series"],"idPrefixes":["tmdb:"]}]}"#).unwrap();
+        let reviewed=registry.stage(Endpoint::parse("https://example.org/alias/manifest.json").unwrap(),manifest).unwrap();
+        let source_id=reviewed["reviewId"].as_u64().unwrap() as u32;
+        registry.execute(Action::Install{review_id:source_id}).unwrap();
+        let alternatives=[VideoRoute{media_type:"series".into(),video_id:"tmdb:42:1:7".into()}];
+        let response=registry.review_all_streams("series","tt123:1:7",&alternatives,|source,kind,video|{
+            assert_eq!(source.id,source_id);assert_eq!(kind,"series");assert_eq!(video,"tmdb:42:1:7");
+            Ok(vec![OptionSummary{name:"Fixture".into(),detail:None,supported:true,reason:"direct-https",language:None,url:Some("https://example.org/fixture.mp4".into())}])
+        }).unwrap();
+        let retry=registry.retry_stream(source_id,"series","tt123:1:7",|_,kind,video|{
+            assert_eq!(kind,"series");assert_eq!(video,"tmdb:42:1:7");
+            Ok(vec![OptionSummary{name:"Fixture".into(),detail:None,supported:true,reason:"direct-https",language:None,url:Some("https://example.org/fixture.mp4".into())}])
+        }).unwrap();
+        assert_eq!(response["groups"][0]["sourceId"],source_id);
+        let review_id=retry["group"]["reviewId"].as_u64().unwrap() as u32;
+        registry.execute(Action::PrepareMedia{review_id,option_index:0,start_ms:0}).unwrap();
+        let grant=registry.grant.take().unwrap();
+        assert_eq!(grant.identity(),(0,"series","tt123:1:7"));
     }
     #[test]
     fn review_is_one_use_explicit_and_never_returns_configured_url() {

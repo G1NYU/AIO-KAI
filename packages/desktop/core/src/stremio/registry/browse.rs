@@ -24,7 +24,7 @@ pub(super) struct BrowseRequest{
 pub(super) fn catalog_response(page:&CatalogPage,source_id:u32,media_type:&str,catalog_id:&str)->Value{
     let items:Vec<_>=page.items.iter().map(|item|json!({
         "id":item.id,"mediaType":item.kind,"name":item.name,"poster":item.poster,
-        "background":item.background,"description":item.description,"imdbId":item.imdb_id
+        "background":item.background,"description":item.description,"imdbId":item.imdb_id,"identities":item.identities
     })).collect();
     json!({"sourceId":source_id,"mediaType":media_type,"catalogId":catalog_id,
         "items":items,"sourceCount":page.source_count,"nextSkip":page.next_skip})

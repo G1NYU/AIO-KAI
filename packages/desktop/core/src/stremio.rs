@@ -294,6 +294,38 @@ fn public_cdn_art(value: &Value) -> Option<String> {
     };
     valid.then(||url.to_string())
 }
+// Only explicit public identifiers are eligible for cross-provider lookup.
+// The original provider's exact ID remains untouched.
+fn title_identities(row:&Value,id:&str,kind:&str)->Vec<String>{
+    fn digits(raw:&str,max:usize)->bool{!raw.is_empty()&&raw.len()<=max&&raw.bytes().all(|b|b.is_ascii_digit())}
+    fn numeric(value:Option<&Value>)->Option<String>{
+        let value=value?;
+        let number=value.as_u64().or_else(||value.as_str()?.parse::<u64>().ok())?;
+        (number>0&&number<=9_999_999_999).then(||number.to_string())
+    }
+    let mut identities=Vec::new();
+    let imdb=[Some(id),row["imdb_id"].as_str(),row["imdbId"].as_str()].into_iter().flatten()
+        .find(|id|id.strip_prefix("tt").is_some_and(|n|digits(n,12)));
+    if let Some(imdb)=imdb{identities.push(imdb.to_owned());}
+    let typed=match kind{"movie"|"anime.movie"=>Some("movie"),"series"|"anime.series"=>Some("tv"),_=>None};
+    for (prefix,snake,camel) in [("tmdb","tmdb_id","tmdbId"),("kitsu","kitsu_id","kitsuId"),("mal","mal_id","malId"),("anilist","anilist_id","anilistId")]{
+        let raw=id.strip_prefix(prefix).and_then(|rest|rest.strip_prefix(':'));
+        let exact=raw.and_then(|rest|{
+            if prefix=="tmdb"{
+                if let Some((media,n))=rest.split_once(':'){
+                    return (typed==Some(media)&&digits(n,10)&&!n.starts_with('0')).then(||n.to_owned());
+                }
+            }
+            (digits(rest,10)&&!rest.starts_with('0')).then(||rest.to_owned())
+        });
+        let number=exact.or_else(||numeric(row.get(snake))).or_else(||numeric(row.get(camel)));
+        if let Some(number)=number{
+            if prefix=="tmdb"&&let Some(media)=typed{identities.push(format!("tmdb:{media}:{number}"));}
+            identities.push(format!("{prefix}:{number}"));
+        }
+    }
+    identities
+}
 pub struct CatalogItem {
     pub kind: String,
     pub id: String,
@@ -302,6 +334,7 @@ pub struct CatalogItem {
     pub background: Option<String>,
     pub description: Option<String>,
     pub imdb_id: Option<String>,
+    pub identities: Vec<String>,
 }
 pub struct CatalogPage {
     pub items: Vec<CatalogItem>,
@@ -325,7 +358,7 @@ impl CatalogPage {
             let poster=public_poster(&row["poster"]).or_else(||imdb.map(|id|format!("https://images.metahub.space/poster/medium/{id}/img")));
             Some(CatalogItem { kind: kind.to_owned(), id: id.to_owned(), name: name.to_owned(), poster,
                 background:public_poster(&row["background"]),description:items::display(row.get("description"),4096),
-                imdb_id:imdb.map(str::to_owned) })
+                imdb_id:imdb.map(str::to_owned),identities:title_identities(row,id,kind) })
         }).collect();
         // Invalid/duplicate sibling rows still count toward the source offset.
         // No guessed fixed page length or cross-provider cursor.
@@ -470,6 +503,7 @@ mod tests {
         let richer=CatalogPage::parse(br#"{"metas":[{"id":"tmdb:42","type":"movie","name":"Example","imdbId":"tt123","background":"https://image.tmdb.org/t/p/w780/landscape.jpg","description":"A public description"},{"id":"tt321","type":"movie","name":"Conflicting ID","imdb_id":"tt999","background":"https://private.example/image?key=secret","description":"https://private.example/?key=secret"}]}"#,"movie",0,false).unwrap();
         assert_eq!(richer.items[0].id,"tmdb:42");
         assert_eq!(richer.items[0].imdb_id.as_deref(),Some("tt123"));
+        assert_eq!(richer.items[0].identities,vec!["tt123","tmdb:movie:42","tmdb:42"]);
         assert_eq!(richer.items[0].background.as_deref(),Some("https://image.tmdb.org/t/p/w780/landscape.jpg"));
         assert_eq!(richer.items[0].description.as_deref(),Some("A public description"));
         assert_eq!(richer.items[1].imdb_id.as_deref(),Some("tt321"));
