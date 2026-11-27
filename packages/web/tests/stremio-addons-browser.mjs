@@ -376,9 +376,15 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await item.getByText('Fixture Actor',{exact:true}).waitFor();
     assert.equal(await item.locator('.tsugi-watch-title-backdrop').count(),1);
     assert.equal(await groups.count(),0);
+    await item.getByRole('button',{name:'Add to favorites',exact:true}).click();
+    await item.getByRole('button',{name:'Favorited',exact:true}).waitFor();
+    await item.getByRole('button',{name:'Add to queue',exact:true}).click();
+    await item.getByRole('button',{name:'In queue',exact:true}).waitFor();
     assert.equal(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&['all-stream-options','begin-stream-options'].includes(a.action.kind))),false);
     await item.locator('[data-ui="watch-play-title"]').click();
     await groups.getByText('Streaming only',{exact:true}).waitFor();
+    await groups.getByRole('button',{name:'Play',exact:true}).first().waitFor();
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-stream-selector.png'),animations:'disabled'});
     await groups.getByText('This addon could not return streams. Other sources remain available.',{exact:true}).waitFor();
     assert.equal(await groups.getByRole('button',{name:'Play',exact:true}).count(),2);
     const provider=groups.getByRole('combobox',{name:'Source provider',exact:true});
@@ -434,6 +440,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.getByRole('button',{name:'Back',exact:true}).click();
     await player.waitFor({state:'detached'});
     await item.getByRole('button',{name:'Close title',exact:true}).click();
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-resume-art.png'),animations:'disabled'});
     await board.getByRole('button',{name:/Search movies & series/}).click();
     await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Fixture cinema film');
     const results=board.locator('[data-ui="watch-search-results"]');
@@ -441,6 +448,8 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.equal(await results.getByRole('button',{name:'Fixture cinema film',exact:true}).count(),1);
     assert.equal(await results.locator('[data-ui="poster-card"]').first().getAttribute('aria-label'),'Fixture cinema film');
     assert.equal(await results.getByRole('button',{name:'Fixture alias movie',exact:true}).count(),0);
+    await results.locator('[data-ui="watch-top-match"]').waitFor();
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-search-overlay.png'),animations:'disabled'});
     await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Fixture alias movie');
     await results.getByRole('button',{name:'Fixture alias movie',exact:true}).click();
     await item.locator('[data-ui="watch-play-title"]').click();

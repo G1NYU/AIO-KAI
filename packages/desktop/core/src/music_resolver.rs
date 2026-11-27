@@ -597,12 +597,13 @@ fn soundcloud_command(resolver: &std::path::Path, directory: &std::path::Path, v
         command.args(["--use-extractors", "soundcloud:search", "--flat-playlist", "--lazy-playlist",
             "--playlist-end", "20", "--skip-download", "--dump-json", "--quiet"]);
     } else {
-        // Public, complete AAC only. No preview, DRM, cookies, browser session,
+        // Prefer complete public AAC; allow full Opus/MP3 if AAC is unavailable.
+        // No preview, DRM, premium, cookies, browser session,
         // external downloader, user configuration or arbitrary target URL.
         command.args(["--use-extractors", "soundcloud", "--no-playlist", "--no-continue",
             "--fragment-retries", "0", "--abort-on-unavailable-fragments",
-            "--extractor-args", "soundcloud:formats=hls_aac,http_aac",
-            "--format", "bestaudio[ext=m4a][protocol=m3u8_native][format_id!*=preview]/bestaudio[ext=m4a][protocol=http][format_id!*=preview]",
+            "--extractor-args", "soundcloud:formats=hls_aac,http_aac,http_opus,hls_opus,http_mp3,hls_mp3",
+            "--format", "bestaudio[ext=m4a][protocol=http][format_id!*=preview][format_id!=download][format_note!=?Premium]/bestaudio[ext=m4a][protocol=m3u8_native][format_id!*=preview][format_id!=download][format_note!=?Premium]/bestaudio[ext=opus][protocol=http][format_id!*=preview][format_id!=download][format_note!=?Premium]/bestaudio[ext=opus][protocol=m3u8_native][format_id!*=preview][format_id!=download][format_note!=?Premium]/bestaudio[ext=mp3][protocol=http][format_id!*=preview][format_id!=download][format_note!=?Premium]/bestaudio[ext=mp3][protocol=m3u8_native][format_id!*=preview][format_id!=download][format_note!=?Premium]",
             "--downloader", "m3u8:native", "--fixup", "never", "-o", "-"]);
     }
     command.args(["--", value]);

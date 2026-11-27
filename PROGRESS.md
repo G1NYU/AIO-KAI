@@ -1,3 +1,8 @@
+
+## 2026-11-27 — Watch recovery implementation checkpoint
+
+Mandatory acceptance remains in [P0–P5](docs/tsugi-recovery-roadmap.md). Series-first and Movies-second live search, title heroes and episode stills, native profile collections, progressive source selection, shared rail, resume artwork, and Home/Anime polish are authored. The pinned SoundCloud format restriction is corrected in source; no live service claim. Existing playback and media-server path preserved. CI earlier exposed compilation/lint defects; final consolidated verification required before any packaging. Do not mark roadmap items complete without evidence.
+
 ## 2026-11-27 — Required streaming setup
 
 Native protected profile now records validated TMDB v3 credential and authenticated account import provider; old snapshots default to unconfigured. Startup and entered Watch profiles gate on native status rather than intro flags; existing appearance steps remain optional after mandatory setup. TMDB key replacement available in Watch settings. Added fixture startup gate and native validation/persistence tests. TMDB metadata search/enrichment still open. CI pending; no EXE/package marker.

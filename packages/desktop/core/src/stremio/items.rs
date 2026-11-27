@@ -60,6 +60,13 @@ pub(super) fn display(value: Option<&Value>, max: usize) -> Option<String> {
         joined.to_ascii_lowercase().contains("password=") { return None; }
     Some(joined)
 }
+fn stream_detail(value:Option<&Value>)->Option<String>{
+    let raw=value?.as_str()?;
+    if raw.len()>2048{return None;}
+    let lines=raw.lines().map(|line|line.split_whitespace().collect::<Vec<_>>().join(" ")).filter(|line|!line.is_empty()).collect::<Vec<_>>().join("\n");
+    if lines.is_empty()||lines.len()>512||lines.chars().any(|c|c.is_control()&&c!='\n')||lines.contains("://")||["token=","password=","apikey=","api_key="].iter().any(|marker|lines.to_ascii_lowercase().contains(marker)){return None;}
+    Some(lines)
+}
 fn display_list(value: Option<&Value>, limit: usize, max: usize) -> Vec<String> {
     match value {
         Some(Value::Array(rows)) => rows.iter().take(limit).filter_map(|row|display(Some(row),max)).collect(),
@@ -133,7 +140,7 @@ fn parse_options(bytes:&[u8],resource:ItemResource)->Result<Vec<OptionSummary>>{
         let language=row.get("lang").and_then(Value::as_str).filter(|s|type_valid(s)).map(str::to_owned);
         let name=display(row.get("name"),256).or_else(||display(row.get("title"),256))
             .or_else(||language.clone()).unwrap_or_else(||format!("Option {}",i+1));
-        let detail=display(row.get("title"),512).filter(|text|text!=&name)
+        let detail=stream_detail(row.get("title")).filter(|text|text!=&name)
             .or_else(||display(row.get("description"),512).filter(|text|text!=&name));
         let valid=safe_url(row.get("url"));
         let proxy=row.pointer("/behaviorHints/proxyHeaders").is_some_and(|v|!v.is_null());

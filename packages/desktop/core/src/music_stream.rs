@@ -30,7 +30,7 @@ impl Source {
 
     pub(crate) fn from_bytes(bytes: Vec<u8>) -> Result<Arc<Self>, &'static str> {
         if !media_header(&bytes) || bytes.len() as u64 > MAX_SIZE {
-            return Err("Music transfer did not return valid MP4 or WebM audio.");
+            return Err("Music transfer did not return recognized audio container.");
         }
         Ok(Self::with_buffer("", Vec::new(), Some(bytes)))
     }
@@ -83,7 +83,7 @@ impl Source {
         }
         if let Some(audio) = &self.progressive {
             let (bytes, length) = audio.read(start, PROGRESSIVE_CHUNK as usize)?;
-            if start == 0 && !media_header(&bytes) { return Err("Music transfer did not return valid MP4 or WebM audio."); }
+            if start == 0 && !media_header(&bytes) { return Err("Music transfer did not return recognized audio container."); }
             return Ok(Chunk { start, size: length.unwrap_or(64 * 1024 * 1024), bytes });
         }
         if let Some(bytes) = &self.buffered {
@@ -158,7 +158,7 @@ impl Source {
             return Err("Stream response contained incomplete audio bytes.");
         }
         if start == 0 && !media_header(&bytes) {
-            return Err("HTTPS response does not contain a recognized MP4 or WebM audio header.");
+            return Err("HTTPS response does not contain a recognized audio header.");
         }
         Ok(Chunk { start, size, bytes })
     }
@@ -178,6 +178,12 @@ fn parse_range(header: &str) -> Option<(u64, u64, u64)> {
 fn media_header(bytes: &[u8]) -> bool {
     bytes.starts_with(&[0x1a, 0x45, 0xdf, 0xa3])
         || bytes.get(4..8).is_some_and(|kind| kind == b"ftyp")
+        || bytes.starts_with(b"OggS\0")
+        || (bytes.starts_with(b"ID3") && bytes.get(3).is_some_and(|v|(2..=4).contains(v))
+            && bytes.get(6..10).is_some_and(|v|v.iter().all(|b|b&0x80==0)))
+        || bytes.get(..4).is_some_and(|h|h[0]==0xff && h[1]&0xe0==0xe0
+            && h[1]&0x18!=0x08 && h[1]&0x06!=0 && h[2]&0xf0!=0xf0
+            && h[2]&0x0c!=0x0c)
 }
 
 struct Chunk {
@@ -365,6 +371,10 @@ mod tests {
     fn rejects_non_media_responses() {
         assert!(media_header(b"\x00\x00\x00\x18ftypM4A "));
         assert!(media_header(&[0x1a, 0x45, 0xdf, 0xa3]));
+        assert!(media_header(b"OggS\0\x02\0\0\0\0"));
+        assert!(media_header(b"ID3\x04\0\0\0\0\0\x15"));
+        assert!(media_header(&[0xff,0xfb,0x90,0x64]));
+        assert!(!media_header(b"OggS\x01"));
         assert!(!media_header(b"<html>not audio</html>"));
         assert!(!media_header(b""));
     }

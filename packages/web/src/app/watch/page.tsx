@@ -7,7 +7,7 @@ import type { WatchEntryPane } from '@/lib/desktop-area';
 import { StremioAddonSettings } from '@/components/shell/stremio-addon-settings';
 import { appBridge } from '@/lib/hosts/shell/bridge';
 import { appEngine } from '@/lib/hosts/shell/player';
-import { consumeAddonMedia, loadAllAddonStreams, retryAddonStreams, loadAddonOptions, prepareAddonMedia, saveWatchProgress, type AddonOptions, type AddonStreamGroup, type AddonVideo, type WatchPlayback, type WatchProgress } from '@/lib/hosts/shell/stremio';
+import { consumeAddonMedia, beginAddonStreams, pollAddonStreams, cancelAddonStreams, retryAddonStreams, loadAddonOptions, prepareAddonMedia, saveWatchProgress, type AddonOptions, type AddonStreamGroup, type AddonVideo, type WatchPlayback, type WatchProgress } from '@/lib/hosts/shell/stremio';
 import { useMediaPresence } from '@/lib/rich-presence';
 import { usePlayerPage, PageSubtitle, PlayerStats } from '@/app/player/page';
 import { chapterSegments } from '@/lib/playback/chapters';
@@ -66,6 +66,8 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
   const dialogRef=React.useRef<Dialog|null>(null);
   const [busy,setBusy]=React.useState(false),[notice,setNotice]=React.useState<string|null>(null),[error,setError]=React.useState(false);
   const [groups,setGroups]=React.useState<AddonStreamGroup[]|null>(null);
+  const [streamPending,setStreamPending]=React.useState<number|null>(null);
+  const streamRequest=React.useRef<{queryId?:number;cancelled:boolean}|null>(null);
   const [target,setTarget]=React.useState<AddonVideo|null>(null);
   const [subtitleOptions,setSubtitleOptions]=React.useState<AddonOptions|null>(null);
   const [subtitleApplied,setSubtitleApplied]=React.useState(false);
@@ -154,7 +156,7 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
       else if(key.action==='seek'||key.action==='skip')p.seek(Math.max(0,Math.min(p.state.durationMs||604800000,key.action==='seek'?key.position:p.playhead.positionMs+key.offset)));
     });
     return ()=>{
-      mounted.current=false;clearInterval(timer);stop?.();
+      mounted.current=false;clearInterval(timer);stop?.();stopVersions(!closing.current);
       if(!closing.current)void latestCheckpoint.current(true);
     };
   },[latestLeave,latestCheckpoint]);
@@ -164,7 +166,13 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
     return()=>clearTimeout(timer);
   },[state.started,state.error]);
 
+  function stopVersions(cancelNative=true){
+    const request=streamRequest.current;streamRequest.current=null;
+    if(request){request.cancelled=true;if(cancelNative&&request.queryId!==undefined)void cancelAddonStreams(playback.profileId,request.queryId).catch(()=>{});}
+    if(mounted.current)setStreamPending(null);
+  }
   function showDialog(next:Dialog|null){
+    if(next!=='versions')stopVersions();
     dialogRef.current=next;setDialog(next);setError(false);setNotice(null);
   }
   async function run(work:()=>Promise<void>){
@@ -176,18 +184,32 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
   }
   function openVersions(video:AddonVideo|null=null,auto=false){
     if(flight.current||closing.current)return;
-    showDialog('versions');setTarget(video);setGroups(null);
-    void run(async()=>{
-      const response=await loadAllAddonStreams(playback.profileId,playback.mediaType,video?.id??playback.videoId,video&&video.id!==playback.videoId?video.routes:playback.routes);
-      if(!mounted.current)return;
-      const sorted=playback.streamSources.flatMap(s=>response.filter(g=>g.sourceId===s.sourceId));
-      setGroups(sorted);
-      const choices=sorted.flatMap(g=>g.options?g.options.rows.flatMap((r,i)=>r.supported?[{result:g.options!,index:i}]:[]):[]);
-      if(auto&&video&&choices.length&&(choices.length===1||fallbackFirst))await switchTo(choices[0].result,choices[0].index,video,true);
-    });
+    stopVersions();showDialog('versions');setTarget(video);setGroups(null);setStreamPending(-1);
+    const request:{queryId?:number;cancelled:boolean}={cancelled:false};streamRequest.current=request;
+    void (async()=>{
+      try{
+        if(historyFlight.current)await historyFlight.current;
+        if(request.cancelled||closing.current)return;
+        let snapshot=await beginAddonStreams(playback.profileId,playback.mediaType,video?.id??playback.videoId,video&&video.id!==playback.videoId?video.routes:playback.routes);
+        request.queryId=snapshot.queryId;
+        if(request.cancelled){void cancelAddonStreams(playback.profileId,snapshot.queryId).catch(()=>{});return;}
+        while(mounted.current&&!request.cancelled&&streamRequest.current===request){
+          const sorted=playback.streamSources.flatMap(source=>snapshot.groups.filter(group=>group.sourceId===source.sourceId));
+          setGroups(sorted);setStreamPending(snapshot.done?null:snapshot.pendingSourceIds.length);
+          if(snapshot.done){
+            const choices=sorted.flatMap(group=>group.options?group.options.rows.flatMap((row,index)=>row.supported?[{result:group.options!,index}]:[]):[]);
+            if(auto&&video&&!flight.current&&choices.length&&(choices.length===1||fallbackFirst)){stopVersions(false);await run(()=>switchTo(choices[0].result,choices[0].index,video,true));}
+            break;
+          }
+          await new Promise(resolve=>setTimeout(resolve,250));
+          if(request.cancelled||!mounted.current)return;
+          snapshot=await pollAddonStreams(playback.profileId,snapshot.queryId);
+        }
+      }catch{if(mounted.current&&!request.cancelled&&streamRequest.current===request){setError(true);setStreamPending(null);}}
+    })();
   }
   function retryVersion(sourceId:number){
-    if(flight.current||closing.current||!groups?.some(group=>group.sourceId===sourceId))return;
+    if(flight.current||closing.current||streamPending!==null||!groups?.some(group=>group.sourceId===sourceId))return;
     void run(async()=>{
       const group=await retryAddonStreams(playback.profileId,sourceId,playback.mediaType,target?.id??playback.videoId);
       if(mounted.current)setGroups(previous=>previous?.map(row=>row.sourceId===sourceId?group:row)??null);
@@ -195,7 +217,7 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
   }
   async function pickStream(result:AddonOptions,index:number){
     if(!result.rows[index]?.supported)return;
-    await run(()=>switchTo(result,index,target));
+    stopVersions(false);await run(()=>switchTo(result,index,target));
   }
   async function switchTo(result:AddonOptions,index:number,video:AddonVideo|null,auto=false){
       const same=!video||video.id===playback.videoId;
@@ -281,7 +303,9 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
       {dialog==='versions'&&<div className="space-y-3" data-ui="watch-player-versions">
         <h3>{target?.name??playback.episodeTitle??playback.title}</h3>
         <Button intent="gray-outline" disabled={busy} onClick={()=>openVersions(target)}><Trans>Refresh streams</Trans></Button>
-        {groups&&<AddonVersionList groups={groups} sources={playback.streamSources} busy={busy} switching={!target||target.id===playback.videoId} onRetry={retryVersion} onPick={(_group,result,index)=>void pickStream(result,index)}/>}
+        {streamPending!==null&&<p role="status">{streamPending<0?<Trans>Finding streams…</Trans>:<Trans>{streamPending} providers still loading…</Trans>}</p>}
+        {groups&&(groups.length>0||streamPending===null)&&<AddonVersionList groups={groups} sources={playback.streamSources} busy={busy} switching={!target||target.id===playback.videoId} onRetry={streamPending===null?retryVersion:undefined} onPick={(_group,result,index)=>void pickStream(result,index)}/>}
+
       </div>}
       {dialog==='episodes'&&<div className="space-y-2" data-ui="watch-player-episodes">
         {playback.videos.map(v=><button key={v.id} type="button" className="tsugi-read-action block w-full text-start" aria-current={v.id===playback.videoId?'true':undefined} disabled={busy} onClick={()=>openVersions(v)}>{v.name}</button>)}

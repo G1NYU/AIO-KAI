@@ -463,7 +463,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const titleKey=title?.id,titleKind=title?.mediaType,titleImdb=title?.imdbId;
   React.useEffect(()=>{setCinema(null);if(profileId===undefined||!titleKey||!titleKind)return;let current=true;void loadTmdbTitle(profileId,titleKind,titleImdb??titleKey).then(item=>{if(current)setCinema(item);}).catch(()=>{});return ()=>{current=false;};},[profileId,titleKey,titleKind,titleImdb]);
   const selectedSeason=seasonChoice!==null&&seasons.includes(seasonChoice)?seasonChoice:selectedVideo?seasonOf(selectedVideo):seasons.find(s=>s!=='0'&&s!=='other')??seasons[0]??'other';
-  const cinemaId=cinema?.tmdbId;
+  const cinemaId=cinema?.tmdbId,cinemaRuntime=cinema?.runtime;
   React.useEffect(()=>{setSeasonArt([]);if(profileId===undefined||!cinemaId||cinema?.mediaType!=='series'||!/^\d+$/.test(selectedSeason))return;let current=true;void loadTmdbSeason(profileId,cinemaId,Number(selectedSeason)).then(items=>{if(current)setSeasonArt(items);}).catch(()=>{});return ()=>{current=false;};},[profileId,cinemaId,cinema?.mediaType,selectedSeason]);
   const seasonVideos=videos.filter(v=>seasonOf(v)===selectedSeason).sort((a,b)=>(a.episode??Number.MAX_SAFE_INTEGER)-(b.episode??Number.MAX_SAFE_INTEGER));
   if(workspace&&!entered)return <section className="tsugi-watch-picker" data-ui="watch-profile-picker" aria-labelledby={titleId}>
@@ -684,7 +684,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
             {(details?.releaseInfo||cinema?.releaseInfo)&&<span>{details?.releaseInfo??cinema?.releaseInfo?.slice(0,4)}</span>}
             {details?.imdbRating!==undefined&&<span><Trans>IMDb</Trans> {details.imdbRating.toFixed(1)}/10</span>}
             {cinema?.tmdbRating!==undefined&&<span><Trans>TMDB</Trans> {cinema.tmdbRating.toFixed(1)}/10</span>}
-            {details?.runtime?<span>{details.runtime}</span>:cinema?.runtime?<span><Trans>{cinema.runtime} min</Trans></span>:null}
+            {details?.runtime?<span>{details.runtime}</span>:cinema?.runtime?<span><Trans>{cinemaRuntime} min</Trans></span>:null}
           </div>
           {details?.genres?.length? <p className="tsugi-watch-muted">{details.genres.join(' · ')}</p>:null}
           {(cinema?.description||details?.description||title.description)&&<p className="break-words">{cinema?.description??details?.description??title.description}</p>}
@@ -714,10 +714,10 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
             {seasons.map(s=><option key={s} value={s}>{s==='other'?t`Other episodes`:s==='0'?t`Specials (season 0)`:t`Season ${s}`}</option>)}
           </select>
         </div>
-        <div className="tsugi-watch-episode-list">{seasonVideos.map(video=>{const match=seasonArt.filter(episode=>episode.episode===video.episode);const art=match.length===1?match[0]:undefined;return <button key={video.id} type="button" className="tsugi-read-action tsugi-watch-episode" data-video-id={video.id} aria-current={videoId===video.id?'true':undefined} disabled={busy} onClick={()=>selectVideo(video.id)}>
+        <div className="tsugi-watch-episode-list">{seasonVideos.map(video=>{const match=seasonArt.filter(episode=>episode.episode===video.episode);const art=match.length===1?match[0]:undefined;const episodeRuntime=art?.runtime;return <button key={video.id} type="button" className="tsugi-read-action tsugi-watch-episode" data-video-id={video.id} aria-current={videoId===video.id?'true':undefined} disabled={busy} onClick={()=>selectVideo(video.id)}>
           {video.episode!==null&&<span className="tsugi-watch-muted tabular-nums">{String(video.episode).padStart(2,'0')}</span>}
           <span className="tsugi-watch-episode-art" aria-hidden="true"><Artwork src={[art?.thumbnail,video.thumbnail,cinema?.background,details?.background].filter((value):value is string=>!!value)} alt=""/></span>
-          <span className="min-w-0 flex-1 break-words"><strong>{video.name}</strong>{(video.description||art?.description)&&<span className="block tsugi-watch-muted line-clamp-2 text-sm">{video.description??art?.description}</span>}{art?.runtime&&<small className="tsugi-watch-muted"><Trans>{art.runtime} min</Trans></small>}</span>
+          <span className="min-w-0 flex-1 break-words"><strong>{video.name}</strong>{(video.description||art?.description)&&<span className="block tsugi-watch-muted line-clamp-2 text-sm">{video.description??art?.description}</span>}{art?.runtime&&<small className="tsugi-watch-muted"><Trans>{episodeRuntime} min</Trans></small>}</span>
           <span className="ms-auto"><Trans>Watch</Trans></span>
         </button>})}</div>
       </section>}

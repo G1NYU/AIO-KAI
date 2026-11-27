@@ -353,7 +353,7 @@ function parseOptions(options:unknown):AddonOption[]{
     if(reason!=='direct-https'&&reason!=='unsupported-transport'&&reason!=='invalid-media-url'&&reason!=='proxy-headers')return fail();
     const supported=bool(row.supported);
     if(supported!==(reason==='direct-https'))return fail();
-    return {name:str(row.name,256),detail:optionalDisplay(row.detail,512),supported,reason,language:row.language===null?null:str(row.language,32)};
+    return {name:str(row.name,256),detail:typeof row.detail==='string'&&optionalDisplay(row.detail.replaceAll('\n',' '),512)?row.detail:undefined,supported,reason,language:row.language===null?null:str(row.language,32)};
   });
 }
 
