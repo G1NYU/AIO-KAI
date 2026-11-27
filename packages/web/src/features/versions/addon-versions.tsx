@@ -78,8 +78,9 @@ export function AddonVersionList({groups,sources,busy,resumeMs=0,switching=false
     {visible.map(group=>{
       const result=group.options,rows=rowsFor(group),limit=limits[group.sourceId]??24;
       const sourceName=sources.find(s=>s.sourceId===group.sourceId)?.name;
+      const filteredCount=rows.length,returnedCount=count(group);
       return <section key={group.sourceId} className="space-y-2" data-stream-source={group.sourceId}>
-        <header className="flex flex-wrap items-center justify-between gap-3"><h5 className="font-medium flex items-center gap-3"><span aria-hidden="true" className="grid place-items-center size-9 rounded-lg bg-[--tsugi-wash] text-[--tsugi-ink] font-bold">{sourceName?.trim()[0]?.toUpperCase()??'?'}</span>{sourceName}</h5>{result&&<small className="text-[--muted] tabular-nums"><Trans>{rows.length} of {count(group)} streams</Trans></small>}</header>
+        <header className="flex flex-wrap items-center justify-between gap-3"><h5 className="font-medium flex items-center gap-3"><span aria-hidden="true" className="grid place-items-center size-9 rounded-lg bg-[--tsugi-wash] text-[--tsugi-ink] font-bold">{sourceName?.trim()[0]?.toUpperCase()??'?'}</span>{sourceName}</h5>{result&&<small className="text-[--muted] tabular-nums"><Trans>{filteredCount} of {returnedCount} streams</Trans></small>}</header>
         {!result||result.rows.length===0?<div className="space-y-2">
           {group.error==='unsupported-resource'?<p><Trans>This addon does not support this video identity.</Trans></p>:!result?<><p><Trans>This addon could not return streams. Other sources remain available.</Trans></p>
             {group.error==='network'?<small><Trans>Network request failed.</Trans></small>:group.error==='rate'?<small><Trans>Provider rate limit reached.</Trans></small>:group.error==='auth'?<small><Trans>Provider authorization failed.</Trans></small>:null}</>:<p><Trans>No streams returned.</Trans></p>}
