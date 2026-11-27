@@ -404,7 +404,13 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await item.getByText('Fixture Actor',{exact:true}).waitFor();
     assert.equal(await item.locator('.tsugi-watch-title-backdrop').count(),1);
     await assertArtwork(item.locator('.tsugi-watch-title-backdrop'));
-    if(screenshotDir){await item.locator('.tsugi-watch-title-hero').scrollIntoViewIfNeeded();await page.screenshot({path:join(screenshotDir,'watch-movie-details.png'),animations:'disabled'});}
+    const titleHero=item.locator('.tsugi-watch-title-hero');
+    await titleHero.evaluate(node=>node.scrollIntoView({block:'start',behavior:'instant'}));
+    const titleBounds=await titleHero.boundingBox();
+    const titleControls=await page.locator('[data-ui="window-controls"]').boundingBox();
+    assert.ok(titleBounds&&titleControls&&titleBounds.y>=titleControls.y+titleControls.height+8,'title hero clears native controls after programmatic scrolling');
+    assert.ok(await page.evaluate(()=>!!document.elementFromPoint(Math.floor(window.innerWidth/2),20)?.closest('[data-page="direct-watch"]')),'Watch scroll region preserves its opaque window strip');
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-movie-details.png'),animations:'disabled'});
     assert.equal(await groups.count(),0);
     await item.getByRole('button',{name:'Add to favorites',exact:true}).click();
     await item.getByRole('button',{name:'Favorited',exact:true}).waitFor();
@@ -663,6 +669,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const animeFonts=await watch.locator('.tsugi-anime-hub').locator('.tsugi-anime-heading,[data-ui="media-row-title"],[data-ui="poster-card-title"]').evaluateAll(nodes=>nodes.map(el=>({family:getComputedStyle(el).fontFamily,weight:Number(getComputedStyle(el).fontWeight)})));
     assert.ok(animeFonts.length>=3);
     assert.ok(animeFonts.every(font=>/^Interface(?:,|$)/.test(font.family)&&font.weight>=600&&font.weight<=750),'Anime Hub uses the same Interface font as Movies & TV: '+JSON.stringify(animeFonts));
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-anime-populated.png'),animations:'disabled'});
     await publicPoster.click();
     await item.getByRole('heading',{name:'Public anime discovery fixture',exact:true}).waitFor();
     await item.getByText('Independent discovery without addon installation.',{exact:true}).waitFor();
@@ -1256,7 +1263,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await firstLaunch.setViewportSize({width:390,height:844});
     await watchSetting('Your addons');
     await watch.getByRole('heading',{name:'Your addon stack.',exact:true}).waitFor();
-    await firstLaunch.evaluate(()=>window.scrollTo(0,0));
+    await watch.evaluate(node=>node.scrollTo({top:0,left:0,behavior:'instant'}));
     const narrow=await watch.evaluate(node=>({scrollWidth:node.scrollWidth,clientWidth:node.clientWidth,nav:node.querySelector('.tsugi-watch-nav').getBoundingClientRect().width,content:node.querySelector('.tsugi-watch-content').getBoundingClientRect().width}));
     assert.ok(narrow.scrollWidth<=narrow.clientWidth+2,`Watch workspace overflow: ${JSON.stringify(narrow)}`);
     // The shared rail hides the legacy outer header; measure the visible workspace instead.

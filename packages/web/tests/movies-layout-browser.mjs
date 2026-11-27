@@ -49,6 +49,8 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
       put('aiostreams-web-server', base);
       put('jellyfin_credentials', { Servers: [{ Id: 'original-fixture-server', ManualAddress: base, AccessToken: 'original-test-only', UserId: userId, DateLastAccessed: 1, LastConnectionMode: 2 }] });
       put(`aiostreams-web-picked-user:${base}`, userId);
+      // This is an existing configured installation, not a first-launch welcome test.
+      put('tsugi-onboarding-complete-v1', true);
       put('tsugi-startup-area-v1', 'video');
       put('aiostreams-web-interface-desktop-navigation', 'sidebar');
     }, { base, userId });
@@ -86,6 +88,7 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
     await home().locator('[data-slide="0"][data-details] [data-ui="hero-title"]').filter({ hasText: movies[0].Name }).waitFor();
     await home().locator('[data-ui="home-rows"]').getByText(movies[2].Name, { exact: true }).waitFor();
     assert.ok(requests.has('/Users/Me') && requests.has('/Items'), 'Home uses the real signed-in session and catalog query');
+    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='watch-setup-status')),'existing server startup still verifies mandatory native setup');
     assert.equal(await visibleShell().locator('.tsugi-desktop-rail').count(), 0, 'Movies uses its retained sidebar component');
     const menuNames = await sidebar().locator('[data-vertical-menu-item-button]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-name')));
     assert.deepEqual(menuNames.slice(0, 4), ['home', 'discover', 'search', 'favourites'], 'Original movie navigation order is preserved');

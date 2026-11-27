@@ -1,6 +1,9 @@
 /* The desktop's native window controls overlay the top strip. Keep the
  * direct Watch header and profile picker below it at every window width. */
 .tsugi-direct-watch {padding:32px;padding-block-start:calc(var(--tsugi-window-strip,40px) + 24px);max-width:none;margin:auto;color:var(--tsugi-ink);}
+/* A viewport-contained scroller prevents browsing content from sliding beneath
+ * the fixed native controls. The shared fixed rail and player stay unchanged. */
+:root[data-host='desktop'] .tsugi-direct-watch {box-sizing:border-box;height:100dvh;overflow-y:auto;border-block-start:max(40px,var(--tsugi-window-strip,40px)) solid var(--tsugi-canvas,#101014);padding-block-start:24px;scroll-padding-block-start:8px;}
 .tsugi-direct-watch>div>header {margin-bottom:24px;}
 .tsugi-direct-watch .tsugi-watch-picker {min-height:min(72vh,780px);}
 .tsugi-direct-watch .tsugi-watch-content {min-width:0;}
@@ -15,6 +18,7 @@
 
 @media(max-width:760px){
   .tsugi-direct-watch {padding:16px;padding-block-start:calc(var(--tsugi-window-strip,40px) + 16px);}
+  :root[data-host='desktop'] .tsugi-direct-watch {padding-block-start:16px;}
   .tsugi-direct-player header,.tsugi-direct-player footer {padding:16px;flex-wrap:wrap;}
   .tsugi-direct-player header>div {min-width:0;overflow-wrap:anywhere;}
   .tsugi-direct-player input[type=range] {min-width:0;width:100%;}
