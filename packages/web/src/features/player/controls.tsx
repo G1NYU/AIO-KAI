@@ -93,6 +93,9 @@ export function PlayerControls({
   onBack,
   onMinimise,
   onVersions,
+  onAddonSubtitles,
+  onOpenEpisodes,
+  dialogOpen = false,
   onPrevious,
   onNext,
   onEpisode,
@@ -112,6 +115,9 @@ export function PlayerControls({
   onBack(): void;
   onMinimise?: () => void;
   onVersions?: () => void;
+  onAddonSubtitles?: () => void;
+  onOpenEpisodes?: () => void;
+  dialogOpen?: boolean;
   onPrevious?: () => void;
   onNext?: () => void;
   onEpisode?: (episode: BaseItemDto) => void;
@@ -165,6 +171,7 @@ export function PlayerControls({
   // Until the first frame only Back works; a player in its own window is watched there.
   const ready = state.started || !!player.external;
   const busy =
+    dialogOpen ||
     menus > 0 ||
     picking !== null ||
     byEar ||
@@ -190,7 +197,7 @@ export function PlayerControls({
     return { visible, pauseScreen };
   };
   // The video appears without the controls, unless it opens paused.
-  const [wakeFirst] = React.useState(showAtOpen && ready);
+  const [wakeFirst] = React.useState(showAtOpen);
   React.useEffect(() => {
     if (!ready || latest.current.state.paused) return;
     if (wakeFirst) wake();
@@ -739,7 +746,8 @@ export function PlayerControls({
             player={player}
             onMenu={onMenu}
             onVersions={onVersions}
-            onEpisodes={listsEpisodes ? () => setEpisodes(true) : undefined}
+            onAddonSubtitles={onAddonSubtitles}
+            onEpisodes={onOpenEpisodes ?? (listsEpisodes ? () => setEpisodes(true) : undefined)}
             onChapters={listsChapters ? () => setChapters(true) : undefined}
             onChannels={
               channel && channel.lineup.length > 1

@@ -2,7 +2,8 @@ import { t } from '@lingui/core/macro';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useSettingsLayer } from '@/lib/settings';
-import { useSession } from './session';
+import { useOptionalSession } from './session';
+import { storage } from '@/lib/storage';
 import type { UserDto } from './types';
 
 export type SubtitleMode =
@@ -46,26 +47,34 @@ export const subtitleLanguages = (prefs: PlaybackPrefs) =>
 
 type Configuration = NonNullable<UserDto['Configuration']>;
 
-/** Saved on the server, so they follow the user to other devices and apps. */
+const WATCH_PREFS_KEY = 'tsugi-watch-playback-prefs-v1';
+
+/** Keep the same preference schema and menus when no media server is connected. */
 export function usePlaybackPrefs() {
-  const { client, user } = useSession();
+  const session = useOptionalSession();
+  const client = session?.client, user = session?.user;
   const queryClient = useQueryClient();
   const target = useSettingsLayer()?.userId;
-  const queryKey = ['jf', client.base, target ?? user.Id, 'configuration'];
+  const queryKey = client
+    ? ['jf', client.base, target ?? user?.Id, 'configuration']
+    : ['tsugi', WATCH_PREFS_KEY];
   const query = useQuery({
     queryKey,
-    meta: target ? undefined : { cache: 'account' },
-    queryFn: async () =>
-      target
-        ? await client.get<Configuration>(`/Users/${target}/Configuration`)
-        : ((await client.get<UserDto>('/Users/Me')).Configuration ?? {}),
+    meta: client && !target ? { cache: 'account' } : undefined,
+    queryFn: async (): Promise<Configuration> =>
+      !client
+        ? (storage.get<Configuration>(WATCH_PREFS_KEY) ?? {})
+        : target
+          ? await client.get<Configuration>(`/Users/${target}/Configuration`)
+          : ((await client.get<UserDto>('/Users/Me')).Configuration ?? {}),
     staleTime: 5 * 60_000,
   });
   const save = useMutation({
-    mutationFn: (next: Configuration) =>
-      target
-        ? client.post(`/Users/${target}/Configuration`, next)
-        : client.post('/Users/Configuration', next, { userId: user.Id }),
+    mutationFn: async (next: Configuration) => {
+      if (!client) { storage.set(WATCH_PREFS_KEY, next); return; }
+      if (target) await client.post(`/Users/${target}/Configuration`, next);
+      else await client.post('/Users/Configuration', next, { userId: user?.Id });
+    },
     onMutate: (next) => queryClient.setQueryData(queryKey, next),
     onError: () => {
       toast.error(t`Could not save that setting`);
@@ -74,7 +83,7 @@ export function usePlaybackPrefs() {
   });
   const prefs = (query.data ?? {}) as PlaybackPrefs;
   // A server can keep a user from changing their own configuration.
-  const locked = user.Policy?.EnableUserPreferenceAccess === false;
+  const locked = user?.Policy?.EnableUserPreferenceAccess === false;
   return {
     prefs,
     isLoading: query.isLoading,

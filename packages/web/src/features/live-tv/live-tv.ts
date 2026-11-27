@@ -6,7 +6,7 @@ import {
   useQueries,
   useQuery,
 } from '@tanstack/react-query';
-import { useSession } from '@/lib/jellyfin/session';
+import { useSession, useOptionalSession } from '@/lib/jellyfin/session';
 import { useGenres, useKey, useLiveTvView } from '@/lib/jellyfin/queries';
 import { storage, storedMap } from '@/lib/storage';
 import type { BaseItemDto, BaseItemDtoQueryResult } from '@/lib/jellyfin/types';
@@ -223,11 +223,13 @@ export function useChannelPages(
 
 /** Finds a channel by its number in the whole lineup, which a group shows only part of. */
 export function useChannelByNumber() {
-  const { client, user } = useSession();
+  const session = useOptionalSession();
+  const client = session?.client, userId = session?.user.Id;
   return React.useCallback(
     async (number: string) => {
+      if (!client) return undefined;
       const found = await client.get<BaseItemDtoQueryResult>('/Items', {
-        userId: user.Id,
+        userId,
         SearchTerm: number,
         Recursive: true,
         IncludeItemTypes: 'TvChannel',
@@ -235,7 +237,7 @@ export function useChannelByNumber() {
       });
       return found.Items?.find((c) => c.ChannelNumber === number);
     },
-    [client, user.Id]
+    [client, userId]
   );
 }
 
@@ -286,17 +288,18 @@ export function useSchedules(
   batches: string[][],
   opts: { from?: number; to?: number; enabled?: boolean } = {}
 ): Map<string, BaseItemDto[]> {
-  const { client, user } = useSession();
-  const key = useKey();
+  const session = useOptionalSession();
+  const client = session?.client, userId = session?.user.Id;
+  const key = ['jf', client?.base, userId] as const;
   const from =
     opts.from ?? Math.floor(Date.now() / WINDOW_STEP_MS) * WINDOW_STEP_MS;
   const to = opts.to ?? from + SCHEDULE_AHEAD_MS;
   return useQueries({
-    queries: batches.map((ids) => ({
+    queries: (client ? batches : []).map((ids) => ({
       queryKey: [...key, 'live-schedules', ids.join(), from, to],
       queryFn: () =>
-        client.post<BaseItemDtoQueryResult>('/LiveTv/Programs', {
-          UserId: user.Id,
+        client!.post<BaseItemDtoQueryResult>('/LiveTv/Programs', {
+          UserId: userId,
           ChannelIds: ids,
           MinEndDate: new Date(from).toISOString(),
           MaxStartDate: new Date(to).toISOString(),

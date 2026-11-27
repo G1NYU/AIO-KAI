@@ -1,3 +1,5 @@
+- 2026-11-27: D4 baseline eb73c1d verified; shared engine/controller/controls and secure in-player stream switching authored; CI pending. Discord deferred.
+
 - 2026-11-27: Prior shared-autoplay CI `63ca4b8` passed. Register TSUGI's public Discord identity as default (sharing remains opt-in), correct video/music presence priority, add regressions and document standalone settings parity gaps. New CI and live Discord pending.
 
 - 2026-11-27: Unified the existing Playback auto-play first version setting across all three Watch hubs, replacing the temporary standalone checkbox. Shared switch and device override with account fallback; regression assertions updated. CI pending.

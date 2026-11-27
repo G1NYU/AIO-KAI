@@ -1196,7 +1196,7 @@ function Player({
   );
 }
 
-function PageSubtitle({
+export function PageSubtitle({
   text,
   lift,
   ...props
@@ -1209,7 +1209,7 @@ function PageSubtitle({
   return line ? <SubtitleText text={line} lift={shownLift} {...props} /> : null;
 }
 
-function PlayerStats({ rows }: { rows: Live<StatsRow[] | undefined> }) {
+export function PlayerStats({ rows }: { rows: Live<StatsRow[] | undefined> }) {
   const shown = useLive(rows);
   if (!shown?.length) return null;
   return (

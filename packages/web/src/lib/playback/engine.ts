@@ -36,6 +36,8 @@ export interface EngineTrack extends Track {
 
 export interface EngineFile {
   url: string;
+  /** The native engine alone consumes an addon grant; url is only a local identity. */
+  openNative?: (active: () => boolean) => Promise<void>;
   headers?: Record<string, string>;
   startMs: number;
   /** Opens without playing. */

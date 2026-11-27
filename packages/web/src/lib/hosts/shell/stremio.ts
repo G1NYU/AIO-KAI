@@ -319,7 +319,11 @@ export async function removeWatchHistory(profileId:number,progress:Pick<WatchPro
   return watchHistory(await scoped(profileId,{kind:'watch-remove',mediaType:progress.mediaType,itemId:progress.itemId,videoId:progress.videoId}));
 }
 
-export type WatchPlayback={profileId:number;grantId:number;mediaType:string;itemId:string;videoId:string;title:string;episodeTitle:string|null;subtitleSources:{sourceId:number;name:string}[]};
+export type WatchPlayback={
+  profileId:number;mediaType:string;itemId:string;videoId:string;title:string;episodeTitle:string|null;
+  startMs:number;videos:AddonVideo[];streamSources:{sourceId:number;name:string}[];
+  subtitleSources:{sourceId:number;name:string}[];
+} & ({grantId:number;selection?:never}|{grantId?:never;selection:{reviewId:number;optionIndex:number}});
 export async function prepareAddonMedia(profileId:number,reviewId:number,optionIndex:number,subtitles:boolean,startMs=0){
   const v=await scoped(profileId,{kind:'prepare-media',reviewId,optionIndex,startMs});
   if(v.subtitles!==subtitles)return fail();

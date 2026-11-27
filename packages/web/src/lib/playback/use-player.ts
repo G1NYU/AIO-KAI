@@ -49,7 +49,7 @@ const THUMBNAIL_INDEX_MS = 5_000;
 const PLACING_MS = 3_000;
 
 function serverSubtitles(
-  client: JellyfinClient,
+  client: JellyfinClient | undefined,
   streams: MediaStream[],
   ownSubtitles: boolean,
   urlOf?: (stream: MediaStream) => string | null
@@ -57,9 +57,9 @@ function serverSubtitles(
   return streams
     .filter((s) => !ownSubtitles || s.IsExternal)
     .flatMap((stream, i) => {
-      const url = urlOf ? urlOf(stream) : subtitleUrl(client, stream);
+      const url = urlOf ? urlOf(stream) : client ? subtitleUrl(client, stream) : null;
       const assUrl =
-        !urlOf && stream.Codec === 'ass'
+        !urlOf && client && stream.Codec === 'ass'
           ? subtitleUrl(client, stream, { original: true })
           : null;
       return url
@@ -184,6 +184,7 @@ export function usePlayer(
   const latestServers = useLatest(servers);
   const fileFor = (from: number): EngineFile => ({
     url,
+    openNative: opts.openNative,
     headers: opts.headers,
     startMs: from,
     paused: opts.startPaused,
@@ -309,6 +310,8 @@ export function usePlayer(
             message: 'the stream ended early',
           }),
         });
+        // One-shot addon grants must be renewed by the source picker.
+        if (latest.current.openNative) return;
         const resumeAt = clock(at);
         return setRetry({
           label: t`Resume from ${resumeAt}`,

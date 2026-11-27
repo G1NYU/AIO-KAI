@@ -37,10 +37,22 @@ export function installStremioFixture(initializeStartup=true){
       queueMicrotask(()=>{
         const result=grant?.id===message.grantId?{grantId:grant.id,accepted:true,subtitles:grant.subtitles}:null;
         for(const l of listeners)l({type:'stremio-result',request:message.request,data:result,error:result?null:'expired-review'});
-        if(result&&!grant.subtitles)for(const l of listeners){l({type:'player-event',name:'loaded'});l({type:'player-state',paused:false,positionMs:grant.startMs,durationMs:120000});}
+        if(result&&!grant.subtitles){
+          const track=(id,type,title,language)=>({id,type,title,language,default:id==='1',forced:false,hearingImpaired:false,visualImpaired:false,external:false});
+          f.emitPlayer({type:'player-event',name:'start'});
+          f.emitPlayer({type:'player-tracks',tracks:[track('1','audio','English audio','eng'),track('2','audio','Japanese audio','jpn'),track('3','subtitle','English subtitles','eng')]});
+          f.emitPlayer({type:'player-state',paused:false,positionMs:grant.startMs,durationMs:120000,volume:1,maxVolume:1,muted:false,speed:1,audio:'1',subtitle:null});
+          f.emitPlayer({type:'player-event',name:'loaded'});f.emitPlayer({type:'player-event',name:'restart'});
+        }
       });return;
     }
-    if(message.type==='player-stop'||message.type==='player-set'||message.type==='player-seek')f.mediaCalls.push(structuredClone(message));
+    if(['player-stop','player-set','player-seek','player-frame','player-style','player-sync','player-stats-overlay','player-controls'].includes(message.type)){
+      f.mediaCalls.push(structuredClone(message));
+      if(message.type==='player-stop')f.mediaGrant=null; // same invalidation as Windows
+      if(message.type==='player-set')queueMicrotask(()=>f.emitPlayer({...message,type:'player-state'}));
+      if(message.type==='player-seek')queueMicrotask(()=>f.emitPlayer({type:'player-state',positionMs:message.positionMs}));
+      return;
+    }
     if(message.type!=='stremio-request')return send(message);
     const raw=message.action;f.calls.push(structuredClone(raw));
     const emit=(data,error=null)=>queueMicrotask(()=>{for(const l of listeners)l({type:'stremio-result',request:message.request,data,error});});
@@ -187,7 +199,7 @@ export function installStremioFixture(initializeStartup=true){
         const groups=profile.sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(source=>{
           if(f.boardFixture&&source.sourceId===104)return {sourceId:source.sourceId,reviewId:null,options:[],error:'request'};
           const id=++f.sequence;f.streamReviews.push({id,subtitles:false});
-          return {sourceId:source.sourceId,reviewId:id,error:null,options:[{name:'HD fixture',supported:true,reason:'direct-https',language:null},{name:'Unsupported fixture',supported:false,reason:'unsupported-transport',language:null}]};
+          return {sourceId:source.sourceId,reviewId:id,error:null,options:[{name:'HD fixture',supported:true,reason:'direct-https',language:null},...(f.boardFixture&&source.sourceId===102?[{name:'Alternate HD fixture',supported:true,reason:'direct-https',language:null}]:[]),{name:'Unsupported fixture',supported:false,reason:'unsupported-transport',language:null}]};
         });
         return reply({mediaType:a.mediaType,videoId:a.videoId,groups});
       }
@@ -201,7 +213,8 @@ export function installStremioFixture(initializeStartup=true){
       }
       case 'prepare-media':{
         const review=f.mediaReview?.id===a.reviewId?f.mediaReview:f.streamReviews.find(r=>r.id===a.reviewId);f.mediaReview=null;f.streamReviews=[];
-        if(review?.id!==a.reviewId||a.optionIndex!==0)return emit(null,'expired-review');
+        if(review?.id!==a.reviewId||(a.optionIndex!==0&&!(f.boardFixture&&a.optionIndex===1&&!review.subtitles)))return emit(null,'expired-review');
+        f.mediaCalls.push({type:'prepare-media',optionIndex:a.optionIndex,startMs:a.startMs});
         f.mediaGrant={id:++f.sequence,subtitles:review.subtitles,startMs:a.startMs};
         return reply({grantId:f.mediaGrant.id,subtitles:review.subtitles});
       }
@@ -272,24 +285,51 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const groups=watch.locator('[data-ui="watch-stream-groups"]');
     await groups.getByText('Streaming only',{exact:true}).waitFor();
     await groups.getByText('This addon could not return streams. Other sources remain available.',{exact:true}).waitFor();
-    assert.equal(await groups.getByRole('button',{name:'Play',exact:true}).count(),1);
+    assert.equal(await groups.getByRole('button',{name:'Play',exact:true}).count(),2);
     assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='metadata'&&a.action.sourceId===103)));
     assert.equal(await page.evaluate(()=>window.__stremioFixture.mediaCalls.some(a=>a.type==='stremio-consume-grant')),false);
-    await groups.getByRole('button',{name:'Play',exact:true}).click();
+    await groups.getByRole('button',{name:'Play',exact:true}).first().click();
     const player=watch.locator('[data-ui="direct-watch-player"]');
-    await player.getByRole('button',{name:'Pause',exact:true}).waitFor();
-    await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
+    await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
+    await player.hover();
+    assert.equal(await player.locator('[data-ui="player-top-bar"]').count(),1);
+    await player.getByRole('button',{name:'Audio',exact:true}).click();
+    await page.locator('[data-ui="player-menu"][data-name="audio"]').getByText('Japanese',{exact:true}).click();
+    await page.waitForFunction(()=>window.__stremioFixture.mediaCalls.some(m=>m.type==='player-set'&&m.audio==='2'));
+    await player.hover();
+    await player.getByRole('button',{name:'Subtitles',exact:true}).click();
+    await page.locator('[data-ui="player-menu"][data-name="subtitles"]').getByText('English',{exact:true}).click();
+    await page.waitForFunction(()=>window.__stremioFixture.mediaCalls.some(m=>m.type==='player-set'&&m.subtitle==='3'));
+    await player.hover();
+    await player.getByRole('button',{name:'Subtitles',exact:true}).click();
+    await page.locator('[data-ui="player-menu"][data-name="subtitles"]').getByText('Off',{exact:true}).click();
+    await page.waitForFunction(()=>window.__stremioFixture.mediaCalls.some(m=>m.type==='player-set'&&m.subtitle===null));
+    await page.evaluate(()=>window.__stremioFixture.emitPlayer({type:'player-state',positionMs:45000,durationMs:120000}));
+    await player.hover();
+    await player.getByRole('button',{name:'Versions',exact:true}).click();
+    const versions=page.locator('[data-ui="watch-player-versions"]');
+    await versions.locator('[data-ui="version"]').filter({hasText:'Alternate HD fixture'}).getByRole('button',{name:'Switch stream',exact:true}).click();
+    await page.waitForFunction(()=>window.__stremioFixture.mediaCalls.filter(m=>m.type==='stremio-consume-grant').length===2);
+    await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
+    const switched=await page.evaluate(()=>window.__stremioFixture.mediaCalls.filter(m=>['player-stop','prepare-media','stremio-consume-grant'].includes(m.type)).slice(-3));
+    assert.deepEqual(switched.map(m=>m.type),['player-stop','prepare-media','stremio-consume-grant']);
+    assert.equal(switched[1].startMs,45000);assert.equal(switched[1].optionIndex,1);
+    console.log('PASS: shared video player audio/subtitle switching and in-player source selection retain position with a fresh native grant.');
+    await player.hover();
+    await player.getByRole('button',{name:'Back',exact:true}).click();
     await player.waitFor({state:'detached'});
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
     const anime=watch.locator('[data-ui="mal-anime-library"]');
     await anime.locator('[data-ui="watch-catalogue-board"]').getByRole('button',{name:'Fixture anime series',exact:true}).click();
     const item=watch.locator('[data-ui="watch-item-details"]');
     await item.getByRole('combobox',{name:'Video',exact:true}).selectOption('tt90002:1:2');
-    await groups.getByRole('button',{name:'Play',exact:true}).click();
-    await player.getByRole('button',{name:'Pause',exact:true}).waitFor();
+    await groups.getByRole('button',{name:'Play',exact:true}).first().click();
+    await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
+    await player.hover();
     assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='all-stream-options'&&a.action.videoId==='tt90002:1:2')));
     assert.equal(await page.evaluate(()=>window.__stremioFixture.profiles[0].malAnime?.length??0),0);
-    await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
+    await player.hover();
+    await player.getByRole('button',{name:'Back',exact:true}).click();
     await player.waitFor({state:'detached'});
     console.log('PASS: imported standalone Watch profile loads ordered shelves, isolates failures, resolves metadata and streams across addons, and plays an exact anime episode without MAL or a media server.');
     await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
@@ -297,9 +337,11 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await watch.locator('[data-ui="watch-hub-picker"] [data-watch-destination="standalone"]').click();
     await board.getByRole('button',{name:'Public movie fixture',exact:true}).click();
     await groups.getByText('Independent stream',{exact:true}).waitFor();
-    await groups.getByRole('button',{name:'Play',exact:true}).click();
-    await player.getByRole('button',{name:'Pause',exact:true}).waitFor();
-    await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
+    await groups.getByRole('button',{name:'Play',exact:true}).first().click();
+    await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
+    await player.hover();
+    await player.hover();
+    await player.getByRole('button',{name:'Back',exact:true}).click();
     await player.waitFor({state:'detached'});
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Settings',exact:true}).click();
     const config=watch.locator('[data-ui="watch-settings-navigation"]');
@@ -312,9 +354,11 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('tsugi-watch-first-version-mode'))),'on');
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Home',exact:true}).click();
     await board.getByRole('button',{name:'Public movie fixture',exact:true}).click();
-    await player.getByRole('button',{name:'Pause',exact:true}).waitFor();
+    await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
+    await player.hover();
     assert.equal(await page.evaluate(()=>window.__stremioFixture.calls.filter(a=>a.kind==='profile-request'&&a.action.kind==='prepare-media').at(-1).action.optionIndex),0);
-    await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
+    await player.hover();
+    await player.getByRole('button',{name:'Back',exact:true}).click();
     await player.waitFor({state:'detached'});
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Settings',exact:true}).click();
     await config.getByRole('button',{name:'Playback',exact:true}).click();
@@ -755,17 +799,24 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.mediaCalls.some(a=>a.type==='stremio-consume-grant')),false);
     await options.getByRole('button',{name:'Play',exact:true}).click();
     const player=watch.locator('[data-ui="direct-watch-player"]');
-    await player.getByRole('button',{name:'Pause',exact:true}).waitFor();
-    await player.getByText('Addon subtitles',{exact:true}).click();
-    await player.getByRole('button',{name:'Original addon fixture',exact:true}).click();
-    await player.getByRole('button',{name:'English fixture eng',exact:true}).click();
-    await player.getByText('Subtitle request accepted.',{exact:true}).waitFor();
+    await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
+    await player.hover();
+    await player.getByRole('button',{name:'Subtitles',exact:true}).click();
+    await firstLaunch.locator('[data-ui="player-menu"][data-name="subtitles"]').getByText('Addon subtitles',{exact:true}).click();
+    const subtitles=firstLaunch.locator('[data-ui="watch-player-subtitles"]');
+    await subtitles.getByRole('button',{name:'Original addon fixture',exact:true}).click();
+    await subtitles.getByRole('button',{name:'English fixture eng',exact:true}).click();
+    await subtitles.getByText('Subtitle request accepted.',{exact:true}).waitFor();
+    await firstLaunch.keyboard.press('Escape');
+    await subtitles.waitFor({state:'detached'});
     await firstLaunch.evaluate(()=>window.__stremioFixture.emitPlayer({type:'player-state',paused:false,positionMs:45000,durationMs:120000}));
-    await player.getByText('00:00:45 / 00:02:00',{exact:true}).waitFor();
+    await player.hover();
+    await player.locator('[data-ui="player-time"]').filter({hasText:'0:45 / 2:00'}).waitFor();
     await firstLaunch.waitForFunction(()=>window.__stremioFixture.presenceMessages.filter(m=>m.type==='presence').at(-1)?.presence?.position===45000);
     const presence=await firstLaunch.evaluate(()=>window.__stremioFixture.presenceMessages.filter(m=>m.type==='presence').at(-1).presence);
     assert.deepEqual(presence,{media:'video',title:'First original film',subtitle:null,imdb:'tt123',position:45000,duration:120000,paused:false,browsing:false});
-    await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
+    await player.hover();
+    await player.getByRole('button',{name:'Back',exact:true}).click();
     await player.waitFor({state:'detached'});
     assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.mediaCalls.filter(a=>a.type==='stremio-consume-grant').length),2);
     assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.mediaCalls.some(a=>a.type==='player-stop')),true);
@@ -781,12 +832,15 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await item.getByText('Saved playback position: 00:00:45',{exact:true}).waitFor();
     await item.getByRole('button',{name:'Streams · Original addon fixture',exact:true}).click();
     await options.getByRole('button',{name:'Resume',exact:true}).click();
-    await player.getByRole('button',{name:'Pause',exact:true}).waitFor();
-    await player.getByText('00:00:45 / 00:02:00',{exact:true}).waitFor();
+    await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
+    await player.hover();
+    await player.hover();
+    await player.locator('[data-ui="player-time"]').filter({hasText:'0:45 / 2:00'}).waitFor();
     assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.calls.filter(a=>a.kind==='profile-request'&&a.action.kind==='prepare-media').at(-1).action.startMs),45000);
-    await firstLaunch.evaluate(()=>window.__stremioFixture.emitPlayer({type:'player-ended',reason:'eof'}));
+    await firstLaunch.evaluate(()=>{window.__stremioFixture.emitPlayer({type:'player-state',positionMs:119000,durationMs:120000});window.__stremioFixture.emitPlayer({type:'player-ended',reason:'eof',error:null});});
     await player.getByText('Playback ended.',{exact:true}).waitFor();
-    await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
+    await player.hover();
+    await player.getByRole('button',{name:'Back',exact:true}).click();
     await player.waitFor({state:'detached'});
     await history.getByRole('button',{name:'Load history',exact:true}).click();
     await history.getByText('Completed',{exact:true}).waitFor();

@@ -132,6 +132,9 @@ export const appEngine: EngineFactory = (emit, { launched }) => {
   let statsPage: string | null = null;
   let fullscreen = false;
   let unsubscribe = () => {};
+  let nativeTimer: ReturnType<typeof setTimeout> | undefined;
+  let nativeGeneration = 0;
+  let nativeStarted = false;
 
   const load = (played: PlayedFile, append: boolean) => {
     const prefs = file?.prefs ?? {};
@@ -175,6 +178,9 @@ export const appEngine: EngineFactory = (emit, { launched }) => {
   return {
     load(next) {
       unsubscribe();
+      clearTimeout(nativeTimer);
+      const generation = ++nativeGeneration;
+      nativeStarted = false;
       if (!external) loadedBy = self;
       file = next;
       subtitles = next.subtitles;
@@ -194,7 +200,7 @@ export const appEngine: EngineFactory = (emit, { launched }) => {
 
       unsubscribe = shell.subscribe((m) => {
         const toLaunched = 'external' in m && m.external === true;
-        if (fromPlayer(m) && (moved || toLaunched !== external)) return;
+        if (fromPlayer(m) && (moved || toLaunched !== external || (next.openNative && !nativeStarted))) return;
         switch (m.type) {
           case 'player-state': {
             const { positionMs, buffered, idle } = m;
@@ -300,6 +306,21 @@ export const appEngine: EngineFactory = (emit, { launched }) => {
           title: fullTitle(next.item),
         });
       }
+      if (next.openNative) {
+        // StrictMode's discarded effect must not consume or invalidate a grant.
+        nativeTimer = setTimeout(() => {
+          if (generation !== nativeGeneration || loadedBy !== self) return;
+          nativeStarted = true;
+          send('player-frame', { frame: null });
+          send('player-set', { paused: !!next.paused, subtitleDelayMs: next.subtitleDelayMs, ...next.volume });
+          report({ fullscreen: !!currentHost().fullscreen?.active() });
+          void next.openNative!(() => generation === nativeGeneration && loadedBy === self).catch(() => {
+            if (generation === nativeGeneration && loadedBy === self)
+              emit({ type: 'failed', error: t`The selected addon stream could not be opened. Choose another version.` });
+          });
+        }, 0);
+        return;
+      }
       send('player-sync');
       // The player keeps pause from the last file.
       send('player-set', {
@@ -312,12 +333,15 @@ export const appEngine: EngineFactory = (emit, { launched }) => {
       if (!adopting) load(next, false);
     },
     close() {
+      ++nativeGeneration;
+      clearTimeout(nativeTimer);
       unsubscribe();
       unsubscribe = () => {};
       if (statsPage) showOverlay(null);
       if (!external) {
         if (loadedBy !== self) return;
         loadedBy = null;
+        if (file?.openNative && !nativeStarted) return;
         return send('player-stop');
       }
       if (!moved) send('player-set', { paused: true });
@@ -450,7 +474,9 @@ export const appEngine: EngineFactory = (emit, { launched }) => {
         ? exoPlayerStats
         : { pages: statsPages(), draw: showOverlay };
     },
-    picksTracks: true,
+    // The secure grant carries no server track preferences. The common
+    // controller applies the device's actual languages to reported tracks.
+    get picksTracks() { return !file?.openNative; },
     ownSubtitles: true,
     ownVolume: external,
     fits: !external,

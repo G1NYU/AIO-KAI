@@ -180,7 +180,9 @@ export interface QueuedItem {
 }
 
 export interface PlayerOptions {
-  client: JellyfinClient;
+  client?: JellyfinClient;
+  /** Native addon playback never gives its authenticated media address to the page. */
+  openNative?: (active: () => boolean) => Promise<void>;
   item: BaseItemDto;
   source: SourceInfo;
   url: string;

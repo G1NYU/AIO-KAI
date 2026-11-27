@@ -94,6 +94,7 @@ function Menu({
   open,
   onOpenChange,
   action,
+  extraAction,
   pages = [],
   more,
 }: {
@@ -106,6 +107,7 @@ function Menu({
   open: boolean;
   onOpenChange(open: boolean): void;
   action?: { name: string; label: string; icon: React.ReactNode; run(): void };
+  extraAction?: { name: string; label: string; icon: React.ReactNode; run(): void };
   pages?: MenuPage[];
   /** Listed after a press on `label`, which stands in for them until the menu closes. */
   more?: { label: string; options: Track[] };
@@ -264,16 +266,12 @@ function Menu({
                     {more.label}
                   </DropdownMenuItem>
                 ))}
-              {action && (
-                <DropdownMenuItem
-                  data-ui="player-menu-action"
-                  data-name={action.name}
-                  onClick={action.run}
-                >
-                  {action.icon}
-                  {action.label}
+              {[action, extraAction].map((a) => a && (
+                <DropdownMenuItem key={a.name} data-ui="player-menu-action" data-name={a.name} onClick={a.run}>
+                  {a.icon}
+                  {a.label}
                 </DropdownMenuItem>
-              )}
+              ))}
             </div>
           </div>
         </>
@@ -565,6 +563,7 @@ export function OptionButtons({
   player,
   onMenu,
   onVersions,
+  onAddonSubtitles,
   onEpisodes,
   onChapters,
   onChannels,
@@ -580,6 +579,7 @@ export function OptionButtons({
   onMenu(open: boolean): void;
   onParty?: () => void;
   onVersions?: () => void;
+  onAddonSubtitles?: () => void;
   onEpisodes?: () => void;
   onChapters?: () => void;
   onChannels?: () => void;
@@ -670,7 +670,7 @@ export function OptionButtons({
           }
         />
       )}
-      {(player.subtitleTracks.length > 0 || player.subtitleFiles) && (
+      {(player.subtitleTracks.length > 0 || player.subtitleFiles || onAddonSubtitles) && (
         <Menu
           name="subtitles"
           label={t`Subtitles`}
@@ -683,6 +683,7 @@ export function OptionButtons({
           value={state.subtitle}
           onSelect={player.setSubtitle}
           {...menuState('subtitles')}
+          extraAction={onAddonSubtitles && { name: 'addon-subtitles', label: t`Addon subtitles`, icon: <LuCaptions className="flex-none" />, run: onAddonSubtitles }}
           action={
             player.subtitleFiles && {
               name: 'add-file',

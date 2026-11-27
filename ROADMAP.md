@@ -2,6 +2,8 @@
 
 ## Streaming hub architecture correction
 
+**Current execution scope:** finish D4/D5 shared playback and major blockers, defer Discord acceptance, build a test beta rather than publish stable. Baseline eb73c1d passed CI 45985422292. Shared player migration and native source-switch tests authored; new CI pending. Next shared settings, anime identity, episode continuity and verified Windows packaging.
+
 **Current beta gates:** cumulative web/Windows CI passed at `63ca4b8` (run 45983108026; no package). Shared Settings parity is not yet complete: reuse the existing searchable Playback/Player/Audio/Subtitles/Interface/Browsing/Theme/Shortcuts/Desktop sections where applicable, and wire their values into standalone playback/browsing. Preserve provider-specific account settings and do not claim server-only features work without a server. Automatic anime identity resolution, real Windows/provider playback and verified package remain open. Discord public application identity supplied and presence priority corrected; real desktop client acceptance and CI still pending.
 
 **Playback preference:** reuse the existing Auto-play the first version switch in Playback settings. Manual by default; explicit device choice shared by all three desktop hubs. Standalone manual lists all compatible enabled addon stream responses in source order and shows unsupported options; automatic picks first compatible native-grant stream. Tests and Windows beta verification pending.

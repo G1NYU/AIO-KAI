@@ -37,8 +37,11 @@ interface SessionValue {
 
 const SessionContext = React.createContext<SessionValue | null>(null);
 
+/** A shared desktop surface may run without a server connection. */
+export const useOptionalSession = () => React.useContext(SessionContext);
+
 export function useSession(): SessionValue {
-  const value = React.useContext(SessionContext);
+  const value = useOptionalSession();
   if (!value) throw new Error('useSession must be used within a session');
   return value;
 }

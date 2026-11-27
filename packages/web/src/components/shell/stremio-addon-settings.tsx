@@ -11,7 +11,7 @@ import { Artwork, WideCard } from '@/components/media/cards';
 import { useDesktopArea, type WatchEntryPane } from '@/lib/desktop-area';
 import { settings, useSetting } from '@/lib/settings';
 import { FirstVersionSwitch } from '@/app/settings/_components/first-version-switch';
-import { VersionFrame } from '@/features/versions/version-frame';
+import { AddonVersionList } from '@/features/versions/addon-versions';
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
@@ -189,6 +189,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     clearTitle();
     onPlay({profileId,grantId,mediaType:item.mediaType,itemId:item.id,videoId:video,title:metadata?.name??item.name,
       episodeTitle:item.mediaType==='movie'?null:metadata?.videos.find(v=>v.id===video)?.name??episodeTitle,
+      startMs,videos:metadata?.videos??[],streamSources:sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(s=>({sourceId:s.sourceId,name:s.manifest.name})),
       subtitleSources:sources.filter(s=>s.enabled&&s.manifest.resources.includes('subtitles')).map(s=>({sourceId:s.sourceId,name:s.manifest.name}))});
   }
   async function fetchStreams(item:Title,video:string,autoStart=false,metadata:AddonMetadata|null=null,entry:WatchProgress|null=null){
@@ -492,15 +493,9 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
       {videoId&&automatic&&<section className="space-y-3" data-ui="watch-stream-groups">
         <div className="flex items-center justify-between gap-2 flex-wrap"><h4><Trans>Available sources</Trans></h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={refreshStreams}><Trans>Refresh streams</Trans></button></div>
         {busy&&streamGroups===null&&<p role="status"><Trans>Finding streams from your addons…</Trans></p>}
-        {streamGroups?.length===0&&<div className="space-y-2"><p><Trans>No enabled addon declares support for this video.</Trans></p><button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('addons')}><Trans>Manage addons</Trans></button></div>}
-        {streamGroups?.map(group=>{
-          const provider=sources.find(source=>source.sourceId===group.sourceId);
-          const result=group.options;
-          return <section key={group.sourceId} className="tsugi-watch-stream-group" data-stream-source={group.sourceId}>
-            <h5>{provider?.manifest.name}</h5>
-            {!result?<p><Trans>This addon could not return streams. Other sources remain available.</Trans></p>:result.rows.length===0?<p><Trans>No streams returned.</Trans></p>:<ul>{result.rows.map((row,index)=><li key={index}><VersionFrame><div className="tsugi-watch-stream-row"><span>{row.name}<small>{row.supported?<Trans>Direct HTTPS</Trans>:row.reason==='proxy-headers'?<Trans>Proxy headers required</Trans>:<Trans>Unsupported transport</Trans>}</small></span>{row.supported&&<div className="flex flex-wrap gap-2">{resumeMs>0&&<button className="tsugi-read-action tsugi-series-primary" type="button" disabled={busy} onClick={()=>void playOption(index,true,{sourceId:group.sourceId,subtitles:false,...result})}><Trans>Resume</Trans></button>}<button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>void playOption(index,false,{sourceId:group.sourceId,subtitles:false,...result})}>{resumeMs>0?<Trans>Play from beginning</Trans>:<Trans>Play</Trans>}</button></div>}</div></VersionFrame></li>)}</ul>}
-          </section>;
-        })}
+        {streamGroups?.length===0&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('addons')}><Trans>Manage addons</Trans></button>}
+        {streamGroups&&<AddonVersionList groups={streamGroups} sources={sources.map(s=>({sourceId:s.sourceId,name:s.manifest.name}))} busy={busy} resumeMs={resumeMs} onPick={(group,result,index,resume)=>void playOption(index,resume,{sourceId:group.sourceId,subtitles:false,...result})}/>}
+
       </section>}
       {videoId&&!automatic&&<><h4><Trans>Available sources</Trans></h4><div className="flex flex-wrap gap-2">
         {sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readOptions(s.sourceId,false)}><Trans>Streams</Trans> · {s.manifest.name}</button>)}

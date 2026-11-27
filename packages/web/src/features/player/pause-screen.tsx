@@ -1,7 +1,7 @@
 import { t } from '@lingui/core/macro';
 import React from 'react';
 import { cn } from '@aiostreams/ui/core/styling';
-import { useSession } from '@/lib/jellyfin/session';
+import { useOptionalSession } from '@/lib/jellyfin/session';
 import { logoUrl } from '@/lib/artwork/urls';
 import { itemTitle } from '@/lib/format';
 import { CachedImage } from '@/components/cached-image';
@@ -26,8 +26,8 @@ export function PauseScreen({
   item: BaseItemDto;
   shown: boolean;
 }) {
-  const { client } = useSession();
-  const logo = logoUrl(client, item, { maxWidth: 640 });
+  const client = useOptionalSession()?.client;
+  const logo = client ? logoUrl(client, item, { maxWidth: 640 }) : undefined;
   const [failedLogo, setFailedLogo] = React.useState<string>();
   const title = itemTitle(item);
   const episode = item.Type === 'Episode';
