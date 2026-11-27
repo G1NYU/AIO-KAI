@@ -3,7 +3,6 @@ import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
 import { MovieGlyph } from '@/components/movie-icons';
 import { Artwork, PosterCard, WideCard } from '@/components/media/cards';
-import { BrushHeading } from '@/components/brush-heading';
 import { BackdropFrame } from '@/components/media/hero';
 import { Button } from '@aiostreams/ui/button';
 import { MediaRow } from '@/components/media/media-row';
@@ -112,7 +111,7 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
       </BackdropFrame>
       <div className="tsugi-watch-featured-copy">
         <small><Trans>Featured</Trans> · {featured.target.catalog.name}</small>
-        <BrushHeading as="h2">{featured.item.name}</BrushHeading>
+        <h2>{featured.item.name}</h2>
         {featured.item.description&&<p className="line-clamp-3">{featured.item.description}</p>}
         <div className="flex flex-wrap items-center gap-2"><Button intent="white" className="rounded-full" disabled={busy} onClick={()=>openTitle(featured.item,featured.target.source.sourceId)}><Trans>View title</Trans></Button>{featuredItems.length>1&&<><button type="button" className="tsugi-read-action" aria-label={t`Previous featured title`} disabled={busy} onClick={()=>setHeroIndex(i=>(i+featuredItems.length-1)%featuredItems.length)}>‹</button><span>{heroIndex%featuredItems.length+1} / {featuredItems.length}</span><button type="button" className="tsugi-read-action" aria-label={t`Next featured title`} disabled={busy} onClick={()=>setHeroIndex(i=>(i+1)%featuredItems.length)}>›</button></>}</div>
       </div>

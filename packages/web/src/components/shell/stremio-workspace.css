@@ -134,3 +134,8 @@
 .tsugi-watch-credits p{overflow-wrap:anywhere;color:var(--tsugi-muted);}
 .tsugi-watch-episode-art{position:relative;flex:none;width:clamp(68px,12vw,144px);aspect-ratio:16/9;overflow:hidden;background:var(--tsugi-surface);}
 @media(max-width:760px){.tsugi-watch-title-hero[data-has-backdrop]{min-height:240px;}.tsugi-watch-title-backdrop{inset:0;}.tsugi-watch-episode{gap:8px;}}
+
+/* The source drawer is portaled outside the Watch root. Scope its UI font locally. */
+:root[data-host='desktop'] [data-ui='watch-stream-groups']{font-family:var(--tsugi-font);}
+:root[data-host='desktop'] [data-ui='watch-stream-groups'] :is(h4,h5){font-family:var(--tsugi-font);font-weight:650;letter-spacing:-.02em;}
+:root[data-host='desktop'] [data-ui='watch-stream-groups'] :is(button,select){font-family:var(--tsugi-font);}

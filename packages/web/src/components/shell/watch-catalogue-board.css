@@ -8,7 +8,7 @@
 .tsugi-watch-shelf {display:grid;gap:12px;min-width:0;scroll-margin-top:64px;}
 .tsugi-watch-shelf-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;min-width:0;}
 .tsugi-watch-shelf-heading>div:first-child {min-width:0;overflow-wrap:anywhere;}
-.tsugi-watch-shelf h3 {font-family:Georgia,'Times New Roman',serif;font-weight:600;font-size:clamp(1.25rem,2vw,1.65rem);line-height:1.4;color:var(--tsugi-ink);}
+.tsugi-watch-shelf h3 {font-family:var(--tsugi-font);font-weight:650;font-size:clamp(1.25rem,2vw,1.65rem);line-height:1.4;color:var(--tsugi-ink);}
 .tsugi-watch-shelf small,.tsugi-watch-muted,.tsugi-watch-board-status {color:var(--tsugi-muted);}
 .tsugi-watch-shelf-track,.tsugi-watch-continue-track {display:flex;gap:14px;overflow-x:auto;min-width:0;max-width:100%;padding:4px 3px 12px;scroll-snap-type:x proximity;}
 .tsugi-watch-poster-card {flex:0 0 clamp(116px,11vw,178px);display:grid;align-content:start;gap:8px;min-width:0;text-align:start;color:var(--tsugi-ink);background:transparent;scroll-snap-align:start;}
@@ -52,6 +52,10 @@
 .tsugi-watch-board [data-ui="poster-card"]:disabled{cursor:default;}
 @media(max-width:760px){.tsugi-watch-featured{min-height:240px;padding:16px;}.tsugi-watch-featured-copy{max-width:80%;}}
 
-.tsugi-watch-featured-copy h2{font-family:var(--tsugi-feature-font,var(--tsugi-font));font-weight:400;}
+/* Match the shared Movies & TV row and card typography. */
+.tsugi-watch-featured-copy h2{font-family:var(--tsugi-font);font-weight:650;letter-spacing:-.035em;line-height:1.15;}
+:root[data-host='desktop'] .tsugi-watch-board [data-ui='media-row-title']{font-family:var(--tsugi-font);font-size:clamp(17px,1.5vw,21px);font-weight:650;letter-spacing:-.025em;line-height:1.4;}
+:root[data-host='desktop'] .tsugi-watch-board :is([data-ui='poster-card-title'],[data-ui='wide-card-title']){font-family:var(--tsugi-font);font-size:14px;line-height:1.4;font-weight:600;}
+:root[data-host='desktop'] .tsugi-watch-board :is([data-ui='poster-card-subtitle'],[data-ui='wide-card-subtitle']){font-family:var(--tsugi-font);font-size:12px;line-height:1.4;}
 .tsugi-watch-stream-group ul{display:grid;gap:8px;}
 .tsugi-watch-stream-row{width:100%;background:transparent;}

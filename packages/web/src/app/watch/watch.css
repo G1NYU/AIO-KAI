@@ -24,3 +24,8 @@
 .tsugi-direct-seek span{font-variant-numeric:tabular-nums;}
 .tsugi-direct-controls{justify-content:center;}
 .tsugi-direct-controls input[type=range]{flex:0 1 128px;min-width:72px;}
+
+/* Streaming pages retain the bundled desktop sans face; do not change brand artwork. */
+:root[data-host='desktop'] :is(.tsugi-direct-watch,.tsugi-direct-player){font-family:var(--tsugi-font);}
+:root[data-host='desktop'] :is(.tsugi-direct-watch,.tsugi-direct-player) :is(h1,h2,h3,h4,h5){font-family:var(--tsugi-font);font-weight:650;letter-spacing:-.025em;}
+:root[data-host='desktop'] .tsugi-direct-watch :is(button,input,select,textarea){font-family:var(--tsugi-font);}
