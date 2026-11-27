@@ -1,3 +1,5 @@
+- 2026-11-27: ✓ New Windows candidate `fcf64fe` passed run 45967577646 and independently verified download/ZIP/SHA-256/PE/compiled UI checks. [Download](https://github.com/G1NYU/TSUGI/actions/runs/45967577646/artifacts/15183194644). Stable v0.1.0 unchanged. Next Reader and Watch fixes ready for cumulative CI.
+
 - 2026-11-27: ✓ Independently downloaded and verified prior 93b9366 ZIP (artifact SHA-256, CRC, exact manifest, x64 PE); visually audited CI screenshots. Found Watch narrow header/titlebar overlap and authored scoped clearance fix with browser assertion. New CI pending.
 
 - 2026-11-27: B5 reviewed MAL manga reimport adds missing IDs and permits individually selected snapshot replacements without changing assigned sources, local chapters or provider accounts. Exact source blob strict TypeScript/18 isolated assertions passed; cumulative CI pending. See HANDOFF.md and docs/mal-import.md.
