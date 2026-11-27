@@ -6,6 +6,8 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{collections::{BTreeMap, BTreeSet}, fmt, sync::mpsc, thread, time::{Duration, Instant}};
 
+mod accounts;
+pub use accounts::Provider as ImportProvider;
 mod profiles;
 #[cfg(windows)]
 mod store;
@@ -22,6 +24,11 @@ pub enum Action {
     ProfileSwitch { profile_id: u32 },
     ProfileRemove { profile_id: u32, confirmed_name: String },
     ProfileRequest { profile_id: u32, action: Box<Action> },
+    ImportConnect { provider: ImportProvider, email: String, password: String },
+    ImportNuvioProfile { import_id: u32, remote_profile: u32 },
+    ImportReview { import_id: u32, selected: Vec<u32> },
+    ImportApply { import_id: u32 },
+    ImportCancel { import_id: u32 },
     List,
     Review { url: String },
     Install { review_id: u32 },
@@ -58,6 +65,7 @@ struct Registry {
     sequence: u32,
     sources: Vec<Source>,
     pending: Option<Reviewed>,
+    import: Option<accounts::Flow>,
 }
 
 /// Only bounded display fields and declared capabilities cross the bridge.
@@ -89,6 +97,7 @@ impl Registry {
     }
     fn expire(&mut self) {
         if self.pending.as_ref().is_some_and(|p| p.created.elapsed() >= REVIEW_TTL) { self.pending = None; }
+        if self.import.as_ref().is_some_and(|p| p.expired()) { self.import = None; }
     }
     fn check_endpoint(&self, endpoint: &Endpoint) -> Result<()> {
         if self.sources.len() >= MAX_SOURCES { return Err("source-limit"); }
@@ -110,6 +119,11 @@ impl Registry {
         self.expire();
         match action {
             Action::List => Ok(self.list()),
+            Action::ImportConnect { provider,email,password } => self.import_connect(provider,&email,&password),
+            Action::ImportNuvioProfile { import_id,remote_profile } => self.import_nuvio_profile(import_id,remote_profile),
+            Action::ImportReview { import_id,selected } => self.import_review(import_id,selected),
+            Action::ImportApply { import_id } => self.import_apply(import_id),
+            Action::ImportCancel { import_id } => Ok(json!({"cancelled":self.import_cancel(import_id)})),
             Action::Review { url } => {
                 // A replacement review invalidates the previous capability
                 // before making any request. Failure cannot install stale data.

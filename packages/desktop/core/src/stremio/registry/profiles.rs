@@ -57,12 +57,13 @@ fn name_valid(name: &str) -> bool {
 }
 fn source_action(action: &Action) -> bool {
     matches!(action,Action::List|Action::Review{..}|Action::Install{..}|Action::CancelReview{..}|
-        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..})
+        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|
+        Action::ImportConnect{..}|Action::ImportNuvioProfile{..}|Action::ImportReview{..}|Action::ImportApply{..}|Action::ImportCancel{..})
 }
 pub(super) fn is_mutation(action: &Action) -> bool {
     match action {
         Action::ProfileCreate{..}|Action::ProfileRename{..}|Action::ProfileSwitch{..}|Action::ProfileRemove{..} => true,
-        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}),
+        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}),
         _ => false,
     }
 }
@@ -107,7 +108,7 @@ impl Profiles {
                 if self.active!=profile_id {
                     // Reviews cannot survive a profile switch. Source ids
                     // are globally unique and never reused by another profile.
-                    for profile in &mut self.profiles {profile.registry.pending=None;}
+                    for profile in &mut self.profiles {profile.registry.pending=None;profile.registry.import=None;}
                     self.active=profile_id;
                 }
                 Ok(self.list())
@@ -175,7 +176,7 @@ impl Profiles {
                 if manifest.behavior_hints.configuration_required{return Err("profile-store");}
                 sources.push(Source{id:source.id,endpoint,manifest,enabled:source.enabled});
             }
-            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,pending:None}});
+            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,pending:None,import:None}});
         }
         if !profiles.iter().any(|p|p.id==saved.active){return Err("profile-store");}
         Ok(Self{active:saved.active,sequence:saved.sequence,profiles})
