@@ -1,3 +1,5 @@
+- 2026-11-27: ✓ Independently downloaded and verified prior 93b9366 ZIP (artifact SHA-256, CRC, exact manifest, x64 PE); visually audited CI screenshots. Found Watch narrow header/titlebar overlap and authored scoped clearance fix with browser assertion. New CI pending.
+
 - 2026-11-27: B5 reviewed MAL manga reimport adds missing IDs and permits individually selected snapshot replacements without changing assigned sources, local chapters or provider accounts. Exact source blob strict TypeScript/18 isolated assertions passed; cumulative CI pending. See HANDOFF.md and docs/mal-import.md.
 
 - 2026-11-27: ✓ Filled Movies navigation and GitHub release prompt at `ff67c1d` passed 45966315386 (446 web, 223 native; profile routing and verified newer-release notice). Rechecked local toolchain/network, added Windows development guide and uploaded-package round-trip checks. Fresh portable candidate pending; stable release unchanged. See HANDOFF.md.

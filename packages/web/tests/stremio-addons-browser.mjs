@@ -695,8 +695,15 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await firstLaunch.setViewportSize({width:390,height:844});
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Your addons',exact:true}).click();
     await watch.getByRole('heading',{name:'Your addon stack.',exact:true}).waitFor();
+    await firstLaunch.evaluate(()=>window.scrollTo(0,0));
     const narrow=await watch.evaluate(node=>({scrollWidth:node.scrollWidth,clientWidth:node.clientWidth,nav:node.querySelector('.tsugi-watch-nav').getBoundingClientRect().width,content:node.querySelector('.tsugi-watch-content').getBoundingClientRect().width}));
     assert.ok(narrow.scrollWidth<=narrow.clientWidth+2,`Watch workspace overflow: ${JSON.stringify(narrow)}`);
+    const headerClearance=await watch.evaluate(node=>{
+      const controls=document.querySelector('[data-ui="window-controls"]');
+      const header=node.querySelector(':scope > div > header');
+      return {controlsBottom:controls?.getBoundingClientRect().bottom??0,headerTop:header?.getBoundingClientRect().top??0};
+    });
+    assert.ok(headerClearance.controlsBottom>=32&&headerClearance.headerTop>=headerClearance.controlsBottom+8,`Watch header must clear the native window controls: ${JSON.stringify(headerClearance)}`);
     if(screenshotDir)await firstLaunch.screenshot({path:join(screenshotDir,'watch-workspace-narrow.png'),animations:'disabled'});
     console.log('Watch history, direct Watch Rich Presence, MDBList connection/pagination/isolation and narrow layout passed');
     await watch.getByRole('button',{name:'Home',exact:true}).click();
