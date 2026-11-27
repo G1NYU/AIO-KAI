@@ -9,6 +9,7 @@ import { MediaRow } from '@/components/media/media-row';
 import { publicCinemeta, loadAddonCatalog, listWatchHistory, searchTmdb, loadTmdbTitle, type TmdbTitle, type AddonSource, type CatalogPage, type WatchHistoryEntry, type WatchProgress } from '@/lib/hosts/shell/stremio';
 import { rankCatalogueSearch } from '@/lib/hosts/shell/watch-search';
 import './watch-catalogue-board.css';
+import { useResumeArtwork } from '@/lib/hosts/shell/watch-artwork';
 
 type Item=CatalogPage['items'][number];
 type Scope='all'|'anime'|'anime-films';
@@ -125,6 +126,7 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
   const searchGroups=[{key:'series',label:t`Series`,items:hits.filter(h=>h.item.mediaType==='series'||h.item.mediaType==='anime.series')},{key:'movie',label:t`Movies`,items:hits.filter(h=>h.item.mediaType==='movie'||h.item.mediaType==='anime.movie')},{key:'anime',label:t`Anime`,items:hits.filter(h=>h.item.mediaType==='anime')}];
   const canRequest=visible.filter(target=>rows[target.key]?.loading).length<PARALLEL;
   const continuing=history?.filter(row=>!row.progress.completed&&row.progress.positionMs>0).slice(0,12)??[];
+  const resumeArt=useResumeArtwork(profileId,includeHistory?continuing.map(row=>row.progress):[]);
   return <>
     {includeHistory&&featured&&<section data-ui="hero" className="tsugi-watch-featured">
       <BackdropFrame className="pointer-events-none tsugi-watch-featured-art">
@@ -139,7 +141,7 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
     </section>}
     {includeHistory&&continuing.length>0&&<section className="tsugi-watch-shelf" data-ui="watch-continue-shelf">
       <MediaRow id={profileId+':watch-resume'} title={t({id:'Continue watching',message:'Continue watching'})} shape="wide">
-        {continuing.map(({progress:p})=><WideCard key={JSON.stringify([p.mediaType,p.itemId,p.videoId])} onClick={()=>{if(!busy)openHistory?.(p);}} image={null} title={p.title} subtitle={p.episodeTitle??undefined} progress={100*p.positionMs/p.durationMs}/>)}
+        {continuing.map(({progress:p})=><WideCard key={JSON.stringify([p.mediaType,p.itemId,p.videoId])} onClick={()=>{if(!busy)openHistory?.(p);}} image={resumeArt(p)} title={p.title} subtitle={p.episodeTitle??undefined} progress={100*p.positionMs/p.durationMs}/>)}
       </MediaRow>
     </section>}
     {includeHistory&&historyFailed&&<p className="tsugi-watch-muted"><Trans>Watch history could not be loaded.</Trans> <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>setHistoryFailed(false)}><Trans>Retry</Trans></button></p>}

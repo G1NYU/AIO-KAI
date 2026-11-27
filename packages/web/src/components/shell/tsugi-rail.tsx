@@ -7,7 +7,7 @@ import { mediaDestinations } from './media-navigation';
 
 /** The one desktop rail. Sections contribute actions, never their own geometry. */
 export function TsugiRail({ area, disabled = false, children, footer, className = '', mediaClassName = '', globalSettings = true }: {
-  area: 'video' | 'music' | 'read' | 'vault';
+  area: 'home' | 'video' | 'music' | 'read' | 'vault';
   disabled?: boolean;
   children?: ReactNode;
   footer?: ReactNode;
@@ -19,7 +19,7 @@ export function TsugiRail({ area, disabled = false, children, footer, className 
   if (!actions) return null;
   const allMedia = t({ id: 'All media', message: 'All media' });
   const settings = t({ id: 'App settings', message: 'App settings' });
-  const sectionLabel = area === 'read' ? t({ id: 'Read', message: 'Read' }) : area === 'music' ? t({ id: 'Music', message: 'Music' }) : area === 'vault' ? t({ id: 'Vault', message: 'Vault' }) : t({ id: 'Video', message: 'Video' });
+  const sectionLabel = area === 'home' ? t({ id: 'Home', message: 'Home' }) : area === 'read' ? t({ id: 'Read', message: 'Read' }) : area === 'music' ? t({ id: 'Music', message: 'Music' }) : area === 'vault' ? t({ id: 'Vault', message: 'Vault' }) : t({ id: 'Video', message: 'Video' });
   return <aside className={'tsugi-desktop-rail ' + className} data-ui="tsugi-desktop-rail" data-area={area} aria-label={sectionLabel}>
     <button type="button" className="tsugi-rail-brand" disabled={disabled} onClick={actions.openWelcome} title={allMedia} aria-label={allMedia}>
       <TsugiBrand className="tsugi-rail-signature" />

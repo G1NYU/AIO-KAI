@@ -10,6 +10,7 @@ import { TsugiIcon } from '@/components/tsugi-icons';
 import { MovieGlyph } from '@/components/movie-icons';
 import { Artwork, PosterCard } from '@/components/media/cards';
 import { TsugiRail } from './tsugi-rail';
+import { rememberWatchArtwork } from '@/lib/hosts/shell/watch-artwork';
 import { listWatchCollections,setWatchCollection,type WatchCollections,type WatchCollection,type WatchCollectionItem } from '@/lib/hosts/shell/stremio';
 import { createPortal } from 'react-dom';
 import { useDesktopArea, type WatchEntryPane } from '@/lib/desktop-area';
@@ -250,6 +251,9 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   async function launchStream(item:Title,video:string,metadata:AddonMetadata|null,picked:AddonOptions,index:number,startMs=0,episodeTitle:string|null=null){
     if(profileId===undefined||!onPlay||!picked.rows[index]?.supported)return;
     stopStreams(false);
+    const played=metadata?.videos.find(v=>v.id===video);
+    const still=played&&String(played.season)===selectedSeason?seasonArt.find(e=>e.episode===played.episode)?.thumbnail:undefined;
+    rememberWatchArtwork(profileId,{mediaType:item.mediaType,itemId:item.id,videoId:video},still,played?.thumbnail,cinema?.background,metadata?.background,item.background,metadata?.poster,item.poster);
     const grantId=await prepareAddonMedia(profileId,picked.reviewId,index,false,startMs);
     if(!mounted.current)return;
     suppressSourceFocus.current=true;setSourceOpen(false);setOptions(null);setStreamGroups(null);
@@ -552,7 +556,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       </div>
       <div className="flex flex-wrap gap-2 justify-center"><button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('addons')}><MovieGlyph name="settings"/> <Trans>Watch settings</Trans></button></div>
     </section>}
-    {workspace&&onPlay&&!hubChooser&&<TsugiRail area="video" disabled={busy} className="tsugi-watch-shared-rail"><nav className="tsugi-watch-nav" aria-label={t`Watch navigation`} data-ui="watch-hub-navigation">
+    {workspace&&onPlay&&!hubChooser&&<TsugiRail area="video" disabled={busy} className="tsugi-watch-shared-rail"><nav className="tsugi-watch-nav tsugi-rail-local" aria-label={t`Watch navigation`} data-ui="watch-hub-navigation">
       {([
         ['home',t`Home`,'home'],
         ['discover',t`Discover`,'discover'],
@@ -561,7 +565,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
         ['queue',t`Queue`,'list'],
         ['history',t`Watch history`,'history'],
         ['addons',t`Settings`,'settings']
-      ] as const).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={id==='addons'?inSettings:pane===id} disabled={busy} onClick={()=>void selectPane(id)}><MovieGlyph name={icon}/><span>{label}</span></button>)}
+      ] as const).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" title={label} aria-label={label} aria-current={(id==='addons'?inSettings:pane===id)?'page':undefined} aria-pressed={id==='addons'?inSettings:pane===id} disabled={busy} onClick={()=>void selectPane(id)}><MovieGlyph name={icon}/><span>{label}</span></button>)}
     </nav></TsugiRail>}
     <div className={workspace?'tsugi-watch-content':'contents'} data-watch-settings={workspace&&inSettings||undefined} hidden={hubChooser}>
     {workspace&&(!onPlay||inSettings)&&<nav className="tsugi-watch-settings-nav" aria-label={t`Watch settings`} data-ui="watch-settings-navigation">

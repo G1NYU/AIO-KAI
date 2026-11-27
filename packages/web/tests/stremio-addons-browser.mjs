@@ -141,6 +141,14 @@ export function installStremioFixture(initializeStartup=true){
         if(!profile.refract.connected)return emit(null,'refract-disconnected');
         if(a.mediaType!=='movie'||a.itemId!=='tt123')return emit(null,'refract-unmatched');
         return reply({result:a.add?'queued':'protected'});
+      case 'watch-collections':return reply(profile.collections??{favorites:[],queue:[]});
+      case 'watch-collection-set':{
+        const collections=profile.collections??{favorites:[],queue:[]};
+        const rows=collections[a.collection],matches=row=>row.id===a.item.id&&row.mediaType===a.item.mediaType;
+        if(a.enabled&&!rows.some(matches))rows.push(a.item);
+        if(!a.enabled)collections[a.collection]=rows.filter(row=>!matches(row));
+        profile.collections=collections;return reply(collections);
+      }
       case 'watch-history':return reply({history:profile.history});
       case 'watch-record':{
         const p=a.progress;

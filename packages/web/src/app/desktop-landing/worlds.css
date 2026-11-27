@@ -85,3 +85,21 @@
 @media(prefers-reduced-motion:reduce){.tsugi-world-card>img{transition:none}}
 
 .tsugi-world-setup .tsugi-intro-art>img{object-position:center 48%}
+
+/* Returning Home: shared geometry, quiet original geometric world cards. */
+.tsugi-worlds[data-view='home'] .tsugi-world-content{grid-column:2}
+.tsugi-worlds[data-view='home'] .tsugi-world-hero{min-height:clamp(180px,26vh,280px);align-items:end}
+.tsugi-worlds[data-view='home'] .tsugi-world-hero::before{background:linear-gradient(0deg,#0a1018b0,transparent 75%)}
+.tsugi-worlds[data-view='home'] .tsugi-world-card{background:var(--world-surface,#253b3c);min-height:clamp(180px,23vh,245px)}
+.tsugi-worlds[data-view='home'] .tsugi-world-card[data-world='video']{--world-surface:#443b34;--world-light:#d9b99b}
+.tsugi-worlds[data-view='home'] .tsugi-world-card[data-world='music']{--world-surface:#263d48;--world-light:#a9d1e1}
+.tsugi-worlds[data-view='home'] .tsugi-world-card[data-world='read']{--world-surface:#394338;--world-light:#c8d8ae}
+.tsugi-worlds[data-view='home'] .tsugi-world-card[data-world='vault']{--world-surface:#423646;--world-light:#d8b8dc}
+.tsugi-worlds[data-view='home'] .tsugi-world-card::before{background:linear-gradient(0deg,#10141abf,transparent 75%)}
+.tsugi-world-minimal-art{position:absolute;inset:0;display:grid;place-items:center;z-index:-2;color:var(--world-light);background:radial-gradient(ellipse at 70% 25%,color-mix(in srgb,var(--world-light) 14%,transparent),transparent 65%);overflow:hidden}
+.tsugi-world-minimal-art::before,.tsugi-world-minimal-art::after{content:'';position:absolute;border:1px solid color-mix(in srgb,var(--world-light) 27%,transparent);width:66%;aspect-ratio:1;border-radius:50%;transform:translate(32%,-13%)}
+.tsugi-world-minimal-art::after{width:49%}
+.tsugi-world-minimal-art svg{width:clamp(60px,9vw,116px);height:clamp(60px,9vw,116px);transform:translate(38%,-14%);opacity:.72}
+.tsugi-worlds[data-view='home'] .tsugi-world-card-title{font-family:var(--tsugi-font);font-size:clamp(18px,1.7vw,26px);font-weight:700;letter-spacing:-.035em}
+.tsugi-worlds[data-view='home'] .tsugi-world-card:hover .tsugi-world-minimal-art{filter:brightness(1.16)}
+@media(max-width:1000px){.tsugi-worlds[data-view='home']{grid-template-columns:var(--tsugi-rail-width,58px) minmax(0,1fr)}}
