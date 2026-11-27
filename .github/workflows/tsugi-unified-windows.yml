@@ -46,7 +46,7 @@ jobs:
       - name: Verify pinned ebook engine preparation
         run: pnpm -F @aiostreams/web prepare:ebooks
       - name: Desktop navigation and music regression tests
-        run: pnpm exec vitest run packages/web/tests/reader-utils.test.ts packages/web/tests/desktop-area.test.ts packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts packages/web/tests/player-template.test.ts packages/web/tests/player-layout.test.ts packages/web/tests/music-feature-pack.test.ts packages/web/tests/music-lyrics.test.ts packages/web/tests/music-history.test.ts packages/web/tests/eclipse-appearance.test.ts packages/web/tests/music-library.test.ts packages/web/tests/audio-profiles.test.ts packages/web/tests/music-reactivity.test.ts packages/web/tests/up-next.test.ts packages/web/tests/vault-audio.test.ts packages/web/tests/preferences-backup.test.ts packages/web/tests/music-backup.test.ts packages/web/tests/book-backup.test.ts packages/web/tests/manga-backup.test.ts packages/web/tests/portable-archive.test.ts packages/web/tests/manga-categories.test.ts packages/web/tests/managed-archive.test.ts packages/web/tests/backup-schedule.test.ts packages/web/tests/tsugi-release.test.ts packages/web/tests/restore-session.test.ts packages/web/tests/mihon-backup.test.ts packages/web/tests/download-cleanup.test.ts packages/web/tests/reader-cache-cleanup.test.ts packages/web/tests/source-feed-preferences.test.ts packages/web/tests/source-feed.test.ts packages/web/tests/source-metadata.test.ts packages/web/tests/reader-settings-search.test.ts packages/web/tests/title-reader-preferences.test.ts packages/web/tests/support-summary.test.ts packages/web/tests/reader-downloads.test.ts packages/web/tests/local-comic-import.test.ts packages/web/tests/presence.test.ts packages/web/tests/mihon-writer.test.ts packages/web/tests/youtube-session.test.ts packages/web/tests/landscape-artwork.test.ts
+        run: pnpm exec vitest run packages/web/tests/reader-utils.test.ts packages/web/tests/desktop-area.test.ts packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts packages/web/tests/player-template.test.ts packages/web/tests/player-layout.test.ts packages/web/tests/music-feature-pack.test.ts packages/web/tests/music-lyrics.test.ts packages/web/tests/music-history.test.ts packages/web/tests/eclipse-appearance.test.ts packages/web/tests/music-library.test.ts packages/web/tests/audio-profiles.test.ts packages/web/tests/music-reactivity.test.ts packages/web/tests/up-next.test.ts packages/web/tests/vault-audio.test.ts packages/web/tests/preferences-backup.test.ts packages/web/tests/music-backup.test.ts packages/web/tests/book-backup.test.ts packages/web/tests/manga-backup.test.ts packages/web/tests/portable-archive.test.ts packages/web/tests/manga-categories.test.ts packages/web/tests/managed-archive.test.ts packages/web/tests/backup-schedule.test.ts packages/web/tests/tsugi-release.test.ts packages/web/tests/restore-session.test.ts packages/web/tests/mihon-backup.test.ts packages/web/tests/download-cleanup.test.ts packages/web/tests/reader-cache-cleanup.test.ts packages/web/tests/source-feed-preferences.test.ts packages/web/tests/source-feed.test.ts packages/web/tests/source-metadata.test.ts packages/web/tests/reader-settings-search.test.ts packages/web/tests/title-reader-preferences.test.ts packages/web/tests/support-summary.test.ts packages/web/tests/reader-downloads.test.ts packages/web/tests/local-comic-import.test.ts packages/web/tests/presence.test.ts packages/web/tests/mihon-writer.test.ts packages/web/tests/youtube-session.test.ts packages/web/tests/landscape-artwork.test.ts packages/web/tests/vault-transfer.test.ts
       - name: Browser interaction smoke (no desktop packaging)
         run: |
           npm install --prefix "$RUNNER_TEMP/tsugi-reader-browser" --no-audit --no-fund --no-save playwright@1.58.2
@@ -373,6 +373,14 @@ jobs:
           Reading can review and reconstruct supported remote Mihon library
           entries with a checkpoint; inspect the skipped/conflicting entries
           before applying. Existing account connections are not imported.
+          Watch supports local profiles, reviewed Stremio/Nuvio addon imports,
+          supported direct streams, and profile-local history. Anime Hub and
+          Reader import local MAL XML/gzip exports with reviewed source matching.
+          Reader supports additive source migration, including guarded partial-page
+          and local tracker-binding transfer. Automatic MAL/AniList sync is not
+          enabled. Refract personal-key watch logging and MDBList are optional;
+          live provider compatibility and account acceptance remain unverified.
+          Settings includes attribution, licenses and cicada bug reporting.
           Discord presence is off by default. Its setup requires a public
           Discord Application ID for TSUGI, never an account or bot token.
 
@@ -420,7 +428,7 @@ jobs:
             foreach ($required in @('.portable', 'current/Tsugi.exe', 'current/music-tools/yt-dlp.exe', 'current/music-tools/deno.exe', 'current/read-launcher/TsugiReadLauncher.class', 'current/read-launcher/fetch-read-tools.ps1', 'current/web/index.html', 'LICENSE', 'README-TEST.txt', 'BUILD-INFO.json')) {
               if ($required -notin $names) { throw "Unified artifact missing $required" }
             }
-            foreach ($asset in @('yomi/hero-torii.webp','oto/hero-yuna.webp','kura/hero-kura.webp','shared/hero-neon.webp','shared/hero-train.webp')) {
+            foreach ($asset in @('yomi/hero-torii.webp','oto/hero-yuna.webp','kura/hero-kura.webp','shared/hero-neon.webp','shared/hero-train.webp','anime/hero-kagezora.webp','anime/art-neon.webp','anime/art-torii.webp','anime/art-train.webp')) {
               if ("current/web/design/$asset" -notin $names) { throw "Redesign artwork missing $asset" }
             }
             foreach ($font in @('amanojaku','interface-regular','interface-medium','interface-semibold','noto-jp')) {

@@ -1,3 +1,5 @@
+- 2026-11-27: ✓ Latest native/web and Reader runtime CI at `1f658fa` passed (443 web, 222 native, 69 focused broker, 42 CBZ, 13 packaged-runtime cases). Requested fresh development-only package; added Vault direct-transfer suite to cumulative CI, four Anime Hub archive asset checks, and updated test instructions. Actual package pending; stable release unchanged. See HANDOFF.md.
+
 ✓ Independent Chromium review passed for Reader MAL and Anime Hub, including source confirmation, keyboard navigation and narrow layouts. Migration and Refract fixture coverage added; native and live acceptance tracked in HANDOFF.md.
 
 ✓ Migration commit `9d918297e` passed web and native Windows CI in run 45957518665. Reader MAL restore passed the local checkpoint, additive merge, stale review and repeat tests.
