@@ -40,6 +40,9 @@ pub(super) struct History{rows:Vec<Entry>}
 impl History{
     pub(super) fn list(&self)->Value{json!({"history":self.rows})}
     pub(super) fn saved(&self)->Vec<Entry>{self.rows.clone()}
+    pub(super) fn completed_at(&self,progress:&Progress)->Option<u64>{
+        self.rows.iter().find(|row|row.progress.completed&&row.progress.identity()==progress.identity()).map(|row|row.updated_at)
+    }
     pub(super) fn restore(rows:Vec<Entry>)->Result<Self>{
         let mut seen=BTreeSet::new();
         if rows.len()>LIMIT||rows.iter().any(|row|!row.progress.valid()||
@@ -53,8 +56,9 @@ impl History{
         if !progress.valid(){return Err("invalid-watch-progress");}
         let updated_at=SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_|"profile-store")?.as_millis();
         if updated_at==0||updated_at>253402300799999{return Err("profile-store");}
+        let at=if progress.completed{self.completed_at(&progress).unwrap_or(updated_at as u64)}else{updated_at as u64};
         self.rows.retain(|row|row.progress.identity()!=progress.identity());
-        self.rows.insert(0,Entry{progress,updated_at:updated_at as u64});
+        self.rows.insert(0,Entry{progress,updated_at:at});
         self.rows.truncate(LIMIT);
         Ok(json!({"saved":true}))
     }

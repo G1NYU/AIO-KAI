@@ -1,6 +1,7 @@
 import React from 'react';
 import { StremioAccountImport } from './stremio-account-import';
 import { MdblistSettings } from './mdblist-settings';
+import { RefractSettings, RefractWatchlist } from './refract-settings';
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { TsugiIcon } from '@/components/tsugi-icons';
 import './stremio-workspace.css';
@@ -34,7 +35,7 @@ function feedback(reason: unknown) {
     default: return t`The request could not be confirmed. Refresh the installed list before retrying an installation or change.`;
   }
 }
-type WatchPane = 'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history';
+type WatchPane = 'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history'|'refract';
 const profileArt=['/design/oto/hero-yuna.webp','/design/yomi/hero-torii.webp','/design/shared/hero-neon.webp','/design/shared/hero-train.webp'];
 export function StremioAddonSettings({workspace=false,onPlay,historyActive=false}:{workspace?:boolean;onPlay?:(playback:WatchPlayback)=>void;historyActive?:boolean}={}){
   const [entered,setEntered]=React.useState(false);
@@ -254,9 +255,10 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
         ['manual',t`Add addon`,'plus'],
         ['order',t`Source order`,'list'],
         ['mdblist',t`MDBList`,'bookmark'],
+        ['refract',t`Refract`,'bookmark'],
         ['history',t`Watch history`,'list'],
         ['profile',t`Profile settings`,'settings']
-      ] as const).filter(([id])=>id!=='history'||!!onPlay).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><TsugiIcon name={icon}/><span>{label}</span></button>)}
+      ] as const).filter(([id])=>(id!=='history'&&id!=='refract')||!!onPlay).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><TsugiIcon name={icon}/><span>{label}</span></button>)}
     </nav>}
     <div className={workspace?'tsugi-watch-content':'contents'}>
     {!workspace&&<h3 id={titleId}><Trans>Stremio addons</Trans></h3>}
@@ -277,7 +279,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
         {profileState.profiles.length>1&&<details>
           <summary><Trans>Delete an inactive profile</Trans></summary>
           <div className="space-y-2">
-            <p><Trans>Deleting a profile removes its saved addon configurations and local Watch history. Switch away from it first. This cannot be undone.</Trans></p>
+            <p><Trans>Deleting a profile removes its saved addon configurations, connected account credentials and local Watch history. Switch away from it first. This cannot be undone.</Trans></p>
             <label><Trans>Profile to delete</Trans><select className="tsugi-menu-select w-full" disabled={busy} value={deleteId} onChange={e=>{setDeleteId(Number(e.target.value));setDeleteName('');}}>
               <option value={0}>{t`Select`}</option>{profileState.profiles.filter(p=>p.profileId!==profileId).map(p=><option key={p.profileId} value={p.profileId}>{p.name}</option>)}
             </select></label>
@@ -348,11 +350,13 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     </>}
     {workspace&&pane==='history'&&historyActive&&profileReady&&profileId!==undefined&&<WatchHistory key={profileId} profileId={profileId} busy={busy} run={run} open={openHistory} removed={clearTitle}/>}
     {workspace&&pane==='mdblist'&&profileReady&&profileId!==undefined&&<MdblistSettings key={profileId} profileId={profileId} openTitle={item=>void openTitle(item)}/>}
+    {workspace&&pane==='refract'&&historyActive&&profileReady&&profileId!==undefined&&<RefractSettings key={profileId} profileId={profileId} busy={busy} run={run}/>}
     {workspace&&title&&<section className="space-y-3" data-ui="watch-item-details">
       <div className="flex items-center justify-between gap-3"><h4>{details?.name??title.name}</h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={clearTitle}><Trans>Close title</Trans></button></div>
       {resumeMatch?.episodeTitle&&<p>{resumeMatch.episodeTitle}</p>}
       {resumeMs>0&&<p><Trans>Saved playback position:</Trans> {watchTime(resumeMs)}</p>}
       {details?.description&&<p className="break-words">{details.description}</p>}
+      {onPlay&&profileReady&&profileId!==undefined&&['movie','series'].includes(title.mediaType)&&<RefractWatchlist key={JSON.stringify([profileId,title.mediaType,title.id])} profileId={profileId} mediaType={title.mediaType} itemId={title.id} busy={busy} run={run}/>}
       <div className="flex flex-wrap gap-2">{sources.filter(s=>s.enabled&&s.manifest.resources.includes('meta')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readMetadata(title,s.sourceId)}><Trans>Details</Trans> · {s.manifest.name}</button>)}</div>
       {details&&details.videos.length>0&&<label className="block"><Trans>Video</Trans><select className="tsugi-read-input w-full" value={videoId} disabled={busy} onChange={e=>{setVideoId(e.target.value);setOptions(null);}}><option value=""><Trans>Select an episode or video</Trans></option>{details.videos.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></label>}
       {!videoId&&<p><Trans>Select a video from a compatible metadata addon before requesting streams.</Trans></p>}

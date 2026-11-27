@@ -25,7 +25,8 @@ type MdblistAction={kind:'mdblist-status'}|{kind:'mdblist-connect';key:string}|{
 export type WatchProgress={mediaType:string;itemId:string;videoId:string;title:string;episodeTitle:string|null;positionMs:number;durationMs:number;completed:boolean};
 export type WatchHistoryEntry={progress:WatchProgress;updatedAt:number};
 type WatchHistoryAction={kind:'watch-history'}|{kind:'watch-record';progress:WatchProgress}|({kind:'watch-remove'}&Pick<WatchProgress,'mediaType'|'itemId'|'videoId'>);
-type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | WatchHistoryAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
+type RefractAction={kind:'refract-status'}|{kind:'refract-connect';key:string}|{kind:'refract-enable';enabled:boolean}|{kind:'refract-disconnect';discardPending:boolean}|{kind:'refract-sync'}|{kind:'refract-watchlist';mediaType:string;itemId:string;add:boolean};
+type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | WatchHistoryAction | RefractAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
 export type RemoteAddonProfile={profileIndex:number;name:string;usesPrimaryAddons:boolean;locked:boolean};
 export type ImportCandidate={candidateId:number;name:string;host:string;enabled:boolean;alreadyInstalled:boolean};
 type ImportBase={importId:number;provider:ImportProvider};
@@ -84,7 +85,7 @@ function sources(v: unknown): AddonSource[] {
   if(new Set(rows.map(s=>s.sourceId)).size!==rows.length)return fail();
   return rows;
 }
-const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit','account-auth','account-request','account-response','import-limit','import-selection','unknown-remote-profile','locked-remote-profile','unsupported-resource','invalid-item','item-limit','invalid-media-selection','mdblist-response','mdblist-auth','mdblist-network','mdblist-request','mdblist-not-found','mdblist-rate','mdblist-disconnected','invalid-watch-progress']);
+const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit','account-auth','account-request','account-response','import-limit','import-selection','unknown-remote-profile','locked-remote-profile','unsupported-resource','invalid-item','item-limit','invalid-media-selection','mdblist-response','mdblist-auth','mdblist-network','mdblist-request','mdblist-not-found','mdblist-rate','mdblist-disconnected','invalid-watch-progress','refract-auth','refract-scope','refract-rate','refract-network','refract-request','refract-response','refract-conflict','refract-unmatched','refract-queue-full','refract-clock','refract-protected','refract-account-changed','refract-disconnected','refract-paused','refract-pending']);
 async function request(action: NativeAction): Promise<unknown> {
   if(!appBridge()?.stremioAddons)throw new AddonError('unsupported');
   const id=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
@@ -265,4 +266,29 @@ export async function mdblistPage(profileId:number,listId:number,offset:number){
     return {id,mediaType,name:str(row.name,512),ratings};
   });
   return {items,nextOffset:v.nextOffset===null?null:integer(v.nextOffset,offset+1,100000)};
+}
+
+export type RefractStatus={connected:boolean;username:string|null;enabled:boolean;pending:number;sent:number;skipped:number;retryAt:number;lastError:string|null};
+const refractErrors=new Set(['refract-auth','refract-scope','refract-rate','refract-network','refract-request','refract-response','refract-conflict','refract-unmatched','refract-queue-full','refract-clock','refract-protected','unsupported']);
+function refractState(v:unknown):RefractStatus{
+  const row=obj(v),connected=bool(row.connected),enabled=bool(row.enabled);
+  const username=row.username===null?null:str(row.username,256);
+  const pending=integer(row.pending,0,256),sent=integer(row.sent,0,0xffffffff),skipped=integer(row.skipped,0,0xffffffff),retryAt=integer(row.retryAt,0,253402300799999);
+  const lastError=row.lastError===null?null:str(row.lastError,64);
+  if(connected!==(username!==null)||(!connected&&(enabled||pending||sent||skipped||retryAt||lastError))||(lastError!==null&&!refractErrors.has(lastError)))return fail();
+  return {connected,username,enabled,pending,sent,skipped,retryAt,lastError};
+}
+export async function refractStatus(profileId:number){return refractState(await scoped(profileId,{kind:'refract-status'}));}
+export async function refractConnect(profileId:number,key:string){return refractState(await scoped(profileId,{kind:'refract-connect',key}));}
+export async function refractEnable(profileId:number,enabled:boolean){return refractState(await scoped(profileId,{kind:'refract-enable',enabled}));}
+export async function refractDisconnect(profileId:number,discardPending:boolean){return refractState(await scoped(profileId,{kind:'refract-disconnect',discardPending}));}
+export async function refractSync(profileId:number){return refractState(await scoped(profileId,{kind:'refract-sync'}));}
+export async function refractWatchlist(profileId:number,mediaType:string,itemId:string,add:boolean):Promise<'updated'|'protected'>{
+  const row=await scoped(profileId,{kind:'refract-watchlist',mediaType,itemId,add});
+  if(row.result==='failed'){
+    if(typeof row.error!=='string'||!refractErrors.has(row.error))return fail();
+    throw new AddonError(row.error);
+  }
+  if(row.result!=='updated'&&row.result!=='protected')return fail();
+  return row.result;
 }

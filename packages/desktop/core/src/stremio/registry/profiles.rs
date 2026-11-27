@@ -45,6 +45,8 @@ struct SavedProfile {
     mdblist_key: Option<String>,
     #[serde(default)]
     history: Vec<super::history::Entry>,
+    #[serde(default)]
+    refract: Option<super::refract::Saved>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -61,13 +63,13 @@ fn name_valid(name: &str) -> bool {
 }
 fn source_action(action: &Action) -> bool {
     matches!(action,Action::List|Action::Review{..}|Action::Install{..}|Action::CancelReview{..}|
-        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::PrepareMedia{..}|Action::WatchHistory|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
+        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::PrepareMedia{..}|Action::WatchHistory|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::RefractStatus|Action::RefractConnect{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractSync|Action::RefractWatchlist{..}|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
         Action::ImportConnect{..}|Action::ImportNuvioProfile{..}|Action::ImportReview{..}|Action::ImportApply{..}|Action::ImportCancel{..})
 }
 pub(super) fn is_mutation(action: &Action) -> bool {
     match action {
         Action::ProfileCreate{..}|Action::ProfileRename{..}|Action::ProfileSwitch{..}|Action::ProfileRemove{..} => true,
-        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::WatchRecord{..}|Action::WatchRemove{..}),
+        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::RefractConnect{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractSync|Action::RefractWatchlist{..}),
         _ => false,
     }
 }
@@ -145,15 +147,16 @@ impl Profiles {
         }
     }
 
-    /// The serialized form never includes pending reviews or external account
-    /// credentials. Configured addon URLs themselves may contain secrets and
-    /// must only be passed to the native encrypted store.
+    /// Pending reviews and transient account-import credentials are excluded.
+    /// Configured URLs and explicit provider keys are passed only to the
+    /// native encrypted store, never to the renderer or portable export.
     pub(super) fn encode(&self) -> Result<Vec<u8>> {
         let snapshot=Snapshot {
             version:1,active:self.active,sequence:self.sequence,
             profiles:self.profiles.iter().map(|p|SavedProfile{
                 id:p.id,name:p.name.clone(),mdblist_key:p.registry.mdblist.saved_key(),
                 history:p.registry.history.saved(),
+                refract:p.registry.refract.saved(),
                 sources:p.registry.sources.iter().map(|s|SavedSource{
                     id:s.id,endpoint:s.endpoint.0.as_str().to_owned(),enabled:s.enabled,manifest:s.manifest.clone()
                 }).collect()
@@ -188,7 +191,7 @@ impl Profiles {
                 if manifest.behavior_hints.configuration_required{return Err("profile-store");}
                 sources.push(Source{id:source.id,endpoint,manifest,enabled:source.enabled});
             }
-            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,mdblist:super::mdblist::Connection::restored(profile.mdblist_key)?,history:super::history::History::restore(profile.history)?,..Registry::default()}});
+            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,mdblist:super::mdblist::Connection::restored(profile.mdblist_key)?,history:super::history::History::restore(profile.history)?,refract:super::refract::Connection::restored(profile.refract)?,..Registry::default()}});
         }
         if !profiles.iter().any(|p|p.id==saved.active){return Err("profile-store");}
         Ok(Self{active:saved.active,sequence:saved.sequence,profiles})
@@ -280,6 +283,36 @@ mod tests {
         // Old snapshots have no history field.
         let mut old:Value=serde_json::from_slice(&encoded).unwrap();
         for row in old["profiles"].as_array_mut().unwrap(){row.as_object_mut().unwrap().remove("history");}
+        assert!(Profiles::decode(&serde_json::to_vec(&old).unwrap()).is_ok());
+    }
+    #[cfg(windows)]
+    #[test]
+    fn refract_queue_is_transactional_and_profile_isolated(){
+        let mut p=Profiles::default();
+        let saved=serde_json::from_value(json!({"key":"rfk_fixture-only","member_id":"3f2a9c4e-6b1d-4e8a-9c27-5d0b8e41f6a2",
+            "username":"Fixture","enabled":false,"jobs":[],"sent":0,"skipped":0,"retry_at":0,"last_error":null})).unwrap();
+        p.profiles[0].registry.refract=super::super::refract::Connection::restored(Some(saved)).unwrap();
+        let complete=||serde_json::from_value::<Action>(json!({"kind":"watch-record","progress":{"mediaType":"movie","itemId":"tt123","videoId":"tt123",
+            "title":"Fixture","episodeTitle":null,"positionMs":120000,"durationMs":120000,"completed":true}})).unwrap();
+        assert!(is_mutation(&scoped(1,Action::RefractEnable{enabled:true})));
+        p.execute(scoped(1,Action::RefractEnable{enabled:true})).unwrap();
+        p.execute(scoped(1,complete())).unwrap();
+        p.execute(scoped(1,complete())).unwrap();
+        let status=p.execute(scoped(1,Action::RefractStatus)).unwrap();
+        assert_eq!(status["pending"],1);assert!(!status.to_string().contains("rfk_fixture-only"));
+        let second=p.execute(Action::ProfileCreate{name:"Second".into()}).unwrap()["profiles"][1]["profileId"].as_u64().unwrap() as u32;
+        p.execute(Action::ProfileSwitch{profile_id:second}).unwrap();
+        assert_eq!(p.execute(scoped(second,Action::RefractStatus)).unwrap()["connected"],false);
+        assert_eq!(p.execute(scoped(1,Action::RefractSync)),Err("profile-changed"));
+        let bytes=p.encode().unwrap();let mut restored=Profiles::decode(&bytes).unwrap();
+        restored.execute(Action::ProfileSwitch{profile_id:1}).unwrap();
+        assert_eq!(restored.execute(scoped(1,Action::RefractStatus)).unwrap(),status);
+        assert_eq!(restored.execute(scoped(1,Action::RefractDisconnect{discard_pending:false})),Err("refract-pending"));
+        restored.execute(scoped(1,Action::RefractDisconnect{discard_pending:true})).unwrap();
+        assert_eq!(restored.execute(scoped(1,Action::RefractStatus)).unwrap()["connected"],false);
+        assert_eq!(restored.execute(scoped(1,Action::WatchHistory)).unwrap()["history"].as_array().unwrap().len(),1);
+        let mut old:Value=serde_json::from_slice(&bytes).unwrap();
+        for row in old["profiles"].as_array_mut().unwrap(){row.as_object_mut().unwrap().remove("refract");}
         assert!(Profiles::decode(&serde_json::to_vec(&old).unwrap()).is_ok());
     }
     #[test]

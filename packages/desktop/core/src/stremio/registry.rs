@@ -9,6 +9,7 @@ use std::{collections::{BTreeMap, BTreeSet}, fmt, sync::{mpsc, Arc, Mutex}, thre
 mod accounts;
 mod mdblist;
 mod history;
+mod refract;
 pub use history::Progress as WatchProgress;
 pub use accounts::Provider as ImportProvider;
 mod profiles;
@@ -46,6 +47,12 @@ pub enum Action {
     WatchHistory,
     WatchRecord { progress: WatchProgress },
     WatchRemove { media_type: String, item_id: String, video_id: String },
+    RefractStatus,
+    RefractConnect { key: String },
+    RefractEnable { enabled: bool },
+    RefractDisconnect { discard_pending: bool },
+    RefractSync,
+    RefractWatchlist { media_type: String, item_id: String, add: bool },
     MdblistStatus,
     MdblistConnect { key: String },
     MdblistDisconnect,
@@ -108,6 +115,7 @@ struct Registry {
     grant: Option<MediaGrant>,
     mdblist: mdblist::Connection,
     history: history::History,
+    refract: refract::Connection,
 }
 
 /// Only bounded display fields and declared capabilities cross the bridge.
@@ -166,8 +174,23 @@ impl Registry {
         match action {
             Action::List => Ok(self.list()),
             Action::WatchHistory => Ok(self.history.list()),
-            Action::WatchRecord { progress } => self.history.record(progress),
+            Action::WatchRecord { progress } => {
+                let already_completed=self.history.completed_at(&progress).is_some();
+                let result=self.history.record(progress.clone())?;
+                // Persist the optional outbound event together with local history.
+                // A provider outage cannot prevent recording local playback.
+                if progress.completed&&!already_completed&&let Some(at)=self.history.completed_at(&progress){
+                    self.refract.enqueue(&progress,at);
+                }
+                Ok(result)
+            },
             Action::WatchRemove { media_type,item_id,video_id } => self.history.remove(&media_type,&item_id,&video_id),
+            Action::RefractStatus=>Ok(self.refract.status()),
+            Action::RefractConnect{key}=>self.refract.connect(key),
+            Action::RefractEnable{enabled}=>self.refract.enable(enabled),
+            Action::RefractDisconnect{discard_pending}=>self.refract.disconnect(discard_pending),
+            Action::RefractSync=>self.refract.sync(),
+            Action::RefractWatchlist{media_type,item_id,add}=>self.refract.watchlist(&media_type,&item_id,add),
             Action::MdblistStatus=>Ok(self.mdblist.status()),
             Action::MdblistConnect{key}=>self.mdblist.connect(key),
             Action::MdblistDisconnect=>Ok(self.mdblist.disconnect()),
