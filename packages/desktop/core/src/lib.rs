@@ -28,6 +28,7 @@ pub mod thumbnails;
 pub mod upscale;
 pub mod youtube;
 pub mod torbox;
+pub mod stremio;
 pub mod vault_gateway;
 #[cfg(windows)]
 pub mod vault_engine;

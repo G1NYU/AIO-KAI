@@ -1267,3 +1267,11 @@ Validation: prior Windows job [140187802145](https://github.com/G1NYU/TSUGI/acti
 - Added offline anime illustration, existing TSUGI brush wordmark, short CSS entry motion, reduced-motion support and responsive introduction layout. Retained live theme/accent controls, immediate skip/enter, and a revisit button. Returning startup destination and clean media index remain unchanged. No provider/network dependency or automatic media playback.
 - Extended actual browser smoke for bundled art decoding, reduced motion, revisit and compact viewport. C2 CI typecheck passed but lint flagged the non-user-facing abort exception text; removed it without changing cancellation semantics. Windows gate still running at time of preparation. Neither a new package nor a release was triggered.
 - Next: cumulative web and native CI, remaining A1/A2/B/C acceptance, D1/D2/D4/D5 integration work.
+
+
+## 2026-11-27 — D4 direct Stremio transport contract
+
+C2 commit [5e8fa70](https://github.com/G1NYU/TSUGI/commit/5e8fa703cbc3be8653eb85432c0412ee0e1395d2) is published on feature/tsugi-read-runtime. Unified [45934909355](https://github.com/G1NYU/TSUGI/actions/runs/45934909355) and Vault [45934909254](https://github.com/G1NYU/TSUGI/actions/runs/45934909254) started. At inspection, web typecheck, lint and unit gates completed; browser and native tests were still running. The execution workaround is validated for branch publication.
+
+D4: added native Stremio manifest/capability parsing, exact encoded resource URLs with private configured query preserved, bounded HTTPS manifest/catalogue fetches without redirects, declared required/single-value catalogue extras, raw-source pagination and regression fixtures. This is a protocol foundation only: no addon install UI, persisted credentials, automatic network requests or standalone playback yet. Rechecked official SDK protocol and manifest documentation; detailed resources with omitted prefixes are unrestricted rather than inheriting global prefixes. No dependency or shell replacement. Native compile/test verification pending through unified CI (no local Rust toolchain). Next: finish prior C2 gates and D4 native checks; implement reviewed addon registry and resource browsing, then playback routing, subtitles and watch-state isolation. No release/package changes.
+
