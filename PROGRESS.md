@@ -1,3 +1,7 @@
+## 2026-11-27 — Living 30-stage Watch journey tracker
+
+[Original audit and current acceptance states](docs/watch-journey-audit.md). Baseline f21bf13 passed web and Windows CI 46022564530; 17 automated correction milestones verified, 10 partial, 2 outstanding, sign-in deferred. New manifest/schema and large capacity tests prepared; validate before marking stage 07. No stable release.
+
 ## 2026-11-27 - Anime discovery and episode continuity
 
 On feature/tsugi-read-runtime after 73284d7e, Watch discovery and opt-in MAL anime cover requests now use Tenrai v1. All five public feed requests returned 25 rows and MAL 199 returned eligible artwork. The native parser accepts episode name as a fallback to title. Changing metadata providers retains the current episode and previously discovered exact IDs across failures and partial responses. The Watch Chromium suite covers an error followed by an empty response and playback of the retained episode. Web typecheck, lint, 451 web unit tests and the Linux core suite (107 passed, 3 ignored) passed. Next: destination-first entry, profile continuity and ordered account import. Physical Windows and signed-in provider acceptance remain open.

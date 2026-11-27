@@ -195,7 +195,10 @@ export function installStremioFixture(initializeStartup=true){
       }
       case 'import-cancel':f.import=null;return reply({cancelled:true});
       case 'review':
-        assertFixtureUrl(a.url);f.pending=++f.sequence;return reply({reviewId:f.pending,manifest});
+        assertFixtureUrl(a.url);
+        if(f.manifestMode==='bad-extras'){f.pending=null;return emit(null,'manifest-extras');}
+        f.pending=++f.sequence;
+        return reply({reviewId:f.pending,manifest:f.manifestMode==='large'?{...manifest,catalogs:[...manifest.catalogs,...Array.from({length:199},(_,index)=>({id:'fixture-'+index,mediaType:'movie',name:'Catalogue '+index,extras:[]}))]}:manifest});
       case 'cancel-review':if(f.pending===a.reviewId)f.pending=null;return reply({cancelled:true});
       case 'install':
         if(f.pending!==a.reviewId)return emit(null,'expired-review');
@@ -570,8 +573,18 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
       assert.equal((await panel.innerText()).includes('private-fixture'),false);
       assert.equal(await page.evaluate(()=>JSON.stringify(localStorage).includes('private-fixture')),false);
     }
+    await page.evaluate(()=>{window.__stremioFixture.manifestMode='bad-extras';});
+    await field.fill('https://example.invalid/private-fixture/manifest.json?token=fixture');
+    await panel.getByRole('checkbox').check();await button.click();
+    await panel.getByText('Invalid catalogue extra fields or required filters',{exact:true}).waitFor();
+    assert.equal(await field.inputValue(),'');
+    assert.equal(await review.count(),0);
+    assert.equal((await panel.innerText()).includes('private-fixture'),false);
+    await page.evaluate(()=>{window.__stremioFixture.manifestMode='large';});
     await inspect();assert.equal((await calls()).some(a=>a.kind==='install'),false);
+    await review.getByText('200 catalogues',{exact:true}).waitFor();
     await review.getByRole('button',{name:'Cancel review'}).click();await review.waitFor({state:'detached'});
+    await page.evaluate(()=>{window.__stremioFixture.manifestMode=null;});
     await inspect();await review.getByRole('button',{name:'Install into profile'}).click();
     const row=panel.locator('[data-stremio-source-id="3"]');
     await row.waitFor();
@@ -669,7 +682,17 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await panel.locator('[data-stremio-source-id]').first().filter({hasText:'Account film addon'}).waitFor();
     const providerCalls=(await calls()).filter(a=>a.kind.startsWith('import-')).map(a=>a.kind);
     assert.deepEqual(providerCalls,['import-connect','import-review','import-apply','import-retry','import-connect','import-nuvio-profile','import-review','import-apply']);
-    console.log('Stremio/Nuvio account import, profile isolation and single-action local import passed');
+    await page.evaluate(()=>{
+      const f=window.__stremioFixture,profile=f.profiles.find(p=>p.profileId===f.active);
+      const manifest=profile.sources[0].manifest;
+      profile.sources=Array.from({length:128},(_,index)=>({sourceId:1000+index,enabled:index%3!==0,
+        manifest:{...manifest,name:'Capacity fixture '+index}}));
+    });
+    await panel.getByRole('button',{name:'Refresh installed addons',exact:true}).click();
+    await panel.locator('[data-stremio-source-id="1127"]').waitFor();
+    assert.equal(await panel.locator('[data-stremio-source-id]').count(),128);
+    assert.equal(await panel.locator('[data-stremio-source-id]').first().getAttribute('data-stremio-source-id'),'1000');
+    console.log('Stremio/Nuvio account import, profile isolation, single-action import, manifest diagnostics and large source/catalogue limits passed');
   }finally{await page.close();}
   const firstLaunch=await browser.newPage({viewport:{width:1440,height:900}});
   try{

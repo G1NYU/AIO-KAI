@@ -3,7 +3,24 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { connectAddonImport,chooseNuvioImportProfile,reviewAddonImport,applyAddonImport,cancelAddonImport,type AccountImport,type ImportReview,type ImportResult,type ImportProvider } from '@/lib/hosts/shell/stremio';
 
+// Native error codes are fixed categories, never raw manifest or URL text.
+export function manifestFailureText(code:string):string|null{
+  switch(code){
+    case 'invalid-manifest':return t`Invalid or unsupported manifest JSON`;
+    case 'manifest-identity':return t`Invalid addon identity, name, version or description`;
+    case 'manifest-types':return t`Invalid content types or ID prefixes`;
+    case 'manifest-resources':return t`Invalid resource declarations or resource-specific types`;
+    case 'manifest-catalogs':return t`Invalid or duplicate catalogue identifiers, types or names`;
+    case 'manifest-catalog-limit':return t`Addon exceeds the 512-catalogue limit`;
+    case 'manifest-extras':return t`Invalid catalogue extra fields or required filters`;
+    case 'manifest-behavior':return t`Invalid addon behavior hints`;
+    case 'manifest-limit':return t`Manifest exceeded the size limit`;
+    default:return null;
+  }
+}
 export function importFailureText(row:ImportReview['rejected'][number]){
+  const manifestReason=manifestFailureText(row.reason);
+  if(manifestReason)return row.name+' · '+manifestReason;
   const reason=(()=>{
     switch(row.reason){
       case 'configuration-required':return t`Needs configuration in the original addon`;
@@ -12,8 +29,7 @@ export function importFailureText(row:ImportReview['rejected'][number]){
       case 'auth':return t`Manifest rejected the configured credentials`;
       case 'rate':return t`Provider rate limit; retry later`;
       case 'source-limit':return t`No available addon slots`;
-      case 'invalid-manifest':return t`Invalid or unsupported manifest format`;
-      case 'manifest-limit':case 'response-limit':return t`Manifest exceeded the size limit`;
+      case 'response-limit':return t`Manifest exceeded the size limit`;
       default:return t`Manifest unavailable or unsupported`;
     }
   })();

@@ -326,6 +326,42 @@ mod tests {
         assert_eq!(p.execute(scoped(1,Action::List)).unwrap()["sources"][0]["sourceId"],first);
     }
     #[test]
+    fn full_source_capacity_preserves_mixed_profiles_and_order_on_reload(){
+        let mut p=Profiles::default();
+        let mut ids=Vec::new();
+        for index in 0..MAX_SOURCES{
+            let index_in_profile=p.index(1).unwrap();
+            let registry=&mut p.profiles[index_in_profile].registry;
+            registry.sequence=p.sequence;
+            let manifest=if index%2==0{
+                Manifest::parse(br#"{"id":"catalog.fixture","name":"Catalogue fixture","version":"1","types":["movie"],"resources":["catalog","meta"],"catalogs":[{"type":"movie","id":"top","extraSupported":["skip"]}]}"#).unwrap()
+            }else{
+                Manifest::parse(br#"{"id":"stream.fixture","name":"Stream fixture","version":"1","types":["movie"],"resources":["stream","subtitles"],"idPrefixes":["tt"]}"#).unwrap()
+            };
+            let endpoint=Endpoint::parse(&format!("https://example.org/fixture-{index}/manifest.json")).unwrap();
+            let reviewed=registry.stage(endpoint,manifest).unwrap();
+            let id=reviewed["reviewId"].as_u64().unwrap() as u32;
+            p.sequence=registry.sequence;
+            p.execute(scoped(1,Action::Install{review_id:id})).unwrap();
+            if index%3==0{p.execute(scoped(1,Action::SetEnabled{source_id:id,enabled:false})).unwrap();}
+            ids.push(id);
+        }
+        let last=*ids.last().unwrap();
+        p.execute(scoped(1,Action::Move{source_id:last,position:0})).unwrap();
+        ids.rotate_right(1);
+        let encoded=p.encode().unwrap();
+        let mut restored=Profiles::decode(&encoded).unwrap();
+        let rows=restored.execute(scoped(1,Action::List)).unwrap();
+        let sources=rows["sources"].as_array().unwrap();
+        assert_eq!(sources.len(),MAX_SOURCES);
+        assert_eq!(sources.iter().map(|row|row["sourceId"].as_u64().unwrap() as u32).collect::<Vec<_>>(),ids);
+        assert_eq!(sources[1]["enabled"],false);
+        assert_eq!(sources[1]["manifest"]["catalogs"][0]["extras"][0]["name"],"skip");
+        let registry=&mut restored.profiles[0].registry;
+        let manifest=Manifest::parse(br#"{"id":"overflow.fixture","name":"Overflow","version":"1","types":["movie"],"resources":["stream"]}"#).unwrap();
+        assert_eq!(registry.stage(Endpoint::parse("https://example.org/overflow/manifest.json").unwrap(),manifest),Err("source-limit"));
+    }
+    #[test]
     fn snapshots_preserve_profile_sources_order_and_capabilities_without_pending_reviews(){
         let mut p=Profiles::default();
         let s=stage(&mut p,1);

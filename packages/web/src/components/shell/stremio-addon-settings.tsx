@@ -1,5 +1,5 @@
 import React from 'react';
-import { StremioAccountImport, importFailureText } from './stremio-account-import';
+import { StremioAccountImport, importFailureText, manifestFailureText } from './stremio-account-import';
 import { MdblistSettings } from './mdblist-settings';
 import { MalAnimeLibrary } from './mal-anime-library';
 import { WatchCatalogueBoard } from './watch-catalogue-board';
@@ -20,7 +20,10 @@ import { Trans } from '@lingui/react/macro';
 import { AddonError, retryAddonImport, cancelAddonImport, type ImportResult, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, loadAllAddonStreams, retryAddonStreams, type AddonStreamGroup, type AddonMetadata, type AddonVideo, type AddonOptions, prepareAddonMedia, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry } from '@/lib/hosts/shell/stremio';
 
 function feedback(reason: unknown) {
-  switch(reason instanceof AddonError ? reason.code : 'request'){
+  const code=reason instanceof AddonError?reason.code:'request';
+  const manifestReason=manifestFailureText(code);
+  if(manifestReason)return manifestReason;
+  switch(code){
     case 'invalid-endpoint': return t`Paste a configured HTTPS or stremio:// manifest link ending in /manifest.json.`;
     case 'configuration-required': return t`Configure this addon with its provider first, then paste its configured link.`;
     case 'duplicate': return t`This configured addon is already installed.`;

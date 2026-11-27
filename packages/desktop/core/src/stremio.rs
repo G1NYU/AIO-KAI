@@ -12,6 +12,7 @@ mod items;
 
 const MAX_URL: usize = 16 * 1024;
 const MANIFEST_LIMIT: usize = 512 * 1024;
+const MAX_MANIFEST_CATALOGS: usize = 512;
 const CATALOG_LIMIT: usize = 2 * 1024 * 1024;
 const MAX_CATALOG_ROWS: usize = 500;
 const MAX_SKIP: u32 = 100_000;
@@ -128,15 +129,56 @@ pub struct CatalogExtra {
     #[serde(default)]
     pub options_limit: Option<u32>,
 }
-#[derive(Clone, Deserialize, serde::Serialize)]
+#[derive(Clone, serde::Serialize)]
 pub struct Catalog {
     #[serde(rename="type")]
     pub kind: String,
     pub id: String,
-    #[serde(default)]
     pub name: String,
-    #[serde(default)]
     pub extra: Vec<CatalogExtra>,
+}
+impl<'de> Deserialize<'de> for Catalog {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer:D)->std::result::Result<Self,D::Error>{
+        #[derive(Deserialize)]
+        #[serde(rename_all="camelCase")]
+        struct WireCatalog{
+            #[serde(rename="type")]
+            kind:String,
+            id:String,
+            #[serde(default)]
+            name:Option<String>,
+            #[serde(default)]
+            extra:Vec<CatalogExtra>,
+            #[serde(default)]
+            extra_supported:Vec<String>,
+            #[serde(default)]
+            extra_required:Vec<String>,
+        }
+        let raw=WireCatalog::deserialize(deserializer)?;
+        // The SDK's legacy short notation is still encountered in installed
+        // manifests. Normalize it once into the canonical extra declarations.
+        // A required legacy extra must never become optional in mixed notation.
+        let supported:BTreeSet<_>=raw.extra_supported.iter().collect();
+        let required:BTreeSet<_>=raw.extra_required.iter().collect();
+        if supported.len()!=raw.extra_supported.len()||required.len()!=raw.extra_required.len()||
+            supported.len()>16||!required.is_subset(&supported)||
+            supported.iter().any(|name|!type_valid(name)){
+            return Err(serde::de::Error::custom("manifest-extras"));
+        }
+        let mut extra=raw.extra;
+        for name in &raw.extra_supported{
+            let is_required=required.contains(name);
+            if let Some(existing)=extra.iter_mut().find(|entry|entry.name==*name){
+                existing.is_required|=is_required;
+            }else{
+                extra.push(CatalogExtra{name:name.clone(),is_required,options:vec![],options_limit:None});
+            }
+        }
+        Ok(Self{kind:raw.kind,id:raw.id,name:raw.name.unwrap_or_default(),extra})
+    }
+}
+fn nullable_description<'de,D:serde::Deserializer<'de>>(deserializer:D)->std::result::Result<String,D::Error>{
+    Option::<String>::deserialize(deserializer).map(Option::unwrap_or_default)
 }
 #[derive(Default, Clone, Deserialize, serde::Serialize)]
 #[serde(rename_all="camelCase")]
@@ -156,7 +198,7 @@ pub struct Manifest {
     pub id: String,
     pub name: String,
     pub version: String,
-    #[serde(default)]
+    #[serde(default,deserialize_with="nullable_description")]
     pub description: String,
     pub types: Vec<String>,
     #[serde(default)]
@@ -174,35 +216,60 @@ fn types_valid(types: &[String]) -> bool {
 fn prefixes_valid(prefixes: &[String]) -> bool {
     prefixes.len() <= 64 && prefixes.iter().all(|value| text_valid(value, 128))
 }
+// Diagnose the schema without ever returning serde's potentially sensitive
+// raw error text. The normal typed deserializer still rejects duplicate known
+// fields; this secondary parse is for a fixed category only.
+fn manifest_parse_error(bytes:&[u8])->&'static str{
+    let Ok(root)=serde_json::from_slice::<Value>(bytes) else{return "invalid-manifest";};
+    if !root.is_object(){return "invalid-manifest";}
+    fn field<T:serde::de::DeserializeOwned>(value:&Value,name:&str,required:bool)->bool{
+        value.get(name).map_or(!required,|field|serde_json::from_value::<T>(field.clone()).is_ok())
+    }
+    if !["id","name","version"].iter().all(|key|field::<String>(&root,key,true))||
+        !field::<Option<String>>(&root,"description",false){return "manifest-identity";}
+    if !field::<Vec<String>>(&root,"types",true)||!field::<Vec<String>>(&root,"idPrefixes",false){return "manifest-types";}
+    if !field::<Vec<Declaration>>(&root,"resources",true){return "manifest-resources";}
+    if let Some(catalogs)=root.get("catalogs"){
+        let Some(rows)=catalogs.as_array()else{return "manifest-catalogs";};
+        if rows.len()>MAX_MANIFEST_CATALOGS{return "manifest-catalog-limit";}
+        for row in rows{
+            if !row.is_object()||!field::<String>(row,"type",true)||!field::<String>(row,"id",true)||
+                !field::<Option<String>>(row,"name",false){return "manifest-catalogs";}
+            if serde_json::from_value::<Catalog>(row.clone()).is_err(){return "manifest-extras";}
+        }
+    }
+    if !field::<BehaviorHints>(&root,"behaviorHints",false){return "manifest-behavior";}
+    "invalid-manifest"
+}
 impl Manifest {
     pub fn parse(bytes: &[u8]) -> Result<Self> {
         if bytes.is_empty() || bytes.len() > MANIFEST_LIMIT { return Err("manifest-limit"); }
-        let mut m: Self = serde_json::from_slice(bytes).map_err(|_| "invalid-manifest")?;
+        let mut m: Self = serde_json::from_slice(bytes).map_err(|_|manifest_parse_error(bytes))?;
         if !id_valid(&m.id) || !text_valid(&m.name, 256) || !text_valid(&m.version, 64) ||
-            m.description.len() > 4096 || m.types.is_empty() || !types_valid(&m.types) ||
-            !prefixes_valid(&m.id_prefixes) || m.resources.is_empty() || m.resources.len() > 64 ||
-            m.catalogs.len() > 128 {
-            return Err("invalid-manifest");
-        }
+            m.description.len() > 4096 {return Err("manifest-identity");}
+        if m.types.is_empty()||!types_valid(&m.types)||!prefixes_valid(&m.id_prefixes){return Err("manifest-types");}
+        if m.resources.is_empty()||m.resources.len()>64{return Err("manifest-resources");}
+        if m.catalogs.len()>MAX_MANIFEST_CATALOGS{return Err("manifest-catalog-limit");}
         for resource in &m.resources {
             match resource {
                 Declaration::Name(name) if type_valid(name) => {},
                 Declaration::Detailed { name, types, id_prefixes } if type_valid(name) &&
                     types_valid(types) && prefixes_valid(id_prefixes) => {},
-                _ => return Err("invalid-manifest"),
+                _ => return Err("manifest-resources"),
             }
         }
         let mut catalog_ids = BTreeSet::new();
         for c in &mut m.catalogs {
-            if !type_valid(&c.kind) || !id_valid(&c.id) || c.extra.len() > 16 ||
-                !catalog_ids.insert((c.kind.clone(), c.id.clone())) { return Err("invalid-manifest"); }
+            if !type_valid(&c.kind) || !id_valid(&c.id) ||
+                !catalog_ids.insert((c.kind.clone(), c.id.clone())) {return Err("manifest-catalogs");}
+            if c.extra.len()>16{return Err("manifest-extras");}
             if c.name.trim().is_empty() { c.name = c.id.clone(); }
-            if !text_valid(&c.name, 256) { return Err("invalid-manifest"); }
+            if !text_valid(&c.name, 256) {return Err("manifest-catalogs");}
             let mut names = BTreeSet::new();
             for e in &c.extra {
                 if !type_valid(&e.name) || !names.insert(e.name.clone()) || e.options.len() > 256 ||
                     e.options.iter().any(|o| !text_valid(o, 512)) || e.options_limit == Some(0) {
-                    return Err("invalid-manifest");
+                    return Err("manifest-extras");
                 }
             }
         }
@@ -519,6 +586,45 @@ mod tests {
         assert!(m.supports(ItemResource::Meta,"anime.series","mal:12"));
         assert_eq!(m.declared_catalogs().count(),1);
         for kind in [".","..","anime..series","anime/series","anime%2fseries"]{assert!(!type_valid(kind));}
+    }
+    #[test]
+    fn manifest_normalizes_legacy_extras_and_large_catalogue_collections(){
+        let mut manifest=json!({"id":"large.fixture","name":"Large fixture","version":"1","description":null,
+            "types":["movie","anime.series"],"idPrefixes":["tt"],"resources":["catalog",{"name":"meta","types":["anime.series"]}],
+            "catalogs":[{"type":"movie","id":"search","name":null,"extraSupported":["search","skip"],"extraRequired":["search"],
+                "extra":[{"name":"search","isRequired":false}]}]});
+        for i in 0..199{
+            manifest["catalogs"].as_array_mut().unwrap().push(json!({"type":"anime.series","id":format!("shelf-{i}"),"extra":[{"name":"skip"}]}));
+        }
+        let parsed=Manifest::parse(&serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert_eq!(parsed.declared_catalogs().count(),200);
+        assert_eq!(parsed.catalogs[0].name,"search");
+        assert_eq!(parsed.catalog_request("movie","search",&BTreeMap::new()).err(),Some("required-extra"));
+        assert!(parsed.catalog_request("movie","search",&BTreeMap::from([("search".into(),"Fixture".into())])).is_ok());
+        let canonical=serde_json::to_vec(&parsed).unwrap();
+        assert_eq!(Manifest::parse(&canonical).unwrap().catalogs.len(),200);
+        for i in 199..MAX_MANIFEST_CATALOGS{
+            manifest["catalogs"].as_array_mut().unwrap().push(json!({"type":"movie","id":format!("more-{i}")}));
+        }
+        assert_eq!(Manifest::parse(&serde_json::to_vec(&manifest).unwrap()).err(),Some("manifest-catalog-limit"));
+    }
+    #[test]
+    fn manifest_errors_are_fixed_schema_categories(){
+        let valid=json!({"id":"fixture","name":"Fixture","version":"1","types":["movie"],"resources":["stream"]});
+        for (field,value,expected) in [
+            ("name",json!(null),"manifest-identity"),
+            ("types",json!(["movie/series"]),"manifest-types"),
+            ("idPrefixes",json!("fixture-secret"),"manifest-types"),
+            ("resources",json!([{"name":"stream","idPrefixes":["tt"]}]),"manifest-resources"),
+            ("catalogs",json!([{"type":"movie","id":"../private"}]),"manifest-catalogs"),
+            ("catalogs",json!([{"type":"movie","id":"x","extraSupported":["skip"],"extraRequired":["search"]}]),"manifest-extras"),
+            ("catalogs",json!([{"type":"movie","id":"x","extra":[{"name":"genre","options":42}]}]),"manifest-extras"),
+            ("behaviorHints",json!({"configurationRequired":"fixture-secret"}),"manifest-behavior"),
+        ]{
+            let mut malformed=valid.clone();malformed[field]=value;
+            assert_eq!(Manifest::parse(&serde_json::to_vec(&malformed).unwrap()).err(),Some(expected));
+        }
+        assert_eq!(Manifest::parse(br#"{"id":"fixture","id":"duplicate","name":"Fixture","version":"1","types":["movie"],"resources":["stream"]}"#).err(),Some("invalid-manifest"));
     }
     #[test]
     fn response_and_manifest_bounds_reject_malformed_payloads() {

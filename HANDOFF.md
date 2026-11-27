@@ -1,3 +1,7 @@
+## 2026-11-27 — Full Watch journey tracker and manifest compatibility
+
+Cumulative checkpoint f21bf13 passed web and Windows CI 46022564530, including the identity and failed-import recovery changes. Preserve all 30 original stages and criteria in docs/watch-journey-audit.md; distinguish automated verification, partial/live acceptance, deferred login and release packaging. Native/renderer catalogue caps increased from 128 to 512 (existing 512 KiB manifest limit unchanged); legitimate large configured catalogues can be reviewed. Normalize official legacy extraSupported/extraRequired into modern extras, preserving required filters and rejecting invalid lists. Nullable display-only description/name supported. Fixed diagnostic categories across manual and account-import errors never include raw manifest/configured URLs. Added native schema/bounds/128-source snapshot tests and browser error/200-catalogue/128-source assertions. New CI required. Actual account import at capacity and configured AIOMetadata/physical Windows remain acceptance gates. No stable publication or authentication changes.
+
 # Watch journey — import recovery
 
 - Retain only selected failed manifests in volatile native memory for an explicit retry; keep existing sources, enabled states and imported order. An order-only review performs no manifest fetches. No sign-in changes.

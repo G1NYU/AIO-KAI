@@ -2,6 +2,45 @@
 
 Audited revision `5d512b1715530a81b95901b01d1b803e228a65ed` on `feature/tsugi-read-runtime`. Findings apply to the standalone Movies & TV and Anime paths. The AIO server path and shared player provide the comparison. This review combines source tracing, the completed web and Windows CI jobs, and credential-free public HTTP requests. Physical Windows, signed-in imports and real media playback still require acceptance.
 
+## Living acceptance tracker (2026-11-27)
+
+Baseline `f21bf13`: [cumulative web and Windows CI 46022564530](https://github.com/G1NYU/TSUGI/actions/runs/46022564530) passed. The original audit below is preserved as historical evidence. Green means the correction passed automated checks; a yellow entry still has a material acceptance gap, including physical Windows or live-provider testing. Account sign-in is explicitly deferred; no stable release publication.
+
+| # | Stage | State | Evidence / remaining gate |
+| ---: | --- | --- | --- |
+| 01 | Launch | 🟨 Partial | Default maximized and saved placement; fresh/restore/resize/restart on physical Windows open. |
+| 02 | Introduction | 🟩 Verified | Browser destination-first and optional setup assertions. |
+| 03 | Profiles | 🟩 Verified | Browser profile handoff, profile isolation and native snapshot tests. |
+| 04 | Account login | ⏸️ Deferred | User excluded sign-in; actual signed-in import acceptance remains separate. |
+| 05 | Import | 🟩 Verified | One explicit selected import, individual outcome reporting; account fixtures. |
+| 06 | Capacity | 🟨 Partial | 128-source limit; full native snapshot and web 128-source boundary tests added in next change; CI and real import pending. |
+| 07 | Manifest compatibility | 🟨 Pending CI | Native/bridge 512-catalogue bound, modern and documented legacy extras, fixed schema diagnostic codes; actual configured AIOMetadata acceptance open. |
+| 08 | Import order | 🟩 Verified | Native ordered merge, stable source IDs and enabled states, order-only restore. |
+| 09 | Addon refresh | 🟩 Verified | Native and browser failed-manifest recovery without reconnecting, cumulative CI. |
+| 10 | Hub navigation | 🟩 Verified | Browser explicit hub destinations, zero-addon content, settings-only imports. |
+| 11 | Catalogue artwork | 🟨 Partial | Public-CDN allowlist, safe proxy fallback and IMDb fallback tests; live provider art and physical display open. |
+| 12 | Catalogue loading | 🟩 Verified | Native independent bounded pool, browser concurrent shelves and failure isolation. |
+| 13 | Search | 🟩 Verified | Ranked exact-title and identity-based dedupe tests, combined browser grid. |
+| 14 | Title identity | 🟨 Partial | Verified explicit aliases and exact returned episode matches; multi-compatible-route fallback and ambiguous anime numbering open. |
+| 15 | Title details | 🟩 Verified | Native metadata fields and browser details/partial-result coverage. |
+| 16 | Seasons | 🟩 Verified | Browser numbered seasons, specials and unnumbered choices. |
+| 17 | Episodes | 🟩 Verified | Native name fallback and browser preserved metadata/episode selection on failure. |
+| 18 | Play action | 🟩 Verified | Browser details-first and explicit Play/episode selection. |
+| 19 | Stream aggregation | 🟨 Partial | Native compatible source and alias selection, disabled isolation; fallback across multiple compatible aliases open. |
+| 20 | Stream presentation | 🟩 Verified | Native safe quality/detail fields, browser quality filtering, exact option index. |
+| 21 | Source dropdown | 🟩 Verified | Title and player provider filters/counts in browser. |
+| 22 | Source failures | 🟩 Verified | Native distinct outcomes and targeted retry preserving sibling grants; browser recovery. |
+| 23 | Autoplay | 🟨 Partial | Shared persisted preference and fixture manual/auto/grant failure; real-provider acceptance open. |
+| 24 | Playback | 🟨 Partial | Shared player with fixture track/subtitle/seek controls; permitted real media on Windows open. |
+| 25 | Source switching | 🟨 Partial | Browser 45-second fresh-grant and exact episode test; actual media clock open. |
+| 26 | Returning | 🟩 Verified | Browser title/episode restoration and browsing continuity; physical WebView2 acceptance remains release gate. |
+| 27 | Anime discovery | 🟩 Verified | Tenrai v1 replaced Jikan; prior live feed/MAL artwork checks and browser fixture. |
+| 28 | Anime playback | 🟨 Partial | Verified MAL/Kitsu routes and episode progression; live multi-namespace specials and regular episodes open. |
+| 29 | Connections | 🟨 Partial | MAL XML and Refract shortcuts verified; consolidated profile service placement and labeling open. |
+| 30 | Release testing | ⬜ Outstanding | Prior beta cfa9aa6 is superseded by corrections; refresh package and verify artifact; physical Windows acceptance open. |
+
+Additional design acceptance: shared Interface sans-serif (Inter fallback), semibold catalogue headings, no standalone serif hero override. Font-load and computed-weight browser tests passed at `f21bf13`.
+
 ## From launch to hub
 
 | Stage | Evidence at this revision | Acceptance criterion |
