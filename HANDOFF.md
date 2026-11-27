@@ -1,3 +1,7 @@
+## 2026-11-27 — Catalogue CI follow-up
+
+Run 46020376419 passed native Windows checks, web typecheck/lint and the existing unit suite, but the browser suite stopped at the new typography assertion. The production design-system.css loads the bundled Interface font ahead of Inter, which is the intended shared face. Correct the assertion to check Interface and actual font loading; add watch-search.test.ts to the explicit CI unit list. No typography rollback, release publication or workflow permission changes. Retest the combined catalogue/typography and stream-retry changes before declaring acceptance.
+
 ## 2026-11-27 — Independent stream diagnostics and retry
 
 The previous cinematic details and stream-quality commit 281204a passed full web and Windows CI (46019203731). This change reports enabled but incompatible stream providers separately from empty or failed responses, queries only declared compatible sources, and adds a targeted retry in both title and player source drawers. Native retries are bound to the exact current profile/video/source review session, preserve successful sibling handles, replace only the selected provider review, and consume the session on playback selection. Review TTL starts when aggregate results finish. Tests cover preserved handles, wrong identity/disabled rejection, unsupported providers, and browser playback after retry. New changes require CI. No change to direct-HTTPS transport security, sign-in, or stable publication.
@@ -8,7 +12,7 @@ The Watch interaction commit 0e2ce92 passed complete web and Windows CI (4601679
 
 ## 2026-11-27 — Streaming typography cohesion
 
-Use the bundled desktop Inter token for standalone Movies & TV catalogue headings, titles, player controls and source drawer. The row and poster-card typography matches the existing home rows (650-weight headings, 600-weight card text); remove the standalone serif/brush hero override. Keep brand artwork and other media areas unchanged. Browser assertions check the computed Inter family and semibold weight. Requires CI and visual Windows review.
+Use the bundled desktop Interface font token (Inter fallback) for standalone Movies & TV catalogue headings, titles, player controls and source drawer. The row and poster-card typography matches the existing home rows (650-weight headings, 600-weight card text); remove the standalone serif/brush hero override. Keep brand artwork and other media areas unchanged. Browser assertions check the computed Interface family, actual loaded semibold face and heading weight. Requires CI and visual Windows review.
 
 ## 2026-11-27 — Watch metadata and reviewed stream presentation
 

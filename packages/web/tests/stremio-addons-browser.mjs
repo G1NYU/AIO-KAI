@@ -302,10 +302,11 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.equal(await board.locator('[data-ui="media-row"]').count()>0,true);
     assert.equal(await film.getAttribute('data-ui'),'poster-card');
     const shelfFont=await board.locator('[data-ui="media-row-title"]').first().evaluate(el=>({family:getComputedStyle(el).fontFamily,weight:Number(getComputedStyle(el).fontWeight)}));
-    assert.match(shelfFont.family,/^Inter\b/);
+    assert.match(shelfFont.family,/^Interface(?:,|$)/);
+    assert.ok(await page.evaluate(async()=>{const faces=await document.fonts.load('600 18px Interface','Popular films');return faces.some(face=>face.family==='Interface'&&face.status==='loaded');}));
     assert.ok(shelfFont.weight>=600&&shelfFont.weight<=750);
     const heroFont=await board.locator('[data-ui="hero"] h2').evaluate(el=>({family:getComputedStyle(el).fontFamily,weight:Number(getComputedStyle(el).fontWeight)}));
-    assert.match(heroFont.family,/^Inter\b/);
+    assert.match(heroFont.family,/^Interface(?:,|$)/);
     assert.ok(heroFont.weight>=600&&heroFont.weight<=750);
     assert.equal(await watch.locator('.tsugi-watch-nav').getByRole('button',{name:/Stremio|Nuvio|Add addon/}).count(),0);
     await board.getByText('This catalogue is unavailable.',{exact:true}).waitFor();
