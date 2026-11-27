@@ -303,6 +303,18 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.waitFor({state:'detached'});
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Settings',exact:true}).click();
     const config=watch.locator('[data-ui="watch-settings-navigation"]');
+    await config.getByRole('button',{name:'Profile settings',exact:true}).click();
+    const autoPlay=watch.getByRole('checkbox',{name:'Automatically play first available stream',exact:true});
+    await autoPlay.check();
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Home',exact:true}).click();
+    await board.getByRole('button',{name:'Public movie fixture',exact:true}).click();
+    await player.getByRole('button',{name:'Pause',exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>window.__stremioFixture.calls.filter(a=>a.kind==='profile-request'&&a.action.kind==='prepare-media').at(-1).action.optionIndex),0);
+    await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
+    await player.waitFor({state:'detached'});
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Settings',exact:true}).click();
+    await config.getByRole('button',{name:'Profile settings',exact:true}).click();
+    await autoPlay.uncheck();
     await config.getByRole('button',{name:'Stremio import',exact:true}).click();
     async function importAccount(provider){
       const account=watch.locator('[data-ui="stremio-account-import"]');

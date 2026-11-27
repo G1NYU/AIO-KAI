@@ -56,6 +56,7 @@ import { compileQuery, versionText } from '@/lib/versions';
 import { matchBadges } from '@/lib/badges';
 import { CachedImage } from '@/components/cached-image';
 import { BadgeChip, useBadges } from './version-badges';
+import { VersionFrame } from './version-frame';
 
 export interface Request {
   item: BaseItemDto;
@@ -526,12 +527,10 @@ export function Versions({
                 ]),
           ];
           return (
-            <div
+            <VersionFrame
               key={source.Id}
-              data-ui="version"
               data-playing={source.Id === request.playing || undefined}
               data-cached={source.aiostreams?.cached || undefined}
-              className="group/version relative flex items-start rounded-xl border border-white/5 bg-white/[0.03] transition-colors [contain-intrinsic-size:auto_7rem] [content-visibility:auto] hover:border-white/10 hover:bg-white/[0.06]"
             >
               <button
                 type="button"
@@ -667,7 +666,7 @@ export function Versions({
                   ))}
                 </div>
               )}
-            </div>
+            </VersionFrame>
           );
         })}
 

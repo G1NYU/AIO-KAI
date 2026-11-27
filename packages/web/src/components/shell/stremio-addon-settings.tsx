@@ -9,6 +9,8 @@ import { TsugiIcon } from '@/components/tsugi-icons';
 import { MovieGlyph } from '@/components/movie-icons';
 import { Artwork, WideCard } from '@/components/media/cards';
 import { useDesktopArea, type WatchEntryPane } from '@/lib/desktop-area';
+import { settings, useSetting } from '@/lib/settings';
+import { VersionFrame } from '@/features/versions/version-frame';
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
@@ -46,6 +48,7 @@ type WatchPane = 'hubs'|'home'|'discover'|'addons'|'stremio'|'nuvio'|'manual'|'o
 const profileArt=['/design/oto/hero-yuna.webp','/design/yomi/hero-torii.webp','/design/shared/hero-neon.webp','/design/shared/hero-train.webp'];
 export function StremioAddonSettings({workspace=false,onPlay,historyActive=false,setupConnections=false,initialPane='addons',openServer}:{workspace?:boolean;openServer?:()=>void;onPlay?:(playback:WatchPlayback)=>void;historyActive?:boolean;setupConnections?:boolean;initialPane?:WatchEntryPane}={}){
   const desktopArea=useDesktopArea();
+  const [autoPlayFirst,setAutoPlayFirst]=useSetting(settings.playback.standaloneAutoPlayFirst);
   const [boardSearch,setBoardSearch]=React.useState('');
   const [entered,setEntered]=React.useState(false);
   const [pane,setPane]=React.useState<WatchPane>(initialPane);
@@ -178,10 +181,30 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
   }
   type Title=CatalogPage['items'][number];
   function contentPane(){return !!onPlay&&['home','discover','anime'].includes(pane);}
-  async function fetchStreams(item:Title,video:string){
+  async function launchStream(item:Title,video:string,metadata:AddonMetadata|null,picked:AddonOptions,index:number,startMs=0,episodeTitle:string|null=null){
+    if(profileId===undefined||!onPlay||!picked.rows[index]?.supported)return;
+    const grantId=await prepareAddonMedia(profileId,picked.reviewId,index,false,startMs);
+    if(!mounted.current)return;
+    clearTitle();
+    onPlay({profileId,grantId,mediaType:item.mediaType,itemId:item.id,videoId:video,title:metadata?.name??item.name,
+      episodeTitle:item.mediaType==='movie'?null:metadata?.videos.find(v=>v.id===video)?.name??episodeTitle,
+      subtitleSources:sources.filter(s=>s.enabled&&s.manifest.resources.includes('subtitles')).map(s=>({sourceId:s.sourceId,name:s.manifest.name}))});
+  }
+  async function fetchStreams(item:Title,video:string,autoStart=false,metadata:AddonMetadata|null=null,entry:WatchProgress|null=null){
     if(profileId===undefined||!video)return;
-    const groups=await loadAllAddonStreams(profileId,item.mediaType,video);
-    if(mounted.current)setStreamGroups(groups.filter(g=>sources.some(source=>source.sourceId===g.sourceId&&source.enabled)));
+    const response=await loadAllAddonStreams(profileId,item.mediaType,video);
+    if(!mounted.current)return;
+    // The installed source order is the standalone equivalent of the server's
+    // preferred-version order. Never race untrusted media URLs or bypass grants.
+    const groups=sources.filter(s=>s.enabled).flatMap(s=>response.filter(g=>g.sourceId===s.sourceId));
+    setStreamGroups(groups);
+    if(!autoStart||!autoPlayFirst||!onPlay)return;
+    const first=groups.find(group=>group.options?.rows.some(row=>row.supported))?.options;
+    if(!first)return;
+    const index=first.rows.findIndex(row=>row.supported);
+    const startMs=entry&&!entry.completed&&entry.positionMs<entry.durationMs?entry.positionMs:0;
+    try{await launchStream(item,video,metadata,first,index,startMs,entry?.episodeTitle??null);}
+    catch{if(mounted.current)setNotice(t`Automatic playback could not start. Choose a stream below.`);}
   }
   async function openTitle(item:Title,preferredSourceId?:number){
     if(flight.current||profileId===undefined)return;
@@ -205,7 +228,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
       setDetails(metadata);
       const chosen=metadata?.videos.length===1?metadata.videos[0].id:(!metadata?.videos.length&&item.mediaType==='movie'?item.id:'');
       setVideoId(chosen);
-      if(auto&&chosen)await fetchStreams(item,chosen);
+      if(auto&&chosen)await fetchStreams(item,chosen,true,metadata);
     });
   }
   function openHistory(entry:WatchProgress){
@@ -213,7 +236,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     const item={id:entry.itemId,name:entry.title,mediaType:entry.mediaType};
     const auto=contentPane();
     clearTitle();setTitle(item);setAutomatic(auto);setVideoId(entry.videoId);setResumeEntry(entry);
-    if(auto)void run(()=>fetchStreams(item,entry.videoId));
+    if(auto)void run(()=>fetchStreams(item,entry.videoId,true,null,entry));
   }
   async function readMetadata(item:Title,sourceId:number){
     if(flight.current||profileId===undefined)return;
@@ -223,13 +246,13 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
       if(!mounted.current)return;
       const chosen=resumeEntry&&resumeEntry.itemId===item.id&&resumeEntry.mediaType===item.mediaType&&next.videos.some(v=>v.id===resumeEntry.videoId)?resumeEntry.videoId:next.videos.length===1?next.videos[0].id:item.mediaType==='movie'&&next.videos.length===0?item.id:'';
       setDetails(next);setVideoId(chosen);
-      if(automatic&&chosen)await fetchStreams(item,chosen);
+      if(automatic&&chosen)await fetchStreams(item,chosen,false,next);
     });
   }
   function selectVideo(video:string){
     if(flight.current)return;
     setVideoId(video);setOptions(null);setStreamGroups(null);
-    if(automatic&&title&&video)void run(()=>fetchStreams(title,video));
+    if(automatic&&title&&video)void run(()=>fetchStreams(title,video,true,details));
   }
   function refreshStreams(){
     if(flight.current||!title||!videoId)return;
@@ -247,14 +270,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
   const resumeMs=resumeMatch&&!resumeMatch.completed&&resumeMatch.positionMs<resumeMatch.durationMs?resumeMatch.positionMs:0;
   async function playOption(index:number,resume=false,picked=options){
     if(flight.current||profileId===undefined||!title||!videoId||!picked||picked.subtitles||!onPlay||!picked.rows[index]?.supported)return;
-    await run(async()=>{
-      const grantId=await prepareAddonMedia(profileId,picked.reviewId,index,false,resume?resumeMs:0);
-      if(!mounted.current)return;
-      clearTitle();
-      onPlay({profileId,grantId,mediaType:title.mediaType,itemId:title.id,videoId,title:details?.name??title.name,
-        episodeTitle:title.mediaType==='movie'?null:details?.videos.find(v=>v.id===videoId)?.name??resumeMatch?.episodeTitle??null,
-        subtitleSources:sources.filter(s=>s.enabled&&s.manifest.resources.includes('subtitles')).map(s=>({sourceId:s.sourceId,name:s.manifest.name}))});
-    });
+    await run(()=>launchStream(title,videoId,details,picked,index,resume?resumeMs:0,resumeMatch?.episodeTitle??null));
   }
   async function selectPane(next:WatchPane){
     if(flight.current||pane===next)return;
@@ -362,6 +378,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     {!workspace&&<h3 id={titleId}><Trans>Stremio addons</Trans></h3>}
     {workspace&&onPlay&&profileReady&&profileId!==undefined&&(pane==='home'||pane==='discover')&&<WatchCatalogueBoard key={JSON.stringify([profileId,pane,boardSearch])} initialQuery={boardSearch} profileId={profileId} sources={sources} busy={busy} run={run} active={historyActive} paused={!!title} includeHistory={pane==='home'} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} openAddons={()=>void selectPane('addons')}/>}
     {show('profile')&&<>
+    {workspace&&onPlay&&<div className="space-y-2"><h4><Trans>Playback</Trans></h4><label><input type="checkbox" checked={autoPlayFirst} onChange={e=>setAutoPlayFirst(e.target.checked)}/><Trans>Automatically play first available stream</Trans></label><p className="tsugi-watch-muted"><Trans>Use your source order to skip the stream selector. This preference applies to standalone Movies &amp; TV and Anime on this device.</Trans></p></div>}
     <p><Trans>Each local profile has its own addons, without an AIOStreams connection. Browse catalogues and select supported direct HTTPS streams in Watch.</Trans></p>
     <p><Trans>Configured links are protected by your Windows account and excluded from portable backups. Local profiles are not password-protected from other people using this Windows account. Only contact addon hosts you trust.</Trans></p>
     <div className="space-y-3" data-ui="stremio-profile-management">
@@ -479,7 +496,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
           const result=group.options;
           return <section key={group.sourceId} className="tsugi-watch-stream-group" data-stream-source={group.sourceId}>
             <h5>{provider?.manifest.name}</h5>
-            {!result?<p><Trans>This addon could not return streams. Other sources remain available.</Trans></p>:result.rows.length===0?<p><Trans>No streams returned.</Trans></p>:<ul>{result.rows.map((row,index)=><li key={index} className="tsugi-watch-stream-row"><span>{row.name}<small>{row.supported?<Trans>Direct HTTPS</Trans>:row.reason==='proxy-headers'?<Trans>Proxy headers required</Trans>:<Trans>Unsupported transport</Trans>}</small></span>{row.supported&&<div className="flex flex-wrap gap-2">{resumeMs>0&&<button className="tsugi-read-action tsugi-series-primary" type="button" disabled={busy} onClick={()=>void playOption(index,true,{sourceId:group.sourceId,subtitles:false,...result})}><Trans>Resume</Trans></button>}<button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>void playOption(index,false,{sourceId:group.sourceId,subtitles:false,...result})}>{resumeMs>0?<Trans>Play from beginning</Trans>:<Trans>Play</Trans>}</button></div>}</li>)}</ul>}
+            {!result?<p><Trans>This addon could not return streams. Other sources remain available.</Trans></p>:result.rows.length===0?<p><Trans>No streams returned.</Trans></p>:<ul>{result.rows.map((row,index)=><li key={index}><VersionFrame><div className="tsugi-watch-stream-row"><span>{row.name}<small>{row.supported?<Trans>Direct HTTPS</Trans>:row.reason==='proxy-headers'?<Trans>Proxy headers required</Trans>:<Trans>Unsupported transport</Trans>}</small></span>{row.supported&&<div className="flex flex-wrap gap-2">{resumeMs>0&&<button className="tsugi-read-action tsugi-series-primary" type="button" disabled={busy} onClick={()=>void playOption(index,true,{sourceId:group.sourceId,subtitles:false,...result})}><Trans>Resume</Trans></button>}<button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>void playOption(index,false,{sourceId:group.sourceId,subtitles:false,...result})}>{resumeMs>0?<Trans>Play from beginning</Trans>:<Trans>Play</Trans>}</button></div>}</div></VersionFrame></li>)}</ul>}
           </section>;
         })}
       </section>}

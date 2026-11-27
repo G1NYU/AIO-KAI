@@ -3,6 +3,7 @@ import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
 import { MovieGlyph } from '@/components/movie-icons';
 import { Artwork, PosterCard, WideCard } from '@/components/media/cards';
+import { BrushHeading } from '@/components/brush-heading';
 import { BackdropFrame } from '@/components/media/hero';
 import { Button } from '@aiostreams/ui/button';
 import { MediaRow } from '@/components/media/media-row';
@@ -98,7 +99,9 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
     return ()=>window.clearTimeout(timer);
   },[active,paused,busy,stopped,rows,limit,targets,includeHistory,history,historyFailed,profileId,run]);
 
-  const featured=visible.flatMap(target=>rows[target.key]?.page?.items.slice(0,1).map(item=>({target,item}))??[]).find(row=>row.item.poster);
+  const [heroIndex,setHeroIndex]=React.useState(0);
+  const featuredItems=visible.flatMap(target=>rows[target.key]?.page?.items.slice(0,2).map(item=>({target,item}))??[]).filter(row=>row.item.poster).slice(0,8);
+  const featured=featuredItems[heroIndex%Math.max(1,featuredItems.length)];
   const pending=visible.some(target=>!rows[target.key]||rows[target.key].loading);
   const continuing=history?.filter(row=>!row.progress.completed&&row.progress.positionMs>0).slice(0,12)??[];
   return <>
@@ -108,8 +111,9 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
       </BackdropFrame>
       <div className="tsugi-watch-featured-copy">
         <small><Trans>Featured</Trans> · {featured.target.catalog.name}</small>
-        <h2>{featured.item.name}</h2>
-        <Button intent="white" className="rounded-full" disabled={busy} onClick={()=>openTitle(featured.item,featured.target.source.sourceId)}><Trans>View title</Trans></Button>
+        <BrushHeading as="h2">{featured.item.name}</BrushHeading>
+        {featured.item.description&&<p className="line-clamp-3">{featured.item.description}</p>}
+        <div className="flex flex-wrap items-center gap-2"><Button intent="white" className="rounded-full" disabled={busy} onClick={()=>openTitle(featured.item,featured.target.source.sourceId)}><Trans>View title</Trans></Button>{featuredItems.length>1&&<><button type="button" className="tsugi-read-action" aria-label={t`Previous featured title`} disabled={busy} onClick={()=>setHeroIndex(i=>(i+featuredItems.length-1)%featuredItems.length)}>‹</button><span>{heroIndex%featuredItems.length+1} / {featuredItems.length}</span><button type="button" className="tsugi-read-action" aria-label={t`Next featured title`} disabled={busy} onClick={()=>setHeroIndex(i=>(i+1)%featuredItems.length)}>›</button></>}</div>
       </div>
     </section>}
     {includeHistory&&continuing.length>0&&<section className="tsugi-watch-shelf" data-ui="watch-continue-shelf">
@@ -134,7 +138,7 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
               {row.skip>0&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(target,0)}><Trans>First page</Trans></button>}
               {row.page.nextSkip!==null&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(target,row.page!.nextSkip!)}><Trans>Next page</Trans></button>}
           </div>}>
-            {row?.page?.items.map(item=><PosterCard key={item.id} title={item.name} image={item.poster??null} itemType={item.mediaType==='movie'?'Movie':'Series'} disabled={busy} onClick={()=>openTitle(item,target.source.sourceId)}/>)}
+            {row?.page?.items.map(item=><PosterCard key={item.id} title={item.name} image={item.poster??null} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item,target.source.sourceId)}/>)}
           </MediaRow>
           {row?.page&&row.page.items.length>0&&<small>{target.source.manifest.name} · {target.catalog.mediaType==='movie'?t`Movies`:target.catalog.mediaType==='series'?t`Series`:t`Anime`}</small>}
           {!row?.page&&!row?.loading&&<h3>{target.catalog.name}</h3>}

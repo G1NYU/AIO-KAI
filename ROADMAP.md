@@ -2,6 +2,8 @@
 
 ## Streaming hub architecture correction
 
+**Visual reference:** user-supplied Anime Hub interactive HTML. Use live content in its hero, shelves and seasonal sections; share AIO version presentation and ordered automatic first-stream semantics, with an addon-specific adapter and secure native grant. No fictional prototype data. CI and real Windows acceptance remain gates.
+
 **Latest acceptance gate:** after profile selection present three independent destinations; AIOStreams alone requires a server config. Standalone Movies & TV and Anime must open with zero addons, with metadata-only discovery and explicit playback availability. Settings only for imports. New title/episode and direct player controls pending CI; exact cross-ID anime resolution and player parity remain open.
 
 - Separate the server-backed and standalone-addon playback backends while reusing the existing Movies media rows, poster cards, wide cards and backdrop presentation. Account import, addon installation and ordering belong to Settings; imports return to the content hub. Anime Hub remains a content destination with public Jikan discovery independent of installed addons or a MAL account.

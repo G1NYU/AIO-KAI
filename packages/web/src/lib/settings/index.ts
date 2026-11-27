@@ -538,6 +538,9 @@ export const settings = {
     autoPlayFirst: syncedFlag('autoPlayFirst', false, [
       'aiostreams-web-skip-versions',
     ]),
+    // Standalone Watch has no Jellyfin session, so its first-stream preference
+    // uses the existing device-local settings store rather than a server document.
+    standaloneAutoPlayFirst: local(device<boolean>('tsugi-addon-autoplay-first', false)),
     preloadVersions: syncedFlag('preloadVersions'),
     chapterSkips: syncedFlag('chapterSkips', true, [
       'aiostreams-desktop-chapter-skips',

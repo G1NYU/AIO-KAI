@@ -78,3 +78,7 @@
   .tsugi-anime-grid {grid-template-columns:repeat(auto-fill,minmax(min(100%,180px),1fr));}
 }
 @media(prefers-reduced-motion:reduce) {.tsugi-anime-track {scroll-behavior:auto;}}
+
+.tsugi-anime-feature-poster{position:absolute;inset-block:20px 48px;inset-inline-end:48px;aspect-ratio:2/3;max-width:25%;border-radius:var(--tsugi-radius-art);overflow:hidden;box-shadow:0 12px 36px #0006;}
+.tsugi-anime-hero-copy{position:relative;z-index:1;}
+@media(max-width:760px){.tsugi-anime-feature-poster{display:none;}}

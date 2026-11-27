@@ -6,7 +6,7 @@ import { PosterCard } from '@/components/media/cards';
 import { publicAddonPoster, type CatalogPage } from '@/lib/hosts/shell/stremio';
 
 type Item=CatalogPage['items'][number];
-type Feed='airing'|'popular'|'films';
+type Feed='airing'|'popular'|'films'|'romance'|'upcoming';
 type FeedResult={items:Item[];expires:number};
 const cache=new Map<Feed,FeedResult>();
 // eslint-disable-next-line lingui/no-unlocalized-strings -- External API rating enum.
@@ -41,7 +41,7 @@ export function parsePublicAnime(value:unknown,films=false):Item[]{
 async function load(feed:Feed,signal:AbortSignal):Promise<Item[]>{
   const hit=cache.get(feed);
   if(hit&&hit.expires>Date.now())return hit.items;
-  const endpoint=feed==='airing'?'seasons/now?sfw=true&limit=25':feed==='popular'?'top/anime?filter=bypopularity&sfw=true&limit=25':'top/anime?type=movie&sfw=true&limit=25';
+  const endpoint=feed==='airing'?'seasons/now?sfw=true&limit=25':feed==='popular'?'top/anime?filter=bypopularity&sfw=true&limit=25':feed==='films'?'top/anime?type=movie&sfw=true&limit=25':feed==='romance'?'anime?genres=22&order_by=score&sort=desc&sfw=true&limit=25':'seasons/upcoming?sfw=true&limit=25';
   const response=await fetch('https://api.jikan.moe/v4/'+endpoint,{credentials:'omit',referrerPolicy:'no-referrer',signal:AbortSignal.any([signal,AbortSignal.timeout(12000)])});
   if(!response.ok)throw new Error('anime-request');
   const raw=await response.text();
@@ -50,15 +50,15 @@ async function load(feed:Feed,signal:AbortSignal):Promise<Item[]>{
   if(!signal.aborted)cache.set(feed,{items,expires:Date.now()+600000});
   return items;
 }
-export function PublicAnimeDiscovery({filmsOnly=false,active,busy,openTitle}:{filmsOnly?:boolean;active:boolean;busy:boolean;openTitle(item:Item):void}){
-  const feeds:Feed[]=filmsOnly?['films']:['airing','popular','films'];
+export function PublicAnimeDiscovery({filmsOnly=false,seasonal=false,active,busy,openTitle,onFeatured}:{filmsOnly?:boolean;seasonal?:boolean;active:boolean;busy:boolean;openTitle(item:Item):void;onFeatured?(items:Item[]):void}){
+  const feeds:Feed[]=filmsOnly?['films']:seasonal?['airing','upcoming']:['airing','popular','films','romance','upcoming'];
   const [rows,setRows]=React.useState<Partial<Record<Feed,Item[]>>>({});
   const [errors,setErrors]=React.useState<Feed[]>([]);
   const [retry,setRetry]=React.useState(0);
   React.useEffect(()=>{
     if(!active)return;
     const controller=new AbortController();
-    const requested:Feed[]=filmsOnly?['films']:['airing','popular','films'];
+    const requested:Feed[]=filmsOnly?['films']:seasonal?['airing','upcoming']:['airing','popular','films','romance','upcoming'];
     void (async()=>{
       for(const feed of requested){
         if(controller.signal.aborted)return;
@@ -70,11 +70,12 @@ export function PublicAnimeDiscovery({filmsOnly=false,active,busy,openTitle}:{fi
       }
     })();
     return()=>controller.abort();
-  },[active,filmsOnly,retry]);
+  },[active,filmsOnly,seasonal,retry]);
+  React.useEffect(()=>{if(active&&onFeatured&&rows.airing?.length)onFeatured(rows.airing.slice(0,4));},[active,onFeatured,rows.airing]);
   return <section className="space-y-6" data-ui="anime-public-discovery">
     {feeds.map(feed=><div key={feed}>
-      <MediaRow shape="poster" title={feed==='airing'?t`Airing now`:feed==='popular'?t`Popular anime`:t`Anime films`} loading={!rows[feed]&&!errors.includes(feed)}>
-        {rows[feed]?.map(item=><PosterCard key={item.id} title={item.name} image={item.poster??null} itemType={item.mediaType==='movie'?'Movie':'Series'} disabled={busy} onClick={()=>openTitle(item)}/>)}
+      <MediaRow shape="poster" title={feed==='airing'?t`Airing now`:feed==='popular'?t`Popular anime`:feed==='films'?t`Anime films`:feed==='romance'?t`Romance anime`:t`Upcoming season`} loading={!rows[feed]&&!errors.includes(feed)}>
+        {rows[feed]?.map(item=><PosterCard key={item.id} title={item.name} image={item.poster??null} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item)}/>)}
       </MediaRow>
       {errors.includes(feed)&&<p className="text-sm text-[--muted]"><Trans>Public anime catalogue unavailable.</Trans> <button type="button" className="tsugi-read-action" onClick={()=>{setErrors([]);setRetry(n=>n+1);}}><Trans>Retry</Trans></button></p>}
       {rows[feed]?.length===0&&<p className="text-sm text-[--muted]"><Trans>No titles returned by this catalogue.</Trans></p>}

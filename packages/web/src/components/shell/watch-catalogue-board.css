@@ -51,3 +51,7 @@
 .tsugi-watch-shelf>small{display:block;margin-top:8px;}
 .tsugi-watch-board [data-ui="poster-card"]:disabled{cursor:default;}
 @media(max-width:760px){.tsugi-watch-featured{min-height:240px;padding:16px;}.tsugi-watch-featured-copy{max-width:80%;}}
+
+.tsugi-watch-featured-copy h2{font-family:var(--tsugi-feature-font,var(--tsugi-font));font-weight:400;}
+.tsugi-watch-stream-group ul{display:grid;gap:8px;}
+.tsugi-watch-stream-row{width:100%;background:transparent;}

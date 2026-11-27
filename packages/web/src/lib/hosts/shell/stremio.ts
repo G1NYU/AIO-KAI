@@ -9,6 +9,8 @@ export interface AddonManifest {
 }
 export interface AddonSource { sourceId: number; enabled: boolean; manifest: AddonManifest }
 /** Virtual public catalogue, never installed, mutated or used for streams. */
+// The protocol manifest descriptor is not localized; catalogue headings are translated at render time.
+/* eslint-disable lingui/no-unlocalized-strings */
 export const publicCinemeta:AddonSource={
   sourceId:0,enabled:true,manifest:{
     id:'com.linvo.cinemeta',name:'Cinemeta',version:'3.0.14',resources:['catalog','meta'],
@@ -19,6 +21,7 @@ export const publicCinemeta:AddonSource={
     })))
   }
 };
+/* eslint-enable lingui/no-unlocalized-strings */
 export interface AddonReview { reviewId: number; manifest: AddonManifest }
 export interface CatalogPage {
   sourceId: number; mediaType: string; catalogId: string;

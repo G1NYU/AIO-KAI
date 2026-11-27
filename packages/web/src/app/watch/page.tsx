@@ -141,7 +141,7 @@ function DirectPlayer({playback,close,onHistoryError}:{playback:WatchPlayback;cl
     {!leaving&&status!=='ready'&&<div className="tsugi-direct-player-status" role={status==='error'?'alert':'status'}>{status==='loading'?<Trans>Opening stream…</Trans>:status==='error'?<Trans>Playback failed or the selection expired. Go back and request a fresh stream.</Trans>:<Trans>Playback ended.</Trans>}</div>}
     <footer>
       {!leaving&&status==='ready'&&<>
-        <div className="tsugi-direct-seek"><span>{time(position)}</span><input type="range" aria-label={t`Playback position`} min={0} max={Math.max(duration,1)} value={Math.min(position,duration)} disabled={!duration} onChange={e=>seek(Number(e.target.value))}/><span>{time(duration)}</span></div>
+        <div className="tsugi-direct-seek"><span>{time(position)} / {time(duration)}</span><input type="range" aria-label={t`Playback position`} min={0} max={Math.max(duration,1)} value={Math.min(position,duration)} disabled={!duration} onChange={e=>seek(Number(e.target.value))}/></div>
         <div className="tsugi-direct-controls">
           <button type="button" className="tsugi-read-action" aria-label={t`Back 10 seconds`} disabled={!duration} onClick={()=>seek(Math.max(0,position-10000))}><Trans>−10s</Trans></button>
           <button type="button" className="tsugi-read-action" onClick={()=>appBridge()?.send({type:'player-set',paused:!paused})}>{paused?<Trans>Play</Trans>:<Trans>Pause</Trans>}</button>
