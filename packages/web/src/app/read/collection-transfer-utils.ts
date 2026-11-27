@@ -53,6 +53,9 @@ function chapterKey(chapter: ReadingChapter) {
     : 'name:' + titleKey(chapter.name);
 }
 
+type MigrationPage = { originalId: number; targetId: number; originalName: string; targetName: string; scanlator: string; page: number; pageCount: number };
+type PageSnapshot = { chapters: { id: number; identity: string; name: string; isRead: boolean; isBookmarked: boolean; lastPageRead: number; pageCount: number; lastReadAt: string }[] };
+
 export function migrationPlan(original: ReadingChapter[], replacement: ReadingChapter[]) {
   const groups = (chapters: ReadingChapter[]) => {
     const result = new Map<string, ReadingChapter[]>();
@@ -64,6 +67,7 @@ export function migrationPlan(original: ReadingChapter[], replacement: ReadingCh
   };
   const from = groups(original), to = groups(replacement);
   const read: number[] = [], bookmarked: number[] = [], unmatched: string[] = [], partial: string[] = [];
+  const pages: MigrationPage[] = [];
   let matched = 0;
   for (const chapter of original) {
     if (!chapter.isRead && !chapter.isBookmarked && !chapter.lastPageRead) continue;
@@ -75,9 +79,41 @@ export function migrationPlan(original: ReadingChapter[], replacement: ReadingCh
     matched++;
     if (chapter.isRead && !target.isRead) read.push(target.id);
     if (chapter.isBookmarked && !target.isBookmarked) bookmarked.push(target.id);
-    // Page indexes are edition-dependent. Never mark an unfinished chapter read
-    // or overwrite existing target progress just to transfer a page number.
-    if (!chapter.isRead && chapter.lastPageRead > 0 && !target.isRead) partial.push(chapter.name);
+    // Page indexes are edition-dependent. Require a unique chapter, an
+    // exact normalized name/scanlation label and known equal page counts.
+    // This is only an opt-in candidate, not proof of identical page content.
+    if (!chapter.isRead && chapter.lastPageRead > 0 && !target.isRead) {
+      const scanlator = titleKey(chapter.scanlator || '');
+      if (scanlator && scanlator === titleKey(target.scanlator || '') &&
+          titleKey(chapter.name) === titleKey(target.name) &&
+          Number.isInteger(chapter.lastPageRead) && Number.isInteger(chapter.pageCount) &&
+          chapter.lastPageRead < chapter.pageCount && target.pageCount === chapter.pageCount &&
+          target.lastPageRead === 0) {
+        pages.push({ originalId: chapter.id, targetId: target.id, originalName: chapter.name,
+          targetName: target.name, scanlator: chapter.scanlator || '', page: chapter.lastPageRead, pageCount: chapter.pageCount });
+      } else partial.push(chapter.name);
+    }
   }
-  return { matched, read, bookmarked, unmatched, partial };
+  return { matched, read, bookmarked, unmatched, partial, pages };
+}
+
+/** Build additive patches from validated native snapshots; never transfer
+ * page offsets into a previously visited target, even if its position is 0. */
+export function migrationPagePatches(pages: MigrationPage[], original: PageSnapshot, replacement: PageSnapshot) {
+  if (pages.length > 2000 || new Set(pages.map(page => page.targetId)).size !== pages.length)
+    throw Error('migration-page-limit');
+  const from = new Map(original.chapters.map(chapter => [chapter.id, chapter]));
+  const to = new Map(replacement.chapters.map(chapter => [chapter.id, chapter]));
+  return pages.map(page => {
+    const old = from.get(page.originalId), target = to.get(page.targetId);
+    if (!old || !target || old.isRead || target.isRead || old.name !== page.originalName ||
+        target.name !== page.targetName || old.lastPageRead !== page.page ||
+        old.pageCount !== page.pageCount || target.pageCount !== page.pageCount ||
+        target.lastPageRead !== 0 || target.lastReadAt !== '0' ||
+        !Number.isInteger(page.page) || page.page <= 0 || page.page >= page.pageCount)
+      throw Error('migration-page-changed');
+    return { identity: target.identity, expectedRead: target.isRead, expectedBookmarked: target.isBookmarked,
+      expectedLastPage: target.lastPageRead, expectedPageCount: target.pageCount,
+      expectedLastReadAt: target.lastReadAt, markRead: false, bookmark: false, page: page.page };
+  });
 }

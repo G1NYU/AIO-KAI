@@ -5,14 +5,19 @@ import { Trans } from '@lingui/react/macro';
 import { FiArrowRight } from 'react-icons/fi';
 import { readRequest } from '@/lib/hosts/shell/reading';
 import type { ReadingChapter } from './reader-utils';
-import { batchTitles, migrationPlan, titleKey } from './collection-transfer-utils';
+import { batchTitles, migrationPlan, migrationPagePatches, titleKey } from './collection-transfer-utils';
+import { loadLocalManga } from '@/lib/backup/manga';
+import { isReaderIdentity } from './reader-preferences';
 
-type Title = { id: number | string; sourceId?: string; title: string; author?: string | null; inLibrary: boolean; categories?: { nodes: { id: number }[] } };
+type Title = { id: number | string; sourceId?: string; readerIdentity?: string; title: string; author?: string | null; inLibrary: boolean; categories?: { nodes: { id: number }[] } };
 type Source = { id: string; name: string; displayName?: string; lang: string };
 type Details = { manga: Title; chapters: ReadingChapter[] };
 type Props = { library: Title[]; sources: Source[]; busy: boolean; run: (work: () => Promise<void>) => Promise<void>; reload: () => Promise<void> };
 type BatchRow = { title: string; options: Title[]; selected: string; status: string; finished?: boolean };
 const idOf = (item: Title) => Number(item.id);
+const sameTitle = (a: Title, b: Title) => idOf(a) === idOf(b) && a.sourceId === b.sourceId &&
+  a.title === b.title && isReaderIdentity(a.readerIdentity) && a.readerIdentity === b.readerIdentity;
+const categoryIds = (item: Title) => (item.categories?.nodes || []).map(row => row.id).sort((a, b) => a - b);
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : t({ id: "Reading request failed.", message: "Reading request failed." });
 async function search(source: string, title: string) {
   const result = await readRequest<{ mangas: Title[] }>({ kind: 'catalogue', source, page: 1, mode: 'search', query: title });
@@ -36,42 +41,72 @@ export function MigrationWorkspace({ library, sources, busy, run, reload }: Prop
   const [term, setTerm] = React.useState('');
   const [results, setResults] = React.useState<Title[] | null>(null);
   const [preview, setPreview] = React.useState<{ original: Details; replacement: Details } | null>(null);
+  const [copyPages, setCopyPages] = React.useState(false);
   const [message, setMessage] = React.useState('');
   const original = library.find(item => String(item.id) === originalId);
   const plan = preview && migrationPlan(preview.original.chapters, preview.replacement.chapters);
-  const reset = () => { setResults(null); setPreview(null); setMessage(''); };
+  const reset = () => { setResults(null); setPreview(null); setCopyPages(false); setMessage(''); };
   async function prepare(item: Title) {
     if (!original || idOf(original) === idOf(item)) throw new Error(t({ id: "Choose a different edition.", message: "Choose a different edition." }));
     const from = await cached(idOf(original));
     const to = await readRequest<Details>({ kind: 'manga', id: idOf(item) });
-    if (!from.manga.inLibrary || from.manga.sourceId === to.manga.sourceId && from.manga.sourceId) throw new Error(t({ id: "Choose a saved title and a different source.", message: "Choose a saved title and a different source." }));
+    if (!from.manga.inLibrary || idOf(from.manga) !== idOf(original) || idOf(to.manga) !== idOf(item) ||
+        !from.manga.sourceId || from.manga.sourceId === to.manga.sourceId || to.manga.sourceId !== source ||
+        !isReaderIdentity(from.manga.readerIdentity) || !isReaderIdentity(to.manga.readerIdentity))
+      throw new Error(t({ id: "Choose a saved title and a different source.", message: "Choose a saved title and a different source." }));
     if (!to.chapters.length) throw new Error(t({ id: "Replacement has no chapters.", message: "Replacement has no chapters." }));
-    setPreview({ original: from, replacement: to }); setMessage('');
+    setPreview({ original: from, replacement: to }); setCopyPages(false); setMessage('');
   }
   async function apply() {
     if (!preview || !plan) return;
     const from = await cached(idOf(preview.original.manga)), to = await cached(idOf(preview.replacement.manga));
-    if (!from.manga.inLibrary || idOf(from.manga) === idOf(to.manga) || !to.chapters.length) throw new Error(t({ id: "The original or replacement changed. Create a new preview.", message: "The original or replacement changed. Create a new preview." }));
+    if (!from.manga.inLibrary || !sameTitle(from.manga, preview.original.manga) ||
+        !sameTitle(to.manga, preview.replacement.manga) || !to.chapters.length ||
+        idOf(from.manga) === idOf(to.manga) || from.manga.sourceId === to.manga.sourceId) {
+      setPreview(null); setCopyPages(false);
+      throw new Error(t({ id: "The original or replacement changed. Create a new preview.", message: "The original or replacement changed. Create a new preview." }));
+    }
     const next = migrationPlan(from.chapters, to.chapters);
-    if (JSON.stringify(next) !== JSON.stringify(plan)) {
-      setPreview({ original: from, replacement: to });
+    if (JSON.stringify(next) !== JSON.stringify(plan) ||
+        JSON.stringify(categoryIds(from.manga)) !== JSON.stringify(categoryIds(preview.original.manga)) ||
+        JSON.stringify(categoryIds(to.manga)) !== JSON.stringify(categoryIds(preview.replacement.manga)) ||
+        to.manga.inLibrary !== preview.replacement.manga.inLibrary) {
+      setPreview({ original: from, replacement: to }); setCopyPages(false);
       throw new Error(t({ id: "Chapter state changed. Review the updated preview before applying.", message: "Chapter state changed. Review the updated preview before applying." }));
     }
     try {
-      await readRequest({ kind: 'set-library', id: idOf(to.manga), inLibrary: true });
+      const saved = await readRequest<{ manga: Title }>({ kind: 'set-library', id: idOf(to.manga), inLibrary: true });
+      if (!saved.manga.inLibrary || idOf(saved.manga) !== idOf(to.manga))
+        throw Error(t({ id: "Library addition not confirmed.", message: "Library addition not confirmed." }));
+      if (copyPages && next.pages.length) {
+        const old = await loadLocalManga(idOf(from.manga)), target = await loadLocalManga(idOf(to.manga));
+        if (old.identity !== from.manga.readerIdentity || target.identity !== to.manga.readerIdentity ||
+            old.sourceId !== from.manga.sourceId || target.sourceId !== to.manga.sourceId)
+          throw Error(t({ id: "Migration page identity changed", message: "The edition changed. Review the replacement again." }));
+        let changes: ReturnType<typeof migrationPagePatches>;
+        try { changes = migrationPagePatches(next.pages, old, target); }
+        catch { throw Error(t({ id: "Migration page state changed", message: "Page progress could not be safely copied. The replacement may have been visited. Review again or leave page positions on the original." })); }
+        const result = await readRequest<{ confirmed: number; total: number; complete: boolean }>({
+          kind: 'restore-manga-progress', id: target.id, identity: target.identity, changes,
+        });
+        if (result.complete !== true || result.confirmed !== changes.length || result.total !== changes.length)
+          throw Error(t({ id: "Migration page transfer incomplete", message: "Page transfer was not fully confirmed. Review the replacement before retrying." }));
+      }
       for (const ids of chunks(next.read)) await readRequest({ kind: 'chapter-flags', ids, read: true });
       for (const ids of chunks(next.bookmarked)) await readRequest({ kind: 'chapter-flags', ids, bookmarked: true });
       for (const category of from.manga.categories?.nodes || []) if (category.id > 0 && !to.manga.categories?.nodes.some(item => item.id === category.id))
         await readRequest({ kind: 'assign-category', mangaId: idOf(to.manga), categoryId: category.id, assigned: true });
       const verified = await cached(idOf(to.manga));
-      if (!verified.manga.inLibrary || next.read.some(id => !verified.chapters.some(chapter => chapter.id === id && chapter.isRead)) ||
+      if (!verified.manga.inLibrary || !sameTitle(verified.manga, to.manga) ||
+          (copyPages && next.pages.some(page => !verified.chapters.some(chapter => chapter.id === page.targetId && !chapter.isRead && chapter.lastPageRead === page.page && chapter.pageCount === page.pageCount))) ||
+          next.read.some(id => !verified.chapters.some(chapter => chapter.id === id && chapter.isRead)) ||
           next.bookmarked.some(id => !verified.chapters.some(chapter => chapter.id === id && chapter.isBookmarked)) ||
           (from.manga.categories?.nodes || []).some(category => category.id > 0 && !verified.manga.categories?.nodes.some(item => item.id === category.id)))
         throw new Error(t({ id: "Replacement saved but transfer verification failed. The original is unchanged.", message: "Replacement saved but transfer verification failed. The original is unchanged." }));
       setMessage(t({ id: "Replacement verified. Original retained. Review unmatched chapters and page progress before removing it manually.", message: "Replacement verified. Original retained. Review unmatched chapters and page progress before removing it manually." }));
-      setPreview(null);
+      setPreview(null); setCopyPages(false);
     } catch (error) {
-      setPreview(null);
+      setPreview(null); setCopyPages(false);
       throw new Error(t({ id: "Transfer stopped; the original is unchanged. The replacement may contain partial changes. Reopen the preview to retry. ", message: "Transfer stopped; the original is unchanged. The replacement may contain partial changes. Reopen the preview to retry. " }) + errorMessage(error));
     } finally { await reload(); }
   }
@@ -91,7 +126,13 @@ export function MigrationWorkspace({ library, sources, busy, run, reload }: Prop
       <h2><Trans id="Transfer preview">Transfer preview</Trans></h2><p>{preview.original.manga.title} → {preview.replacement.manga.title}</p>
       <div className="tsugi-transfer-stats">{[[plan.matched, t({ id: "Matched chapters", message: "Matched chapters" })], [plan.read.length, t({ id: "Mark read", message: "Mark read" })], [plan.bookmarked.length, t({ id: "Copy bookmarks", message: "Copy bookmarks" })], [plan.unmatched.length, t({ id: "Unmatched", message: "Unmatched" })], [plan.partial.length, t({ id: "Page progress retained on original", message: "Page progress retained on original" })]].map(([count, label]) => <div key={label}><strong>{count}</strong><small>{label}</small></div>)}</div>
       {!!plan.unmatched.length && <p><Trans id="Ambiguous or missing chapters">Ambiguous or missing chapters</Trans>: {plan.unmatched.join(', ')}</p>}
-      {!!plan.partial.length && <p><Trans id="Unfinished chapter page positions are not copied across editions">Unfinished chapter page positions are not copied across editions</Trans>: {plan.partial.join(', ')}</p>}
+      {!!plan.partial.length && <p><Trans id="Migration page positions excluded">Unfinished page positions excluded from transfer</Trans>: {plan.partial.join(', ')}</p>}
+      {!!plan.pages.length && <div className="space-y-2">
+        <p><Trans id="Migration candidate pages">Eligible unfinished chapters (resume page / page count):</Trans></p>
+        <ul>{plan.pages.map(page => <li key={page.targetId}>{page.originalName} · {page.scanlator} · {page.page + 1} / {page.pageCount}</li>)}</ul>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={copyPages} disabled={busy || plan.pages.length > 2000} onChange={event => setCopyPages(event.target.checked)} /><Trans id="Copy eligible unfinished page positions">Copy eligible unfinished page positions</Trans></label>
+        <p><Trans id="Migration page layout warning">Only enable if you have verified that both editions have the same page layout. Matching names, scanlators and page counts do not prove identical pages. Previously visited replacements are refused.</Trans></p>
+      </div>}
       <p><Trans id="Custom categories are copied additively. Downloads, tracker links and historical timestamps stay on the original.">Custom categories are copied additively. Downloads, tracker links and historical timestamps stay on the original.</Trans></p>
       <button className="tsugi-read-action" disabled={busy} onClick={() => void run(apply)}><Trans id="Copy progress and keep original">Copy progress and keep original</Trans></button>
     </div>}

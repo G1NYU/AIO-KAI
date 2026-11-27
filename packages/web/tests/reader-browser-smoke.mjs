@@ -72,6 +72,11 @@ try {
     const replacementChapters = [{ id: 31, name: 'Chapter 1', chapterNumber: 1, isRead: false, isBookmarked: false, lastPageRead: 0, pageCount: 4 }];
     const batchTitle = { id: '4', sourceId: '67890', title: 'Batch Fixture', author: 'Tsugi', inLibrary: false, categories: { nodes: [] } };
     const state = window.__readerFixture = { requests: [], lastPath: '', serial: 0, installed: false, stores: [], progress: [], nativeMessages: [], nativeRequest: null, vaultJobs: [], vaultRequests: [], categories: [], categorySequence: 0, updateChecks: 0 };
+    state.enableMigrationPages = () => {
+      state.migrationPages = true;
+      Object.assign(chapters[0], { isRead: false, lastPageRead: 2, pageCount: 4 });
+      Object.assign(replacementChapters[0], { scanlator: 'Original', isRead: false, lastPageRead: 0, pageCount: 4 });
+    };
     const nodes = (items) => ({ nodes: items, totalCount: items.length });
     const emit = (message) => queueMicrotask(() => { for (const listener of listeners) listener(message); });
     state.emitLink = url => emit({ type: 'link', url });
@@ -190,10 +195,30 @@ try {
             const item=[manga,{id:2,sourceId:'12345',title:'ZZ Missing Fixture'},replacement,batchTitle].find(m=>Number(m.id)===a.id);
             if(!item)throw Error('Missing backup fixture');
             const hash=n=>n.toString(16).padStart(64,'0');
+            if (state.migrationPages && [1,3].includes(a.id)) {
+              const rows = a.id === 1 ? chapters : replacementChapters;
+              data = { id: a.id, identity: hash(a.id), sourceId: item.sourceId, title: item.title,
+                categories: state.categories.filter(category=>item.categories?.nodes.some(node=>node.id===category.id)).map(category=>category.name),
+                chapters: rows.map(row=>({ id: row.id, identity: hash(row.id), name: row.name, isRead: row.isRead,
+                  isBookmarked: !!row.isBookmarked, lastPageRead: row.lastPageRead, pageCount: row.pageCount, lastReadAt: '0' })) };
+              break;
+            }
             data={id:a.id,identity:hash(a.id),sourceId:item.sourceId,title:item.title,categories:state.categories.filter(category=>item.categories?.nodes.some(node=>node.id===category.id)).map(category=>category.name),chapters:a.id===1?[{id:11,identity:hash(11),name:'Chapter one',isRead:false,isBookmarked:!!state.backupBookmarked,lastPageRead:state.backupPage||0,pageCount:4,lastReadAt:'0'}]:[]};
             break;
           }
           case 'restore-manga-progress': {
+            if (state.migrationPages && a.id === 3) {
+              const change = a.changes[0], row = replacementChapters[0];
+              if (a.identity !== '3'.padStart(64,'0') || a.changes.length !== 1 ||
+                  change.identity !== '1f'.padStart(64,'0') || change.page !== 2 ||
+                  change.expectedLastPage !== 0 || change.expectedPageCount !== 4 ||
+                  change.expectedRead !== false || change.expectedLastReadAt !== '0' ||
+                  change.markRead !== false || change.bookmark !== false || row.lastPageRead !== 0)
+                throw Error('Unexpected migration page patch');
+              row.lastPageRead = change.page;
+              data = { confirmed: 1, total: 1, complete: true };
+              break;
+            }
             if(a.id!==1||a.changes.length!==1||a.changes[0].identity!=='b'.padStart(64,'0'))throw Error('Unexpected restore fixture');
             const change=a.changes[0];
             if(change.bookmark)state.backupBookmarked=true;
@@ -1391,7 +1416,7 @@ try {
   await readMedia.getByRole('button', { name: 'Movies & TV', exact: true }).click();
   await page.waitForFunction(() => window.__readerFixture.nativeMessages.some(m => m.action === 'stop'));
   console.log('PASS: simulated native music transport remains loaded through Read and Music round trip; video entry sends stop.');
-  await page.evaluate(() => { window.__readerFixture.transferEnabled = true; });
+  await page.evaluate(() => { window.__readerFixture.transferEnabled = true; window.__readerFixture.enableMigrationPages(); });
   await mediaNav.getByRole('button', { name: 'Read', exact: true }).click();
   await rail.waitFor();
   await rail.getByRole('button', { name: 'Migrate', exact: true }).click();
@@ -1400,10 +1425,16 @@ try {
   await page.getByRole('button', { name: 'Search replacement', exact: true }).click();
   await page.locator('.tsugi-transfer-workspace').getByRole('button', { name: /Tsugi Original Fixture/ }).click();
   await page.getByRole('heading', { name: 'Transfer preview', exact: true }).waitFor();
+  const migratePages = page.getByRole('checkbox', { name: 'Copy eligible unfinished page positions', exact: true });
+  assert.equal(await migratePages.isChecked(), false, 'partial-page transfer is opt-in');
+  await migratePages.check();
   await capture('10-reader-migration');
   await page.getByRole('button', { name: 'Copy progress and keep original', exact: true }).click();
   await page.getByText(/Replacement verified. Original retained/).waitFor();
   assert.ok(await page.evaluate(() => window.__readerFixture.requests.some(a => a.kind === 'set-library' && a.id === 3 && a.inLibrary)));
+  assert.ok(await page.evaluate(() => window.__readerFixture.requests.some(a => a.kind === 'restore-manga-progress' && a.id === 3 && a.changes.length === 1 && a.changes[0].page === 2)));
+  assert.equal(await page.evaluate(() => window.__readerFixture.requests.some(a => a.kind === 'restore-manga-progress' && a.id === 3 && a.changes.some(c => c.markRead))), false);
+  await page.evaluate(() => { window.__readerFixture.migrationPages = false; });
   assert.ok(await page.evaluate(()=>{const state=window.__readerFixture;const shelf=state.categories.find(row=>row.name==='Recovered shelf');return !!shelf&&state.requests.some(a=>a.kind==='assign-category'&&a.mangaId===3&&a.categoryId===shelf.id&&a.assigned);}), 'migration copies the recovered category');
   assert.equal(await page.evaluate(() => window.__readerFixture.requests.some(a => a.kind === 'set-library' && a.id === 1 && !a.inLibrary)), false);
   await rail.getByRole('button', { name: 'Batch Add', exact: true }).click();

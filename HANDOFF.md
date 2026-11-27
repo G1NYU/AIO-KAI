@@ -1,3 +1,9 @@
+## 2026-11-27 — Reviewed Reader source migration (B5)
+
+Baseline [3ce8798](https://github.com/G1NYU/TSUGI/commit/3ce8798c5783c805bd455a48c8956cda28e98fd3) passed [Unified Windows 45954004528](https://github.com/G1NYU/TSUGI/actions/runs/45954004528): 440 web tests, 220 native tests, 18 intentionally ignored; MAL and Anime Hub/first-launch browser acceptance passed. Package and release jobs were skipped.
+
+This source patch adds explicit opt-in partial-page migration with exact reviewed manga identities, source/category rechecks, unique same-name and same-scanlation chapter matches, equal known page counts, and no prior target visit/progress. The user must verify edition layout; counts alone cannot prove identical pages. It uses the existing native restore action and verifies the result while retaining the original. Isolated strict TypeScript compilation and 25 assertions passed on the planner; full web/browser/Windows checks, real runtime acceptance, MAL metadata backup inclusion, tracker delivery and tracker-binding migration remain pending. No dependency, workflow, native API or release-setting changes. Next: run cumulative CI, complete Reader tracker sync and remaining Refract gates, then quality review and a verified portable package.
+
 ## 2026-11-27 — Anime Hub integration and durable reviewed source matches
 
 [e58bf05](https://github.com/G1NYU/TSUGI/commit/e58bf054dff0648139d47dccdb9dde214d515b38) plus [d238787](https://github.com/G1NYU/TSUGI/commit/d238787f325a76990950b893a18915fe41cf27cb) passed [Unified Windows 45951375568](https://github.com/G1NYU/TSUGI/actions/runs/45951375568): 218 native tests, 18 ignored, all 40 web suites, and both explicit MAL import browser acceptance messages. Stable main and published EXE remain unchanged.

@@ -67,7 +67,7 @@ describe('missing library cover fallback', () => {
   });
 });
 
-import { batchTitles, migrationPlan } from '../src/app/read/collection-transfer-utils';
+import { batchTitles, migrationPlan, migrationPagePatches } from '../src/app/read/collection-transfer-utils';
 
 describe('collection transfer', () => {
   it('deduplicates normalized titles, preserves commas and accepts converted Mihon JSON', () => {
@@ -80,9 +80,38 @@ describe('collection transfer', () => {
   it('copies only unambiguous positive flags and retains unmatched and unfinished progress', () => {
     const old = [{ ...chapter(1, 1, 'A'), isRead: true, isBookmarked: true }, { ...chapter(2, 2, 'A'), lastPageRead: 4 }, { ...chapter(3, 3, 'A'), isRead: true }, { ...chapter(4, 4, 'A'), isRead: true }];
     const next = [chapter(11, 1, 'B'), chapter(12, 2, 'B'), chapter(13, 3, 'B'), chapter(14, 3, 'C')];
-    expect(migrationPlan(old, next)).toEqual({ matched: 2, read: [11], bookmarked: [11], partial: ['Chapter 2'], unmatched: ['Chapter 3', 'Chapter 4'] });
+    expect(migrationPlan(old, next)).toEqual({ matched: 2, read: [11], bookmarked: [11], partial: ['Chapter 2'], unmatched: ['Chapter 3', 'Chapter 4'], pages: [] });
     expect(migrationPlan(old, [{ ...next[0], isRead: true, isBookmarked: true }, ...next.slice(1)]).read).toEqual([]);
     expect(migrationPlan([{ ...old[0] }, { ...old[0], id: 22 }], [next[0]]).read).toEqual([]);
+  });
+});
+
+describe('reviewed migration page positions', () => {
+  const original = { ...chapter(1, 1, 'A'), lastPageRead: 4 };
+  const replacement = chapter(11, 1, 'A');
+  const snapshot = (row: ReadingChapter, lastReadAt = '0') => ({
+    chapters: [{ ...row, identity: String(row.id).padStart(64, '0'), isBookmarked: !!row.isBookmarked, lastReadAt }],
+  });
+  it('requires a unique, same-label, equal-size unread match with no target progress', () => {
+    const plan = migrationPlan([original], [replacement]);
+    expect(plan.pages).toEqual([{ originalId: 1, targetId: 11, originalName: 'Chapter 1', targetName: 'Chapter 1', scanlator: 'A', page: 4, pageCount: 10 }]);
+    for (const row of [{ ...replacement, scanlator: 'B' }, { ...replacement, scanlator: '' },
+      { ...replacement, name: 'Other chapter' }, { ...replacement, pageCount: 0 },
+      { ...replacement, pageCount: 11 }, { ...replacement, isRead: true }, { ...replacement, lastPageRead: 2 }])
+      expect(migrationPlan([original], [row]).pages).toEqual([]);
+    expect(migrationPlan([original], [replacement, { ...replacement, id: 12 }]).pages).toEqual([]);
+    expect(migrationPlan([{ ...original, lastPageRead: 10 }], [replacement]).pages).toEqual([]);
+  });
+  it('builds only guarded additive native patches and refuses prior visits or stale snapshots', () => {
+    const pages = migrationPlan([original], [replacement]).pages;
+    expect(migrationPagePatches(pages, snapshot(original), snapshot(replacement))).toEqual([{
+      identity: '11'.padStart(64, '0'), expectedRead: false, expectedBookmarked: false, expectedLastPage: 0,
+      expectedPageCount: 10, expectedLastReadAt: '0', markRead: false, bookmark: false, page: 4,
+    }]);
+    expect(() => migrationPagePatches(pages, snapshot(original), snapshot(replacement, '1'))).toThrow();
+    expect(() => migrationPagePatches(pages, snapshot({ ...original, lastPageRead: 5 }), snapshot(replacement))).toThrow();
+    expect(() => migrationPagePatches(pages, snapshot(original), snapshot({ ...replacement, lastPageRead: 1 }))).toThrow();
+    expect(() => migrationPagePatches([...pages, ...pages], snapshot(original), snapshot(replacement))).toThrow();
   });
 });
 
