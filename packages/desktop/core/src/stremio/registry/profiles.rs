@@ -102,6 +102,14 @@ impl Profiles {
         Some(grant)
     }
     pub(super) fn expire_all(&mut self){for profile in &mut self.profiles{profile.registry.expire();}}
+    #[cfg(any(windows,test))]
+    pub(super) fn browse_source(&self,profile_id:u32,source_id:u32)->Result<Source>{
+        if profile_id!=self.active{return Err("profile-changed");}
+        let registry=&self.profiles[self.index(profile_id)?].registry;
+        let source=if source_id==0{super::public_catalog_source()?}else{registry.sources[registry.source_index(source_id)?].clone()};
+        if !source.enabled{return Err("disabled-source");}
+        Ok(source)
+    }
     #[cfg(windows)]
     pub(super) fn refract_delivery(&self)->Option<(u32,super::refract::Delivery)>{
         let profile=&self.profiles[self.index(self.active).ok()?];
@@ -221,6 +229,17 @@ impl Profiles {
 mod tests {
     use super::*;
     fn scoped(profile_id:u32,action:Action)->Action{Action::ProfileRequest{profile_id,action:Box::new(action)}}
+    #[test]
+    fn browsing_sources_are_active_profile_scoped(){
+        let mut profiles=Profiles::default();
+        assert_eq!(profiles.browse_source(1,0).unwrap().id,0);
+        assert_eq!(profiles.browse_source(1,999).err(),Some("unknown-source"));
+        profiles.execute(Action::ProfileCreate{name:"Second".into()}).unwrap();
+        let second=profiles.sequence;
+        profiles.execute(Action::ProfileSwitch{profile_id:second}).unwrap();
+        assert_eq!(profiles.browse_source(1,0).err(),Some("profile-changed"));
+        assert_eq!(profiles.browse_source(second,0).unwrap().id,0);
+    }
     #[test]
     fn mal_anime_import_is_profile_scoped_and_survives_snapshot(){
         let mut p=Profiles::default();

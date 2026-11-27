@@ -59,3 +59,9 @@
 :root[data-host='desktop'] .tsugi-watch-board :is([data-ui='poster-card-subtitle'],[data-ui='wide-card-subtitle']){font-family:var(--tsugi-font);font-size:12px;line-height:1.4;}
 .tsugi-watch-stream-group ul{display:grid;gap:8px;}
 .tsugi-watch-stream-row{width:100%;background:transparent;}
+
+/* Unified results use the same shared poster cards and desktop type scale. */
+.tsugi-watch-search-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,128px),1fr));gap:18px;align-items:start;}
+.tsugi-watch-search-grid [data-ui='poster-card']{min-width:0;}
+.tsugi-watch-featured-art .tsugi-watch-featured-backdrop{object-fit:cover;object-position:center;}
+@media(min-width:1200px){.tsugi-watch-search-grid{grid-template-columns:repeat(auto-fill,minmax(154px,1fr));}}

@@ -299,6 +299,9 @@ pub struct CatalogItem {
     pub id: String,
     pub name: String,
     pub poster: Option<String>,
+    pub background: Option<String>,
+    pub description: Option<String>,
+    pub imdb_id: Option<String>,
 }
 pub struct CatalogPage {
     pub items: Vec<CatalogItem>,
@@ -317,10 +320,12 @@ impl CatalogPage {
             let name = row["name"].as_str()?;
             if row["type"].as_str()? != kind || !id_valid(id) || !text_valid(name, 512) ||
                 !seen.insert(id) { return None; }
-            let imdb = [row["imdb_id"].as_str(),row["imdbId"].as_str(),Some(id)].into_iter().flatten()
+            let imdb = [Some(id),row["imdb_id"].as_str(),row["imdbId"].as_str()].into_iter().flatten()
                 .find(|id|id.strip_prefix("tt").is_some_and(|digits| !digits.is_empty() && digits.len()<=12 && digits.bytes().all(|b|b.is_ascii_digit())));
             let poster=public_poster(&row["poster"]).or_else(||imdb.map(|id|format!("https://images.metahub.space/poster/medium/{id}/img")));
-            Some(CatalogItem { kind: kind.to_owned(), id: id.to_owned(), name: name.to_owned(), poster })
+            Some(CatalogItem { kind: kind.to_owned(), id: id.to_owned(), name: name.to_owned(), poster,
+                background:public_poster(&row["background"]),description:items::display(row.get("description"),4096),
+                imdb_id:imdb.map(str::to_owned) })
         }).collect();
         // Invalid/duplicate sibling rows still count toward the source offset.
         // No guessed fixed page length or cross-provider cursor.
@@ -462,6 +467,13 @@ mod tests {
         assert_eq!(page.items[0].poster.as_deref(),Some("https://image.tmdb.org/t/p/w342/abc123.jpg"));
         assert_eq!(page.items[1].poster.as_deref(),Some("https://images.metahub.space/poster/medium/tt456/img"));
         assert_eq!(page.items[2].poster.as_deref(),Some("https://images.metahub.space/poster/medium/tt789/img"));
+        let richer=CatalogPage::parse(br#"{"metas":[{"id":"tmdb:42","type":"movie","name":"Example","imdbId":"tt123","background":"https://image.tmdb.org/t/p/w780/landscape.jpg","description":"A public description"},{"id":"tt321","type":"movie","name":"Conflicting ID","imdb_id":"tt999","background":"https://private.example/image?key=secret","description":"https://private.example/?key=secret"}]}"#,"movie",0,false).unwrap();
+        assert_eq!(richer.items[0].id,"tmdb:42");
+        assert_eq!(richer.items[0].imdb_id.as_deref(),Some("tt123"));
+        assert_eq!(richer.items[0].background.as_deref(),Some("https://image.tmdb.org/t/p/w780/landscape.jpg"));
+        assert_eq!(richer.items[0].description.as_deref(),Some("A public description"));
+        assert_eq!(richer.items[1].imdb_id.as_deref(),Some("tt321"));
+        assert!(richer.items[1].background.is_none()&&richer.items[1].description.is_none());
         for raw in ["http://image.tmdb.org/t/p/w342/a.jpg","https://image.tmdb.org.example.org/t/p/w342/a.jpg","https://user:secret@image.tmdb.org/t/p/w342/a.jpg","https://image.tmdb.org:444/t/p/w342/a.jpg","https://image.tmdb.org/t/p/w342/%2Fprivate.jpg","https://images.metahub.space/poster/medium/not-imdb/img"]{
             assert!(public_poster(&json!(raw)).is_none());
         }

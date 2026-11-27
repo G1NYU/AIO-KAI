@@ -7,6 +7,7 @@ import { BackdropFrame } from '@/components/media/hero';
 import { Button } from '@aiostreams/ui/button';
 import { MediaRow } from '@/components/media/media-row';
 import { publicCinemeta, loadAddonCatalog, listWatchHistory, type AddonSource, type CatalogPage, type WatchHistoryEntry, type WatchProgress } from '@/lib/hosts/shell/stremio';
+import { rankCatalogueSearch } from '@/lib/hosts/shell/watch-search';
 import './watch-catalogue-board.css';
 
 type Item=CatalogPage['items'][number];
@@ -20,6 +21,9 @@ type Props={
   openTitle(item:Item,sourceId?:number):void;openHistory?(progress:WatchProgress):void;openAddons():void;
 };
 const BATCH=6;
+const SEARCH_BATCH=24;
+const PARALLEL=4;
+const RESULT_BATCH=48;
 const animeWord=/(^|[^a-z])(anime|mal|anilist|kitsu|crunchyroll|funimation)([^a-z]|$)/i;
 
 // The Board requests declared catalogues that can be queried without
@@ -53,11 +57,25 @@ export function catalogueTargets(sources:AddonSource[],scope:Scope,kind:Kind,que
       rows.push({key:JSON.stringify([source.sourceId,catalog.mediaType,catalog.id,extras]),source,catalog,extras});
     }
   }
+  // Search fairly across installed providers before exhausting a single
+  // addon's many catalogues. Preserve each provider's catalogue order.
+  if(query){
+    const bySource=new Map<number,Target[]>();
+    for(const target of rows){
+      const entries=bySource.get(target.source.sourceId)??[];
+      entries.push(target);bySource.set(target.source.sourceId,entries);
+    }
+    const ordered:Target[]=[];
+    for(let index=0;ordered.length<rows.length;index++)for(const entries of bySource.values())if(entries[index])ordered.push(entries[index]);
+    return ordered;
+  }
   return rows;
 }
 
-function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openAddons,includeHistory,openHistory}:Omit<Props,'sources'|'scope'> & {targets:Target[]}){
-  const [limit,setLimit]=React.useState(BATCH);
+function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openAddons,includeHistory,openHistory,search}:Omit<Props,'sources'|'scope'> & {targets:Target[];search:string}){
+  const [limit,setLimit]=React.useState(search?SEARCH_BATCH:BATCH);
+  const [resultLimit,setResultLimit]=React.useState(RESULT_BATCH);
+  const inFlight=React.useRef(new Set<string>());
   const [rows,setRows]=React.useState<Record<string,Row>>({});
   const [stopped,setStopped]=React.useState(false);
   const [history,setHistory]=React.useState<WatchHistoryEntry[]|null>(null);
@@ -68,25 +86,28 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
   React.useEffect(()=>{if(!active){setHistory(null);setHistoryFailed(false);}},[active]);
 
   async function load(target:Target,skip:number){
-    await run(async()=>{
+    if(!mounted.current||inFlight.current.has(target.key)||inFlight.current.size>=PARALLEL)return;
+    inFlight.current.add(target.key);
+    setRows(old=>({...old,[target.key]:{...old[target.key],skip,loading:true,error:false}}));
+    try{
+      const extras={...target.extras};
+      if(target.catalog.extras.some(e=>e.name==='skip')&&(skip>0||'skip' in extras))extras.skip=String(skip);
+      const page=await loadAddonCatalog(profileId,{kind:'browse-catalog',sourceId:target.source.sourceId,mediaType:target.catalog.mediaType,catalogId:target.catalog.id,extras});
       if(!mounted.current)return;
-      setRows(old=>({...old,[target.key]:{...old[target.key],skip,loading:true,error:false}}));
-      try{
-        const extras={...target.extras};
-        if(target.catalog.extras.some(e=>e.name==='skip')&&(skip>0||'skip' in extras))extras.skip=String(skip);
-        const page=await loadAddonCatalog(profileId,{kind:'catalog',sourceId:target.source.sourceId,mediaType:target.catalog.mediaType,catalogId:target.catalog.id,extras});
-        if(!mounted.current)return;
-        setRows(old=>{
-          const previous=old[target.key]?.page;
-          const repeated=skip>0&&!!previous&&page.items.length>0&&JSON.stringify(previous.items.map(i=>i.id))===JSON.stringify(page.items.map(i=>i.id));
-          return {...old,[target.key]:{page:repeated?{...page,nextSkip:null}:page,skip,repeated}};
-        });
-      }catch{if(mounted.current)setRows(old=>({...old,[target.key]:{...old[target.key],skip,loading:false,error:true}}));}
-    });
+      setRows(old=>{
+        const previous=old[target.key]?.page;
+        const ids=new Set(previous?.items.map(i=>i.id));
+        const fresh=page.items.filter(item=>!ids.has(item.id));
+        const repeated=skip>0&&!!previous&&page.items.length>0&&(search?fresh.length===0:JSON.stringify(previous.items.map(i=>i.id))===JSON.stringify(page.items.map(i=>i.id)));
+        const items=search&&skip>0&&previous?[...previous.items,...fresh]:page.items;
+        return {...old,[target.key]:{page:{...page,items,nextSkip:repeated?null:page.nextSkip},skip,repeated}};
+      });
+    }catch{if(mounted.current)setRows(old=>({...old,[target.key]:{...old[target.key],skip,loading:false,error:true}}));}
+    finally{inFlight.current.delete(target.key);}
   }
   React.useEffect(()=>{
     if(!active||paused||busy||stopped)return;
-    const next=visible.find(target=>!rows[target.key]);
+    const next=visible.filter(target=>!rows[target.key]&&!inFlight.current.has(target.key)).slice(0,Math.max(0,PARALLEL-inFlight.current.size));
     if(includeHistory&&history===null&&!historyFailed){
       const timer=window.setTimeout(()=>void run(async()=>{
         try{const result=await listWatchHistory(profileId);if(mounted.current)setHistory(result);}
@@ -94,20 +115,23 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
       }),100);
       return ()=>window.clearTimeout(timer);
     }
-    if(!next)return;
-    const timer=window.setTimeout(()=>void load(next,0),180);
+    if(!next.length)return;
+    const timer=window.setTimeout(()=>{for(const target of next)void load(target,0);},40);
     return ()=>window.clearTimeout(timer);
-  },[active,paused,busy,stopped,rows,limit,targets,includeHistory,history,historyFailed,profileId,run]);
+  },[active,paused,busy,stopped,rows,limit,targets,includeHistory,history,historyFailed,profileId,run,search]);
 
   const [heroIndex,setHeroIndex]=React.useState(0);
-  const featuredItems=visible.flatMap(target=>rows[target.key]?.page?.items.slice(0,2).map(item=>({target,item}))??[]).filter(row=>row.item.poster).slice(0,8);
+  const featuredItems=visible.flatMap(target=>rows[target.key]?.page?.items.slice(0,2).map(item=>({target,item}))??[]).filter(row=>row.item.background||row.item.poster).slice(0,8);
   const featured=featuredItems[heroIndex%Math.max(1,featuredItems.length)];
   const pending=visible.some(target=>!rows[target.key]||rows[target.key].loading);
+  const hits=search?rankCatalogueSearch(visible.flatMap(target=>(rows[target.key]?.page?.items??[]).map(item=>({item,target,sourceId:target.source.sourceId}))),search):[];
+  const loaded=visible.filter(target=>rows[target.key]?.page||rows[target.key]?.error).length;
+  const canRequest=visible.filter(target=>rows[target.key]?.loading).length<PARALLEL;
   const continuing=history?.filter(row=>!row.progress.completed&&row.progress.positionMs>0).slice(0,12)??[];
   return <>
     {includeHistory&&featured&&<section data-ui="hero" className="tsugi-watch-featured">
       <BackdropFrame className="pointer-events-none tsugi-watch-featured-art">
-        <Artwork src={featured.item.poster??null} alt="" className="tsugi-watch-featured-poster"/>
+        <Artwork src={[featured.item.background,featured.item.poster].filter((value):value is string=>!!value)} alt="" className={featured.item.background?'tsugi-watch-featured-backdrop':'tsugi-watch-featured-poster'}/>
       </BackdropFrame>
       <div className="tsugi-watch-featured-copy">
         <small><Trans>Featured</Trans> · {featured.target.catalog.name}</small>
@@ -131,24 +155,44 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
         <span>{targets.length} <Trans>catalogues</Trans></span>
         {(pending||stopped)&&<button type="button" className="tsugi-read-action" onClick={()=>setStopped(v=>!v)}>{stopped?<Trans>Continue loading</Trans>:<Trans>Pause catalogue loading</Trans>}</button>}
       </div>
-      {visible.map(target=>{
+      {search?<section className="space-y-3" data-ui="watch-search-results">
+        <div className="tsugi-watch-board-status">
+          <h3><Trans>Search results</Trans> ({hits.length})</h3>
+          <span role="status">{loaded} / {targets.length} <Trans>catalogues searched</Trans></span>
+        </div>
+        {hits.length>0?<div className="tsugi-watch-search-grid">{hits.slice(0,resultLimit).map(({key,item,target})=>
+          <PosterCard key={key} title={item.name} image={item.poster??null} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item,target.source.sourceId)}/>)}</div>:
+          <p role="status">{pending&&!stopped?<Trans>Searching catalogues…</Trans>:<Trans>No matching titles found in the loaded catalogues.</Trans>}</p>}
+        {hits.length>resultLimit&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>setResultLimit(n=>n+RESULT_BATCH)}><Trans>Show more results</Trans></button>}
+        {visible.some(target=>{const row=rows[target.key];return row?.error||row?.page?.nextSkip!=null||row?.repeated;})&&<div className="space-y-2">
+          {visible.map(target=>{
+            const row=rows[target.key];
+            if(!row||!row.error&&row.page?.nextSkip==null&&!row.repeated)return null;
+            return <div key={target.key} className="tsugi-watch-board-status">
+              <span>{target.source.manifest.name} · {target.catalog.name}</span>
+              {row.error?<><span><Trans>This catalogue is unavailable.</Trans></span><button type="button" className="tsugi-read-action" disabled={busy||!canRequest} onClick={()=>void load(target,row.skip)}><Trans>Retry</Trans></button></>:
+                row.repeated?<span><Trans id="This source repeated a page. Pagination stopped.">This source repeated a page. Pagination stopped.</Trans></span>:
+                <button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,row.page!.nextSkip!)}><Trans>More results</Trans></button>}
+            </div>;
+          })}
+        </div>}
+      </section>:visible.map(target=>{
         const row=rows[target.key];
         return <section className="tsugi-watch-shelf" key={target.key} data-ui="watch-catalogue-shelf">
-          <MediaRow id={profileId+':'+target.key} shape="poster" title={target.source.sourceId===0?(target.catalog.id==='top'?(target.catalog.mediaType==='movie'?t`Popular movies`:t`Popular series`):(target.catalog.mediaType==='movie'?t`Featured movies`:t`Featured series`)):target.catalog.name} loading={row?.loading&&!row.page} action={row?.page&&<div className="flex flex-wrap gap-2">
-              {row.skip>0&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(target,0)}><Trans>First page</Trans></button>}
-              {row.page.nextSkip!==null&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(target,row.page!.nextSkip!)}><Trans>Next page</Trans></button>}
+          <MediaRow id={profileId+':'+target.key} shape="poster" title={target.source.sourceId===0?(target.catalog.id==='top'?(target.catalog.mediaType==='movie'?t`Popular movies`:t`Popular series`):(target.catalog.mediaType==='movie'?t`Featured movies`:t`Featured series`)):target.catalog.name} loading={!!row?.loading&&!row.page||!row&&!stopped} action={row?.page&&<div className="flex flex-wrap gap-2">
+              {row.skip>0&&<button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,0)}><Trans>First page</Trans></button>}
+              {row.page.nextSkip!==null&&<button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,row.page!.nextSkip!)}><Trans>Next page</Trans></button>}
           </div>}>
             {row?.page?.items.map(item=><PosterCard key={item.id} title={item.name} image={item.poster??null} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item,target.source.sourceId)}/>)}
           </MediaRow>
           {row?.page&&row.page.items.length>0&&<small>{target.source.manifest.name} · {target.catalog.mediaType==='movie'?t`Movies`:target.catalog.mediaType==='series'?t`Series`:t`Anime`}</small>}
-          {!row?.page&&!row?.loading&&<h3>{target.catalog.name}</h3>}
           {row?.page?.items.length===0&&<p className="tsugi-watch-muted"><Trans id="No titles returned by this catalogue.">No titles returned by this catalogue.</Trans></p>}
           {row?.repeated&&<p className="tsugi-watch-muted"><Trans id="This source repeated a page. Pagination stopped.">This source repeated a page. Pagination stopped.</Trans></p>}
-          {row?.error?<div className="tsugi-watch-board-status"><p role="status"><Trans>This catalogue is unavailable.</Trans></p><button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(target,row.skip)}><Trans>Retry</Trans></button></div>:
+          {row?.error?<div className="tsugi-watch-board-status"><p role="status"><Trans>This catalogue is unavailable.</Trans></p><button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,row.skip)}><Trans>Retry</Trans></button></div>:
             row?.loading?<p role="status"><Trans>Loading catalogue…</Trans></p>:!row&&<p className="tsugi-watch-muted">{stopped?<Trans>Loading paused.</Trans>:<Trans>Waiting to load catalogue…</Trans>}</p>}
         </section>;
       })}
-      {limit<targets.length&&<button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>{setLimit(n=>n+BATCH);setStopped(false);}}><Trans>Show more catalogues</Trans> ({targets.length-limit})</button>}
+      {limit<targets.length&&<button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>{setLimit(n=>n+(search?SEARCH_BATCH:BATCH));setStopped(false);}}><Trans>Show more catalogues</Trans> ({targets.length-limit})</button>}
     </>}
   </>;
 }
@@ -170,6 +214,6 @@ export function WatchCatalogueBoard({scope='all',includeHistory=false,initialQue
       {submitted&&<button type="button" className="tsugi-read-action" disabled={props.busy} onClick={()=>{setSubmitted('');setQuery('');}}><Trans>Clear search</Trans></button>}
       <button type="button" className="tsugi-read-action" disabled={props.busy} onClick={()=>setRevision(r=>r+1)}><Trans>Refresh catalogues</Trans></button>
     </form>
-    <CatalogueRows key={JSON.stringify([props.profileId,scope,kind,submitted,revision,targets.map(row=>row.key)])} {...props} targets={targets} includeHistory={includeHistory&&!submitted}/>
+    <CatalogueRows key={JSON.stringify([props.profileId,scope,kind,submitted,revision,targets.map(row=>row.key)])} {...props} targets={targets} search={submitted} includeHistory={includeHistory&&!submitted}/>
   </section>;
 }

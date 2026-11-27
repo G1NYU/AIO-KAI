@@ -26,11 +26,11 @@ export const publicCinemeta:AddonSource={
 export interface AddonReview { reviewId: number; manifest: AddonManifest }
 export interface CatalogPage {
   sourceId: number; mediaType: string; catalogId: string;
-  items: { id: string; name: string; mediaType: string; poster?: string; description?: string }[]; sourceCount: number; nextSkip: number | null;
+  items: { id: string; name: string; mediaType: string; poster?: string; description?: string; background?: string; imdbId?: string }[]; sourceCount: number; nextSkip: number | null;
 }
 export type Mutation = { kind: 'install'; reviewId: number } | { kind: 'set-enabled'; sourceId: number; enabled: boolean }
   | { kind: 'move'; sourceId: number; position: number } | { kind: 'remove'; sourceId: number };
-export type CatalogAction = { kind: 'catalog'; sourceId: number; mediaType: string; catalogId: string; extras: Record<string,string> };
+export type CatalogAction = { kind: 'catalog' | 'browse-catalog'; sourceId: number; mediaType: string; catalogId: string; extras: Record<string,string> };
 export type ImportProvider='stremio'|'nuvio';
 type ImportAction = {kind:'import-connect';provider:ImportProvider;email:string;password:string}
   | {kind:'import-nuvio-profile';importId:number;remoteProfile:number}
@@ -185,8 +185,10 @@ export async function loadAddonCatalog(profileId:number,action:CatalogAction):Pr
   if(v.sourceId!==action.sourceId||v.catalogId!==action.catalogId||v.mediaType!==action.mediaType)return fail();
   const items=array(v.items,500,i=>{
     const row=obj(i);if(row.mediaType!==action.mediaType)return fail();
-    const poster=publicAddonPoster(row.poster);
-    return {id:str(row.id,512),name:str(row.name,512),mediaType:action.mediaType,...(poster?{poster}:{})};
+    const poster=publicAddonPoster(row.poster),background=publicAddonPoster(row.background),description=optionalDisplay(row.description,4096);
+    const id=str(row.id,512);
+    const imdbId=/^tt[0-9]{1,12}$/.test(id)?id:typeof row.imdbId==='string'&&/^tt[0-9]{1,12}$/.test(row.imdbId)?row.imdbId:undefined;
+    return {id,name:str(row.name,512),mediaType:action.mediaType,...(poster?{poster}:{}),...(background?{background}:{}),...(description?{description}:{}),...(imdbId?{imdbId}:{})};
   });
   if(new Set(items.map(i=>i.id)).size!==items.length)return fail();
   const sourceCount=integer(v.sourceCount,items.length,500);

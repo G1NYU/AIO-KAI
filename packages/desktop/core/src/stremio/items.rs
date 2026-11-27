@@ -50,7 +50,7 @@ pub(super) struct OptionSummary {
     pub url: Option<String>,
 }
 
-fn display(value: Option<&Value>, max: usize) -> Option<String> {
+pub(super) fn display(value: Option<&Value>, max: usize) -> Option<String> {
     let raw = value?.as_str()?;
     if raw.len() > max * 4 { return None; }
     let joined = raw.split_whitespace().collect::<Vec<_>>().join(" ");

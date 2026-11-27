@@ -7,6 +7,7 @@ use serde_json::{json, Value};
 use std::{collections::{BTreeMap, BTreeSet}, fmt, sync::{mpsc, Arc, Mutex}, thread, time::{Duration, Instant}};
 
 mod accounts;
+mod browse;
 mod mdblist;
 mod history;
 mod refract;
@@ -64,6 +65,8 @@ pub enum Action {
     Move { source_id: u32, position: usize },
     Remove { source_id: u32 },
     Catalog { source_id: u32, media_type: String, catalog_id: String, extras: BTreeMap<String,String> },
+    // Browsing-only reads cannot establish MAL or media review handles.
+    BrowseCatalog { source_id: u32, media_type: String, catalog_id: String, extras: BTreeMap<String,String> },
     Metadata { source_id: u32, media_type: String, item_id: String },
     ItemOptions { source_id: u32, media_type: String, video_id: String, subtitles: bool },
     AllStreamOptions { media_type: String, video_id: String },
@@ -335,12 +338,9 @@ impl Registry {
                 let source=if source_id==0{public=public_catalog_source()?;&public}else{&self.sources[self.source_index(source_id)?]};
                 if !source.enabled { return Err("disabled-source"); }
                 let page = source.endpoint.catalog(&source.manifest,&media_type,&catalog_id,&extras)?;
-                let items: Vec<_> = page.items.iter().map(|item| json!({
-                    "id":item.id,"mediaType":item.kind,"name":item.name,"poster":item.poster
-                })).collect();
+                let response=browse::catalog_response(&page,source_id,&media_type,&catalog_id);
                 if source_id!=0{self.mal_review=Some(MalCatalogReview{source_id,items:page.items.into_iter().map(|item|(item.kind,item.id,item.name)).collect(),created:Instant::now()});}
-                Ok(json!({"sourceId":source_id,"mediaType":media_type,"catalogId":catalog_id,
-                    "items":items,"sourceCount":page.source_count,"nextSkip":page.next_skip}))
+                Ok(response)
             }
             Action::Metadata { source_id,media_type,item_id } => {
                 let public;
@@ -384,18 +384,20 @@ impl Registry {
     }
 }
 
-pub struct Worker(mpsc::SyncSender<(String,Action,u64)>,Arc<Mutex<GrantSlot>>);
+pub struct Worker(mpsc::SyncSender<(String,Action,u64)>,Arc<Mutex<GrantSlot>>,mpsc::SyncSender<(String,browse::BrowseRequest)>);
 impl Worker {
     #[cfg(windows)]
     pub fn start(root: std::path::PathBuf, emit: impl Fn(Outbound) + Send + 'static) -> Self {
         let (tx,rx) = mpsc::sync_channel::<(String,Action,u64)>(2);
+        let (browse_tx,browse_rx)=mpsc::sync_channel(8);
         let slot=Arc::new(Mutex::new(GrantSlot::default()));
         let worker_slot=slot.clone();
         thread::spawn(move || {
             let mut opened = store::Store::open(&root);
             let mut delivery = refract_delivery::AutoSync::new();
+            let mut catalogues=browse::Pool::new(browse_rx);
             loop {
-                let message=match rx.recv_timeout(Duration::from_millis(500)){
+                let message=match rx.recv_timeout(Duration::from_millis(100)){
                     Ok(message)=>Some(message),
                     Err(mpsc::RecvTimeoutError::Timeout)=>None,
                     Err(mpsc::RecvTimeoutError::Disconnected)=>break,
@@ -404,6 +406,7 @@ impl Worker {
                 if let Some((request,action,generation))=message{
                     // Account-sensitive changes cancel an uncommitted lookup;
                     // once a write starts they fail busy instead of racing it.
+                    let scope_changed=browse::changes_scope(&action);
                     let permitted=delivery.permit(&action);
                     let result = if !permitted{Err("busy")}else{match &mut opened {
                         Ok((storage,profiles)) if profiles::is_mutation(&action) => {
@@ -425,12 +428,14 @@ impl Worker {
                             if slot.generation==generation{slot.grant=Some(grant);}
                         }
                     }
+                    if scope_changed&&result.is_ok(){catalogues.invalidate();}
                     let (data,error) = match result {
                         Ok(data) => (Some(data),None),
                         Err(error) => (None,Some(error.to_owned())),
                     };
                     emit(Outbound::StremioResult { request,data,error });
                 }
+                catalogues.tick(opened.as_ref().map(|(_,profiles)|profiles).map_err(|error|*error),&emit);
                 // Delivery never calls Worker::request or executes a registry
                 // action. In particular it cannot invalidate media grants.
                 if let Ok((storage,profiles))=&mut opened{
@@ -441,12 +446,21 @@ impl Worker {
             // before releasing the exclusive profile store handle.
             drop(delivery);
         });
-        Self(tx,slot)
+        Self(tx,slot,browse_tx)
     }
     pub fn request(&self, request: String, action: Action) -> bool {
         if request.is_empty()||request.len()>128||!request.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-'){return false;}
+        let action=match action{
+            Action::ProfileRequest{profile_id,action}=>match *action{
+                Action::BrowseCatalog{source_id,media_type,catalog_id,extras}=>{
+                    return self.2.try_send((request,browse::BrowseRequest{profile_id,source_id,media_type,catalog_id,extras})).is_ok();
+                }
+                other=>Action::ProfileRequest{profile_id,action:Box::new(other)},
+            },
+            other=>other,
+        };
         let Ok(mut slot)=self.1.lock() else{return false;};
-        // A newer request immediately invalidates a pending handoff, even
+        // A newer stateful request immediately invalidates a pending handoff, even
         // when the worker is occupied and the newer request cannot enqueue.
         slot.grant=None;
         let Some(generation)=slot.generation.checked_add(1) else{return false;};
@@ -489,7 +503,11 @@ mod tests {
         assert!(grant.load().url.contains("private-fixture"));
         assert_eq!(registry.execute(Action::PrepareMedia{review_id:100,option_index:0,start_ms:0}),Err("expired-review"));
         let (tx,_rx)=mpsc::sync_channel(2);
-        let worker=Worker(tx,Arc::new(Mutex::new(GrantSlot{generation:0,grant:Some(grant.clone())})));
+        let (browse_tx,browse_rx)=mpsc::sync_channel(1);
+        let worker=Worker(tx,Arc::new(Mutex::new(GrantSlot{generation:0,grant:Some(grant.clone())})),browse_tx);
+        assert!(worker.request("browse-only".into(),Action::ProfileRequest{profile_id:1,action:Box::new(Action::BrowseCatalog{source_id:0,media_type:"movie".into(),catalog_id:"top".into(),extras:BTreeMap::new()})}));
+        assert_eq!(browse_rx.try_recv().unwrap().0,"browse-only");
+        assert_eq!(worker.1.lock().unwrap().generation,0);
         assert!(worker.take_grant(grant.id()).is_some());
         assert!(worker.take_grant(grant.id()).is_none());
         worker.1.lock().unwrap().grant=Some(grant.clone());

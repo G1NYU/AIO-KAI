@@ -55,7 +55,13 @@ export function installStremioFixture(initializeStartup=true){
     }
     if(message.type!=='stremio-request')return send(message);
     const raw=message.action;f.calls.push(structuredClone(raw));
-    const emit=(data,error=null)=>queueMicrotask(()=>{for(const l of listeners)l({type:'stremio-result',request:message.request,data,error});});
+    const emit=(data,error=null)=>{
+      const sendResult=()=>{for(const l of listeners)l({type:'stremio-result',request:message.request,data,error});};
+      if(f.boardFixture&&raw.action?.kind==='browse-catalog'){
+        f.catalogPending=(f.catalogPending??0)+1;f.catalogPeak=Math.max(f.catalogPeak??0,f.catalogPending);
+        setTimeout(()=>{f.catalogPending--;sendResult();},raw.action.catalogId==='broken'?350:25);
+      }else queueMicrotask(sendResult);
+    };
     const profileState=()=>({activeProfileId:f.active,profiles:f.profiles.map(p=>({profileId:p.profileId,name:p.name,sourceCount:p.sources.length}))});
     switch(raw.kind){
       case 'profile-list':return emit(profileState());
@@ -220,6 +226,7 @@ export function installStremioFixture(initializeStartup=true){
         f.mediaGrant={id:++f.sequence,subtitles:review.subtitles,startMs:a.startMs};
         return reply({grantId:f.mediaGrant.id,subtitles:review.subtitles});
       }
+      case 'browse-catalog':
       case 'catalog':{
         if(a.sourceId===0){
           const items=f.boardFixture&&a.mediaType==='movie'&&a.catalogId==='top'?[{id:'tt90003',mediaType:'movie',name:'Public movie fixture',poster:'https://image.tmdb.org/t/p/w342/public.jpg'}]:[];
@@ -230,13 +237,19 @@ export function installStremioFixture(initializeStartup=true){
           const catalogue=source?.manifest.catalogs.find(c=>c.id===a.catalogId&&c.mediaType===a.mediaType);
           if(!catalogue)return emit(null,'unsupported-resource');
           if(a.catalogId==='broken')return emit(null,'request');
-          const items=a.mediaType==='series'?[{id:'tt90002',mediaType:'series',name:'Fixture anime series',poster:'https://image.tmdb.org/t/p/w342/anime.jpg'}]:[{id:'tt90001',mediaType:'movie',name:'Fixture cinema film',poster:'https://image.tmdb.org/t/p/w342/cinema.jpg'}];
+          const items=a.extras.search?(a.catalogId==='films'?[
+            {id:'tmdb:90001',imdbId:'tt90001',mediaType:'movie',name:'Fixture cinema film',poster:'https://image.tmdb.org/t/p/w342/cinema.jpg'},
+            {id:'local:9',mediaType:'movie',name:'Another film'}
+          ]:a.catalogId==='duplicate-search'?[
+            {id:'tt90001',mediaType:'movie',name:'Fixture cinema film'},
+            {id:'tt90005',mediaType:'movie',name:'Fixture cinema film sequel'}
+          ]:[]):a.mediaType==='series'?[{id:'tt90002',mediaType:'series',name:'Fixture anime series',poster:'https://image.tmdb.org/t/p/w342/anime.jpg'}]:[{id:'tt90001',mediaType:'movie',name:'Fixture cinema film',poster:'https://image.tmdb.org/t/p/w342/cinema.jpg',background:'https://image.tmdb.org/t/p/w780/cinema.jpg'}];
           return reply({sourceId:a.sourceId,mediaType:a.mediaType,catalogId:a.catalogId,items,sourceCount:items.length,nextSkip:null});
         }
         if(!profile.sources.some(s=>s.sourceId===a.sourceId&&s.enabled)||a.catalogId!=='search'||a.mediaType!=='movie'||a.extras.search!=='original')return emit(null,'invalid-extras');
         const skip=Number(a.extras.skip??0);
         const items=[{id:skip===0?'tt123':'tt456',name:skip===0?'First original film':'Second original film',mediaType:'movie'}];
-        profile.malReview={sourceId:a.sourceId,items};
+        if(a.kind==='catalog')profile.malReview={sourceId:a.sourceId,items};
         return reply({sourceId:a.sourceId,mediaType:'movie',catalogId:'search',items,sourceCount:1,nextSkip:skip+1});
       }
       default:return emit(null,'request');
@@ -259,8 +272,9 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       localStorage.setItem('tsugi.landscape.local-only','true');
       const addon=(sourceId,name,resources,catalogs=[],enabled=true)=>({sourceId,enabled,manifest:{id:'fixture.'+sourceId,name,version:'1.0.0',resources,configurable:false,configurationRequired:false,p2p:false,adult:false,catalogs}});
       const catalog=(id,mediaType,name,extras=[])=>({id,mediaType,name,extras});
+      const searchExtra={name:'search',required:false,options:[],optionsLimit:null};
       f.profiles[0].sources=[
-        addon(101,'Catalogue only',['catalog'],[catalog('films','movie','Popular films'),catalog('anime','series','Trending anime'),catalog('broken','movie','Unavailable catalogue')]),
+        addon(101,'Catalogue only',['catalog'],[catalog('films','movie','Popular films',[searchExtra]),catalog('anime','series','Trending anime'),catalog('broken','movie','Unavailable catalogue'),catalog('duplicate-search','movie','More films',[{...searchExtra,required:true}])]),
         addon(102,'Streaming only',['stream']),
         addon(103,'Metadata only',['meta']),
         addon(104,'Failed stream addon',['stream']),
@@ -287,6 +301,8 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.ok(heroFont.weight>=600&&heroFont.weight<=750);
     assert.equal(await watch.locator('.tsugi-watch-nav').getByRole('button',{name:/Stremio|Nuvio|Add addon/}).count(),0);
     await board.getByText('This catalogue is unavailable.',{exact:true}).waitFor();
+    assert.ok(await page.evaluate(()=>window.__stremioFixture.catalogPeak>=2));
+    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='browse-catalog')));
     assert.equal(await board.getByText('Disabled films',{exact:true}).count(),0);
     assert.equal(await watch.getByRole('heading',{name:'Installed addons',exact:true}).count(),0);
     if(screenshotDir){await mkdir(screenshotDir,{recursive:true});await page.screenshot({path:join(screenshotDir,'watch-content-board.png'),animations:'disabled'});}
@@ -349,6 +365,14 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.hover();
     await player.getByRole('button',{name:'Back',exact:true}).click();
     await player.waitFor({state:'detached'});
+    await item.getByRole('button',{name:'Close title',exact:true}).click();
+    await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Fixture cinema film');
+    await board.getByRole('button',{name:'Search',exact:true}).click();
+    const results=board.locator('[data-ui="watch-search-results"]');
+    await results.getByRole('button',{name:'Fixture cinema film sequel',exact:true}).waitFor();
+    assert.equal(await results.getByRole('button',{name:'Fixture cinema film',exact:true}).count(),1);
+    assert.equal(await results.locator('[data-ui="poster-card"]').first().getAttribute('aria-label'),'Fixture cinema film');
+    await board.getByRole('button',{name:'Clear search',exact:true}).click();
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
     const anime=watch.locator('[data-ui="mal-anime-library"]');
     await anime.locator('[data-ui="watch-catalogue-board"]').getByRole('button',{name:'Fixture anime series',exact:true}).click();
