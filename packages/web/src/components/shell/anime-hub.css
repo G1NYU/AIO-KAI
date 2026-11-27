@@ -20,7 +20,7 @@
   background:#111016;color:#f3ebe0;
 }
 .tsugi-anime-hero>.tsugi-anime-backdrop {object-position:center right;}
-.tsugi-anime-hero>.tsugi-landscape-credit {position:absolute;inset-inline-start:20px;inset-inline-end:auto;bottom:12px;max-width:calc(100% - 150px);z-index:2;display:flex;flex-wrap:wrap;gap:6px;align-items:center;color:#f3ebe0;font-size:.75rem;}
+:root[data-host='desktop'] .tsugi-anime-hero>.tsugi-landscape-credit {position:absolute;inset-inline-start:20px;inset-inline-end:172px;bottom:12px;width:max-content;max-width:calc(100% - 192px);box-sizing:border-box;z-index:2;display:flex;flex-wrap:wrap;gap:6px;align-items:center;color:#f3ebe0;font-size:.75rem;}
 .tsugi-anime-hero>.tsugi-landscape-credit button {background:#141015dd;color:#f3ebe0;padding:5px 8px;border-radius:6px;}
 .tsugi-anime-hero::before {
   content:'';position:absolute;inset:0;z-index:-1;
@@ -35,7 +35,7 @@
   padding:10px 18px;border-radius:var(--tsugi-radius-art,12px);background:#d95540;color:#fff9f4;min-height:44px;font-weight:600;
 }
 .tsugi-anime-hero .tsugi-read-action { background:#151119b8;color:#f3ebe0;border-color:#ffffff38; }
-.tsugi-anime-hero-controls {position:absolute;right:16px;bottom:14px;display:flex;align-items:center;gap:10px;font-size:.78rem;}
+.tsugi-anime-hero-controls {position:absolute;inset-inline-end:16px;bottom:14px;z-index:3;display:flex;align-items:center;gap:10px;font-size:.78rem;}
 .tsugi-anime-hero-controls button {width:34px;height:34px;border:1px solid #f3ebe044;border-radius:50%;background:#141015bc;color:#f3ebe0;font-size:1.3rem;}
 .tsugi-anime-shelf {display:grid;gap:10px;min-width:0;}
 .tsugi-anime-shelf h3,.tsugi-anime-discovery h2,.tsugi-anime-hub [data-mal-kind='anime'] h2 {
@@ -73,7 +73,7 @@
   .tsugi-anime-hero {min-height:310px;align-items:flex-end;}
   .tsugi-anime-hero::before {background:linear-gradient(0deg,#110d13fa 10%,#110d13c9 65%,#110d1333),linear-gradient(90deg,#110d13aa,transparent);}
   .tsugi-anime-hero-copy {width:100%;padding:20px 18px 96px;}
-  .tsugi-anime-hero>.tsugi-landscape-credit {bottom:50px;max-width:calc(100% - 40px);}
+  :root[data-host='desktop'] .tsugi-anime-hero>.tsugi-landscape-credit {inset-inline-end:20px;bottom:60px;max-width:calc(100% - 40px);}
   .tsugi-anime-nav {gap:4px 12px;}
   .tsugi-anime-grid {grid-template-columns:repeat(auto-fill,minmax(min(100%,180px),1fr));}
 }

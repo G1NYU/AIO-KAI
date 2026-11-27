@@ -944,6 +944,11 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await hero.getByRole('button',{name:'Next bundled illustration',exact:true}).click();
     assert.equal(await fallback.getAttribute('src'),'/design/anime/art-neon.webp');
     await hero.getByRole('button',{name:'Previous bundled illustration',exact:true}).click();
+    assert.equal(await fallback.getAttribute('src'),'/design/anime/hero-kagezora.webp');
+    const creditBounds=await hero.locator('[data-ui="landscape-artwork-controls"]').boundingBox();
+    const carouselBounds=await hero.locator('.tsugi-anime-hero-controls').boundingBox();
+    assert.ok(creditBounds&&carouselBounds,'Anime hero controls are visible');
+    assert.ok(creditBounds.x+creditBounds.width<=carouselBounds.x||creditBounds.y+creditBounds.height<=carouselBounds.y,'Artwork attribution must not overlap carousel controls');
     await anime.locator('[data-ui="anime-connection-shortcuts"]').getByRole('button',{name:/MyAnimeList/}).waitFor();
     const malFile=animePanel.getByLabel('Choose MyAnimeList export',{exact:true});
     const malPreview=animePanel.locator('[data-ui="mal-import-preview"]');
