@@ -206,3 +206,8 @@
 :root[data-host='desktop'] .tsugi-direct-watch:has(.tsugi-watch-shared-rail)>div>header:first-child{display:none}
 :root[data-host='desktop'] .tsugi-watch-picker{min-height:calc(100dvh - 110px)}
 .tsugi-watch-title-hero .tsugi-watch-title-copy{max-width:min(760px,100%)}
+
+/* Episode status sits on the artwork rather than displacing the synopsis. */
+.tsugi-watch-episode-rating{position:absolute;bottom:7px;left:7px;padding:3px 6px;border-radius:5px;background:#101015d9;color:#fff;font-size:11px;font-weight:650;z-index:1}
+.tsugi-watch-episode-progress{position:absolute;bottom:0;left:0;height:3px;background:var(--tsugi-accent);z-index:2}
+.tsugi-watch-episode-action{flex:none;color:var(--tsugi-muted);font-size:12px;font-weight:600}

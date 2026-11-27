@@ -7,7 +7,7 @@ import { BackdropFrame } from '@/components/media/hero';
 import { Button } from '@aiostreams/ui/button';
 import { MediaRow } from '@/components/media/media-row';
 import { publicCinemeta, loadAddonCatalog, listWatchHistory, searchTmdb, loadTmdbTitle, type TmdbTitle, type AddonSource, type CatalogPage, type WatchHistoryEntry, type WatchProgress } from '@/lib/hosts/shell/stremio';
-import { rankCatalogueSearch } from '@/lib/hosts/shell/watch-search';
+import { rankCatalogueSearch, searchAliasTargets } from '@/lib/hosts/shell/watch-search';
 import './watch-catalogue-board.css';
 import { useResumeArtwork } from '@/lib/hosts/shell/watch-artwork';
 
@@ -66,6 +66,7 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
   const [resultLimit,setResultLimit]=React.useState(RESULT_BATCH);
   const [tmdb,setTmdb]=React.useState<Item[]>([]);
   const [tmdbPending,setTmdbPending]=React.useState(!!search);
+  const checkedAliases=React.useRef(new Set<string>());
   const [featuredMetadata,setFeaturedMetadata]=React.useState<TmdbTitle|null>(null);
   const inFlight=React.useRef(new Set<string>());
   const [rows,setRows]=React.useState<Record<string,Row>>({});
@@ -118,6 +119,18 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
   const featured=featuredItems[heroIndex%Math.max(1,featuredItems.length)];
   const featuredId=featured?.item.id,featuredType=featured?.item.mediaType;
   React.useEffect(()=>{setFeaturedMetadata(null);if(!active||paused||!featuredId||!featuredType)return;let current=true;void loadTmdbTitle(profileId,featuredType,featuredId).then(item=>{if(current)setFeaturedMetadata(item);}).catch(()=>{});return ()=>{current=false;};},[profileId,active,paused,featuredId,featuredType]);
+  React.useEffect(()=>{
+    if(!search||!active||paused)return;
+    const addonItems=Object.values(rows).flatMap(row=>row.page?.items??[]);
+    for(const item of searchAliasTargets(tmdb,addonItems)){
+      if(checkedAliases.current.has(item.id)||checkedAliases.current.size>=4)continue;
+      checkedAliases.current.add(item.id);
+      void loadTmdbTitle(profileId,item.mediaType,item.id).then(metadata=>{
+        if(!mounted.current||metadata.id!==item.id||!metadata.imdbId)return;
+        setTmdb(old=>old.map(row=>row.id===item.id?{...row,imdbId:metadata.imdbId,identities:metadata.identities,poster:row.poster??metadata.poster,background:row.background??metadata.background,logo:metadata.logo}:row));
+      }).catch(()=>{});
+    }
+  },[profileId,search,active,paused,tmdb,rows]);
   const pending=visible.some(target=>!rows[target.key]||rows[target.key].loading);
   const hits=search?rankCatalogueSearch<{sourceId?:number}>([
     ...visible.flatMap(target=>(rows[target.key]?.page?.items??[]).map(item=>({item,target:{sourceId:target.source.sourceId},sourceId:target.source.sourceId}))),

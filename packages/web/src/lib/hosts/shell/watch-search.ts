@@ -30,6 +30,14 @@ function identities(item:Item,sourceId:number){
   if(!values.size)values.set('local',JSON.stringify([sourceId,item.id]));
   return {kind,values};
 }
+/** Query only overlapping TMDB titles for explicit cross-provider identity.
+ * Similar spellings alone are never enough to merge two distinct works. */
+export function searchAliasTargets(tmdb:Item[],addons:Item[]){
+  return tmdb.filter(item=>!imdbIdentity(item)&&addons.some(addon=>{
+    const a=identities(addon,1),b=identities(item,0);
+    return a.kind===b.kind&&a.values.has('imdb')&&!a.values.has('tmdb')&&normalized(addon.name)===normalized(item.name);
+  })).slice(0,4);
+}
 /** Reconcile exact aliases only. Preserve selected route and provider order;
  * never merge conflicts or simply titles with the same spelling. */
 export function rankCatalogueSearch<T>(candidates:Candidate<T>[],query:string){

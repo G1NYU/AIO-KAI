@@ -92,6 +92,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const [details,setDetails]=React.useState<AddonMetadata|null>(null);
   const [cinema,setCinema]=React.useState<TmdbTitle|null>(null);
   const [seasonArt,setSeasonArt]=React.useState<TmdbEpisode[]>([]);
+  const [episodeHistory,setEpisodeHistory]=React.useState<{profileId:number;entries:WatchHistoryEntry[]}|null>(null);
   const [videoId,setVideoId]=React.useState('');
   const [seasonChoice,setSeasonChoice]=React.useState<string|null>(null);
   const [sourceOpen,setSourceOpen]=React.useState(false);
@@ -466,6 +467,16 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const cinemaId=cinema?.tmdbId,cinemaRuntime=cinema?.runtime;
   React.useEffect(()=>{setSeasonArt([]);if(profileId===undefined||!cinemaId||cinema?.mediaType!=='series'||!/^\d+$/.test(selectedSeason))return;let current=true;void loadTmdbSeason(profileId,cinemaId,Number(selectedSeason)).then(items=>{if(current)setSeasonArt(items);}).catch(()=>{});return ()=>{current=false;};},[profileId,cinemaId,cinema?.mediaType,selectedSeason]);
   const seasonVideos=videos.filter(v=>seasonOf(v)===selectedSeason).sort((a,b)=>(a.episode??Number.MAX_SAFE_INTEGER)-(b.episode??Number.MAX_SAFE_INTEGER));
+  React.useEffect(()=>{
+    if(profileId===undefined||!titleKey||!historyActive||sourceOpen)return;
+    let current=true;
+    void listWatchHistory(profileId).then(entries=>{if(current)setEpisodeHistory({profileId,entries});}).catch(()=>{});
+    return ()=>{current=false;};
+  },[profileId,titleKey,historyActive,sourceOpen,returnedPlayback]);
+  function episodeProgress(video:AddonVideo){
+    if(!title||episodeHistory?.profileId!==profileId)return undefined;
+    return episodeHistory.entries.find(({progress})=>progress.itemId===title.id&&progress.mediaType===title.mediaType&&progress.videoId===video.id)?.progress;
+  }
   if(workspace&&!entered)return <section className="tsugi-watch-picker" data-ui="watch-profile-picker" aria-labelledby={titleId}>
     <div className="tsugi-watch-picker-art" aria-hidden="true" style={{'--tsugi-watch-art':"url('/design/shared/hero-neon.webp')"} as React.CSSProperties}/>
     <div className="tsugi-watch-picker-content">
@@ -714,11 +725,11 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
             {seasons.map(s=><option key={s} value={s}>{s==='other'?t`Other episodes`:s==='0'?t`Specials (season 0)`:t`Season ${s}`}</option>)}
           </select>
         </div>
-        <div className="tsugi-watch-episode-list">{seasonVideos.map(video=>{const match=seasonArt.filter(episode=>episode.episode===video.episode);const art=match.length===1?match[0]:undefined;const episodeRuntime=art?.runtime;return <button key={video.id} type="button" className="tsugi-read-action tsugi-watch-episode" data-video-id={video.id} aria-current={videoId===video.id?'true':undefined} disabled={busy} onClick={()=>selectVideo(video.id)}>
+        <div className="tsugi-watch-episode-list">{seasonVideos.map(video=>{const match=seasonArt.filter(episode=>episode.episode===video.episode);const art=match.length===1?match[0]:undefined;const episodeRuntime=art?.runtime,progress=episodeProgress(video);return <button key={video.id} type="button" className="tsugi-read-action tsugi-watch-episode" data-video-id={video.id} aria-current={videoId===video.id?'true':undefined} disabled={busy} onClick={()=>selectVideo(video.id)}>
           {video.episode!==null&&<span className="tsugi-watch-muted tabular-nums">{String(video.episode).padStart(2,'0')}</span>}
-          <span className="tsugi-watch-episode-art" aria-hidden="true"><Artwork src={[art?.thumbnail,video.thumbnail,cinema?.background,details?.background].filter((value):value is string=>!!value)} alt=""/></span>
+          <span className="tsugi-watch-episode-art" aria-hidden="true"><Artwork src={[art?.thumbnail,video.thumbnail,cinema?.background,details?.background].filter((value):value is string=>!!value)} alt=""/>{art?.tmdbRating!==undefined&&<span className="tsugi-watch-episode-rating">★ {art.tmdbRating.toFixed(1)}</span>}{progress&&progress.durationMs>0&&<span className="tsugi-watch-episode-progress" style={{width:Math.min(100,100*progress.positionMs/progress.durationMs)+'%'}}/>}</span>
           <span className="min-w-0 flex-1 break-words"><strong>{video.name}</strong>{(video.description||art?.description)&&<span className="block tsugi-watch-muted line-clamp-2 text-sm">{video.description??art?.description}</span>}{art?.runtime&&<small className="tsugi-watch-muted"><Trans>{episodeRuntime} min</Trans></small>}</span>
-          <span className="ms-auto"><Trans>Watch</Trans></span>
+          <span className="ms-auto tsugi-watch-episode-action">{progress?.completed?<Trans>Watched</Trans>:progress&&progress.positionMs>0?<Trans>Continue</Trans>:<Trans>Watch</Trans>}</span>
         </button>})}</div>
       </section>}
       {!videoId&&!videos.length&&<p><Trans>Select a video from a compatible metadata addon before requesting streams.</Trans></p>}
