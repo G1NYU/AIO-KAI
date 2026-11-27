@@ -12,7 +12,7 @@
 .tsugi-watch-picker-art {
   position:absolute; inset:0; z-index:-1;
   background:linear-gradient(180deg,color-mix(in srgb,var(--tsugi-canvas) 55%,transparent),var(--tsugi-canvas)),
-    url('/design/shared/hero-neon.webp') center 44%/cover;
+    var(--tsugi-watch-art) center 44%/cover;
 }
 .tsugi-watch-picker-content { width:100%; padding:48px 24px; text-align:center; }
 .tsugi-watch-picker h3 { font-size:clamp(1.6rem,4vw,2.8rem); font-weight:650; margin:24px 0 8px; color:var(--tsugi-ink); }
@@ -44,7 +44,7 @@
 .tsugi-watch-workspace-banner {
   grid-column:1/-1; min-height:180px; padding:24px; display:flex; align-items:flex-end;
   border-radius:var(--tsugi-radius-panel);
-  background:linear-gradient(90deg,var(--tsugi-canvas),color-mix(in srgb,var(--tsugi-canvas) 32%,transparent)),url('/design/shared/hero-train.webp') center/cover;
+  background:linear-gradient(90deg,var(--tsugi-canvas),color-mix(in srgb,var(--tsugi-canvas) 32%,transparent)),var(--tsugi-watch-art) center/cover;
 }
 .tsugi-watch-workspace-banner h3 { font-size:clamp(1.5rem,3vw,2rem); margin:8px 0; }
 .tsugi-watch-workspace-banner .tsugi-read-action { flex:none; }

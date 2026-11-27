@@ -240,3 +240,6 @@ Extract the complete inner ZIP into a new writable folder, retain the working in
 Mihon supports the documented reconstruction fields; it does not import account credentials, source preferences, extension code, absent local media or reading durations. A user-approved physical backup import remains pending. Discord presence is implemented, default off and scoped by media/privacy settings; live acceptance requires a registered public TSUGI Application ID and a running Discord client.
 
 Continue the reliability/recovery roadmap while the user tests the candidate; see [ROADMAP.md](ROADMAP.md). D1 (Books/Manga YouTube AI-story catalogue), D2 (TorBox cached music discovery exposed through an Eclipse JSON source), D3 (anime introduction), D4 (direct Stremio addons) and D5 (Refract/MDBList) remain later work, not implemented features. Their investigation notes, scope and API limitations remain in the roadmap.
+
+## 2026-11-27 — Watch workspace browser build repair
+- 48bf3cf Windows native checks passed (45939080231); browser smoke could not load the bundle because the CSS loader tried resolving absolute public artwork URLs as modules. Move artwork references into runtime custom properties, preserving gradients and the existing public assets. Re-run browser smoke before considering packaging.

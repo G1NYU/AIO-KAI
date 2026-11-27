@@ -164,7 +164,7 @@ export function StremioAddonSettings({workspace=false}:{workspace?:boolean}={}){
     if(previous)await run(async()=>{await cancelAddonReview(previous.profileId,previous.reviewId);});
   }
   if(workspace&&!entered)return <section className="tsugi-watch-picker" data-ui="watch-profile-picker" aria-labelledby={titleId}>
-    <div className="tsugi-watch-picker-art" aria-hidden="true"/>
+    <div className="tsugi-watch-picker-art" aria-hidden="true" style={{'--tsugi-watch-art':"url('/design/shared/hero-neon.webp')"} as React.CSSProperties}/>
     <div className="tsugi-watch-picker-content">
       <TsugiBrand />
       <h3 id={titleId}><Trans>Who’s watching?</Trans></h3>
@@ -193,7 +193,7 @@ export function StremioAddonSettings({workspace=false}:{workspace?:boolean}={}){
   </section>;
   const show=(...panes:WatchPane[])=>!workspace||panes.includes(pane);
   return <section className={workspace?'tsugi-app-general tsugi-watch-workspace':'tsugi-app-general'} data-ui="stremio-addon-settings" aria-labelledby={titleId}>
-    {workspace&&<header className="tsugi-watch-workspace-banner">
+    {workspace&&<header className="tsugi-watch-workspace-banner" style={{'--tsugi-watch-art':"url('/design/shared/hero-train.webp')"} as React.CSSProperties}>
       <div><TsugiBrand/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}><Trans>Your addon stack.</Trans></h3><p><Trans>Bring your sources home.</Trans></p></div>
       <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void backToProfiles()}><TsugiIcon name="people" aria-hidden/> <Trans>Switch profile</Trans></button>
     </header>}
