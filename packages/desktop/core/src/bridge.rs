@@ -363,6 +363,7 @@ pub enum Inbound {
     SoundcloudSearch { request: String, query: String },
     SoundcloudCancel { request: String },
     TorboxRequest { request: String, operation: String, value: String },
+    StremioRequest { request: String, action: crate::stremio::registry::Action },
     ReadRequest {
         request: String,
         action: ReadAction,
@@ -522,6 +523,8 @@ pub fn parse(body: &str) -> Option<Inbound> {
     if REFUSED.lock().is_ok_and(|mut r| r.insert(kind.clone())) {
         if kind == "backup-request" {
             log::warn!("ignored a malformed managed backup request");
+        } else if kind == "stremio-request" {
+            log::warn!("ignored a malformed Stremio addon request");
         } else if error.starts_with("unknown variant") {
             log::warn!("ignored {kind} messages, which this version doesn't know");
         } else {
@@ -615,6 +618,7 @@ pub enum Outbound {
     },
     SoundcloudSearchResult { request: String, tracks: Vec<Value>, complete: bool, error: Option<String> },
     TorboxResult { request: String, data: Option<Value>, error: Option<String> },
+    StremioResult { request: String, data: Option<Value>, error: Option<String> },
     BackupResult { request: String, data: Option<Value>, error: Option<String> },
     TsugiReleaseResult { request: String, data: Option<Value>, error: Option<String> },
     ReadResult {

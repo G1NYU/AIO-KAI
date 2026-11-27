@@ -7,6 +7,8 @@ use serde_json::Value;
 use std::{collections::{BTreeMap, BTreeSet}, io::Read, time::Duration};
 use url::{Host, Url};
 
+pub mod registry;
+
 const MAX_URL: usize = 16 * 1024;
 const MANIFEST_LIMIT: usize = 512 * 1024;
 const CATALOG_LIMIT: usize = 2 * 1024 * 1024;
@@ -384,6 +386,27 @@ mod tests {
         assert_eq!(CatalogPage::parse(&bytes,"movie",40,false).unwrap().next_skip,None);
         assert_eq!(CatalogPage::parse(br#"{"metas":[]}"#,"movie",45,true).unwrap().next_skip,None);
         assert_eq!(CatalogPage::parse(&bytes,"movie",MAX_SKIP,true).unwrap().next_skip,None);
+    }
+    #[test]
+    fn actual_http_fetch_is_bounded_and_does_not_follow_redirects() {
+        let (base, server) = crate::test_http::response(200, "application/json", b"{}".to_vec());
+        let url = Url::parse(&format!("{base}config/manifest.json?key=fixture")).unwrap();
+        assert_eq!(fetch(&url, 2).unwrap(),b"{}");
+        let sent = server.join().unwrap();
+        assert!(sent.starts_with("GET /config/manifest.json?key=fixture "));
+        assert!(sent.to_ascii_lowercase().contains("accept: application/json"));
+        for (status,expected) in [(403,"auth"),(429,"rate"),(500,"request")] {
+            let (base,server) = crate::test_http::response(status,"application/json",b"{}".to_vec());
+            assert_eq!(fetch(&Url::parse(&base).unwrap(),32),Err(expected));
+            server.join().unwrap();
+        }
+        let (base,server) = crate::test_http::response(200,"application/json",b"12345".to_vec());
+        assert_eq!(fetch(&Url::parse(&base).unwrap(),4),Err("response-limit"));
+        server.join().unwrap();
+        let (base,server) = crate::test_http::response_with_headers(302,"text/plain",Vec::new(),
+            "Location: https://example.invalid/private\r\n".into(),||{});
+        assert_eq!(fetch(&Url::parse(&base).unwrap(),32),Err("request"));
+        server.join().unwrap();
     }
     #[test]
     fn response_and_manifest_bounds_reject_malformed_payloads() {

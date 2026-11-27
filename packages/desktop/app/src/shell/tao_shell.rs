@@ -258,6 +258,12 @@ pub fn run(app: App) {
     let release_root = if backup_root.is_some() && cfg!(target_arch = "x86_64") { crate::portable_root() } else { None };
     #[cfg(windows)]
     let release_busy = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    // The same exact bundled Windows origin gate as managed backups.
+    #[cfg(windows)]
+    let stremio = backup_root.as_ref().map(|_| Rc::new(aiostreams_desktop_core::stremio::registry::Worker::start({
+        let proxy = proxy.clone();
+        move |message| { let _ = proxy.send_event(UserEvent::Emit(receive_script(&message))); }
+    })));
     let torbox = Rc::new(aiostreams_desktop_core::torbox::Worker::start({
         let proxy = proxy.clone();
         move |message| { let _ = proxy.send_event(UserEvent::Emit(receive_script(&message))); }
@@ -339,6 +345,8 @@ pub fn run(app: App) {
             let downloads = downloads.clone();
             let torbox = torbox.clone();
             #[cfg(windows)]
+            let stremio = stremio.clone();
+            #[cfg(windows)]
             let reading = reading.clone();
             #[cfg(windows)]
             let (backup_root, backup_busy) = (backup_root.clone(), backup_busy.clone());
@@ -366,6 +374,17 @@ pub fn run(app: App) {
                     };
                     #[cfg(windows)]
                     let message = match message {
+                        bridge::Inbound::StremioRequest { request, action } => {
+                            let error = match &stremio {
+                                Some(worker) => {
+                                    if worker.request(request.clone(), action) { return; }
+                                    "busy"
+                                },
+                                None => "unsupported",
+                            };
+                            send(UserEvent::Emit(receive_script(&Outbound::StremioResult { request, data:None,error:Some(error.into()) })));
+                            return;
+                        }
                         bridge::Inbound::TsugiReleaseCheck { request } => {
                             use std::sync::atomic::Ordering;
                             if request.is_empty() || request.len() > 128 || !request.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') { return; }

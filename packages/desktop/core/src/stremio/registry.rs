@@ -1,0 +1,258 @@
+//! Native-only, session-scoped registry. The trusted bundled page can review
+//! a configured endpoint, then install that exact reviewed manifest. No disk
+//! credential store or background network activity is introduced here.
+use super::{Endpoint, Manifest, Declaration, Result};
+use crate::bridge::Outbound;
+use serde::Deserialize;
+use serde_json::{json, Value};
+use std::{collections::{BTreeMap, BTreeSet}, fmt, sync::mpsc, thread, time::{Duration, Instant}};
+
+const MAX_SOURCES: usize = 16;
+const REVIEW_TTL: Duration = Duration::from_secs(300);
+
+#[derive(Deserialize)]
+#[serde(tag="kind", rename_all="kebab-case", rename_all_fields="camelCase", deny_unknown_fields)]
+pub enum Action {
+    List,
+    Review { url: String },
+    Install { review_id: u32 },
+    CancelReview { review_id: u32 },
+    SetEnabled { source_id: u32, enabled: bool },
+    Move { source_id: u32, position: usize },
+    Remove { source_id: u32 },
+    Catalog { source_id: u32, media_type: String, catalog_id: String, extras: BTreeMap<String,String> },
+}
+impl fmt::Debug for Action {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Inbound's derived Debug must never print private URLs or filters.
+        f.write_str("StremioAction(<redacted>)")
+    }
+}
+
+struct Reviewed {
+    id: u32,
+    endpoint: Endpoint,
+    manifest: Manifest,
+    created: Instant,
+}
+struct Source {
+    id: u32,
+    endpoint: Endpoint,
+    manifest: Manifest,
+    enabled: bool,
+}
+
+#[derive(Default)]
+struct Registry {
+    sequence: u32,
+    sources: Vec<Source>,
+    pending: Option<Reviewed>,
+}
+
+/// Only bounded display fields and declared capabilities cross the bridge.
+/// No configured endpoint, logo, raw manifest, config fields or headers.
+fn summary(manifest: &Manifest) -> Value {
+    let resources: BTreeSet<&str> = manifest.resources.iter().map(|r| match r {
+        Declaration::Name(name) | Declaration::Detailed { name, .. } => name.as_str(),
+    }).filter(|name| matches!(*name,"catalog"|"meta"|"stream"|"subtitles")).collect();
+    let catalogs: Vec<_> = manifest.declared_catalogs().map(|catalog| {
+        let extras: Vec<_> = catalog.extra.iter().map(|extra| json!({
+            "name":extra.name,"required":extra.is_required,"options":extra.options,"optionsLimit":extra.options_limit
+        })).collect();
+        json!({"id":catalog.id,"mediaType":catalog.kind,"name":catalog.name,"extras":extras})
+    }).collect();
+    json!({
+        "id":manifest.id,"name":manifest.name,"version":manifest.version,
+        "resources":resources,"catalogs":catalogs,"configurable":manifest.behavior_hints.configurable,
+        "configurationRequired":manifest.behavior_hints.configuration_required,
+        "p2p":manifest.behavior_hints.p2p,"adult":manifest.behavior_hints.adult
+    })
+}
+
+impl Registry {
+    fn list(&self) -> Value {
+        let sources: Vec<_> = self.sources.iter().map(|source| json!({
+            "sourceId":source.id,"enabled":source.enabled,"manifest":summary(&source.manifest)
+        })).collect();
+        json!({"sources":sources})
+    }
+    fn expire(&mut self) {
+        if self.pending.as_ref().is_some_and(|p| p.created.elapsed() >= REVIEW_TTL) { self.pending = None; }
+    }
+    fn check_endpoint(&self, endpoint: &Endpoint) -> Result<()> {
+        if self.sources.len() >= MAX_SOURCES { return Err("source-limit"); }
+        if self.sources.iter().any(|s| s.endpoint.0 == endpoint.0) { return Err("duplicate"); }
+        Ok(())
+    }
+    fn stage(&mut self, endpoint: Endpoint, manifest: Manifest) -> Result<Value> {
+        self.check_endpoint(&endpoint)?;
+        self.sequence = self.sequence.checked_add(1).ok_or("source-limit")?;
+        let id = self.sequence;
+        let data = json!({"reviewId":id,"manifest":summary(&manifest)});
+        self.pending = Some(Reviewed { id, endpoint, manifest, created:Instant::now() });
+        Ok(data)
+    }
+    fn source_index(&self, id: u32) -> Result<usize> {
+        self.sources.iter().position(|source| source.id == id).ok_or("unknown-source")
+    }
+    fn execute(&mut self, action: Action) -> Result<Value> {
+        self.expire();
+        match action {
+            Action::List => Ok(self.list()),
+            Action::Review { url } => {
+                // A replacement review invalidates the previous capability
+                // before making any request. Failure cannot install stale data.
+                self.pending = None;
+                let endpoint = Endpoint::parse(&url)?;
+                self.check_endpoint(&endpoint)?;
+                let manifest = endpoint.manifest()?;
+                self.stage(endpoint,manifest)
+            }
+            Action::Install { review_id } => {
+                let pending = self.pending.as_ref().filter(|r| r.id == review_id).ok_or("expired-review")?;
+                if pending.manifest.behavior_hints.configuration_required { return Err("configuration-required"); }
+                self.check_endpoint(&pending.endpoint)?;
+                let reviewed = self.pending.take().ok_or("expired-review")?;
+                self.sources.push(Source { id:reviewed.id, endpoint:reviewed.endpoint, manifest:reviewed.manifest, enabled:true });
+                Ok(self.list())
+            }
+            Action::CancelReview { review_id } => {
+                let cancelled = self.pending.as_ref().is_some_and(|r| r.id == review_id);
+                if cancelled { self.pending = None; }
+                Ok(json!({"cancelled":cancelled}))
+            }
+            Action::SetEnabled { source_id, enabled } => {
+                let index = self.source_index(source_id)?;
+                self.sources[index].enabled = enabled;
+                Ok(self.list())
+            }
+            Action::Move { source_id, position } => {
+                let index = self.source_index(source_id)?;
+                if position >= self.sources.len() { return Err("invalid-position"); }
+                let source = self.sources.remove(index);
+                self.sources.insert(position,source);
+                Ok(self.list())
+            }
+            Action::Remove { source_id } => {
+                let index = self.source_index(source_id)?;
+                self.sources.remove(index);
+                Ok(self.list())
+            }
+            Action::Catalog { source_id, media_type, catalog_id, extras } => {
+                let source = &self.sources[self.source_index(source_id)?];
+                if !source.enabled { return Err("disabled-source"); }
+                let page = source.endpoint.catalog(&source.manifest,&media_type,&catalog_id,&extras)?;
+                let items: Vec<_> = page.items.iter().map(|item| json!({
+                    "id":item.id,"mediaType":item.kind,"name":item.name
+                })).collect();
+                Ok(json!({"sourceId":source_id,"mediaType":media_type,"catalogId":catalog_id,
+                    "items":items,"sourceCount":page.source_count,"nextSkip":page.next_skip}))
+            }
+        }
+    }
+}
+
+pub struct Worker(mpsc::SyncSender<(String,Action)>);
+impl Worker {
+    pub fn start(emit: impl Fn(Outbound) + Send + 'static) -> Self {
+        let (tx,rx) = mpsc::sync_channel::<(String,Action)>(2);
+        thread::spawn(move || {
+            let mut registry = Registry::default();
+            while let Ok((request,action)) = rx.recv() {
+                let (data,error) = match registry.execute(action) {
+                    Ok(data) => (Some(data),None),
+                    Err(error) => (None,Some(error.to_owned())),
+                };
+                emit(Outbound::StremioResult { request,data,error });
+            }
+        });
+        Self(tx)
+    }
+    pub fn request(&self, request: String, action: Action) -> bool {
+        !request.is_empty() && request.len() <= 128 &&
+            request.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') &&
+            self.0.try_send((request,action)).is_ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn manifest() -> Manifest {
+        Manifest::parse(br#"{"id":"org.fixture","name":"Fixture","version":"1.0.0","types":["movie"],"resources":["catalog","stream","player"],"catalogs":[{"type":"movie","id":"top","name":"Top","extra":[{"name":"skip"}]}]}"#).unwrap()
+    }
+    fn stage(registry: &mut Registry, suffix: &str) -> u32 {
+        let endpoint = Endpoint::parse(&format!("https://example.org/{suffix}/manifest.json?key=private-fixture")).unwrap();
+        let result = registry.stage(endpoint,manifest()).unwrap();
+        assert!(!result.to_string().contains("private-fixture"));
+        result["reviewId"].as_u64().unwrap() as u32
+    }
+    #[test]
+    fn review_is_one_use_explicit_and_never_returns_configured_url() {
+        let mut registry = Registry::default();
+        let id = stage(&mut registry,"one");
+        assert_eq!(registry.list()["sources"],json!([]));
+        assert_eq!(registry.execute(Action::Install { review_id:id+1 }),Err("expired-review"));
+        let data = registry.execute(Action::Install { review_id:id }).unwrap();
+        assert_eq!(data["sources"][0]["sourceId"],id);
+        assert_eq!(data["sources"][0]["manifest"]["resources"],json!(["catalog","stream"]));
+        assert!(!data.to_string().contains("private-fixture"));
+        assert!(!data.to_string().contains("example.org"));
+        assert_eq!(registry.execute(Action::Install { review_id:id }),Err("expired-review"));
+        assert_eq!(registry.check_endpoint(&Endpoint::parse("https://example.org/one/manifest.json?key=private-fixture").unwrap()),Err("duplicate"));
+    }
+    #[test]
+    fn cancelled_expired_and_replaced_reviews_cannot_install() {
+        let mut registry = Registry::default();
+        let first = stage(&mut registry,"one");
+        let next = stage(&mut registry,"two");
+        assert_eq!(registry.execute(Action::Install { review_id:first }),Err("expired-review"));
+        assert_eq!(registry.execute(Action::CancelReview { review_id:first }).unwrap()["cancelled"],false);
+        assert_eq!(registry.execute(Action::CancelReview { review_id:next }).unwrap()["cancelled"],true);
+        assert_eq!(registry.execute(Action::Install { review_id:next }),Err("expired-review"));
+        let last = stage(&mut registry,"three");
+        registry.pending.as_mut().unwrap().created = Instant::now().checked_sub(REVIEW_TTL).unwrap();
+        assert_eq!(registry.execute(Action::Install { review_id:last }),Err("expired-review"));
+        assert!(registry.pending.is_none());
+        let id = stage(&mut registry,"four");
+        assert_eq!(registry.execute(Action::Review { url:"file:///not-an-addon".into() }),Err("invalid-endpoint"));
+        assert_eq!(registry.execute(Action::Install { review_id:id }),Err("expired-review"));
+    }
+    #[test]
+    fn order_enable_and_removal_are_source_scoped() {
+        let mut registry = Registry::default();
+        let one = stage(&mut registry,"one");
+        registry.execute(Action::Install { review_id:one }).unwrap();
+        let two = stage(&mut registry,"two");
+        registry.execute(Action::Install { review_id:two }).unwrap();
+        let rows = registry.execute(Action::Move { source_id:two,position:0 }).unwrap();
+        assert_eq!(rows["sources"][0]["sourceId"],two);
+        assert_eq!(rows["sources"][1]["sourceId"],one);
+        registry.execute(Action::SetEnabled { source_id:two,enabled:false }).unwrap();
+        assert_eq!(registry.execute(Action::Catalog { source_id:two,media_type:"movie".into(),catalog_id:"top".into(),extras:BTreeMap::new() }),Err("disabled-source"));
+        assert_eq!(registry.execute(Action::Catalog { source_id:one,media_type:"movie".into(),catalog_id:"undeclared".into(),extras:BTreeMap::new() }),Err("unsupported-catalog"));
+        let rows = registry.execute(Action::Remove { source_id:two }).unwrap();
+        assert_eq!(rows["sources"].as_array().unwrap().len(),1);
+        assert_eq!(rows["sources"][0]["sourceId"],one);
+        assert_eq!(registry.execute(Action::Remove { source_id:two }),Err("unknown-source"));
+    }
+    #[test]
+    fn configuration_required_review_is_not_installable() {
+        let mut registry = Registry::default();
+        let mut manifest = manifest();
+        manifest.behavior_hints.configuration_required = true;
+        let reviewed = registry.stage(Endpoint::parse("https://example.org/manifest.json").unwrap(),manifest).unwrap();
+        let id = reviewed["reviewId"].as_u64().unwrap() as u32;
+        assert_eq!(reviewed["manifest"]["configurationRequired"],true);
+        assert_eq!(registry.execute(Action::Install { review_id:id }),Err("configuration-required"));
+        assert_eq!(registry.list()["sources"],json!([]));
+    }
+    #[test]
+    fn bridge_actions_reject_arbitrary_paths_and_redact_private_debug() {
+        let action: Action = serde_json::from_value(json!({"kind":"review","url":"https://example.org/private-fixture/manifest.json"})).unwrap();
+        assert!(!format!("{action:?}").contains("private-fixture"));
+        assert!(serde_json::from_value::<Action>(json!({"kind":"install","reviewId":1,"url":"https://example.org/manifest.json"})).is_err());
+        assert!(serde_json::from_value::<Action>(json!({"kind":"catalog","sourceId":1,"mediaType":"movie","catalogId":"top","extras":{},"path":"C:/file"})).is_err());
+        assert!(serde_json::from_value::<Action>(json!({"kind":"player","sourceId":1})).is_err());
+    }
+}

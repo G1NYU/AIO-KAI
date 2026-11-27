@@ -29,6 +29,7 @@ export type ShellMessage =
   | { type: 'backup-result'; request: string; data: unknown; error: string | null }
   | { type: 'tsugi-release-result'; request: string; data: unknown; error: string | null }
   | { type: 'torbox-result'; request: string; data: unknown; error: string | null }
+  | { type: 'stremio-result'; request: string; data: unknown; error: string | null }
   | { type: 'soundcloud-search-result'; request: string; tracks: unknown[]; complete: boolean; error: string | null }
   | {
       type: 'youtube-resolved';
@@ -227,6 +228,8 @@ interface ShellBridge {
   soundcloudMusic?: boolean;
   nativeMusicAudio?: boolean;
   torbox?: boolean;
+  /** Session-only direct addon registry in the trusted bundled Windows app. */
+  stremioAddons?: boolean;
   reading?: boolean;
   readingSetup?: boolean;
   backupStore?: boolean;

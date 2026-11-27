@@ -30,6 +30,7 @@
     reading: __READING__,
     readingSetup: __READING_SETUP__,
     backupStore: __BACKUP_STORE__,
+    stremioAddons: __BACKUP_STORE__,
     tsugiReleaseCheck: __TSUGI_RELEASE_CHECK__,
     pip: __PIP__,
     hours24: __HOURS24__,
