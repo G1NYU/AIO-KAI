@@ -17,6 +17,7 @@ import {
 } from '@/lib/settings';
 import { useFeature } from '@/lib/jellyfin/server-info';
 import { SettingsCard } from './_components/settings-card';
+import { FirstVersionSwitch, useDeviceFirstVersion } from './_components/first-version-switch';
 import { BadgesRow, QuickFiltersRow } from './_components/version-settings';
 import { seconds } from './_components/common';
 import { ReactionSetting } from './_components/reaction-setting';
@@ -72,7 +73,7 @@ function SegmentActionSelect({ type }: { type: SegmentType }) {
 
 export function PlaybackSection() {
   const { prefs, update, locked } = usePlaybackPrefs();
-  const [autoPlay, setAutoPlay] = useSetting(settings.playback.autoPlayFirst);
+  const deviceFirstVersion = useDeviceFirstVersion();
   const [preload, setPreload] = useSetting(settings.playback.preloadVersions);
   const [nextPrompt, setNextPrompt] = useSetting(settings.next.prompt);
   const [nextLead, setNextLead] = useSetting(settings.next.lead);
@@ -102,18 +103,8 @@ export function PlaybackSection() {
 
   return (
     <>
-      <SettingsCard name="versions" title={t`Versions`} holds="profile">
-        <Switch
-          side="right"
-          label={t`Auto-play the first version`}
-          help={
-            autoPlay
-              ? t`Play starts the first version, and resuming goes back to the version you were watching. Hold Play to choose instead.`
-              : t`Play lists the versions to choose from, but resuming goes back to the version you were watching. Hold Play to do the other: start the first version, or list them when resuming.`
-          }
-          value={autoPlay}
-          onValueChange={setAutoPlay}
-        />
+      <SettingsCard name="versions" title={t`Versions`} holds="profile" plain={deviceFirstVersion} description={deviceFirstVersion ? t`Auto-play is shared on this device. Other version preferences follow your account.` : undefined}>
+        <FirstVersionSwitch />
         <Switch
           side="right"
           label={t`Find versions when a title opens`}

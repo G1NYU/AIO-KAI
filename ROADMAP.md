@@ -2,6 +2,8 @@
 
 ## Streaming hub architecture correction
 
+**Playback preference:** reuse the existing Auto-play the first version switch in Playback settings. Manual by default; explicit device choice shared by all three desktop hubs. Standalone manual lists all compatible enabled addon stream responses in source order and shows unsupported options; automatic picks first compatible native-grant stream. Tests and Windows beta verification pending.
+
 **Visual reference:** user-supplied Anime Hub interactive HTML. Use live content in its hero, shelves and seasonal sections; share AIO version presentation and ordered automatic first-stream semantics, with an addon-specific adapter and secure native grant. No fictional prototype data. CI and real Windows acceptance remain gates.
 
 **Latest acceptance gate:** after profile selection present three independent destinations; AIOStreams alone requires a server config. Standalone Movies & TV and Anime must open with zero addons, with metadata-only discovery and explicit playback availability. Settings only for imports. New title/episode and direct player controls pending CI; exact cross-ID anime resolution and player parity remain open.

@@ -138,6 +138,18 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
 
     await sidebar().locator('[data-name="settings"]').click();
     await settingsPage().locator('[data-ui="settings-layout"]').waitFor();
+    await settingsPage().locator('[data-ui="settings-tab"][data-name="playback"]').click();
+    const playback=settingsPage().locator('[data-ui="settings-panel"][data-name="playback"]');
+    const firstVersion=playback.getByRole('switch',{name:'Auto-play the first version',exact:true});
+    await firstVersion.waitFor();
+    assert.equal(await firstVersion.getAttribute('aria-checked'),'false');
+    await firstVersion.click();
+    assert.equal(await firstVersion.getAttribute('aria-checked'),'true');
+    assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('tsugi-watch-first-version-mode'))),'on');
+    await firstVersion.click();
+    assert.equal(await firstVersion.getAttribute('aria-checked'),'false');
+    assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('tsugi-watch-first-version-mode'))),'off');
+    console.log('PASS: existing Movies Playback switch uses the same device preference as standalone Watch.');
     await settingsPage().locator('[data-ui="settings-tab"][data-name="interface"]').click();
     await settingsPage().locator('[data-ui="settings-panel"][data-name="interface"]').getByText('Navigation', { exact: true }).waitFor();
     const settings = await page.evaluate(() => {

@@ -10,6 +10,7 @@ import { MovieGlyph } from '@/components/movie-icons';
 import { Artwork, WideCard } from '@/components/media/cards';
 import { useDesktopArea, type WatchEntryPane } from '@/lib/desktop-area';
 import { settings, useSetting } from '@/lib/settings';
+import { FirstVersionSwitch } from '@/app/settings/_components/first-version-switch';
 import { VersionFrame } from '@/features/versions/version-frame';
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
@@ -44,11 +45,11 @@ function feedback(reason: unknown) {
     default: return t`The request could not be confirmed. Refresh the installed list before retrying an installation or change.`;
   }
 }
-type WatchPane = 'hubs'|'home'|'discover'|'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history'|'refract'|'anime';
+type WatchPane = 'hubs'|'home'|'discover'|'playback'|'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history'|'refract'|'anime';
 const profileArt=['/design/oto/hero-yuna.webp','/design/yomi/hero-torii.webp','/design/shared/hero-neon.webp','/design/shared/hero-train.webp'];
 export function StremioAddonSettings({workspace=false,onPlay,historyActive=false,setupConnections=false,initialPane='addons',openServer}:{workspace?:boolean;openServer?:()=>void;onPlay?:(playback:WatchPlayback)=>void;historyActive?:boolean;setupConnections?:boolean;initialPane?:WatchEntryPane}={}){
   const desktopArea=useDesktopArea();
-  const [autoPlayFirst,setAutoPlayFirst]=useSetting(settings.playback.standaloneAutoPlayFirst);
+  const [autoPlayFirst]=useSetting(settings.playback.autoPlayFirst);
   const [boardSearch,setBoardSearch]=React.useState('');
   const [entered,setEntered]=React.useState(false);
   const [pane,setPane]=React.useState<WatchPane>(initialPane);
@@ -325,8 +326,9 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     ['order',t`Source order`,'order'],
     ['mdblist',t`MDBList`,'mdblist'],
     ['refract',t`Refract`,'refract'],
+    ['playback',t`Playback`,'tv'],
     ['profile',t`Profile settings`,'settings']
-  ] as const).filter(([id])=>id!=='refract'||!!onPlay||setupConnections);
+  ] as const).filter(([id])=>(id!=='refract'||!!onPlay||setupConnections)&&(id!=='playback'||!!onPlay));
   function searchTitleInAddons(){
     if(!title||flight.current)return;
     const name=title.name;
@@ -377,8 +379,8 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     </nav>}
     {!workspace&&<h3 id={titleId}><Trans>Stremio addons</Trans></h3>}
     {workspace&&onPlay&&profileReady&&profileId!==undefined&&(pane==='home'||pane==='discover')&&<WatchCatalogueBoard key={JSON.stringify([profileId,pane,boardSearch])} initialQuery={boardSearch} profileId={profileId} sources={sources} busy={busy} run={run} active={historyActive} paused={!!title} includeHistory={pane==='home'} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} openAddons={()=>void selectPane('addons')}/>}
+    {workspace&&onPlay&&pane==='playback'&&<section className="space-y-3" data-ui="watch-playback-settings"><h4><Trans>Playback</Trans></h4><FirstVersionSwitch disabled={busy}/></section>}
     {show('profile')&&<>
-    {workspace&&onPlay&&<div className="space-y-2"><h4><Trans>Playback</Trans></h4><label><input type="checkbox" checked={autoPlayFirst} onChange={e=>setAutoPlayFirst(e.target.checked)}/><Trans>Automatically play first available stream</Trans></label><p className="tsugi-watch-muted"><Trans>Use your source order to skip the stream selector. This preference applies to standalone Movies &amp; TV and Anime on this device.</Trans></p></div>}
     <p><Trans>Each local profile has its own addons, without an AIOStreams connection. Browse catalogues and select supported direct HTTPS streams in Watch.</Trans></p>
     <p><Trans>Configured links are protected by your Windows account and excluded from portable backups. Local profiles are not password-protected from other people using this Windows account. Only contact addon hosts you trust.</Trans></p>
     <div className="space-y-3" data-ui="stremio-profile-management">

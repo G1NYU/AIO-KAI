@@ -17,6 +17,7 @@ import {
   syncedList,
   syncedNumber,
   syncedText,
+  withDeviceFlagOverride,
 } from './store';
 
 export {
@@ -535,12 +536,16 @@ export const settings = {
     artGlass: device<boolean>('aiostreams-web-theme-art-glass', false),
   },
   playback: {
-    autoPlayFirst: syncedFlag('autoPlayFirst', false, [
-      'aiostreams-web-skip-versions',
-    ]),
-    // Standalone Watch has no Jellyfin session, so its first-stream preference
-    // uses the existing device-local settings store rather than a server document.
-    standaloneAutoPlayFirst: local(device<boolean>('tsugi-addon-autoplay-first', false)),
+    // The same toggle drives all three desktop Watch destinations. Without
+    // a local override, preserve the existing server account preference.
+    autoPlayFirst: withDeviceFlagOverride(
+      syncedFlag('autoPlayFirst', false, ['aiostreams-web-skip-versions']),
+      local(device<'inherit' | 'on' | 'off'>(
+        'tsugi-watch-first-version-mode', 'inherit', ['inherit', 'on', 'off'],
+        [{ key: 'tsugi-addon-autoplay-first', read: value => typeof value === 'boolean' ? (value ? 'on' : 'off') : undefined }]
+      )),
+      () => typeof window !== 'undefined' && !!appBridge()?.stremioAddons
+    ),
     preloadVersions: syncedFlag('preloadVersions'),
     chapterSkips: syncedFlag('chapterSkips', true, [
       'aiostreams-desktop-chapter-skips',

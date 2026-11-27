@@ -20,6 +20,7 @@ import { StorageUsageSettings } from './storage-usage-settings';
 import { TsugiReleaseSettings } from './tsugi-release-settings';
 import { DiscordPresenceSettings } from './discord-presence-settings';
 import { StremioAddonSettings } from './stremio-addon-settings';
+import { FirstVersionSwitch } from '@/app/settings/_components/first-version-switch';
 import { SupportSummarySettings } from './support-summary-settings';
 import { Licenses } from '@/app/settings/_components/licenses';
 import { TsugiIcon } from '@/components/tsugi-icons';
@@ -158,6 +159,7 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
       </label>
       <p><Trans>Applies the next time Tsugi opens. Each media section keeps its own source, reading, playback and transfer settings.</Trans></p>
     </section>
+    {bridge?.stremioAddons&&<section className="tsugi-app-general" aria-label={t`Watch playback preferences`}><h3><Trans>Playback</Trans></h3><FirstVersionSwitch/></section>}
     <section className="tsugi-app-general" aria-label={t`Music playback preferences`}>
       <h3><Trans>Music playback</Trans></h3>
       <label><Trans>Default player layout</Trans>

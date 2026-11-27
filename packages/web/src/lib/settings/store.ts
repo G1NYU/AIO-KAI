@@ -508,6 +508,30 @@ export function local<T>(setting: Setting<T>): Setting<T> {
   return setting;
 }
 
+/**
+ * A device may override a server flag when the same feature also works without
+ * a server session. An explicit off must survive sign-in and app restarts.
+ * Editing another server profile or everyone's defaults still edits that profile.
+ */
+export function withDeviceFlagOverride(
+  profile: Setting<boolean>,
+  override: Setting<'inherit' | 'on' | 'off'>,
+  enabled: () => boolean
+): Setting<boolean> {
+  return {
+    kind: profile.kind,
+    read(layer = live) {
+      if (layer !== live || !enabled()) return profile.read(layer);
+      const mode = override.read(layer);
+      return mode === 'inherit' ? profile.read(layer) : mode === 'on';
+    },
+    write(value, layer = live) {
+      if (layer !== live || !enabled()) profile.write(value, layer);
+      else override.write(value ? 'on' : 'off', layer);
+    },
+  };
+}
+
 /** Lists of strings by name, kept on this device; an empty record clears it. */
 export function deviceLists(
   key: string,

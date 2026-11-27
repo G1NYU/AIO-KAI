@@ -303,9 +303,13 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.waitFor({state:'detached'});
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Settings',exact:true}).click();
     const config=watch.locator('[data-ui="watch-settings-navigation"]');
-    await config.getByRole('button',{name:'Profile settings',exact:true}).click();
-    const autoPlay=watch.getByRole('checkbox',{name:'Automatically play first available stream',exact:true});
-    await autoPlay.check();
+    await config.getByRole('button',{name:'Playback',exact:true}).click();
+    const autoPlay=watch.getByRole('switch',{name:'Auto-play the first version',exact:true});
+    assert.equal(await autoPlay.getAttribute('aria-checked'),'false');
+    await autoPlay.click();
+    assert.equal(await autoPlay.getAttribute('aria-checked'),'true');
+    // An explicit device choice is retained across the settings and hub boundaries.
+    assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('tsugi-watch-first-version-mode'))),'on');
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Home',exact:true}).click();
     await board.getByRole('button',{name:'Public movie fixture',exact:true}).click();
     await player.getByRole('button',{name:'Pause',exact:true}).waitFor();
@@ -313,8 +317,11 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
     await player.waitFor({state:'detached'});
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Settings',exact:true}).click();
-    await config.getByRole('button',{name:'Profile settings',exact:true}).click();
-    await autoPlay.uncheck();
+    await config.getByRole('button',{name:'Playback',exact:true}).click();
+    assert.equal(await autoPlay.getAttribute('aria-checked'),'true');
+    await autoPlay.click();
+    assert.equal(await autoPlay.getAttribute('aria-checked'),'false');
+    assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('tsugi-watch-first-version-mode'))),'off');
     await config.getByRole('button',{name:'Stremio import',exact:true}).click();
     async function importAccount(provider){
       const account=watch.locator('[data-ui="stremio-account-import"]');
