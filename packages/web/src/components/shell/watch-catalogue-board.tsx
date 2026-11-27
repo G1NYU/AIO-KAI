@@ -60,7 +60,7 @@ export function catalogueTargets(sources:AddonSource[],scope:Scope,kind:Kind,que
   return rows;
 }
 
-function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openAddons,includeHistory,openHistory,search}:Omit<Props,'sources'|'scope'> & {targets:Target[];search:string}){
+function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openAddons,includeHistory,openHistory,search,scope='all',kind='all'}:Omit<Props,'sources'> & {targets:Target[];search:string;kind?:Kind}){
   const [limit,setLimit]=React.useState(search?SEARCH_BATCH:BATCH);
   const [resultLimit,setResultLimit]=React.useState(RESULT_BATCH);
   const [tmdb,setTmdb]=React.useState<Item[]>([]);
@@ -73,7 +73,7 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
   const [historyFailed,setHistoryFailed]=React.useState(false);
   const mounted=React.useRef(false);
   const visible=targets.slice(0,limit);
-  React.useEffect(()=>{if(!search||!active||paused)return;let current=true;setTmdbPending(true);void searchTmdb(profileId,search).then(items=>{if(current)setTmdb(items);}).catch(()=>{}).finally(()=>{if(current)setTmdbPending(false);});return ()=>{current=false;};},[profileId,search,active,paused]);
+  React.useEffect(()=>{if(!search||!active||paused||scope!=='all'||kind==='anime'){setTmdbPending(false);return;}let current=true;setTmdbPending(true);void searchTmdb(profileId,search).then(items=>{if(current)setTmdb(items.filter(item=>kind==='all'||item.mediaType===kind));}).catch(()=>{}).finally(()=>{if(current)setTmdbPending(false);});return ()=>{current=false;};},[profileId,search,active,paused,scope,kind]);
   React.useEffect(()=>{mounted.current=true;return ()=>{mounted.current=false;};},[]);
   React.useEffect(()=>{if(!active){setHistory(null);setHistoryFailed(false);}},[active]);
 
@@ -147,6 +147,13 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
       <div className="tsugi-watch-search-heading"><h3><Trans>Search results</Trans></h3><span>{hits.length} <Trans>titles</Trans></span></div>
       {(pending||tmdbPending)&&<p className="tsugi-watch-muted" role="status"><Trans>Searching metadata…</Trans></p>}
       {hits.length===0&&!pending&&!tmdbPending&&<p role="status"><Trans>No matching titles found.</Trans></p>}
+      {hits[0]&&<div className="tsugi-search-best-match" data-ui="watch-top-match">
+        <Artwork src={hits[0].item.background??hits[0].item.poster??null} alt="" className="tsugi-search-best-art"/>
+        <div className="tsugi-search-best-copy"><small><Trans>Top match</Trans> · {hits[0].item.mediaType.includes('movie')?t`Movie`:t`Series`}{hits[0].item.releaseInfo?' · '+hits[0].item.releaseInfo.slice(0,4):''}</small>
+          <h4>{hits[0].item.name}</h4>
+          {hits[0].item.description&&<p className="line-clamp-2">{hits[0].item.description}</p>}
+          <Button intent="white" className="rounded-full" disabled={busy} onClick={()=>openTitle(hits[0].item,hits[0].target.sourceId)}><Trans>View top match</Trans></Button>
+        </div></div>}
       {searchGroups.filter(group=>group.items.length>0).map(group=><section key={group.key} className="tsugi-watch-search-section" data-search-kind={group.key}>
         <div className="tsugi-watch-search-heading"><h4>{group.label}</h4><span>{group.items.length}</span></div>
         <div className="tsugi-watch-search-row">{group.items.slice(0,resultLimit).map(({key,item,target})=><PosterCard key={key} title={item.name} image={item.poster??null} itemType={item.releaseInfo?.slice(0,4)??group.label} disabled={busy} onClick={()=>openTitle(item,target.sourceId)}/>)}</div>
@@ -185,21 +192,41 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
 export function WatchCatalogueBoard({scope='all',includeHistory=false,initialQuery='',...props}:Props){
   const [query,setQuery]=React.useState(initialQuery);
   const [submitted,setSubmitted]=React.useState(initialQuery);
-  React.useEffect(()=>{const timer=window.setTimeout(()=>setSubmitted(query.trim()),250);return ()=>window.clearTimeout(timer);},[query]);
+  const [searchOpen,setSearchOpen]=React.useState(!!initialQuery);
   const [kind,setKind]=React.useState<Kind>('all');
   const [revision,setRevision]=React.useState(0);
+  const dialog=React.useRef<HTMLDialogElement>(null);
+  const searchInput=React.useRef<HTMLInputElement>(null);
+  const dialogId=React.useId();
+  React.useEffect(()=>{const timer=window.setTimeout(()=>setSubmitted(query.trim()),200);return ()=>window.clearTimeout(timer);},[query]);
+  React.useEffect(()=>{
+    const node=dialog.current;
+    if(!node)return;
+    if(searchOpen&&!props.paused){if(!node.open)node.showModal();searchInput.current?.focus();}
+    else if(node.open)node.close();
+  },[searchOpen,props.paused]);
+  const homeTargets=React.useMemo(()=>catalogueTargets(props.sources,scope,'all',''),[props.sources,scope]);
   const targets=React.useMemo(()=>catalogueTargets(props.sources,scope,kind,submitted),[props.sources,scope,kind,submitted]);
   return <section className="tsugi-watch-board" data-ui="watch-catalogue-board" hidden={props.paused} inert={props.paused}>
     {scope==='all'&&!props.sources.some(s=>s.enabled&&s.manifest.resources.includes('stream'))&&<p className="tsugi-watch-muted"><Trans>Browse titles now. Connect streaming addons in Settings to watch them.</Trans> <button type="button" className="tsugi-read-action" disabled={props.busy} onClick={props.openAddons}><Trans>Manage addons</Trans></button></p>}
-    <form className="tsugi-watch-board-toolbar" onSubmit={e=>{e.preventDefault();setSubmitted(query.trim());setRevision(r=>r+1);}}>
-      <label className="tsugi-watch-search"><MovieGlyph name="search"/><input type="search" className="tsugi-read-input" aria-label={t`Search across addons`} value={query} maxLength={512} disabled={props.busy} placeholder={t`Search across addons`} onChange={e=>setQuery(e.target.value)}/></label>
-      {scope==='all'&&<select aria-label={t`Media type`} className="tsugi-menu-select" disabled={props.busy} value={kind} onChange={e=>setKind(e.target.value as Kind)}>
-        <option value="all"><Trans>All titles</Trans></option><option value="movie"><Trans>Movies</Trans></option><option value="series"><Trans>Series</Trans></option><option value="anime"><Trans>Anime</Trans></option>
-      </select>}
-      <button type="submit" className="tsugi-read-action" disabled={props.busy}><Trans>Search</Trans></button>
-      {submitted&&<button type="button" className="tsugi-read-action" disabled={props.busy} onClick={()=>{setSubmitted('');setQuery('');}}><Trans>Clear search</Trans></button>}
+    <div className="tsugi-watch-board-toolbar">
+      <button type="button" className="tsugi-watch-search-trigger" aria-haspopup="dialog" aria-controls={dialogId} disabled={props.busy} onClick={()=>setSearchOpen(true)}><MovieGlyph name="search"/><span><Trans>Search movies &amp; series</Trans></span><span className="tsugi-watch-muted"><Trans>Search</Trans></span></button>
       <button type="button" className="tsugi-read-action" disabled={props.busy} onClick={()=>setRevision(r=>r+1)}><Trans>Refresh catalogues</Trans></button>
-    </form>
-    <CatalogueRows key={JSON.stringify([props.profileId,scope,kind,submitted,revision,targets.map(row=>row.key)])} {...props} targets={targets} search={submitted} includeHistory={includeHistory&&!submitted}/>
+    </div>
+    <CatalogueRows key={JSON.stringify([props.profileId,scope,revision,homeTargets.map(row=>row.key)])} {...props} paused={props.paused||searchOpen} targets={homeTargets} search="" scope={scope} includeHistory={includeHistory}/>
+    <dialog ref={dialog} id={dialogId} className="tsugi-watch-search-dialog" aria-label={t`Search titles`} onCancel={e=>{e.preventDefault();setSearchOpen(false);}} onClick={e=>{if(e.target===e.currentTarget)setSearchOpen(false);}}>
+      {searchOpen&&<div className="tsugi-watch-search-panel">
+        <form className="tsugi-watch-search-bar" onSubmit={e=>{e.preventDefault();setSubmitted(query.trim());}}>
+          <MovieGlyph name="search"/>
+          <input ref={searchInput} type="search" aria-label={t`Search across addons`} value={query} maxLength={512} placeholder={t`Search movies, series and anime…`} onChange={e=>setQuery(e.target.value)}/>
+          {query&&<button type="button" className="tsugi-read-action" onClick={()=>{setQuery('');setSubmitted('');searchInput.current?.focus();}}><Trans>Clear search</Trans></button>}
+          <button type="button" className="tsugi-read-action" onClick={()=>setSearchOpen(false)}><Trans>Close search</Trans></button>
+        </form>
+        {scope==='all'&&<div className="tsugi-search-kind" aria-label={t`Media type`}>
+          {([{value:'all',label:t`All titles`},{value:'series',label:t`Series`},{value:'movie',label:t`Movies`},{value:'anime',label:t`Anime`}] as const).map(({value,label})=><button type="button" key={value} aria-pressed={kind===value} onClick={()=>setKind(value)}>{label}</button>)}
+        </div>}
+        {submitted?<CatalogueRows key={JSON.stringify([props.profileId,scope,kind,submitted,targets.map(row=>row.key)])} {...props} openTitle={(item,sourceId)=>{setSearchOpen(false);props.openTitle(item,sourceId);}} targets={targets} search={submitted} scope={scope} kind={kind} includeHistory={false}/>:<p className="tsugi-watch-search-hint"><Trans>Find your next favorite. Results appear as you type.</Trans></p>}
+      </div>}
+    </dialog>
   </section>;
 }

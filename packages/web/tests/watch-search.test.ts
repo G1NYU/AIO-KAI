@@ -4,9 +4,9 @@ import { rankCatalogueSearch } from '../src/lib/hosts/shell/watch-search';
 describe('Watch catalogue search',()=>{
   const item=(id:string,name:string,mediaType='movie',imdbId?:string,poster?:string)=>({id,name,mediaType,imdbId,poster});
   const candidate=(sourceId:number,row:ReturnType<typeof item>)=>({sourceId,target:sourceId,item:row});
-  it('ranks exact and prefix titles ahead of loose matches',()=>{
+  it('ranks exact and prefix titles, excluding unrelated matches',()=>{
     const rows=[candidate(1,item('local:1','Another film')),candidate(1,item('tt2','Example film sequel')),candidate(1,item('tt1','Éxample Film'))];
-    expect(rankCatalogueSearch(rows,'example film').map(row=>row.item.id)).toEqual(['tt1','tt2','local:1']);
+    expect(rankCatalogueSearch(rows,'example film').map(row=>row.item.id)).toEqual(['tt1','tt2']);
   });
   it('merges explicit IMDb matches while preserving the canonical provider route and artwork',()=>{
     const rows=[candidate(2,item('tmdb:42','Example','movie','tt42','poster')),candidate(3,item('tt42','Example'))];

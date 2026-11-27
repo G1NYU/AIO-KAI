@@ -79,3 +79,27 @@
 .tsugi-watch-featured-art{width:100%}
 .tsugi-watch-featured-art .tsugi-watch-featured-poster{object-fit:cover;filter:blur(18px) brightness(.5);object-position:center}
 .tsugi-watch-featured-copy{position:relative;z-index:1;max-width:min(650px,80%)}
+
+/* Centered title search, with the catalogue remaining mounted behind it. */
+.tsugi-watch-search-trigger{display:flex;align-items:center;gap:12px;width:min(100%,620px);min-height:48px;text-align:left;padding:12px 18px;border:1px solid color-mix(in srgb,var(--tsugi-muted) 26%,transparent);border-radius:999px;background:var(--tsugi-surface);color:var(--tsugi-ink);font-weight:600}
+.tsugi-watch-search-trigger>svg,.tsugi-watch-search-bar>svg{width:21px;height:21px;flex:none;color:var(--tsugi-muted)}
+.tsugi-watch-search-trigger>span:last-child{margin-left:auto;font-size:12px}
+.tsugi-watch-search-dialog{margin:auto;position:fixed;inset:0;width:min(1060px,calc(100vw - 48px));max-width:100%;max-height:min(86vh,900px);padding:0;overflow:auto;border:1px solid color-mix(in srgb,var(--tsugi-muted) 28%,transparent);border-radius:22px;background:var(--tsugi-surface);color:var(--tsugi-ink);box-shadow:0 24px 100px #0008;overscroll-behavior:contain}
+.tsugi-watch-search-dialog::backdrop{background:#0008;backdrop-filter:blur(8px)}
+.tsugi-watch-search-panel{padding:24px;min-width:0}
+.tsugi-watch-search-bar{display:flex;align-items:center;gap:12px;border-bottom:1px solid color-mix(in srgb,var(--tsugi-muted) 22%,transparent);padding:0 0 16px;min-width:0}
+.tsugi-watch-search-bar input{flex:1;width:0;min-width:0;background:transparent;color:inherit;border:0;font:inherit;font-size:clamp(18px,2vw,24px);outline:none}
+.tsugi-search-kind{display:flex;gap:8px;flex-wrap:wrap;padding:16px 0}
+.tsugi-search-kind button{border:1px solid color-mix(in srgb,var(--tsugi-muted) 26%,transparent);border-radius:999px;padding:7px 15px;color:var(--tsugi-muted);font-weight:600}
+.tsugi-search-kind button[aria-pressed=true]{background:var(--tsugi-ink);color:var(--tsugi-surface);border-color:var(--tsugi-ink)}
+.tsugi-watch-search-hint{padding:48px 8px;color:var(--tsugi-muted);text-align:center}
+.tsugi-search-best-match{position:relative;isolation:isolate;display:flex;align-items:end;min-height:190px;overflow:hidden;border-radius:16px;background:color-mix(in srgb,var(--tsugi-surface) 90%,black)}
+.tsugi-search-best-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%;z-index:-2}
+.tsugi-search-best-match::after{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#080a0eee 0%,#080a0eb0 45%,#080a0e10 100%)}
+.tsugi-search-best-copy{display:grid;gap:10px;justify-items:start;max-width:min(600px,90%);padding:24px;color:white}
+.tsugi-search-best-copy small{font-size:12px;font-weight:650;color:#e5e5e5}
+.tsugi-search-best-copy h4{font-size:clamp(24px,3vw,34px);font-weight:700;line-height:1.1;letter-spacing:-.04em}
+.tsugi-search-best-copy p{font-size:14px;color:#e5e5e5;line-height:1.5}
+.tsugi-watch-search-dialog .tsugi-watch-search-results{gap:22px;padding-bottom:0}
+.tsugi-watch-search-dialog .tsugi-watch-search-row{grid-auto-columns:clamp(100px,12vw,152px)}
+@media(max-width:700px){.tsugi-watch-search-dialog{width:calc(100vw - 16px);border-radius:14px}.tsugi-watch-search-panel{padding:14px}.tsugi-watch-search-bar{flex-wrap:wrap}.tsugi-watch-search-bar input{min-width:120px}.tsugi-search-best-copy{padding:16px}}

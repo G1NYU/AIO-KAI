@@ -426,12 +426,14 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.getByRole('button',{name:'Back',exact:true}).click();
     await player.waitFor({state:'detached'});
     await item.getByRole('button',{name:'Close title',exact:true}).click();
+    await board.getByRole('button',{name:/Search movies & series/}).click();
     await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Fixture cinema film');
-    await board.getByRole('button',{name:'Search',exact:true}).click();
     const results=board.locator('[data-ui="watch-search-results"]');
     await results.getByRole('button',{name:'Fixture cinema film sequel',exact:true}).waitFor();
     assert.equal(await results.getByRole('button',{name:'Fixture cinema film',exact:true}).count(),1);
     assert.equal(await results.locator('[data-ui="poster-card"]').first().getAttribute('aria-label'),'Fixture cinema film');
+    assert.equal(await results.getByRole('button',{name:'Fixture alias movie',exact:true}).count(),0);
+    await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Fixture alias movie');
     await results.getByRole('button',{name:'Fixture alias movie',exact:true}).click();
     await item.locator('[data-ui="watch-play-title"]').click();
     await groups.getByRole('button',{name:'Play',exact:true}).first().waitFor();
@@ -439,7 +441,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await page.keyboard.press('Escape');
     await groups.waitFor({state:'detached'});
     await item.getByRole('button',{name:'Close title',exact:true}).click();
-    await board.getByRole('button',{name:'Clear search',exact:true}).click();
+    await board.getByRole('button',{name:/Search movies & series/}).waitFor();
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
     const anime=watch.locator('[data-ui="mal-anime-library"]');
     await anime.locator('[data-ui="watch-catalogue-board"]').getByRole('button',{name:'Fixture anime series',exact:true}).click();

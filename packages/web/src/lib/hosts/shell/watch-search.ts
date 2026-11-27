@@ -51,7 +51,7 @@ export function rankCatalogueSearch<T>(candidates:Candidate<T>[],query:string){
     let next:Hit={...candidate,key:JSON.stringify([kind,candidate.sourceId,candidate.item.id]),score:rank(candidate.item.name,needle),order,kind,ids:values};
     if(needle&&next.score===0)return;
     for(let i=0;i<hits.length;){
-      if(hits[i].kind===kind&&compatible(hits[i].ids,next.ids)){next=combine(hits[i],next);hits.splice(i,1);}else i++;
+      if(hits[i].kind===kind&&compatible(hits[i].ids,next.ids)){next=combine(hits[i],next);hits.splice(i,1);i=0;}else i++;
     }
     hits.push(next);
   });
