@@ -6,7 +6,7 @@ import { TsugiIcon } from '@/components/tsugi-icons';
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, type AddonMetadata, type AddonOptions, prepareAddonMedia, type WatchPlayback } from '@/lib/hosts/shell/stremio';
+import { AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, type AddonMetadata, type AddonOptions, prepareAddonMedia, listWatchHistory, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry } from '@/lib/hosts/shell/stremio';
 
 function feedback(reason: unknown) {
   switch(reason instanceof AddonError ? reason.code : 'request'){
@@ -34,9 +34,9 @@ function feedback(reason: unknown) {
     default: return t`The request could not be confirmed. Refresh the installed list before retrying an installation or change.`;
   }
 }
-type WatchPane = 'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist';
+type WatchPane = 'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history';
 const profileArt=['/design/oto/hero-yuna.webp','/design/yomi/hero-torii.webp','/design/shared/hero-neon.webp','/design/shared/hero-train.webp'];
-export function StremioAddonSettings({workspace=false,onPlay}:{workspace?:boolean;onPlay?:(playback:WatchPlayback)=>void}={}){
+export function StremioAddonSettings({workspace=false,onPlay,historyActive=false}:{workspace?:boolean;onPlay?:(playback:WatchPlayback)=>void;historyActive?:boolean}={}){
   const [entered,setEntered]=React.useState(false);
   const [pane,setPane]=React.useState<WatchPane>('addons');
   const [creating,setCreating]=React.useState(false);
@@ -63,6 +63,7 @@ export function StremioAddonSettings({workspace=false,onPlay}:{workspace?:boolea
   const [title,setTitle]=React.useState<CatalogPage['items'][number]|null>(null);
   const [details,setDetails]=React.useState<AddonMetadata|null>(null);
   const [videoId,setVideoId]=React.useState('');
+  const [resumeEntry,setResumeEntry]=React.useState<WatchProgress|null>(null);
   const [options,setOptions]=React.useState<({sourceId:number;subtitles:boolean}&AddonOptions)|null>(null);
   const mounted=React.useRef(false);
   const flight=React.useRef(false);
@@ -84,7 +85,7 @@ export function StremioAddonSettings({workspace=false,onPlay}:{workspace?:boolea
     void run(async()=>{await reloadProfiles();});
     return ()=>{mounted.current=false;const current=pending.current;pending.current=null;if(current)void cancelAddonReview(current.profileId,current.reviewId).catch(()=>{});};
   },[]);
-  function clearTitle(){setTitle(null);setDetails(null);setVideoId('');setOptions(null);}
+  function clearTitle(){setTitle(null);setDetails(null);setVideoId('');setOptions(null);setResumeEntry(null);}
   function clearPage(){setPage(null);seen.current.clear();clearTitle();}
   function choose(next:typeof selection){setSelection(next);setFilters(new Map());clearPage();}
   function clearReview(){const previous=pending.current;pending.current=null;setReview(null);setUrl('');setConsent(false);return previous;}
@@ -166,12 +167,16 @@ export function StremioAddonSettings({workspace=false,onPlay}:{workspace?:boolea
     const metadataSource=sources.find(s=>s.enabled&&s.manifest.resources.includes('meta'));
     if(metadataSource)await readMetadata(item,metadataSource.sourceId);
   }
+  function openHistory(entry:WatchProgress){
+    if(flight.current||!profileReady)return;
+    clearTitle();setTitle({id:entry.itemId,name:entry.title,mediaType:entry.mediaType});setVideoId(entry.videoId);setResumeEntry(entry);
+  }
   async function readMetadata(item:CatalogPage['items'][number],sourceId:number){
     if(flight.current||profileId===undefined)return;
     setDetails(null);setVideoId(item.mediaType==='movie'?item.id:'');setOptions(null);
     await run(async()=>{
       const next=await loadAddonMetadata(profileId,sourceId,item.mediaType,item.id);
-      if(mounted.current){setDetails(next);setVideoId(next.videos.length===1?next.videos[0].id:'');}
+      if(mounted.current){setDetails(next);setVideoId(resumeEntry&&resumeEntry.itemId===item.id&&resumeEntry.mediaType===item.mediaType&&next.videos.some(v=>v.id===resumeEntry.videoId)?resumeEntry.videoId:next.videos.length===1?next.videos[0].id:item.mediaType==='movie'&&next.videos.length===0?item.id:'');}
     });
   }
   async function readOptions(sourceId:number,subtitles:boolean){
@@ -182,14 +187,16 @@ export function StremioAddonSettings({workspace=false,onPlay}:{workspace?:boolea
       if(mounted.current)setOptions({sourceId,subtitles,...result});
     });
   }
-  async function playOption(index:number){
+  const resumeMatch=resumeEntry&&title?.mediaType===resumeEntry.mediaType&&title.id===resumeEntry.itemId&&videoId===resumeEntry.videoId?resumeEntry:null;
+  const resumeMs=resumeMatch&&!resumeMatch.completed&&resumeMatch.positionMs<resumeMatch.durationMs?resumeMatch.positionMs:0;
+  async function playOption(index:number,resume=false){
     if(flight.current||profileId===undefined||!title||!videoId||!options||options.subtitles||!onPlay||!options.rows[index]?.supported)return;
     await run(async()=>{
-      const grantId=await prepareAddonMedia(profileId,options.reviewId,index,false);
+      const grantId=await prepareAddonMedia(profileId,options.reviewId,index,false,resume?resumeMs:0);
       if(!mounted.current)return;
-      setOptions(null);
+      clearTitle();
       onPlay({profileId,grantId,mediaType:title.mediaType,itemId:title.id,videoId,title:details?.name??title.name,
-        episodeTitle:title.mediaType==='movie'?null:details?.videos.find(v=>v.id===videoId)?.name??null,
+        episodeTitle:title.mediaType==='movie'?null:details?.videos.find(v=>v.id===videoId)?.name??resumeMatch?.episodeTitle??null,
         subtitleSources:sources.filter(s=>s.enabled&&s.manifest.resources.includes('subtitles')).map(s=>({sourceId:s.sourceId,name:s.manifest.name}))});
     });
   }
@@ -247,8 +254,9 @@ export function StremioAddonSettings({workspace=false,onPlay}:{workspace?:boolea
         ['manual',t`Add addon`,'plus'],
         ['order',t`Source order`,'list'],
         ['mdblist',t`MDBList`,'bookmark'],
+        ['history',t`Watch history`,'list'],
         ['profile',t`Profile settings`,'settings']
-      ] as const).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><TsugiIcon name={icon}/><span>{label}</span></button>)}
+      ] as const).filter(([id])=>id!=='history'||!!onPlay).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><TsugiIcon name={icon}/><span>{label}</span></button>)}
     </nav>}
     <div className={workspace?'tsugi-watch-content':'contents'}>
     {!workspace&&<h3 id={titleId}><Trans>Stremio addons</Trans></h3>}
@@ -269,7 +277,7 @@ export function StremioAddonSettings({workspace=false,onPlay}:{workspace?:boolea
         {profileState.profiles.length>1&&<details>
           <summary><Trans>Delete an inactive profile</Trans></summary>
           <div className="space-y-2">
-            <p><Trans>Deleting a profile removes its saved addon configurations. Switch away from it first. This cannot be undone.</Trans></p>
+            <p><Trans>Deleting a profile removes its saved addon configurations and local Watch history. Switch away from it first. This cannot be undone.</Trans></p>
             <label><Trans>Profile to delete</Trans><select className="tsugi-menu-select w-full" disabled={busy} value={deleteId} onChange={e=>{setDeleteId(Number(e.target.value));setDeleteName('');}}>
               <option value={0}>{t`Select`}</option>{profileState.profiles.filter(p=>p.profileId!==profileId).map(p=><option key={p.profileId} value={p.profileId}>{p.name}</option>)}
             </select></label>
@@ -338,9 +346,12 @@ export function StremioAddonSettings({workspace=false,onPlay}:{workspace?:boolea
         {page.nextSkip!==null&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(page.nextSkip!)}><Trans>Next page</Trans></button>}</>}
     </form>}
     </>}
+    {workspace&&pane==='history'&&historyActive&&profileReady&&profileId!==undefined&&<WatchHistory key={profileId} profileId={profileId} busy={busy} run={run} open={openHistory} removed={clearTitle}/>}
     {workspace&&pane==='mdblist'&&profileReady&&profileId!==undefined&&<MdblistSettings key={profileId} profileId={profileId} openTitle={item=>void openTitle(item)}/>}
     {workspace&&title&&<section className="space-y-3" data-ui="watch-item-details">
       <div className="flex items-center justify-between gap-3"><h4>{details?.name??title.name}</h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={clearTitle}><Trans>Close title</Trans></button></div>
+      {resumeMatch?.episodeTitle&&<p>{resumeMatch.episodeTitle}</p>}
+      {resumeMs>0&&<p><Trans>Saved playback position:</Trans> {watchTime(resumeMs)}</p>}
       {details?.description&&<p className="break-words">{details.description}</p>}
       <div className="flex flex-wrap gap-2">{sources.filter(s=>s.enabled&&s.manifest.resources.includes('meta')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readMetadata(title,s.sourceId)}><Trans>Details</Trans> · {s.manifest.name}</button>)}</div>
       {details&&details.videos.length>0&&<label className="block"><Trans>Video</Trans><select className="tsugi-read-input w-full" value={videoId} disabled={busy} onChange={e=>{setVideoId(e.target.value);setOptions(null);}}><option value=""><Trans>Select an episode or video</Trans></option>{details.videos.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></label>}
@@ -350,12 +361,48 @@ export function StremioAddonSettings({workspace=false,onPlay}:{workspace?:boolea
         {sources.filter(s=>s.enabled&&s.manifest.resources.includes('subtitles')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readOptions(s.sourceId,true)}><Trans>Subtitles</Trans> · {s.manifest.name}</button>)}
       </div></>}
       {options&&<div className="space-y-2" data-ui="watch-item-options"><h4>{options.subtitles?<Trans>Subtitle options</Trans>:<Trans>Stream options</Trans>}</h4>
-        {options.rows.length===0?<p><Trans>No options returned by this addon.</Trans></p>:<ul className="max-h-64 overflow-auto">{options.rows.map((row,index)=><li className="tsugi-read-row break-words" key={index}><span>{row.name}</span><span className="text-sm">{row.supported?<Trans>Direct HTTPS</Trans>:row.reason==='proxy-headers'?<Trans>Proxy headers required</Trans>:<Trans>Unsupported transport</Trans>}</span>{onPlay&&!options.subtitles&&row.supported&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void playOption(index)}><Trans>Play</Trans></button>}</li>)}</ul>}
+        {options.rows.length===0?<p><Trans>No options returned by this addon.</Trans></p>:<ul className="max-h-64 overflow-auto">{options.rows.map((row,index)=><li className="tsugi-read-row break-words" key={index}><span>{row.name}</span><span className="text-sm">{row.supported?<Trans>Direct HTTPS</Trans>:row.reason==='proxy-headers'?<Trans>Proxy headers required</Trans>:<Trans>Unsupported transport</Trans>}</span>{onPlay&&!options.subtitles&&row.supported&&<div className="flex flex-wrap gap-2">{resumeMs>0&&<button type="button" className="tsugi-read-action tsugi-series-primary" disabled={busy} onClick={()=>void playOption(index,true)}><Trans>Resume</Trans></button>}<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void playOption(index)}>{resumeMs>0?<Trans>Play from beginning</Trans>:<Trans>Play</Trans>}</button></div>}</li>)}</ul>}
         {!onPlay&&<p><Trans>Compatibility preview. Open Watch from the home screen to play direct HTTPS streams.</Trans></p>}
       </div>}
     </section>}
     {busy&&<p role="status"><Trans>Contacting addon registry…</Trans></p>}
     {notice&&<p role="status">{notice}</p>}{error&&<p role="alert">{error}</p>}
     </div>
+  </section>;
+}
+
+function watchTime(ms:number){
+  const seconds=Math.floor(ms/1000);
+  return [Math.floor(seconds/3600),Math.floor(seconds/60)%60,seconds%60].map(n=>String(n).padStart(2,'0')).join(':');
+}
+function WatchHistory({profileId,busy,run,open,removed}:{profileId:number;busy:boolean;run(work:()=>Promise<void>):Promise<void>;open:(entry:WatchProgress)=>void;removed:()=>void}){
+  const [rows,setRows]=React.useState<WatchHistoryEntry[]|null>(null);
+  const [confirm,setConfirm]=React.useState<string|null>(null);
+  const mounted=React.useRef(false);
+  // Loading is explicit: a history request must never invalidate a pending
+  // native stream grant or silently contact a provider.
+  React.useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
+  async function refresh(){
+    await run(async()=>{const next=await listWatchHistory(profileId);if(mounted.current){setRows(next);setConfirm(null);}});
+  }
+  async function remove(entry:WatchProgress){
+    await run(async()=>{const next=await removeWatchHistory(profileId,entry);if(mounted.current){setRows(next);setConfirm(null);removed();}});
+  }
+  return <section className="space-y-3" data-ui="watch-history">
+    <h4><Trans>Watch history</Trans></h4>
+    <p><Trans>Local playback progress for this profile. Open a saved title to choose a fresh stream. History is not sent to your addons.</Trans></p>
+    <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void refresh()}>{rows===null?<Trans>Load history</Trans>:<Trans>Refresh history</Trans>}</button>
+    {rows?.length===0&&<p><Trans>No Watch history for this profile.</Trans></p>}
+    {rows&&<ul className="max-h-96 overflow-auto">{rows.map(({progress:p})=>{
+      const key=JSON.stringify([p.mediaType,p.itemId,p.videoId]);
+      return <li key={key} className="tsugi-read-row flex-wrap">
+        <div className="min-w-0 flex-1"><strong className="break-words">{p.title}</strong>{p.episodeTitle&&<p className="break-words">{p.episodeTitle}</p>}
+          <small>{p.completed?<Trans>Completed</Trans>:<>{watchTime(p.positionMs)} / {watchTime(p.durationMs)}</>}</small></div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>open(p)}><Trans>Open saved title</Trans></button>
+          {confirm===key?<><button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void remove(p)}><Trans>Confirm removal</Trans></button><button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>setConfirm(null)}><Trans>Cancel</Trans></button></>:<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>setConfirm(key)}><Trans>Remove from history</Trans></button>}
+        </div>
+      </li>;
+    })}</ul>}
   </section>;
 }

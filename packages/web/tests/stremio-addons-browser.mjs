@@ -8,7 +8,8 @@ function installStremioFixture(){
   host.stremioAddons=true;
   const send=host.send.bind(host),subscribe=host.subscribe.bind(host),listeners=new Set();
   const manifest={id:'org.fixture',name:'Original addon fixture',version:'1.0.0',resources:['catalog','stream','subtitles'],configurable:false,configurationRequired:false,p2p:false,adult:false,catalogs:[{id:'search',mediaType:'movie',name:'Original films',extras:[{name:'search',required:true,options:[],optionsLimit:null},{name:'skip',required:false,options:[],optionsLimit:null}]}]};
-  const f=window.__stremioFixture={calls:[],profiles:[{profileId:1,name:'Default',sources:[]}],active:1,pending:null,import:null,sequence:1,mediaReview:null,mediaGrant:null,mediaCalls:[]};
+  const f=window.__stremioFixture={calls:[],profiles:[{profileId:1,name:'Default',sources:[],history:[]}],active:1,pending:null,import:null,sequence:1,mediaReview:null,mediaGrant:null,mediaCalls:[]};
+  f.emitPlayer=message=>{for(const listener of listeners)listener(message);};
   host.subscribe=listener=>{listeners.add(listener);const remove=subscribe(listener);return()=>{listeners.delete(listener);remove();};};
   host.send=message=>{
     if(message.type==='stremio-consume-grant'){
@@ -16,7 +17,7 @@ function installStremioFixture(){
       queueMicrotask(()=>{
         const result=grant?.id===message.grantId?{grantId:grant.id,accepted:true,subtitles:grant.subtitles}:null;
         for(const l of listeners)l({type:'stremio-result',request:message.request,data:result,error:result?null:'expired-review'});
-        if(result&&!grant.subtitles)for(const l of listeners){l({type:'player-event',name:'loaded'});l({type:'player-state',paused:false,positionMs:0,durationMs:120000});}
+        if(result&&!grant.subtitles)for(const l of listeners){l({type:'player-event',name:'loaded'});l({type:'player-state',paused:false,positionMs:grant.startMs,durationMs:120000});}
       });return;
     }
     if(message.type==='player-stop'||message.type==='player-set'||message.type==='player-seek')f.mediaCalls.push(structuredClone(message));
@@ -26,7 +27,7 @@ function installStremioFixture(){
     const profileState=()=>({activeProfileId:f.active,profiles:f.profiles.map(p=>({profileId:p.profileId,name:p.name,sourceCount:p.sources.length}))});
     switch(raw.kind){
       case 'profile-list':return emit(profileState());
-      case 'profile-create':f.profiles.push({profileId:++f.sequence,name:raw.name,sources:[]});return emit(profileState());
+      case 'profile-create':f.profiles.push({profileId:++f.sequence,name:raw.name,sources:[],history:[]});return emit(profileState());
       case 'profile-rename':f.profiles.find(p=>p.profileId===raw.profileId).name=raw.name;return emit(profileState());
       case 'profile-switch':f.active=raw.profileId;f.pending=null;f.import=null;f.mediaReview=null;f.mediaGrant=null;return emit(profileState());
       case 'profile-remove':{
@@ -40,6 +41,22 @@ function installStremioFixture(){
     const reply=data=>emit({...data,profileId:raw.profileId});
     switch(a.kind){
       case 'list':return reply({sources:profile.sources});
+      case 'watch-history':return reply({history:profile.history});
+      case 'watch-record':{
+        const p=a.progress;
+        profile.history=profile.history.filter(({progress:q})=>q.mediaType!==p.mediaType||q.itemId!==p.itemId||q.videoId!==p.videoId);
+        profile.history.unshift({progress:p,updatedAt:Date.now()});
+        return reply({saved:true});
+      }
+      case 'watch-remove':{
+        profile.history=profile.history.filter(({progress:q})=>q.mediaType!==a.mediaType||q.itemId!==a.itemId||q.videoId!==a.videoId);
+        return reply({history:profile.history});
+      }
+      case 'move':{
+        const index=profile.sources.findIndex(s=>s.sourceId===a.sourceId);
+        if(index<0||a.position<0||a.position>=profile.sources.length)return emit(null,'invalid-position');
+        const [source]=profile.sources.splice(index,1);profile.sources.splice(a.position,0,source);return reply({sources:profile.sources});
+      }
       case 'import-connect':{
         if(a.email!=='fixture@example.org'||a.password!=='synthetic-password')return emit(null,'account-auth');
         const id=++f.sequence;f.import={id,provider:a.provider,phase:a.provider==='nuvio'?'profiles':'candidates'};
@@ -92,7 +109,7 @@ function installStremioFixture(){
       case 'prepare-media':{
         const review=f.mediaReview;f.mediaReview=null;
         if(review?.id!==a.reviewId||a.optionIndex!==0)return emit(null,'expired-review');
-        f.mediaGrant={id:++f.sequence,subtitles:review.subtitles};
+        f.mediaGrant={id:++f.sequence,subtitles:review.subtitles,startMs:a.startMs};
         return reply({grantId:f.mediaGrant.id,subtitles:review.subtitles});
       }
       case 'catalog':{
@@ -225,6 +242,11 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     const imported=panel.locator('[data-stremio-source-id]').filter({hasText:'Nuvio audio fixture'});
     await imported.waitFor();
     assert.ok((await imported.innerText()).includes('Disabled'));
+    await imported.getByRole('button',{name:'Move up',exact:true}).click();
+    await panel.locator('[data-stremio-source-id]').first().filter({hasText:'Nuvio audio fixture'}).waitFor();
+    const accountFilm=panel.locator('[data-stremio-source-id]').filter({hasText:'Account film addon'});
+    await accountFilm.getByRole('button',{name:'Move up',exact:true}).click();
+    await panel.locator('[data-stremio-source-id]').first().filter({hasText:'Account film addon'}).waitFor();
     const providerCalls=(await calls()).filter(a=>a.kind.startsWith('import-')).map(a=>a.kind);
     assert.deepEqual(providerCalls,['import-connect','import-review','import-apply','import-connect','import-nuvio-profile','import-review','import-apply']);
     console.log('Stremio/Nuvio account import, profile isolation, explicit review and local-only apply passed');
@@ -290,10 +312,45 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await player.getByRole('button',{name:'Original addon fixture',exact:true}).click();
     await player.getByRole('button',{name:'English fixture eng',exact:true}).click();
     await player.getByText('Subtitle request accepted.',{exact:true}).waitFor();
+    await firstLaunch.evaluate(()=>window.__stremioFixture.emitPlayer({type:'player-state',paused:false,positionMs:45000,durationMs:120000}));
+    await player.getByText('00:00:45 / 00:02:00',{exact:true}).waitFor();
     await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
     await player.waitFor({state:'detached'});
     assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.mediaCalls.filter(a=>a.type==='stremio-consume-grant').length),2);
     assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.mediaCalls.some(a=>a.type==='player-stop')),true);
+    const record=await firstLaunch.evaluate(()=>window.__stremioFixture.profiles.find(p=>p.profileId===1).history[0].progress);
+    assert.deepEqual(record,{mediaType:'movie',itemId:'tt123',videoId:'tt123',title:'First original film',episodeTitle:null,positionMs:45000,durationMs:120000,completed:false});
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Watch history',exact:true}).click();
+    const history=watch.locator('[data-ui="watch-history"]');
+    await history.getByRole('button',{name:'Load history',exact:true}).click();
+    await history.getByText('00:00:45 / 00:02:00',{exact:true}).waitFor();
+    await history.getByRole('button',{name:'Open saved title',exact:true}).click();
+    await item.getByText('Saved playback position: 00:00:45',{exact:true}).waitFor();
+    await item.getByRole('button',{name:'Streams · Original addon fixture',exact:true}).click();
+    await options.getByRole('button',{name:'Resume',exact:true}).click();
+    await player.getByRole('button',{name:'Pause',exact:true}).waitFor();
+    await player.getByText('00:00:45 / 00:02:00',{exact:true}).waitFor();
+    assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.calls.filter(a=>a.kind==='profile-request'&&a.action.kind==='prepare-media').at(-1).action.startMs),45000);
+    await firstLaunch.evaluate(()=>window.__stremioFixture.emitPlayer({type:'player-ended',reason:'eof'}));
+    await player.getByText('Playback ended.',{exact:true}).waitFor();
+    await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
+    await player.waitFor({state:'detached'});
+    await history.getByRole('button',{name:'Load history',exact:true}).click();
+    await history.getByText('Completed',{exact:true}).waitFor();
+    await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
+    await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Cinema 0 addons',exact:true}).click();
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Watch history',exact:true}).click();
+    await history.getByRole('button',{name:'Load history',exact:true}).click();
+    await history.getByText('No Watch history for this profile.',{exact:true}).waitFor();
+    await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
+    await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 1 addons',exact:true}).click();
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Watch history',exact:true}).click();
+    await history.getByRole('button',{name:'Load history',exact:true}).click();
+    await history.getByText('Completed',{exact:true}).waitFor();
+    await history.getByRole('button',{name:'Remove from history',exact:true}).click();
+    await history.getByRole('button',{name:'Confirm removal',exact:true}).click();
+    await history.getByText('No Watch history for this profile.',{exact:true}).waitFor();
+    console.log('Watch history exact identity, checkpoints, resume, completion, profile isolation and reviewed removal passed');
     await watch.getByRole('button',{name:'Home',exact:true}).click();
     await firstLaunch.locator('[data-page="desktop-landing"]').waitFor();
     console.log('First launch profile and account import entry and optional skip passed');

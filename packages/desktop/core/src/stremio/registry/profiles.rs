@@ -43,6 +43,8 @@ struct SavedProfile {
     sources: Vec<SavedSource>,
     #[serde(default)]
     mdblist_key: Option<String>,
+    #[serde(default)]
+    history: Vec<super::history::Entry>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -59,13 +61,13 @@ fn name_valid(name: &str) -> bool {
 }
 fn source_action(action: &Action) -> bool {
     matches!(action,Action::List|Action::Review{..}|Action::Install{..}|Action::CancelReview{..}|
-        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::PrepareMedia{..}|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
+        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::PrepareMedia{..}|Action::WatchHistory|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
         Action::ImportConnect{..}|Action::ImportNuvioProfile{..}|Action::ImportReview{..}|Action::ImportApply{..}|Action::ImportCancel{..})
 }
 pub(super) fn is_mutation(action: &Action) -> bool {
     match action {
         Action::ProfileCreate{..}|Action::ProfileRename{..}|Action::ProfileSwitch{..}|Action::ProfileRemove{..} => true,
-        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::MdblistConnect{..}|Action::MdblistDisconnect),
+        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::WatchRecord{..}|Action::WatchRemove{..}),
         _ => false,
     }
 }
@@ -151,6 +153,7 @@ impl Profiles {
             version:1,active:self.active,sequence:self.sequence,
             profiles:self.profiles.iter().map(|p|SavedProfile{
                 id:p.id,name:p.name.clone(),mdblist_key:p.registry.mdblist.saved_key(),
+                history:p.registry.history.saved(),
                 sources:p.registry.sources.iter().map(|s|SavedSource{
                     id:s.id,endpoint:s.endpoint.0.as_str().to_owned(),enabled:s.enabled,manifest:s.manifest.clone()
                 }).collect()
@@ -185,7 +188,7 @@ impl Profiles {
                 if manifest.behavior_hints.configuration_required{return Err("profile-store");}
                 sources.push(Source{id:source.id,endpoint,manifest,enabled:source.enabled});
             }
-            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,mdblist:super::mdblist::Connection::restored(profile.mdblist_key)?,..Registry::default()}});
+            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,mdblist:super::mdblist::Connection::restored(profile.mdblist_key)?,history:super::history::History::restore(profile.history)?,..Registry::default()}});
         }
         if !profiles.iter().any(|p|p.id==saved.active){return Err("profile-store");}
         Ok(Self{active:saved.active,sequence:saved.sequence,profiles})
@@ -252,6 +255,32 @@ mod tests {
         let mut bad:Value=serde_json::from_slice(&encoded).unwrap();
         bad["active"]=json!(999);
         assert!(Profiles::decode(&serde_json::to_vec(&bad).unwrap()).is_err());
+    }
+    #[test]
+    fn watch_history_roundtrip_and_profile_isolation(){
+        let mut p=Profiles::default();
+        let record=||serde_json::from_value::<Action>(json!({
+            "kind":"watch-record","progress":{"mediaType":"series","itemId":"tt123","videoId":"tt123:1:2",
+                "title":"Fixture series","episodeTitle":"Second episode","positionMs":45000,"durationMs":120000,"completed":false}
+        })).unwrap();
+        assert!(is_mutation(&scoped(1,record())));
+        assert_eq!(p.execute(scoped(1,record())).unwrap()["saved"],true);
+        let history=p.execute(scoped(1,Action::WatchHistory)).unwrap();
+        assert_eq!(history["history"][0]["progress"]["videoId"],"tt123:1:2");
+        let second=p.execute(Action::ProfileCreate{name:"Second".into()}).unwrap()["profiles"][1]["profileId"].as_u64().unwrap() as u32;
+        p.execute(Action::ProfileSwitch{profile_id:second}).unwrap();
+        assert_eq!(p.execute(scoped(1,record())),Err("profile-changed"));
+        assert_eq!(p.execute(scoped(second,Action::WatchHistory)).unwrap()["history"],json!([]));
+        let encoded=p.encode().unwrap();
+        let mut restored=Profiles::decode(&encoded).unwrap();
+        restored.execute(Action::ProfileSwitch{profile_id:1}).unwrap();
+        assert_eq!(restored.execute(scoped(1,Action::WatchHistory)).unwrap(),history);
+        restored.execute(scoped(1,Action::WatchRemove{media_type:"series".into(),item_id:"tt123".into(),video_id:"tt123:1:2".into()})).unwrap();
+        assert_eq!(restored.execute(scoped(1,Action::WatchHistory)).unwrap()["history"],json!([]));
+        // Old snapshots have no history field.
+        let mut old:Value=serde_json::from_slice(&encoded).unwrap();
+        for row in old["profiles"].as_array_mut().unwrap(){row.as_object_mut().unwrap().remove("history");}
+        assert!(Profiles::decode(&serde_json::to_vec(&old).unwrap()).is_ok());
     }
     #[test]
     fn profile_names_limits_and_deletion_require_exact_inactive_target(){

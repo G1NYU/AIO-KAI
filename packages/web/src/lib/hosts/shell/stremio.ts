@@ -22,7 +22,10 @@ type ImportAction = {kind:'import-connect';provider:ImportProvider;email:string;
   | {kind:'import-apply';importId:number} | {kind:'import-cancel';importId:number};
 type ItemAction = {kind:'metadata';sourceId:number;mediaType:string;itemId:string} | {kind:'item-options';sourceId:number;mediaType:string;videoId:string;subtitles:boolean} | {kind:'prepare-media';reviewId:number;optionIndex:number;startMs:number};
 type MdblistAction={kind:'mdblist-status'}|{kind:'mdblist-connect';key:string}|{kind:'mdblist-disconnect'}|{kind:'mdblist-lists'}|{kind:'mdblist-page';listId:number;offset:number};
-type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
+export type WatchProgress={mediaType:string;itemId:string;videoId:string;title:string;episodeTitle:string|null;positionMs:number;durationMs:number;completed:boolean};
+export type WatchHistoryEntry={progress:WatchProgress;updatedAt:number};
+type WatchHistoryAction={kind:'watch-history'}|{kind:'watch-record';progress:WatchProgress}|({kind:'watch-remove'}&Pick<WatchProgress,'mediaType'|'itemId'|'videoId'>);
+type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | WatchHistoryAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
 export type RemoteAddonProfile={profileIndex:number;name:string;usesPrimaryAddons:boolean;locked:boolean};
 export type ImportCandidate={candidateId:number;name:string;host:string;enabled:boolean;alreadyInstalled:boolean};
 type ImportBase={importId:number;provider:ImportProvider};
@@ -81,11 +84,11 @@ function sources(v: unknown): AddonSource[] {
   if(new Set(rows.map(s=>s.sourceId)).size!==rows.length)return fail();
   return rows;
 }
-const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit','account-auth','account-request','account-response','import-limit','import-selection','unknown-remote-profile','locked-remote-profile','unsupported-resource','invalid-item','item-limit','invalid-media-selection','mdblist-response','mdblist-auth','mdblist-network','mdblist-request','mdblist-not-found','mdblist-rate','mdblist-disconnected']);
+const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit','account-auth','account-request','account-response','import-limit','import-selection','unknown-remote-profile','locked-remote-profile','unsupported-resource','invalid-item','item-limit','invalid-media-selection','mdblist-response','mdblist-auth','mdblist-network','mdblist-request','mdblist-not-found','mdblist-rate','mdblist-disconnected','invalid-watch-progress']);
 async function request(action: NativeAction): Promise<unknown> {
   if(!appBridge()?.stremioAddons)throw new AddonError('unsupported');
   const id=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
-  const reply=await ask({type:'stremio-request',request:id,action},'stremio-result',{timeoutMs:action.kind==='profile-request'&&action.action.kind==='import-review'?120_000:85_000,matches:m=>m.request===id})
+  const reply=await ask({type:'stremio-request',request:id,action},'stremio-result',{timeoutMs:action.kind==='profile-request'&&action.action.kind==='import-review'?120_000:action.kind==='profile-request'&&action.action.kind.startsWith('watch-')?12_000:85_000,matches:m=>m.request===id})
     .catch(()=>{throw new AddonError('network');});
   if(reply.error!==null)throw new AddonError(codes.has(reply.error)?reply.error:'request');
   return reply.data;
@@ -212,6 +215,23 @@ export async function loadAddonOptions(profileId:number,sourceId:number,mediaTyp
     return {name:str(row.name,256),supported,reason,language:row.language===null?null:str(row.language,32)};
   });
   return {reviewId:integer(v.reviewId,1,0xffffffff),rows};
+}
+
+function watchHistory(v:unknown):WatchHistoryEntry[]{
+  const rows=array(obj(v).history,100,value=>{
+    const row=obj(value),p=obj(row.progress),durationMs=integer(p.durationMs,1,604800000),positionMs=integer(p.positionMs,0,durationMs),completed=bool(p.completed);
+    if(completed&&positionMs!==durationMs)return fail();
+    return {progress:{mediaType:str(p.mediaType,32),itemId:str(p.itemId,512),videoId:str(p.videoId,512),title:str(p.title,512),episodeTitle:p.episodeTitle===null?null:str(p.episodeTitle,512),positionMs,durationMs,completed},updatedAt:integer(row.updatedAt,1,253402300799999)};
+  });
+  if(new Set(rows.map(({progress:p})=>JSON.stringify([p.mediaType,p.itemId,p.videoId]))).size!==rows.length)return fail();
+  return rows;
+}
+export async function listWatchHistory(profileId:number){return watchHistory(await scoped(profileId,{kind:'watch-history'}));}
+export async function saveWatchProgress(profileId:number,progress:WatchProgress){
+  if((await scoped(profileId,{kind:'watch-record',progress})).saved!==true)return fail();
+}
+export async function removeWatchHistory(profileId:number,progress:Pick<WatchProgress,'mediaType'|'itemId'|'videoId'>){
+  return watchHistory(await scoped(profileId,{kind:'watch-remove',mediaType:progress.mediaType,itemId:progress.itemId,videoId:progress.videoId}));
 }
 
 export type WatchPlayback={profileId:number;grantId:number;mediaType:string;itemId:string;videoId:string;title:string;episodeTitle:string|null;subtitleSources:{sourceId:number;name:string}[]};
