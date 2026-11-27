@@ -202,7 +202,7 @@ export type AddonOptions={reviewId:number;rows:AddonOption[]};
 export async function loadAddonOptions(profileId:number,sourceId:number,mediaType:string,videoId:string,subtitles:boolean):Promise<AddonOptions>{
   const v=await scoped(profileId,{kind:'item-options',sourceId,mediaType,videoId,subtitles});
   if(v.sourceId!==sourceId||v.mediaType!==mediaType||v.videoId!==videoId||v.subtitles!==subtitles)return fail();
-  const rows=array(v.options,256,value=>{
+  const rows=array<AddonOption>(v.options,256,value=>{
     const row=obj(value);
     const reason=row.reason;
     if(reason!=='direct-https'&&reason!=='unsupported-transport'&&reason!=='invalid-media-url'&&reason!=='proxy-headers')return fail();
