@@ -1,5 +1,6 @@
 import React from 'react';
 import { StremioAccountImport } from './stremio-account-import';
+import { MdblistSettings } from './mdblist-settings';
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { TsugiIcon } from '@/components/tsugi-icons';
 import './stremio-workspace.css';
@@ -33,7 +34,7 @@ function feedback(reason: unknown) {
     default: return t`The request could not be confirmed. Refresh the installed list before retrying an installation or change.`;
   }
 }
-type WatchPane = 'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile';
+type WatchPane = 'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist';
 const profileArt=['/design/oto/hero-yuna.webp','/design/yomi/hero-torii.webp','/design/shared/hero-neon.webp','/design/shared/hero-train.webp'];
 export function StremioAddonSettings({workspace=false,onPlay}:{workspace?:boolean;onPlay?:(playback:WatchPlayback)=>void}={}){
   const [entered,setEntered]=React.useState(false);
@@ -245,6 +246,7 @@ export function StremioAddonSettings({workspace=false,onPlay}:{workspace?:boolea
         ['nuvio',t`Nuvio import`,'migrate'],
         ['manual',t`Add addon`,'plus'],
         ['order',t`Source order`,'list'],
+        ['mdblist','MDBList','library'],
         ['profile',t`Profile settings`,'settings']
       ] as const).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><TsugiIcon name={icon}/><span>{label}</span></button>)}
     </nav>}
@@ -336,6 +338,7 @@ export function StremioAddonSettings({workspace=false,onPlay}:{workspace?:boolea
         {page.nextSkip!==null&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(page.nextSkip!)}><Trans>Next page</Trans></button>}</>}
     </form>}
     </>}
+    {workspace&&pane==='mdblist'&&profileReady&&profileId!==undefined&&<MdblistSettings key={profileId} profileId={profileId} openTitle={item=>void openTitle(item)}/>}
     {workspace&&title&&<section className="space-y-3" data-ui="watch-item-details">
       <div className="flex items-center justify-between gap-3"><h4>{details?.name??title.name}</h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={clearTitle}><Trans>Close title</Trans></button></div>
       {details?.description&&<p className="break-words">{details.description}</p>}

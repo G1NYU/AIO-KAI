@@ -41,6 +41,8 @@ struct SavedProfile {
     id: u32,
     name: String,
     sources: Vec<SavedSource>,
+    #[serde(default)]
+    mdblist_key: Option<String>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -57,13 +59,13 @@ fn name_valid(name: &str) -> bool {
 }
 fn source_action(action: &Action) -> bool {
     matches!(action,Action::List|Action::Review{..}|Action::Install{..}|Action::CancelReview{..}|
-        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::PrepareMedia{..}|
+        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::PrepareMedia{..}|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
         Action::ImportConnect{..}|Action::ImportNuvioProfile{..}|Action::ImportReview{..}|Action::ImportApply{..}|Action::ImportCancel{..})
 }
 pub(super) fn is_mutation(action: &Action) -> bool {
     match action {
         Action::ProfileCreate{..}|Action::ProfileRename{..}|Action::ProfileSwitch{..}|Action::ProfileRemove{..} => true,
-        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}),
+        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::MdblistConnect{..}|Action::MdblistDisconnect),
         _ => false,
     }
 }
@@ -148,7 +150,7 @@ impl Profiles {
         let snapshot=Snapshot {
             version:1,active:self.active,sequence:self.sequence,
             profiles:self.profiles.iter().map(|p|SavedProfile{
-                id:p.id,name:p.name.clone(),
+                id:p.id,name:p.name.clone(),mdblist_key:p.registry.mdblist.saved_key(),
                 sources:p.registry.sources.iter().map(|s|SavedSource{
                     id:s.id,endpoint:s.endpoint.0.as_str().to_owned(),enabled:s.enabled,manifest:s.manifest.clone()
                 }).collect()
@@ -183,7 +185,7 @@ impl Profiles {
                 if manifest.behavior_hints.configuration_required{return Err("profile-store");}
                 sources.push(Source{id:source.id,endpoint,manifest,enabled:source.enabled});
             }
-            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,..Registry::default()}});
+            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,mdblist:super::mdblist::Connection::restored(profile.mdblist_key)?,..Registry::default()}});
         }
         if !profiles.iter().any(|p|p.id==saved.active){return Err("profile-store");}
         Ok(Self{active:saved.active,sequence:saved.sequence,profiles})

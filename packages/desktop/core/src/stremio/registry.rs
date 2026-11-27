@@ -7,6 +7,7 @@ use serde_json::{json, Value};
 use std::{collections::{BTreeMap, BTreeSet}, fmt, sync::{mpsc, Arc, Mutex}, thread, time::{Duration, Instant}};
 
 mod accounts;
+mod mdblist;
 pub use accounts::Provider as ImportProvider;
 mod profiles;
 #[cfg(windows)]
@@ -40,6 +41,11 @@ pub enum Action {
     Metadata { source_id: u32, media_type: String, item_id: String },
     ItemOptions { source_id: u32, media_type: String, video_id: String, subtitles: bool },
     PrepareMedia { review_id: u32, option_index: usize, start_ms: u64 },
+    MdblistStatus,
+    MdblistConnect { key: String },
+    MdblistDisconnect,
+    MdblistLists,
+    MdblistPage { list_id:u32, offset:u32 },
 }
 impl fmt::Debug for Action {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -95,6 +101,7 @@ struct Registry {
     import: Option<accounts::Flow>,
     media_review: Option<MediaReview>,
     grant: Option<MediaGrant>,
+    mdblist: mdblist::Connection,
 }
 
 /// Only bounded display fields and declared capabilities cross the bridge.
@@ -152,6 +159,11 @@ impl Registry {
         if matches!(&action,Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::ItemOptions{..}|Action::Metadata{..}|Action::Catalog{..}) {self.media_review=None;}
         match action {
             Action::List => Ok(self.list()),
+            Action::MdblistStatus=>Ok(self.mdblist.status()),
+            Action::MdblistConnect{key}=>self.mdblist.connect(key),
+            Action::MdblistDisconnect=>Ok(self.mdblist.disconnect()),
+            Action::MdblistLists=>self.mdblist.lists(),
+            Action::MdblistPage{list_id,offset}=>self.mdblist.page(list_id,offset),
             Action::ImportConnect { provider,email,password } => self.import_connect(provider,&email,&password),
             Action::ImportNuvioProfile { import_id,remote_profile } => self.import_nuvio_profile(import_id,remote_profile),
             Action::ImportReview { import_id,selected } => self.import_review(import_id,selected),

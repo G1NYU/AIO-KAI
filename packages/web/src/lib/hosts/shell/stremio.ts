@@ -21,7 +21,8 @@ type ImportAction = {kind:'import-connect';provider:ImportProvider;email:string;
   | {kind:'import-review';importId:number;selected:number[]}
   | {kind:'import-apply';importId:number} | {kind:'import-cancel';importId:number};
 type ItemAction = {kind:'metadata';sourceId:number;mediaType:string;itemId:string} | {kind:'item-options';sourceId:number;mediaType:string;videoId:string;subtitles:boolean} | {kind:'prepare-media';reviewId:number;optionIndex:number;startMs:number};
-type Action = Mutation | CatalogAction | ImportAction | ItemAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
+type MdblistAction={kind:'mdblist-status'}|{kind:'mdblist-connect';key:string}|{kind:'mdblist-disconnect'}|{kind:'mdblist-lists'}|{kind:'mdblist-page';listId:number;offset:number};
+type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
 export type RemoteAddonProfile={profileIndex:number;name:string;usesPrimaryAddons:boolean;locked:boolean};
 export type ImportCandidate={candidateId:number;name:string;host:string;enabled:boolean;alreadyInstalled:boolean};
 type ImportBase={importId:number;provider:ImportProvider};
@@ -80,7 +81,7 @@ function sources(v: unknown): AddonSource[] {
   if(new Set(rows.map(s=>s.sourceId)).size!==rows.length)return fail();
   return rows;
 }
-const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit','account-auth','account-request','account-response','import-limit','import-selection','unknown-remote-profile','locked-remote-profile','unsupported-resource','invalid-item','item-limit','invalid-media-selection']);
+const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit','account-auth','account-request','account-response','import-limit','import-selection','unknown-remote-profile','locked-remote-profile','unsupported-resource','invalid-item','item-limit','invalid-media-selection','mdblist-response','mdblist-auth','mdblist-network','mdblist-request','mdblist-not-found','mdblist-rate','mdblist-disconnected']);
 async function request(action: NativeAction): Promise<unknown> {
   if(!appBridge()?.stremioAddons)throw new AddonError('unsupported');
   const id=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
@@ -225,4 +226,23 @@ export async function consumeAddonMedia(grantId:number,subtitles:boolean){
   if(reply.error!==null)throw new AddonError(codes.has(reply.error)?reply.error:'request');
   const v=obj(reply.data);
   if(v.grantId!==grantId||v.accepted!==true||v.subtitles!==subtitles)return fail();
+}
+
+export type MdblistItem={id:string;mediaType:string;name:string;ratings:Record<string,number>};
+export async function mdblistStatus(profileId:number){return bool((await scoped(profileId,{kind:'mdblist-status'})).connected);}
+export async function mdblistConnect(profileId:number,key:string){return bool((await scoped(profileId,{kind:'mdblist-connect',key})).connected);}
+export async function mdblistDisconnect(profileId:number){return bool((await scoped(profileId,{kind:'mdblist-disconnect'})).connected);}
+export async function mdblistLists(profileId:number){
+  const v=await scoped(profileId,{kind:'mdblist-lists'});
+  return array(v.lists,1000,value=>{const row=obj(value);return {id:integer(row.id,1,0xffffffff),name:str(row.name,512),count:integer(row.count,0,0xffffffff)};});
+}
+export async function mdblistPage(profileId:number,listId:number,offset:number){
+  const v=await scoped(profileId,{kind:'mdblist-page',listId,offset});
+  const items=array<MdblistItem>(v.items,100,value=>{
+    const row=obj(value),mediaType=str(row.mediaType,32),id=str(row.id,512);
+    if(!['movie','series'].includes(mediaType)||!/^tt\d{1,12}$|^tmdb:(movie|tv):[1-9]\d*$/.test(id))return fail();
+    const ratings=Object.fromEntries(Object.entries(obj(row.ratings)).filter(([k,v])=>['imdb','tmdb','mdblist','trakt','letterboxd','tomatoes','metacritic'].includes(k)&&typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=100)) as Record<string,number>;
+    return {id,mediaType,name:str(row.name,512),ratings};
+  });
+  return {items,nextOffset:v.nextOffset===null?null:integer(v.nextOffset,offset+1,100000)};
 }
