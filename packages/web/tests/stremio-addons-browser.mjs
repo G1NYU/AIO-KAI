@@ -346,8 +346,13 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     let missingDiscoveryArtRequests=0,discoveryArtRequests=0;
     await page.route(missingDiscoveryPoster,route=>{missingDiscoveryArtRequests++;return route.fulfill({status:404,headers:{'access-control-allow-origin':'*'},body:''});});
     await page.route(discoveryPoster,route=>{discoveryArtRequests++;return route.fulfill({contentType:'image/webp',body:posterImage,headers:{'access-control-allow-origin':'*'}});});
+    const missingResumePoster='https://image.tmdb.org/t/p/w500/resume-missing.jpg';
+    const availableResumePoster='https://image.tmdb.org/t/p/w500/resume-present.jpg';
+    let missingResumeRequests=0,availableResumeRequests=0;
     await page.route('https://image.tmdb.org/t/p/**',route=>{
       const url=route.request().url();
+      if(url===missingResumePoster){missingResumeRequests++;return route.fulfill({status:404,headers:{'access-control-allow-origin':'*'},body:''});}
+      if(url===availableResumePoster)availableResumeRequests++;
       const body=url.includes('episode')?episodeImage:url.includes('/w1280/')||url.includes('/w780/')?heroImage:url.includes('film')||url.includes('cinema')?movieImage:posterImage;
       return route.fulfill({contentType:'image/webp',body,headers:{'access-control-allow-origin':'*'}});
     });
@@ -371,6 +376,14 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       ];
       f.profiles.push({...structuredClone(f.profiles[0]),profileId:2,name:'Stream only',sources:[addon(106,'Independent stream',['stream'])]});
       f.profiles.push({...structuredClone(f.profiles[0]),profileId:3,name:'Browse only',sources:[]});
+      // Model persisted native history and local artwork at a fresh renderer startup.
+      const history=(id,title)=>({progress:{mediaType:'movie',itemId:id,videoId:id,title,episodeTitle:null,positionMs:45000,durationMs:120000,completed:false},updatedAt:Date.now()});
+      f.profiles[0].history=[history('tt90031','Saved fallback fixture'),history('tt90032','Legacy artwork fixture')];
+      const key=id=>JSON.stringify(['movie',id,id]);
+      localStorage.setItem('tsugi-watch-artwork-v2:1',JSON.stringify({[key('tt90031')]:['https://image.tmdb.org/t/p/w500/resume-missing.jpg','https://image.tmdb.org/t/p/w500/resume-present.jpg','https://example.invalid/private-fixture/manifest.json?token=fixture']}));
+      localStorage.setItem('tsugi-watch-artwork-v1:2',JSON.stringify({[key('tt90032')]:'https://image.tmdb.org/t/p/w500/resume-present.jpg'}));
+      f.profiles[0].history.pop();
+      f.profiles[1].history=[history('tt90032','Legacy artwork fixture')];
     }.toString()+')();'});
     await page.goto(origin);
     await page.getByRole('button',{name:'Movies & TV',exact:true}).first().click();
@@ -383,6 +396,13 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.equal(await board.locator('[data-ui="media-row"]').count()>0,true);
     assert.equal(await film.getAttribute('data-ui'),'poster-card');
     await assertArtwork(film);
+    const cachedResume=board.locator('[data-ui="watch-continue-shelf"] [data-ui="wide-card"]').filter({hasText:'Saved fallback fixture'});
+    await cachedResume.waitFor();
+    await cachedResume.scrollIntoViewIfNeeded();
+    await page.waitForFunction(card=>Array.from(card.querySelectorAll('img')).some(image=>image.complete&&image.naturalWidth>0),await cachedResume.elementHandle());
+    await assertArtwork(cachedResume);
+    assert.ok(missingResumeRequests>0&&availableResumeRequests>0,'persisted resume artwork falls back after a failed first URL');
+    assert.equal(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='tmdb-title'&&a.action.itemId==='tt90031')),false);
     const shelfFont=await board.locator('[data-ui="media-row-title"]').first().evaluate(el=>({family:getComputedStyle(el).fontFamily,weight:Number(getComputedStyle(el).fontWeight)}));
     assert.match(shelfFont.family,/^Interface(?:,|$)/);
     assert.ok(await page.evaluate(async()=>{const faces=await document.fonts.load('600 18px Interface','Popular films');return faces.some(face=>face.family==='Interface'&&face.status==='loaded');}));
@@ -510,6 +530,10 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await resumedCard.waitFor();
     assert.equal(await resumedCard.getAttribute('data-in-progress'),'true');
     await assertArtwork(resumedCard);
+    const savedArtwork=await page.evaluate(()=>JSON.parse(localStorage.getItem('tsugi-watch-artwork-v2:1')));
+    const filmArtwork=savedArtwork[JSON.stringify(['movie','tt90001','tt90001'])];
+    assert.ok(Array.isArray(filmArtwork)&&filmArtwork.length>=2,'persist multiple same-title artwork candidates');
+    assert.equal(JSON.stringify(savedArtwork).includes('private-fixture'),false,'invalid stored URLs are excluded on write');
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-resume-art.png'),animations:'disabled'});
     await film.click();
     await item.locator('[data-ui="watch-play-title"]').filter({hasText:/^Resume$/}).waitFor();
@@ -600,6 +624,10 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Stream only 1 addons',exact:true}).click();
     await watch.locator('[data-ui="watch-hub-picker"] [data-watch-destination="standalone"]').click();
+    const legacyResume=board.locator('[data-ui="watch-continue-shelf"] [data-ui="wide-card"]').filter({hasText:'Legacy artwork fixture'});
+    await legacyResume.waitFor();
+    await assertArtwork(legacyResume);
+    assert.equal(await board.getByText('Saved fallback fixture',{exact:true}).count(),0,'resume artwork remains profile-local');
     await board.getByRole('button',{name:'Public movie fixture',exact:true}).click();
     await item.locator('[data-ui="watch-play-title"]').click();
     await groups.getByRole('heading',{name:'Independent stream',exact:true}).waitFor();

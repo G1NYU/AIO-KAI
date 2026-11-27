@@ -3,18 +3,27 @@ import { storage } from '@/lib/storage';
 import { loadTmdbTitle,loadTmdbSeason,publicAddonPoster,type WatchProgress } from './stremio';
 type Identity=Pick<WatchProgress,'mediaType'|'itemId'|'videoId'>;
 const key=(p:Identity)=>JSON.stringify([p.mediaType,p.itemId,p.videoId]);
-const cacheKey=(profileId:number)=>'tsugi-watch-artwork-v1:'+profileId;
-function cache(profileId:number):Record<string,string>{
-  const data=storage.get<Record<string,string>>(cacheKey(profileId));
+const cacheKey=(profileId:number)=>'tsugi-watch-artwork-v2:'+profileId;
+const maxEntries=150,maxImages=12;
+function artworkCandidates(images:unknown[]):string[]{
+  return [...new Set(images.map(publicAddonPoster).filter((url):url is string=>!!url))].slice(0,maxImages);
+}
+function cache(profileId:number):Record<string,string[]>{
+  // Read the old single-URL cache on upgrade without overwriting it.
+  const data=storage.get<unknown>(cacheKey(profileId))??storage.get<unknown>('tsugi-watch-artwork-v1:'+profileId);
   if(!data||typeof data!=='object'||Array.isArray(data))return {};
-  return Object.fromEntries(Object.entries(data).flatMap(([k,v])=>{const url=publicAddonPoster(v);return url?[[k,url]]:[];}).slice(0,150));
+  return Object.fromEntries(Object.entries(data).flatMap(([k,v])=>{
+    const urls=artworkCandidates(Array.isArray(v)?v.slice(0,maxImages):[v]);
+    return urls.length?[[k,urls] as const]:[];
+  }).slice(-maxEntries));
 }
 export function rememberWatchArtwork(profileId:number,p:Identity,...images:(string|undefined|null)[]){
-  const url=images.map(publicAddonPoster).find(Boolean);
-  if(!url)return;
+  const urls=artworkCandidates(images);
+  if(!urls.length)return;
   const rows=cache(profileId),id=key(p);
+  const retained=artworkCandidates([...urls,...(rows[id]??[])]);
   delete rows[id];
-  storage.set(cacheKey(profileId),Object.fromEntries(Object.entries({...rows,[id]:url}).slice(-150)));
+  storage.set(cacheKey(profileId),Object.fromEntries(Object.entries({...rows,[id]:retained}).slice(-maxEntries)));
 }
 function fallback(p:Identity){
   return /^tt[0-9]{1,12}$/.test(p.itemId)?'https://images.metahub.space/background/medium/'+p.itemId+'/img':undefined;
@@ -44,5 +53,11 @@ export function useResumeArtwork(profileId:number,rows:Identity[]){
     void Promise.all(Array.from({length:Math.min(pending.length,3)},()=>worker()));
     return ()=>{current=false;};
   },[profileId,signature]);
-  return React.useMemo(()=>{const saved=cache(profileId);return (p:Identity)=>saved[key(p)]??fallback(p)??null;},[profileId,revision,signature]);
+  return React.useMemo(()=>{
+    const saved=cache(profileId);
+    return (p:Identity)=>{
+      const urls=artworkCandidates([...(saved[key(p)]??[]),fallback(p)]);
+      return urls.length?urls:null;
+    };
+  },[profileId,revision,signature]);
 }

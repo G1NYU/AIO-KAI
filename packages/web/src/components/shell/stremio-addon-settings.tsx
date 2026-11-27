@@ -254,7 +254,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     stopStreams(false);
     const played=metadata?.videos.find(v=>v.id===video);
     const still=played&&String(played.season)===selectedSeason?seasonArt.find(e=>e.episode===played.episode)?.thumbnail:undefined;
-    rememberWatchArtwork(profileId,{mediaType:item.mediaType,itemId:item.id,videoId:video},still,played?.thumbnail,cinema?.background,metadata?.background,item.background,metadata?.poster,item.poster);
+    rememberWatchArtwork(profileId,{mediaType:item.mediaType,itemId:item.id,videoId:video},still,played?.thumbnail,cinema?.background,metadata?.background,item.background,metadata?.poster,item.poster,...(item.posterAlternatives??[]));
     const grantId=await prepareAddonMedia(profileId,picked.reviewId,index,false,startMs);
     if(!mounted.current)return;
     suppressSourceFocus.current=true;setSourceOpen(false);setOptions(null);setStreamGroups(null);
