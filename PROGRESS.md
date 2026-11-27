@@ -1,5 +1,12 @@
 # AIO-KAI development handoff
 
+## 2026-11-27 — TSUGI current verification checkpoint
+
+- Active branch: `feature/tsugi-read-runtime`; main unchanged.
+- [c16e361](https://github.com/G1NYU/TSUGI/commit/c16e3615137b8e3981ddd8368b3928bf07800bb6) passed [Unified Windows CI](https://github.com/G1NYU/TSUGI/actions/runs/45948461122): 214 native tests, 18 ignored; 40 web test files, typecheck/lint, integrated browser smoke and WebView2 cache preservation. The credits localization repair passed. Only synthetic UI previews were produced, not a new EXE.
+- Follow-up: HTTP 408 is now a retryable Refract network failure; new parser and queue tests cover both movies and individual episodes. This change awaits cumulative CI. See HANDOFF.md for the exact remaining release gates and limitations. No package or release requested.
+
+
 Updated: 2026-11-23
 
 ## Goal

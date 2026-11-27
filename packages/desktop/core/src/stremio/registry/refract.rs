@@ -197,7 +197,8 @@ fn decode_response(status:u16,retry_ms:u64,bytes:&[u8],read_json:bool)->Remote<V
     if status==429{return Err(Failure{code:"refract-rate",retry_ms});}
     if status==401{return Err(Failure::new("refract-auth"));}
     if status==403{return Err(Failure::new("refract-scope"));}
-    if status==503{return Err(Failure{code:"refract-network",retry_ms});}
+    // A request timeout is transient, not a permanent rejected watch.
+    if matches!(status,408|503){return Err(Failure{code:"refract-network",retry_ms});}
     let code=serde_json::from_slice::<Value>(bytes).ok().and_then(|v|v["code"].as_str().map(str::to_owned));
     Err(Failure::new(match (status,code.as_deref()){
         (409,Some("IN_LIBRARY"))=>"refract-protected",
@@ -212,7 +213,7 @@ fn response(response:ureq::http::Response<ureq::Body>,read_json:bool)->Remote<Va
     let status=response.status().as_u16();
     let retry_ms=response.headers().get("Retry-After").and_then(|v|v.to_str().ok())
         .and_then(|v|v.parse::<u64>().ok()).unwrap_or(60).clamp(1,86400)*1000;
-    if (!read_json&&(200..300).contains(&status))||matches!(status,401|403|429|503){
+    if (!read_json&&(200..300).contains(&status))||matches!(status,401|403|408|429|503){
         return decode_response(status,retry_ms,&[],read_json);
     }
     let bytes=read_bounded(response.into_body().into_reader(),LIMIT).map_err(|_|Failure::new("refract-response"))?;
@@ -470,10 +471,14 @@ mod tests{
         assert_eq!(decode_response(200,60000,b"",true).unwrap_err().code,"refract-response");
         assert_eq!(decode_response(200,60000,br#"{"data":[]}"#,true).unwrap()["data"],json!([]));
         for (status,code) in [(401,"refract-auth"),(403,"refract-scope"),(404,"refract-unmatched"),
-            (409,"refract-conflict"),(422,"refract-rejected"),(429,"refract-rate"),(503,"refract-network")]{
+            (408,"refract-network"),(409,"refract-conflict"),(422,"refract-rejected"),(429,"refract-rate"),(503,"refract-network")]{
             assert_eq!(decode_response(status,13000,b"{}",false).unwrap_err().code,code);
         }
         assert_eq!(decode_response(429,13000,b"",false).unwrap_err().retry_ms,13000);
+        for read_json in [true,false]{
+            let timeout=decode_response(408,13000,b"",read_json).unwrap_err();
+            assert_eq!(timeout.code,"refract-network");assert_eq!(timeout.retry_ms,13000);
+        }
         assert_eq!(decode_response(409,60000,br#"{"code":"IN_LIBRARY"}"#,false).unwrap_err().code,"refract-protected");
     }
     #[test]
@@ -518,6 +523,34 @@ mod tests{
         assert!(c.finish_delivery(&next,&DeliveryResult(Some(Ok(())))).unwrap());
         assert!(!c.finish_delivery(&next,&DeliveryResult(Some(Ok(())))).unwrap());
         assert_eq!(c.status()["pending"],0);assert_eq!(c.status()["sent"],1);
+    }
+    #[cfg(windows)]
+    #[test]
+    fn http_timeout_preserves_original_queued_watch(){
+        for p in [progress("movie","tt123","tt123"),progress("series","tt456","tt456:1:2")]{
+            let mut c=connection();c.enable(true).unwrap();
+            c.enqueue(&p,1609459200123,Some("00000000-0000-4000-8000-000000000001"));
+            let timed_out=c.delivery().unwrap();assert!(timed_out.begin_write());
+            let error=decode_response(408,13000,b"",false).unwrap_err();
+            assert!(c.finish_delivery(&timed_out,&DeliveryResult(Some(Err(error)))).unwrap());
+            assert_eq!(c.status()["pending"],1);assert_eq!(c.status()["sent"],0);
+            assert_eq!(c.status()["skipped"],0);assert_eq!(c.status()["lastError"],"refract-network");
+            let saved=c.saved().unwrap();
+            assert_eq!(saved.jobs[0].attempts,1);
+            assert_eq!(saved.jobs[0].request_id,timed_out.job.request_id);
+            assert_eq!(saved.jobs[0].watched_at,timed_out.job.watched_at);
+            let mut restored=Connection::restored(Some(saved)).unwrap();
+            assert!(restored.delivery().is_none());
+            restored.saved.as_mut().unwrap().retry_at=0;
+            let retry=restored.delivery().unwrap();
+            assert_eq!(retry.job.request_id,timed_out.job.request_id);
+            assert_eq!(retry.job.watched_at,timed_out.job.watched_at);
+            assert!(retry.job.identity==timed_out.job.identity);
+            assert!(retry.begin_write());
+            assert!(restored.finish_delivery(&retry,&DeliveryResult(Some(Ok(())))).unwrap());
+            assert_eq!(restored.status()["pending"],0);assert_eq!(restored.status()["sent"],1);
+            assert_eq!(restored.status()["skipped"],0);
+        }
     }
     #[cfg(windows)]
     #[test]
