@@ -378,11 +378,10 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       f.profiles.push({...structuredClone(f.profiles[0]),profileId:3,name:'Browse only',sources:[]});
       // Model persisted native history and local artwork at a fresh renderer startup.
       const history=(id,title)=>({progress:{mediaType:'movie',itemId:id,videoId:id,title,episodeTitle:null,positionMs:45000,durationMs:120000,completed:false},updatedAt:Date.now()});
-      f.profiles[0].history=[history('tt90031','Saved fallback fixture'),history('tt90032','Legacy artwork fixture')];
+      f.profiles[0].history=[history('tt90031','Saved fallback fixture')];
       const key=id=>JSON.stringify(['movie',id,id]);
       localStorage.setItem('tsugi-watch-artwork-v2:1',JSON.stringify({[key('tt90031')]:['https://image.tmdb.org/t/p/w500/resume-missing.jpg','https://image.tmdb.org/t/p/w500/resume-present.jpg','https://example.invalid/private-fixture/manifest.json?token=fixture']}));
       localStorage.setItem('tsugi-watch-artwork-v1:2',JSON.stringify({[key('tt90032')]:'https://image.tmdb.org/t/p/w500/resume-present.jpg'}));
-      f.profiles[0].history.pop();
       f.profiles[1].history=[history('tt90032','Legacy artwork fixture')];
     }.toString()+')();'});
     await page.goto(origin);

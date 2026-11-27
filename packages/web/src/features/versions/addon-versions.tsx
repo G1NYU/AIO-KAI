@@ -73,7 +73,7 @@ export function AddonVersionList({groups,sources,busy,resumeMs=0,switching=false
         <label className="flex items-center gap-2"><input type="checkbox" checked={playable} onChange={e=>setPlayable(e.target.checked)}/><Trans>Playable only</Trans></label>
         <span role="status">{visible.reduce((sum,group)=>sum+rowsFor(group).length,0)} <Trans>returned streams</Trans></span>
       </div>
-      {(audioOptions.length>0||hasSize||hasCache)&&<p className="basis-full text-xs text-[--muted]"><Trans>Audio, sizes and cache status are provider-reported, not independently verified.</Trans></p>
+      {(audioOptions.length>0||hasSize||hasCache)&&<p className="basis-full text-xs text-[--muted]"><Trans>Audio, sizes and cache status are provider-reported, not independently verified.</Trans></p>}
     </div>}
     {visible.map(group=>{
       const result=group.options,rows=rowsFor(group),limit=limits[group.sourceId]??24;
