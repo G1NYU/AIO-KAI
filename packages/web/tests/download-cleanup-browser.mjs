@@ -207,7 +207,47 @@ export async function verifyDownloadCleanupBrowser({ browser, origin, installDes
 
 // A native video deep link can unmount Read even while its local controls are
 // disabled. Exercise a delayed chapter reply without ever mounting its reader.
+async function verifyTsugiUpdateNotice({browser,origin,installDesktopFixture}){
+  for(const status of ['newer-release','different-build']){
+    const page=await browser.newPage({viewport:{width:1440,height:900},locale:'en-GB'});
+    try{
+      await page.addInitScript({content:`(${installDesktopFixture.toString()})();(function(){
+        if(window.top!==window)return;
+        localStorage.setItem('tsugi-onboarding-complete-v1','true');
+        localStorage.setItem('tsugi-startup-area-v1',JSON.stringify('welcome'));
+        const host=window.aiostreamsApp,send=host.send.bind(host),subscribe=host.subscribe.bind(host),listeners=new Set();
+        window.__releaseChecks=0;
+        host.subscribe=listener=>{listeners.add(listener);const remove=subscribe(listener);return()=>{listeners.delete(listener);remove();};};
+        host.send=message=>{
+          if(message.type!=='tsugi-release-check')return send(message);
+          window.__releaseChecks++;
+          const data={latestTag:'v0.2.0',latestCommit:'a'.repeat(40),currentCommit:'c'.repeat(40),status:${JSON.stringify(status)},packageBytes:12345,sha256:'b'.repeat(64),notes:'Original test release'};
+          queueMicrotask(()=>{for(const listener of listeners)listener({type:'tsugi-release-result',request:message.request,data,error:null});});
+        };
+      })();`});
+      await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
+      await page.goto(origin,{waitUntil:'domcontentloaded'});
+      await page.waitForFunction(()=>window.__releaseChecks===1);
+      const notice=page.locator('[data-ui="tsugi-update-notice"]');
+      if(status==='newer-release'){
+        await notice.waitFor();
+        const link=notice.getByRole('link',{name:'Open official release',exact:true});
+        assert.equal(await link.getAttribute('href'),'https://github.com/G1NYU/TSUGI/releases/tag/v0.2.0');
+        assert.equal(await link.getAttribute('rel'),'noopener noreferrer');
+        await notice.getByRole('button',{name:'Later',exact:true}).click();
+        await notice.waitFor({state:'hidden'});
+      }else{
+        await page.waitForTimeout(300);
+        assert.equal(await notice.count(),0,'a different build is not an advertised upgrade');
+      }
+      assert.equal(await page.evaluate(()=>window.__releaseChecks),1);
+    }finally{await page.close();}
+  }
+  console.log('PASS: startup Tsugi release notice offers only a proven newer release, links to GitHub, and dismisses without downloading.');
+}
+
 export async function verifyReaderReleaseBrowser({ browser, origin, installDesktopFixture }) {
+  await verifyTsugiUpdateNotice({browser,origin,installDesktopFixture});
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, locale: 'en-GB' });
   page.setDefaultTimeout(20_000);
   const errors = [];

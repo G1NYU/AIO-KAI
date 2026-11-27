@@ -7,6 +7,9 @@ describe('Tsugi release discovery',()=>{
     expect(tsugiReleasePage(parseTsugiRelease(row))).toBe('https://github.com/G1NYU/TSUGI/releases/tag/v0.1.0');
     expect(parseTsugiRelease({...row,currentCommit:null,status:'unknown-build'}).status).toBe('unknown-build');
     expect(parseTsugiRelease({...row,currentCommit:'c'.repeat(40),status:'different-build'}).status).toBe('different-build');
+    expect(parseTsugiRelease({...row,currentCommit:'c'.repeat(40),status:'newer-release'}).status).toBe('newer-release');
+    expect(()=>parseTsugiRelease({...row,status:'newer-release'})).toThrow();
+    expect(()=>parseTsugiRelease({...row,currentCommit:null,status:'newer-release'})).toThrow();
   });
   it('rejects invalid URLs, prerelease tags and inconsistent status',()=>{
     for(const invalid of [{...row,latestTag:'../evil'},{...row,latestTag:'v0.01.0'},{...row,latestTag:'v0.1.0-beta'},{...row,sha256:'bad'},{...row,packageBytes:-1},{...row,status:'different-build'},{...row,downloadUrl:'https://example.test/evil.zip'},{...row,notes:'x'.repeat(12001)}])

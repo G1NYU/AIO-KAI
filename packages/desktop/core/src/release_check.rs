@@ -84,6 +84,16 @@ fn project_release(release:&Value,reference:&Value,current:Option<String>)->Resu
         "packageBytes":zip["size"],"sha256":digest,"notes":notes
     }))
 }
+// Advertise an upgrade only when the stable release is a proven descendant.
+// Unpublished, divergent or large comparisons may be unavailable. In that
+// case keep the conservative different-build state and the manual release link.
+fn is_newer(comparison:&Value,current:&str)->bool{
+    comparison["status"]=="ahead" &&
+        comparison["base_commit"]["sha"]==current &&
+        comparison["merge_base_commit"]["sha"]==current &&
+        comparison["behind_by"].as_u64()==Some(0) &&
+        comparison["ahead_by"].as_u64().is_some_and(|count|count>0)
+}
 pub fn check(root:&Path)->Result<Value,&'static str>{
     let current=current_commit(root);
     let agent:ureq::Agent=ureq::Agent::config_builder()
@@ -91,7 +101,18 @@ pub fn check(root:&Path)->Result<Value,&'static str>{
     let release=fetch(&agent,&format!("{API}/releases/latest"))?;
     let name=stable_tag(&release)?;
     let reference=fetch(&agent,&format!("{API}/git/ref/tags/{name}"))?;
-    project_release(&release,&reference,current)
+    let mut projected=project_release(&release,&reference,current)?;
+    if projected["status"]=="different-build"{
+        let newer=match (projected["currentCommit"].as_str(),projected["latestCommit"].as_str()){
+            (Some(current),Some(latest))=>{
+                let url=format!("{API}/compare/{current}...{latest}?per_page=1");
+                fetch(&agent,&url).is_ok_and(|comparison|is_newer(&comparison,current))
+            }
+            _=>false
+        };
+        if newer{projected["status"]=json!("newer-release");}
+    }
+    Ok(projected)
 }
 
 #[cfg(test)]
@@ -119,6 +140,20 @@ mod tests{
         assert_eq!(project_release(&release,&reference,Some("c".repeat(40))).unwrap()["status"],"different-build");
         assert_eq!(project_release(&release,&reference,None).unwrap()["status"],"unknown-build");
         assert!(!tag("v0.01.0"));assert!(!tag("v0.1.0-beta"));assert!(!tag("../bad"));
+    }
+    #[test]
+    fn newer_release_requires_proven_ancestry(){
+        let current="c".repeat(40);
+        let row=json!({"status":"ahead","base_commit":{"sha":current},"merge_base_commit":{"sha":current},"ahead_by":2,"behind_by":0});
+        assert!(is_newer(&row,&current));
+        for status in ["behind","diverged","identical"]{
+            let mut bad=row.clone();bad["status"]=json!(status);assert!(!is_newer(&bad,&current));
+        }
+        let mut bad=row.clone();bad["merge_base_commit"]["sha"]=json!("a".repeat(40));assert!(!is_newer(&bad,&current));
+        let mut bad=row.clone();bad["base_commit"]["sha"]=json!("a".repeat(40));assert!(!is_newer(&bad,&current));
+        let mut bad=row.clone();bad["ahead_by"]=json!(0);assert!(!is_newer(&bad,&current));
+        let mut bad=row.clone();bad["behind_by"]=json!(1);assert!(!is_newer(&bad,&current));
+        assert!(!is_newer(&Value::Null,&current));
     }
     #[test]
     fn rejects_wrong_repository_assets_and_release_identity(){

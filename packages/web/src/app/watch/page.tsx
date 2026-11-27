@@ -1,6 +1,7 @@
 import React from 'react';
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
+import type { WatchEntryPane } from '@/lib/desktop-area';
 import { StremioAddonSettings } from '@/components/shell/stremio-addon-settings';
 import { appBridge } from '@/lib/hosts/shell/bridge';
 import { consumeAddonMedia, loadAddonOptions, prepareAddonMedia, saveWatchProgress, type AddonOptions, type WatchPlayback, type WatchProgress } from '@/lib/hosts/shell/stremio';
@@ -8,14 +9,14 @@ import { useMediaPresence } from '@/lib/rich-presence';
 import { usePlayerPage } from '@/app/player/page';
 import './watch.css';
 
-export function DirectWatchPage({openWelcome,openVideo}:{openWelcome:()=>void;openVideo:()=>void}){
+export function DirectWatchPage({openWelcome,openVideo,initialPane='addons'}:{openWelcome:()=>void;openVideo:()=>void;initialPane?:WatchEntryPane}){
   const [playing,setPlaying]=React.useState<WatchPlayback|null>(null);
   const [historyError,setHistoryError]=React.useState(false);
   return <main data-page="direct-watch" className="tsugi-direct-watch">
     <div hidden={!!playing} inert={!!playing}>
       <header className="flex flex-wrap gap-3 justify-between"><button type="button" className="tsugi-read-action" onClick={openWelcome}><Trans>Home</Trans></button><button type="button" className="tsugi-read-action" onClick={openVideo}><Trans>Connect to a media server</Trans></button></header>
       {historyError&&<p role="alert"><Trans>Watch progress could not be confirmed saved. Check your history before resuming.</Trans></p>}
-      <StremioAddonSettings workspace onPlay={setPlaying} historyActive={!playing}/>
+      <StremioAddonSettings workspace initialPane={initialPane} onPlay={setPlaying} historyActive={!playing}/>
     </div>
     {playing&&<DirectPlayer key={playing.grantId} playback={playing} close={()=>setPlaying(null)} onHistoryError={setHistoryError}/>}
   </main>;

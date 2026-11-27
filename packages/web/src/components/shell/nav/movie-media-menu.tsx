@@ -1,6 +1,6 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
-import { BiCog, BiGridAlt } from 'react-icons/bi';
+import { MovieGlyph } from '@/components/movie-icons';
 import {
   DropdownMenu,
   DropdownMenuItem,
@@ -29,7 +29,7 @@ export function MovieMediaMenu() {
           className="tsugi-video-media-switch"
           aria-label={t({ id: 'All media', message: 'All media' })}
         >
-          <BiGridAlt aria-hidden />
+          <MovieGlyph name="grid" />
           <span>{t({ id: 'All media', message: 'All media' })}</span>
         </button>
       }
@@ -48,11 +48,11 @@ export function MovieMediaMenu() {
       ))}
       <DropdownMenuSeparator />
       <DropdownMenuItem data-name="all-media" onClick={actions.openWelcome}>
-        <BiGridAlt aria-hidden />
+        <MovieGlyph name="grid" />
         {t({ id: 'All media', message: 'All media' })}
       </DropdownMenuItem>
       <DropdownMenuItem data-name="app-settings" onClick={actions.openSettings}>
-        <BiCog aria-hidden />
+        <MovieGlyph name="settings" />
         {t({ id: 'App settings', message: 'App settings' })}
       </DropdownMenuItem>
     </DropdownMenu>

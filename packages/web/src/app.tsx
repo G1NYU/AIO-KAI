@@ -52,7 +52,7 @@ import { WindowControls } from './components/shell/window-controls';
 import { InputSetup } from './components/shell/input-setup';
 import { CrashReportDialog } from './components/shell/crash-report';
 import { SplashEnd } from './lib/splash';
-import { DesktopAreaContext, initialDesktopArea, readStartupArea, allowsMusicPlayback, type DesktopArea } from './lib/desktop-area';
+import { DesktopAreaContext, initialDesktopArea, readStartupArea, allowsMusicPlayback, type DesktopArea, type WatchEntryPane } from './lib/desktop-area';
 import type { ResumeRow, ResumeTarget } from './lib/up-next';
 import { DesktopLandingPage } from './app/desktop-landing/page';
 import { DirectWatchPage } from './app/watch/page';
@@ -66,6 +66,7 @@ import { RichPresenceSession } from './lib/rich-presence';
 import { GlobalAppearance, GlobalSettingsDialog } from './components/shell/global-settings';
 import { MediaNavigation } from './components/shell/media-navigation';
 import { startScheduledBackups } from './lib/backup/scheduled-runner';
+import { TsugiReleasePrompt } from './components/shell/tsugi-release-prompt';
 
 /** The web app served at the Jellyfin API's `/web`. */
 export default function JellyfinWebApp() {
@@ -99,7 +100,7 @@ export default function JellyfinWebApp() {
           <ThemeStyles />
           <InputSetup router={webRouter} />
           {shellHost() && <ShellSetup />}
-          {currentHost().name === 'desktop' && <WindowControls />}
+          {currentHost().name === 'desktop' && <><WindowControls /><TsugiReleasePrompt /></>}
           {__STANDALONE__ ? <Standalone /> : <Served />}
         </MotionConfig>
       </ThemeProvider>
@@ -177,7 +178,9 @@ function Standalone() {
   const openVault = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(null); setArea('vault'); }, []);
   const openVaultMusic = React.useCallback((track: {id:string;title:string}) => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(track); setArea('vault'); }, []);
   const openVideo = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setReadVisited(false); setArea('video'); }, []);
-  const openWatch = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setReadVisited(false); setArea('watch'); }, []);
+  const [watchPane,setWatchPane]=React.useState<WatchEntryPane>('addons');
+  const openWatchPane=React.useCallback((pane:WatchEntryPane)=>{setResumeTarget(null);setVaultComicTarget(null);setReadVisited(false);setWatchPane(pane);setArea('watch');},[]);
+  const openWatch=React.useCallback(()=>openWatchPane('addons'),[openWatchPane]);
   const openWelcome = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setArea('welcome'); }, []);
   const openVideoDownloads = React.useCallback(() => { openVideo(); navigate(to.downloads); }, [openVideo]);
   const openResume = React.useCallback((target: ResumeTarget) => {
@@ -188,8 +191,8 @@ function Standalone() {
     setResumeTarget({...target});
   }, [books, reading, readerReady, openBooks, openManga, openMusic]);
   const areaActions = React.useMemo(
-    () => ({ openWelcome, openMusic, openVideo, openSettings, openResume, resumeTarget, consumeResume, vaultComicTarget, consumeVaultComic, musicResumeRows, readerReady, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead: reading || books ? openRead : undefined, openBooks: books ? openBooks : undefined, openManga: reading ? openManga : undefined, openVaultComic: reading ? openVaultComic : undefined }),
-    [openWelcome, openMusic, openVideo, openSettings, openResume, resumeTarget, consumeResume, vaultComicTarget, consumeVaultComic, musicResumeRows, readerReady, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead, reading, books, openBooks, openManga, openVaultComic]
+    () => ({ openWelcome, openMusic, openVideo, openWatchPane: appBridge()?.stremioAddons ? openWatchPane : undefined, openSettings, openResume, resumeTarget, consumeResume, vaultComicTarget, consumeVaultComic, musicResumeRows, readerReady, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead: reading || books ? openRead : undefined, openBooks: books ? openBooks : undefined, openManga: reading ? openManga : undefined, openVaultComic: reading ? openVaultComic : undefined }),
+    [openWelcome, openMusic, openVideo, openWatchPane, openSettings, openResume, resumeTarget, consumeResume, vaultComicTarget, consumeVaultComic, musicResumeRows, readerReady, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead, reading, books, openBooks, openManga, openVaultComic]
   );
   // Who's watching, asked across the saved servers.
   const [picking, setPicking] = React.useState(() => {
@@ -300,7 +303,7 @@ function Standalone() {
               <SplashEnd />
             </ServerInfoProvider>
           ) : desktop && area === 'watch' ? (
-            <ServerInfoProvider value={NO_SERVER_INFO}><DirectWatchPage openWelcome={openWelcome} openVideo={openVideo} /><SplashEnd /></ServerInfoProvider>
+            <ServerInfoProvider value={NO_SERVER_INFO}><DirectWatchPage openWelcome={openWelcome} openVideo={openVideo} initialPane={watchPane} /><SplashEnd /></ServerInfoProvider>
           ) : desktop && area === 'read' && (reading || books) ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
               {readMode === 'books' ? <BooksPage /> : !readerReady && <ReadSetupPage openBooks={books ? openBooks : undefined} openWelcome={openWelcome} onReady={() => { setReaderReady(true); setReadVisited(true); }} />}

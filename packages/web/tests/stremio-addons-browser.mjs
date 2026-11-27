@@ -3,10 +3,12 @@ import { gzipSync } from 'node:zlib';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-function installStremioFixture(){
+export function installStremioFixture(initializeStartup=true){
   if(window.top!==window)return;
-  localStorage.setItem('tsugi-onboarding-complete-v1','true');
-  localStorage.setItem('tsugi-startup-area-v1',JSON.stringify('welcome'));
+  if(initializeStartup){
+    localStorage.setItem('tsugi-onboarding-complete-v1','true');
+    localStorage.setItem('tsugi-startup-area-v1',JSON.stringify('welcome'));
+  }
   const host=window.aiostreamsApp;
   host.stremioAddons=true;
   const send=host.send.bind(host),subscribe=host.subscribe.bind(host),listeners=new Set();
@@ -403,6 +405,8 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     const watch=firstLaunch.locator('[data-page="direct-watch"]');
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 0 addons',exact:true}).click();
     await watch.getByRole('heading',{name:'Your addon stack.',exact:true}).waitFor();
+    const watchGlyphs=await watch.locator('.tsugi-watch-nav [data-movie-glyph]').evaluateAll(nodes=>nodes.map(node=>({name:node.getAttribute('data-movie-glyph'),fill:node.getAttribute('fill'),stroke:node.getAttribute('stroke')})));
+    assert.equal(watchGlyphs.length,10);assert.equal(new Set(watchGlyphs.map(g=>g.name)).size,10);assert.ok(watchGlyphs.every(g=>g.fill==='currentColor'&&g.stroke==='none'));
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Add addon',exact:true}).click();
     await watch.getByLabel('Configured manifest URL').fill('https://example.invalid/private-fixture/manifest.json?token=fixture');
     await watch.getByRole('checkbox').check();

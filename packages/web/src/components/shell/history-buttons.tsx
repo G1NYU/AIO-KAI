@@ -4,6 +4,7 @@ import { useRouterState } from '@tanstack/react-router';
 import { LuCircleArrowLeft, LuCircleArrowRight } from 'react-icons/lu';
 import { HoverCard } from '@aiostreams/ui/hover-card';
 import type { IconType } from 'react-icons';
+import { MovieIcons } from '@/components/movie-icons';
 import { cn } from '@aiostreams/ui/core/styling';
 import { currentHost } from '@/lib/hosts';
 import { pageRtl } from '@/lib/direction';
@@ -21,7 +22,7 @@ function HistoryButton({
   ...props
 }: {
   label: string;
-  icon: IconType;
+  icon: IconType | typeof MovieIcons.back;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
@@ -52,7 +53,7 @@ export function HistoryButtons({ top = false }: { top?: boolean }) {
     <HistoryButton
       data-name="back"
       label={t`Back`}
-      icon={LuCircleArrowLeft}
+      icon={currentHost().name === 'desktop' ? MovieIcons.back : LuCircleArrowLeft}
       disabled={nav?.canGoBack === false}
       onClick={() => window.history.back()}
     />
@@ -82,7 +83,7 @@ export function HistoryButtons({ top = false }: { top?: boolean }) {
           <HistoryButton
             data-name="forward"
             label={t`Forward`}
-            icon={LuCircleArrowRight}
+            icon={currentHost().name === 'desktop' ? MovieIcons.forward : LuCircleArrowRight}
             className="border border-white/10 bg-[--paper] shadow-lg shadow-black/50"
             onClick={() => window.history.forward()}
           />

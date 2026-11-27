@@ -50,7 +50,7 @@
 .tsugi-watch-workspace-banner .tsugi-read-action { flex:none; }
 .tsugi-watch-nav { display:flex; flex-direction:column; align-self:start; gap:4px; }
 .tsugi-watch-nav-item {
-  display:flex; align-items:center; gap:12px; text-align:start; min-height:40px;
+  display:flex; align-items:center; gap:12px; text-align:start; min-height:44px;
   padding:8px 12px; color:var(--tsugi-muted); background:transparent;
   border-inline-start:2px solid transparent; border-radius:0;
 }

@@ -15,7 +15,6 @@ import {
   BiHeart,
   BiHistory,
   BiHomeAlt2,
-  BiGridAlt,
   BiListUl,
   BiCog,
   BiSearch,
@@ -82,6 +81,7 @@ import { ConnectionNote } from './unreachable';
 import { Logo, onBar } from './nav/common';
 import { SidebarAccount } from './nav/account';
 import { MovieMediaMenu } from './nav/movie-media-menu';
+import { MovieIcons } from '@/components/movie-icons';
 import { MobileNav } from './nav/mobile-nav';
 import { TouchRail } from './nav/touch-rail';
 import { TvRail } from './nav/tv-rail';
@@ -159,7 +159,7 @@ export function WebLayout() {
   const activity: SidebarItem = {
     id: 'activity',
     name: t`Activity`,
-    iconType: BiHistory,
+    iconType: desktopArea ? MovieIcons.history : BiHistory,
     isCurrent: pathname.startsWith('/history'),
     onClick: () => navigate(to.history),
   };
@@ -167,7 +167,7 @@ export function WebLayout() {
     ? {
         id: 'downloads',
         name: t`Downloads`,
-        iconType: BiDownload,
+        iconType: desktopArea ? MovieIcons.download : BiDownload,
         isCurrent: pathname.startsWith('/downloads'),
         onClick: () => navigate(to.downloads),
       }
@@ -198,7 +198,7 @@ export function WebLayout() {
     ? {
         id: 'live',
         name: t`Live TV`,
-        iconType: BiTv,
+        iconType: desktopArea ? MovieIcons.tv : BiTv,
         isCurrent: pathname.startsWith('/live'),
         onClick: () => navigate(to.live()),
       }
@@ -206,7 +206,7 @@ export function WebLayout() {
   const calendar: SidebarItem = {
     id: 'calendar',
     name: t`Calendar`,
-    iconType: BiCalendar,
+    iconType: desktopArea ? MovieIcons.calendar : BiCalendar,
     isCurrent: pathname.startsWith('/calendar'),
     onClick: () => navigate(to.calendar()),
   };
@@ -214,31 +214,37 @@ export function WebLayout() {
   const together: SidebarItem = {
     id: 'party',
     name: inParty ? t`Watch party` : t`Watch together`,
-    iconType: BiGroup,
+    iconType: desktopArea ? MovieIcons.people : BiGroup,
     onClick: () => openPartySheet(),
   };
   const playlists: SidebarItem = {
     id: 'playlists',
     name: t`Playlists`,
-    iconType: BiListUl,
+    iconType: desktopArea ? MovieIcons.list : BiListUl,
     onClick: () => openPlaylists(),
   };
+  const watchItems: SidebarItem[] = desktopArea?.openWatchPane ? [
+    { id: 'anime-hub', name: t`Anime Hub`, iconType: MovieIcons.anime, onClick: () => desktopArea.openWatchPane?.('anime') },
+    { id: 'watch-addons', name: t`Watch addons`, iconType: MovieIcons.addons, onClick: () => desktopArea.openWatchPane?.('addons') },
+    { id: 'stremio-import', name: t`Stremio import`, iconType: MovieIcons.stremio, onClick: () => desktopArea.openWatchPane?.('stremio') },
+    { id: 'nuvio-import', name: t`Nuvio import`, iconType: MovieIcons.nuvio, onClick: () => desktopArea.openWatchPane?.('nuvio') },
+  ] : [];
   const items: SidebarItem[] = [
     {
       id: 'home',
       name: t`Home`,
-      iconType: BiHomeAlt2,
+      iconType: desktopArea ? MovieIcons.home : BiHomeAlt2,
       isCurrent: pathname === '/',
       onClick: () => navigate(to.home),
     },
-    ...(desktopArea ? [{ id: 'all-media', name: t({ id: 'All media', message: 'All media' }), iconType: BiGridAlt, isCurrent: false, onClick: desktopArea.openWelcome }] : []),
+    ...(desktopArea ? [{ id: 'all-media', name: t({ id: 'All media', message: 'All media' }), iconType: MovieIcons.grid, isCurrent: false, onClick: desktopArea.openWelcome }] : []),
     ...(desktopArea ? mediaDestinations(desktopArea).filter(({ id }) => id !== 'video').map(({ id, label, open }) => ({
       id, name: label, iconType: id === 'music' ? TsugiMusicIcon : id === 'vault' ? TsugiVaultIcon : TsugiReadIcon, isCurrent: false, onClick: open,
     })) : []),
     {
       id: 'discover',
       name: t`Discover`,
-      iconType: BiCompass,
+      iconType: desktopArea ? MovieIcons.discover : BiCompass,
       isCurrent:
         pathname.startsWith('/discover') || pathname.startsWith('/library'),
       onClick: () => navigate(to.discover()),
@@ -246,17 +252,18 @@ export function WebLayout() {
     {
       id: 'search',
       name: t`Search`,
-      iconType: BiSearch,
+      iconType: desktopArea ? MovieIcons.search : BiSearch,
       isCurrent: pathname.startsWith('/search'),
       onClick: () => navigate(to.search()),
     },
     {
       id: 'favourites',
       name: t`Favourites`,
-      iconType: BiHeart,
+      iconType: desktopArea ? MovieIcons.heart : BiHeart,
       isCurrent: pathname.startsWith('/favourites'),
       onClick: () => navigate(to.favourites()),
     },
+    ...watchItems,
     ...(live ? [live] : []),
     calendar,
     activity,
@@ -272,7 +279,7 @@ export function WebLayout() {
   const settingsItem: SidebarItem = {
     id: 'settings',
     name: t`Settings`,
-    iconType: BiCog,
+    iconType: desktopArea ? MovieIcons.settings : BiCog,
     isCurrent: pathname.startsWith('/settings'),
     onClick: () => navigate(to.settings()),
   };
@@ -280,7 +287,7 @@ export function WebLayout() {
   const switchItem: SidebarItem = {
     id: 'switch-user',
     name: t`Switch profile`,
-    iconType: BiTransferAlt,
+    iconType: desktopArea ? MovieIcons.switch : BiTransferAlt,
     onClick: switchUser,
   };
   const you: SidebarItem = several
@@ -441,6 +448,7 @@ export function WebLayout() {
             <MobileNav
               items={items}
               places={[
+                ...watchItems,
                 ...(live ? [live] : []),
                 ...(downloads ? [downloads] : []),
                 activity,

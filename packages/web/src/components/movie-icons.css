@@ -1,0 +1,13 @@
+/* Keep the desktop's continuous rail and accessible existing button geometry. */
+.tsugi-video-shell [data-movie-glyph],.tsugi-watch-nav-item [data-movie-glyph] {
+  color:#fff; opacity:.82;
+}
+.tsugi-video-shell :is(button,a):is(:hover,:focus-visible) [data-movie-glyph],
+.tsugi-video-shell [data-current='true'] [data-movie-glyph],
+.tsugi-video-shell [data-movie-glyph][data-current='true'],
+.tsugi-watch-nav-item:is(:hover,:focus-visible,[aria-pressed='true']) [data-movie-glyph] { opacity:1; }
+.tsugi-video-shell [data-movie-glyph][data-current='true'],
+.tsugi-video-shell [aria-current='page'] [data-movie-glyph] { color:var(--tsugi-accent); }
+:root[data-host='desktop'] .tsugi-video-shell .tsugi-video-media-switch:is(:hover,[data-state='open']) { background:transparent; }
+.tsugi-watch-nav-item { min-height:44px; }
+.tsugi-watch-nav-item:disabled { opacity:.5; }

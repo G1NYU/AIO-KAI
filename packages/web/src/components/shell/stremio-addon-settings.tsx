@@ -5,6 +5,8 @@ import { MalAnimeLibrary } from './mal-anime-library';
 import { RefractSettings, RefractWatchlist } from './refract-settings';
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { TsugiIcon } from '@/components/tsugi-icons';
+import { MovieGlyph } from '@/components/movie-icons';
+import type { WatchEntryPane } from '@/lib/desktop-area';
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
@@ -40,7 +42,7 @@ function feedback(reason: unknown) {
 }
 type WatchPane = 'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history'|'refract'|'anime';
 const profileArt=['/design/oto/hero-yuna.webp','/design/yomi/hero-torii.webp','/design/shared/hero-neon.webp','/design/shared/hero-train.webp'];
-export function StremioAddonSettings({workspace=false,onPlay,historyActive=false,setupConnections=false,initialPane='addons'}:{workspace?:boolean;onPlay?:(playback:WatchPlayback)=>void;historyActive?:boolean;setupConnections?:boolean;initialPane?:'addons'|'anime'}={}){
+export function StremioAddonSettings({workspace=false,onPlay,historyActive=false,setupConnections=false,initialPane='addons'}:{workspace?:boolean;onPlay?:(playback:WatchPlayback)=>void;historyActive?:boolean;setupConnections?:boolean;initialPane?:WatchEntryPane}={}){
   const [entered,setEntered]=React.useState(false);
   const [pane,setPane]=React.useState<WatchPane>(initialPane);
   const [creating,setCreating]=React.useState(false);
@@ -250,21 +252,21 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
   return <section className={workspace?'tsugi-app-general tsugi-watch-workspace':'tsugi-app-general'} data-ui="stremio-addon-settings" data-watch-pane={pane} aria-labelledby={titleId}>
     {workspace&&<header className="tsugi-watch-workspace-banner" style={{'--tsugi-watch-art':"url('/design/shared/hero-train.webp')"} as React.CSSProperties}>
       <div><TsugiBrand/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}>{pane==='anime'?<Trans>Anime</Trans>:<Trans>Your addon stack.</Trans>}</h3>{pane!=='anime'&&<p><Trans>Bring your sources home.</Trans></p>}</div>
-      <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void backToProfiles()}><TsugiIcon name="people" aria-hidden/> <Trans>Switch profile</Trans></button>
+      <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void backToProfiles()}><MovieGlyph name="people"/> <Trans>Switch profile</Trans></button>
     </header>}
     {workspace&&<nav className="tsugi-watch-nav" aria-label={t`Watch setup`}>
       {([
-        ['addons',t`Your addons`,'grid'],
-        ['stremio',t`Stremio import`,'migrate'],
-        ['nuvio',t`Nuvio import`,'migrate'],
-        ['manual',t`Add addon`,'plus'],
-        ['order',t`Source order`,'list'],
-        ['anime',t`Anime`,'bookmark'],
-        ['mdblist',t`MDBList`,'bookmark'],
-        ['refract',t`Refract`,'bookmark'],
-        ['history',t`Watch history`,'list'],
+        ['addons',t`Your addons`,'addons'],
+        ['stremio',t`Stremio import`,'stremio'],
+        ['nuvio',t`Nuvio import`,'nuvio'],
+        ['manual',t`Add addon`,'add'],
+        ['order',t`Source order`,'order'],
+        ['anime',t`Anime`,'anime'],
+        ['mdblist',t`MDBList`,'mdblist'],
+        ['refract',t`Refract`,'refract'],
+        ['history',t`Watch history`,'history'],
         ['profile',t`Profile settings`,'settings']
-      ] as const).filter(([id])=>id==='history'?!!onPlay:id==='anime'||id==='refract'?!!onPlay||setupConnections:true).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><TsugiIcon name={icon}/><span>{label}</span></button>)}
+      ] as const).filter(([id])=>id==='history'?!!onPlay:id==='anime'||id==='refract'?!!onPlay||setupConnections:true).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><MovieGlyph name={icon}/><span>{label}</span></button>)}
     </nav>}
     <div className={workspace?'tsugi-watch-content':'contents'}>
     {!workspace&&<h3 id={titleId}><Trans>Stremio addons</Trans></h3>}
