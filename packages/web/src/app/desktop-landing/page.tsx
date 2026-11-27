@@ -6,17 +6,15 @@ import { FiClock, FiPlay, FiSettings } from 'react-icons/fi';
 import { TsugiBrand, TsugiMediaIcon } from '@/components/tsugi-brand';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { FirstBootAppearance } from './first-boot-appearance';
-import { appBridge } from '@/lib/hosts/shell/bridge';
 
 /** Direct media destinations, independent of server configuration. */
-export function DesktopLandingPage({ openVideo, openMusic, openRead, openVault }: {
-  openVideo(): void; openMusic(): void; openRead?: () => void; openVault?: () => void;
+export function DesktopLandingPage({ openVideo, openWatch, openMusic, openRead, openVault }: {
+  openVideo(): void; openWatch?: () => void; openMusic(): void; openRead?: () => void; openVault?: () => void;
 }) {
   const desktopArea = useDesktopArea();
   const [upNextOpen, setUpNextOpen] = React.useState(false);
   const [introRevisit,setIntroRevisit]=React.useState(0);
-  const [watchRevisit,setWatchRevisit]=React.useState(0);
-  const enterWatch=()=>{if(openVault&&appBridge()?.stremioAddons)setWatchRevisit(n=>n+1);else openVideo();};
+  const enterWatch=openWatch??openVideo;
   const sections = [
     { id: 'video' as const, label: t({ id: "Movies & TV", message: "Movies & TV" }), open: enterWatch },
     { id: 'music' as const, label: t({ id: "Music", message: "Music" }), open: openMusic },
@@ -24,7 +22,7 @@ export function DesktopLandingPage({ openVideo, openMusic, openRead, openVault }
     ...(openVault ? [{ id: 'vault' as const, label: t({ id: 'Vault', message: 'Vault' }), open: openVault }] : []),
   ];
   return <main data-page="desktop-landing" className="tsugi-landing tsugi-index">
-    {openVault && <FirstBootAppearance revisit={introRevisit} watchRevisit={watchRevisit} onWatchContinue={openVideo} />}
+    {openVault && <FirstBootAppearance revisit={introRevisit} />}
     {desktopArea?.openResume && <UpNext open={upNextOpen} onClose={()=>setUpNextOpen(false)}/>}
     <header className="tsugi-index-header">
       {openVault && <button type="button" className="tsugi-category-link" onClick={()=>setIntroRevisit(value=>value+1)}><FiPlay aria-hidden/><Trans id="Introduction">Introduction</Trans></button>}

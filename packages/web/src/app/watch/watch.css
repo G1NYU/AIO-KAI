@@ -1,0 +1,9 @@
+.tsugi-direct-watch {padding:32px;max-width:1440px;margin:auto;color:var(--tsugi-ink);}
+.tsugi-direct-watch>div>header {margin-bottom:24px;}
+.tsugi-direct-player {position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;justify-content:space-between;color:white;}
+.tsugi-direct-player header,.tsugi-direct-player footer {padding:24px;display:flex;gap:12px;background:linear-gradient(180deg,rgba(0,0,0,.85),transparent);}
+.tsugi-direct-player header {justify-content:space-between;align-items:flex-start;}
+.tsugi-direct-player h1 {font-size:clamp(1.3rem,3vw,2.3rem);font-weight:650;}
+.tsugi-direct-player footer {flex-direction:column;background:linear-gradient(0deg,rgba(0,0,0,.92),transparent);}
+.tsugi-direct-player input[type=range]{flex:1;min-width:160px;}
+.tsugi-direct-player-status {align-self:center;max-width:600px;padding:20px;text-align:center;background:rgba(0,0,0,.8);border-radius:12px;}

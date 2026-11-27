@@ -240,9 +240,11 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await intro.waitFor({state:'hidden'});
     assert.equal(await firstLaunch.evaluate(()=>JSON.parse(localStorage.getItem('tsugi-onboarding-complete-v1'))),true);
     await firstLaunch.getByRole('button',{name:'Movies & TV',exact:true}).first().click();
-    await picker.getByRole('button',{name:'Default 0 addons',exact:true}).waitFor();
-    await setup.getByRole('button',{name:'Skip for now',exact:true}).click();
-    await setup.waitFor({state:'hidden'});
+    const watch=firstLaunch.locator('[data-page="direct-watch"]');
+    await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 0 addons',exact:true}).click();
+    await watch.getByRole('heading',{name:'Your addon stack.',exact:true}).waitFor();
+    await watch.getByRole('button',{name:'Home',exact:true}).click();
+    await firstLaunch.locator('[data-page="desktop-landing"]').waitFor();
     console.log('First launch profile and account import entry and optional skip passed');
   }finally{await firstLaunch.close();}
 }

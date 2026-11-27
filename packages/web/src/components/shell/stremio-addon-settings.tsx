@@ -5,7 +5,7 @@ import { TsugiIcon } from '@/components/tsugi-icons';
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, type AddonMetadata, type AddonOption } from '@/lib/hosts/shell/stremio';
+import { AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, type AddonMetadata, type AddonOptions, prepareAddonMedia, type WatchPlayback } from '@/lib/hosts/shell/stremio';
 
 function feedback(reason: unknown) {
   switch(reason instanceof AddonError ? reason.code : 'request'){
@@ -35,7 +35,7 @@ function feedback(reason: unknown) {
 }
 type WatchPane = 'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile';
 const profileArt=['/design/oto/hero-yuna.webp','/design/yomi/hero-torii.webp','/design/shared/hero-neon.webp','/design/shared/hero-train.webp'];
-export function StremioAddonSettings({workspace=false}:{workspace?:boolean}={}){
+export function StremioAddonSettings({workspace=false,onPlay}:{workspace?:boolean;onPlay?:(playback:WatchPlayback)=>void}={}){
   const [entered,setEntered]=React.useState(false);
   const [pane,setPane]=React.useState<WatchPane>('addons');
   const [creating,setCreating]=React.useState(false);
@@ -62,7 +62,7 @@ export function StremioAddonSettings({workspace=false}:{workspace?:boolean}={}){
   const [title,setTitle]=React.useState<CatalogPage['items'][number]|null>(null);
   const [details,setDetails]=React.useState<AddonMetadata|null>(null);
   const [videoId,setVideoId]=React.useState('');
-  const [options,setOptions]=React.useState<{sourceId:number;subtitles:boolean;rows:AddonOption[]}|null>(null);
+  const [options,setOptions]=React.useState<({sourceId:number;subtitles:boolean}&AddonOptions)|null>(null);
   const mounted=React.useRef(false);
   const flight=React.useRef(false);
   const pending=React.useRef<{profileId:number;reviewId:number}|null>(null);
@@ -177,8 +177,19 @@ export function StremioAddonSettings({workspace=false}:{workspace?:boolean}={}){
     if(flight.current||profileId===undefined||!title||!videoId)return;
     setOptions(null);
     await run(async()=>{
-      const rows=await loadAddonOptions(profileId,sourceId,title.mediaType,videoId,subtitles);
-      if(mounted.current)setOptions({sourceId,subtitles,rows});
+      const result=await loadAddonOptions(profileId,sourceId,title.mediaType,videoId,subtitles);
+      if(mounted.current)setOptions({sourceId,subtitles,...result});
+    });
+  }
+  async function playOption(index:number){
+    if(flight.current||profileId===undefined||!title||!videoId||!options||options.subtitles||!onPlay||!options.rows[index]?.supported)return;
+    await run(async()=>{
+      const grantId=await prepareAddonMedia(profileId,options.reviewId,index,false);
+      if(!mounted.current)return;
+      setOptions(null);
+      onPlay({profileId,grantId,mediaType:title.mediaType,itemId:title.id,videoId,title:details?.name??title.name,
+        episodeTitle:title.mediaType==='movie'?null:details?.videos.find(v=>v.id===videoId)?.name??null,
+        subtitleSources:sources.filter(s=>s.enabled&&s.manifest.resources.includes('subtitles')).map(s=>({sourceId:s.sourceId,name:s.manifest.name}))});
     });
   }
   async function selectPane(next:WatchPane){
@@ -328,16 +339,16 @@ export function StremioAddonSettings({workspace=false}:{workspace?:boolean}={}){
     {workspace&&title&&<section className="space-y-3" data-ui="watch-item-details">
       <div className="flex items-center justify-between gap-3"><h4>{details?.name??title.name}</h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={clearTitle}><Trans>Close title</Trans></button></div>
       {details?.description&&<p className="break-words">{details.description}</p>}
-      <div className="flex flex-wrap gap-2">{sources.filter(s=>s.enabled&&s.manifest.resources.includes('meta')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readMetadata(title,s.sourceId)}><Trans>Details from {s.manifest.name}</Trans></button>)}</div>
+      <div className="flex flex-wrap gap-2">{sources.filter(s=>s.enabled&&s.manifest.resources.includes('meta')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readMetadata(title,s.sourceId)}><Trans>Details</Trans> · {s.manifest.name}</button>)}</div>
       {details&&details.videos.length>0&&<label className="block"><Trans>Video</Trans><select className="tsugi-read-input w-full" value={videoId} disabled={busy} onChange={e=>{setVideoId(e.target.value);setOptions(null);}}><option value=""><Trans>Select an episode or video</Trans></option>{details.videos.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></label>}
       {!videoId&&<p><Trans>Select a video from a compatible metadata addon before requesting streams.</Trans></p>}
       {videoId&&<><h4><Trans>Available sources</Trans></h4><div className="flex flex-wrap gap-2">
-        {sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readOptions(s.sourceId,false)}><Trans>Streams from {s.manifest.name}</Trans></button>)}
-        {sources.filter(s=>s.enabled&&s.manifest.resources.includes('subtitles')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readOptions(s.sourceId,true)}><Trans>Subtitles from {s.manifest.name}</Trans></button>)}
+        {sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readOptions(s.sourceId,false)}><Trans>Streams</Trans> · {s.manifest.name}</button>)}
+        {sources.filter(s=>s.enabled&&s.manifest.resources.includes('subtitles')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readOptions(s.sourceId,true)}><Trans>Subtitles</Trans> · {s.manifest.name}</button>)}
       </div></>}
       {options&&<div className="space-y-2" data-ui="watch-item-options"><h4>{options.subtitles?<Trans>Subtitle options</Trans>:<Trans>Stream options</Trans>}</h4>
-        {options.rows.length===0?<p><Trans>No options returned by this addon.</Trans></p>:<ul className="max-h-64 overflow-auto">{options.rows.map((row,index)=><li className="tsugi-read-row break-words" key={index}><span>{row.name}</span><span className="text-sm">{row.supported?<Trans>Direct HTTPS</Trans>:row.reason==='proxy-headers'?<Trans>Proxy headers required</Trans>:<Trans>Unsupported transport</Trans>}</span></li>)}</ul>}
-        <p><Trans>Compatibility preview only. Direct playback is not connected yet.</Trans></p>
+        {options.rows.length===0?<p><Trans>No options returned by this addon.</Trans></p>:<ul className="max-h-64 overflow-auto">{options.rows.map((row,index)=><li className="tsugi-read-row break-words" key={index}><span>{row.name}</span><span className="text-sm">{row.supported?<Trans>Direct HTTPS</Trans>:row.reason==='proxy-headers'?<Trans>Proxy headers required</Trans>:<Trans>Unsupported transport</Trans>}</span>{onPlay&&!options.subtitles&&row.supported&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void playOption(index)}><Trans>Play</Trans></button>}</li>)}</ul>}
+        {!onPlay&&<p><Trans>Compatibility preview. Open Watch from the home screen to play direct HTTPS streams.</Trans></p>}
       </div>}
     </section>}
     {busy&&<p role="status"><Trans>Contacting addon registry…</Trans></p>}

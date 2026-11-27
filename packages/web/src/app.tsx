@@ -55,6 +55,7 @@ import { SplashEnd } from './lib/splash';
 import { DesktopAreaContext, initialDesktopArea, readStartupArea, allowsMusicPlayback, type DesktopArea } from './lib/desktop-area';
 import type { ResumeRow, ResumeTarget } from './lib/up-next';
 import { DesktopLandingPage } from './app/desktop-landing/page';
+import { DirectWatchPage } from './app/watch/page';
 import { MusicPage } from './app/music/page';
 import { VaultPage } from './app/vault/page';
 import { ReadPage, ReadSetupPage } from './app/read/page';
@@ -176,6 +177,7 @@ function Standalone() {
   const openVault = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(null); setArea('vault'); }, []);
   const openVaultMusic = React.useCallback((track: {id:string;title:string}) => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(track); setArea('vault'); }, []);
   const openVideo = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setReadVisited(false); setArea('video'); }, []);
+  const openWatch = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setReadVisited(false); setArea('watch'); }, []);
   const openWelcome = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setArea('welcome'); }, []);
   const openVideoDownloads = React.useCallback(() => { openVideo(); navigate(to.downloads); }, [openVideo]);
   const openResume = React.useCallback((target: ResumeTarget) => {
@@ -294,9 +296,11 @@ function Standalone() {
         >
           {desktop && area === 'welcome' ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
-              <DesktopLandingPage openVideo={openVideo} openMusic={openMusic} openRead={reading || books ? openRead : undefined} openVault={openVault} />
+              <DesktopLandingPage openVideo={openVideo} openWatch={appBridge()?.stremioAddons?openWatch:undefined} openMusic={openMusic} openRead={reading || books ? openRead : undefined} openVault={openVault} />
               <SplashEnd />
             </ServerInfoProvider>
+          ) : desktop && area === 'watch' ? (
+            <ServerInfoProvider value={NO_SERVER_INFO}><DirectWatchPage openWelcome={openWelcome} openVideo={openVideo} /><SplashEnd /></ServerInfoProvider>
           ) : desktop && area === 'read' && (reading || books) ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
               {readMode === 'books' ? <BooksPage /> : !readerReady && <ReadSetupPage openBooks={books ? openBooks : undefined} openWelcome={openWelcome} onReady={() => { setReaderReady(true); setReadVisited(true); }} />}

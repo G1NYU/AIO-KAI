@@ -3,7 +3,7 @@ import { storage } from './storage';
 import type { ResumeRow, ResumeTarget } from './up-next';
 
 /** A desktop-only mode above the AIOStreams (Jellyfin) session boundary. */
-export type DesktopArea = 'welcome' | 'video' | 'music' | 'read' | 'vault';
+export type DesktopArea = 'welcome' | 'video' | 'music' | 'read' | 'vault' | 'watch';
 
 export type DesktopAreaActions = {
   openWelcome(): void;
@@ -35,7 +35,7 @@ export function useDesktopArea(): DesktopAreaActions | null {
   return React.useContext(DesktopAreaContext);
 }
 
-export type StartupArea = DesktopArea | 'auto';
+export type StartupArea = Exclude<DesktopArea,'watch'> | 'auto';
 const STARTUP_KEY = 'tsugi-startup-area-v1';
 export function isStartupArea(value: unknown): value is StartupArea {
   return typeof value === 'string' && ['auto','welcome','video','music','read','vault'].includes(value);
@@ -62,5 +62,5 @@ export function initialDesktopArea(
 
 /** Music is intentionally exclusive with the native video environment. */
 export function allowsMusicPlayback(area: DesktopArea): boolean {
-  return area !== 'video';
+  return area !== 'video' && area !== 'watch';
 }
