@@ -194,7 +194,7 @@ function StandaloneContent() {
   const openWatchPane=React.useCallback((pane:WatchEntryPane,profileId?:number)=>{setInitialWatchProfile(profileId);setResumeTarget(null);setVaultComicTarget(null);setReadVisited(false);setWatchPane(pane);setArea('watch');},[]);
   const openMovies=React.useCallback((profileId?:number)=>{
     if(moviesEntryArea(!!base,!!appBridge()?.stremioAddons)==='video')openVideo();
-    else openWatchPane('hubs',profileId);
+    else openWatchPane('hubs',typeof profileId==='number'&&Number.isSafeInteger(profileId)&&profileId>0?profileId:undefined);
   },[base,openVideo,openWatchPane]);
   const openServerSearch=React.useCallback((title:string)=>{openVideo();navigate(to.search(title));},[openVideo]);
   const openWelcome = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setArea('welcome'); }, []);

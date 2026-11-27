@@ -76,7 +76,7 @@ export function DesktopLandingPage({ openVideo, openWatch, openMusic, openRead, 
   return <main data-page="desktop-landing" data-view={welcome ? 'welcome' : 'home'} data-motion={preferences.stillArtwork ? 'still' : undefined} className="tsugi-landing tsugi-worlds">
     {openVault && <FirstBootAppearance manual revisit={introRevisit} onProfileSelected={setIntroProfile} onFinished={() => setWelcome(false)} appearanceExtra={personalization} stillArtwork={preferences.stillArtwork}/>}
     {desktopArea?.openResume && <UpNext open={upNextOpen} onClose={() => setUpNextOpen(false)}/>}
-    {!welcome && <TsugiRail area="home" className="tsugi-world-shared-rail"><nav className="tsugi-rail-local" aria-label={t`Home navigation`}>
+    {!welcome && <TsugiRail area="home" className="tsugi-world-shared-rail" onVideoOpen={()=>openWatch?openWatch(introProfile):openVideo()}><nav className="tsugi-rail-local" aria-label={t`Home navigation`}>
       <button type="button" aria-current="page" aria-label={t`Home`} title={t`Home`}><FiHome aria-hidden/></button>
       {desktopArea?.openResume&&<button type="button" title={t`Up next`} aria-label={t`Up next`} onClick={()=>setUpNextOpen(true)}><FiClock aria-hidden/></button>}
     </nav></TsugiRail>}

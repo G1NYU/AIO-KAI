@@ -26,7 +26,7 @@ export function MediaNavigation({ area, rail = false, disabled = false, classNam
   const destinations = mediaDestinations(actions);
   return <nav className={`tsugi-media-navigation ${rail ? 'tsugi-media-navigation-rail' : ''} ${className}`} aria-label={t({ id: "Media sections", message: "Media sections" })}>
     {!rail && <button className="tsugi-category-link tsugi-entry-home" disabled={disabled} onClick={actions.openWelcome} aria-label={t({ id: "All media", message: "All media" })}><TsugiBrand /></button>}
-    <div className="tsugi-media-destinations">{destinations.map(({ id, label, open }) => <button key={id} type="button" className="tsugi-category-link" aria-current={area === id ? 'page' : undefined} disabled={disabled} onClick={open} aria-label={label}><TsugiMediaIcon area={id} /><span>{label}</span></button>)}</div>
+    <div className="tsugi-media-destinations">{destinations.map(({ id, label, open }) => <button key={id} type="button" className="tsugi-category-link" aria-current={area === id ? 'page' : undefined} disabled={disabled} onClick={() => open()} aria-label={label}><TsugiMediaIcon area={id} /><span>{label}</span></button>)}</div>
     <div className="tsugi-media-tools"><button className="tsugi-category-link tsugi-entry-settings" aria-label={t({ id: "App settings", message: "App settings" })} disabled={disabled} onClick={actions.openSettings}><BrushSettings aria-hidden /><span><Trans id="App settings">App settings</Trans></span></button>{tools}</div>
   </nav>;
 }

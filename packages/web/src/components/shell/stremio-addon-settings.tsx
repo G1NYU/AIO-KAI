@@ -404,10 +404,16 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       setSourceOpen(false);
     });
   }
+  function progressFor(item:Title,video:string):WatchProgress|null{
+    const matches=(p:WatchProgress)=>p.itemId===item.id&&p.mediaType===item.mediaType&&p.videoId===video;
+    if(resumeEntry&&matches(resumeEntry))return resumeEntry;
+    return episodeHistory?.profileId===profileId?episodeHistory?.entries.find(({progress})=>matches(progress))?.progress??null:null;
+  }
   function selectVideo(video:string){
     if(flight.current)return;
-    setVideoId(video);setOptions(null);setStreamGroups(null);
-    if(automatic&&title&&video){showSources();void fetchStreams(title,video,true,details,resumeEntry?.videoId===video?resumeEntry:null);}
+    const entry=title&&video?progressFor(title,video):null;
+    setVideoId(video);setResumeEntry(entry);setOptions(null);setStreamGroups(null);
+    if(automatic&&title&&video){showSources();void fetchStreams(title,video,true,details,entry);}
   }
   React.useEffect(()=>{
     if(!returnedPlayback||handledReturn.current===returnedPlayback||!title||returnedPlayback.profileId!==profileId||returnedPlayback.mediaType!==title.mediaType||returnedPlayback.itemId!==title.id)return;
@@ -440,7 +446,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       if(mounted.current)setOptions({sourceId,subtitles,...result});
     });
   }
-  const resumeMatch=resumeEntry&&title?.mediaType===resumeEntry.mediaType&&title.id===resumeEntry.itemId&&videoId===resumeEntry.videoId?resumeEntry:null;
+  const resumeMatch=title&&videoId?progressFor(title,videoId):null;
   const resumeMs=resumeMatch&&!resumeMatch.completed&&resumeMatch.positionMs<resumeMatch.durationMs?resumeMatch.positionMs:0;
   async function playOption(index:number,resume=false,picked=options){
     if(flight.current||profileId===undefined||!title||!videoId||!picked||picked.subtitles||!onPlay||!picked.rows[index]?.supported)return;
@@ -474,8 +480,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     return ()=>{current=false;};
   },[profileId,titleKey,historyActive,sourceOpen,returnedPlayback]);
   function episodeProgress(video:AddonVideo){
-    if(!title||!episodeHistory||episodeHistory.profileId!==profileId)return undefined;
-    return episodeHistory.entries.find(({progress})=>progress.itemId===title.id&&progress.mediaType===title.mediaType&&progress.videoId===video.id)?.progress;
+    return title?progressFor(title,video.id):null;
   }
   if(workspace&&!entered)return <section className="tsugi-watch-picker" data-ui="watch-profile-picker" aria-labelledby={titleId}>
     <div className="tsugi-watch-picker-art" aria-hidden="true" style={{'--tsugi-watch-art':"url('/design/shared/hero-neon.webp')"} as React.CSSProperties}/>

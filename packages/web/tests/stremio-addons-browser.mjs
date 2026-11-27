@@ -466,6 +466,13 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.waitFor({state:'detached'});
     await item.getByRole('button',{name:'Close title',exact:true}).click();
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-resume-art.png'),animations:'disabled'});
+    await film.click();
+    await item.locator('[data-ui="watch-play-title"]').filter({hasText:/^Resume$/}).waitFor();
+    await item.locator('[data-ui="watch-play-title"]').click();
+    await groups.getByRole('button',{name:'Resume',exact:true}).first().waitFor();
+    await page.keyboard.press('Escape');
+    await groups.waitFor({state:'detached'});
+    await item.getByRole('button',{name:'Close title',exact:true}).click();
     await board.getByRole('button',{name:/Search movies & series/}).click();
     await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Fixture cinema film');
     const results=board.locator('[data-ui="watch-search-results"]');
@@ -900,7 +907,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await watch.locator('[data-ui="watch-hub-picker"] [data-watch-destination="standalone"]').click();
     await watch.getByRole('heading',{name:'Movies & TV',exact:true}).waitFor();
     const watchGlyphs=await watch.locator('.tsugi-watch-nav [data-movie-glyph]').evaluateAll(nodes=>nodes.map(node=>({name:node.getAttribute('data-movie-glyph'),fill:node.getAttribute('fill'),stroke:node.getAttribute('stroke')})));
-    assert.equal(watchGlyphs.length,5);assert.equal(new Set(watchGlyphs.map(g=>g.name)).size,5);assert.ok(watchGlyphs.every(g=>g.fill==='currentColor'&&g.stroke==='none'));
+    assert.deepEqual(watchGlyphs.map(g=>g.name),['home','discover','anime','heart','list','history','settings']);assert.ok(watchGlyphs.every(g=>g.fill==='currentColor'&&g.stroke==='none'));
     async function watchSetting(name){
       const nav=watch.locator('[data-ui="watch-settings-navigation"]');
       if(!await nav.isVisible())await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Settings',exact:true}).click();
