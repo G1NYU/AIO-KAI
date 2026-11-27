@@ -81,6 +81,7 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
       return route.fulfill({ json, headers: { 'cache-control': 'no-store' } });
     });
 
+    await page.route('https://api.jikan.moe/v4/**',route=>route.fulfill({json:{data:[]},headers:{'access-control-allow-origin':'*'}}));
     await page.goto(`${origin}/#/`);
     await home().locator('[data-slide="0"][data-details] [data-ui="hero-title"]').filter({ hasText: movies[0].Name }).waitFor();
     await home().locator('[data-ui="home-rows"]').getByText(movies[2].Name, { exact: true }).waitFor();
@@ -89,7 +90,7 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
     const menuNames = await sidebar().locator('[data-vertical-menu-item-button]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-name')));
     assert.deepEqual(menuNames.slice(0, 4), ['home', 'discover', 'search', 'favourites'], 'Original movie navigation order is preserved');
     assert.ok(!menuNames.some(name => ['music', 'read', 'vault', 'all-media'].includes(name)), 'Other media use the footer menu');
-    for(const id of ['home','discover','search','favourites','anime-hub','watch-addons','stremio-import','nuvio-import','settings']) {
+    for(const id of ['home','discover','search','favourites','anime-hub','addon-library','settings']) {
       const glyph=sidebar().locator(`[data-name="${id}"] [data-movie-glyph]`);
       assert.equal(await glyph.count(),1,`${id} has a filled vector glyph`);
       assert.equal(await glyph.getAttribute('fill'),'currentColor');assert.equal(await glyph.getAttribute('stroke'),'none');
@@ -209,7 +210,7 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
     console.log('PASS: the restored sidebar scrolls in short windows and its media menu opens from the keyboard.');
 
     await page.setViewportSize({width:1600,height:1000});
-    for(const [id,pane] of [['anime-hub','anime'],['watch-addons','addons'],['stremio-import','stremio'],['nuvio-import','nuvio']]){
+    for(const [id,pane] of [['anime-hub','anime'],['addon-library','home']]){
       await sidebar().locator(`[data-name="${id}"]`).click();
       const watch=page.locator('[data-page="direct-watch"]');
       await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 0 addons',exact:true}).click();
@@ -217,7 +218,8 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
       assert.equal(await watch.locator('.tsugi-watch-nav button[aria-pressed="true"]').count(),1);
       await page.reload();await settingsPage().locator('[data-ui="settings-layout"]').waitFor();
     }
-    console.log('PASS: filled Movies shortcuts retain profile selection and enter the exact Anime/addon/import pane.');
+    for(const id of ['stremio-import','nuvio-import']) assert.equal(await sidebar().locator(`[data-name="${id}"]`).count(),0);
+    console.log('PASS: Movies content shortcuts enter the Anime and standalone hubs; imports are absent from navigation.');
     await page.setViewportSize({ width: 700, height: 820 });
     await page.locator('[data-ui="mobile-nav"]:visible').waitFor();
     await noHorizontalOverflow('Narrow Movies settings');
@@ -227,7 +229,8 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
     await page.locator('[data-ui="mobile-nav"] button[aria-label="Account"]').click();
     const account = page.locator('[data-ui="account-menu"]');
     await account.waitFor();
-    for (const id of ['music', 'read', 'vault', 'all-media', 'anime-hub', 'watch-addons', 'stremio-import', 'nuvio-import']) assert.equal(await account.locator(`[data-name="${id}"]`).count(), 1, `Narrow Movies menu keeps ${id} accessible`);
+    for (const id of ['music', 'read', 'vault', 'all-media', 'anime-hub', 'addon-library']) assert.equal(await account.locator(`[data-name="${id}"]`).count(), 1, `Narrow Movies menu keeps ${id} accessible`);
+    for(const id of ['stremio-import','nuvio-import']) assert.equal(await account.locator(`[data-name="${id}"]`).count(),0);
     await account.locator('[data-name="music"]').click();
     await page.locator('.tsugi-music-root:visible').waitFor();
     console.log('PASS: narrow Movies navigation retains all media destinations and opens Music.');

@@ -7,11 +7,11 @@ import { RefractSettings, RefractWatchlist } from './refract-settings';
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { TsugiIcon } from '@/components/tsugi-icons';
 import { MovieGlyph } from '@/components/movie-icons';
-import type { WatchEntryPane } from '@/lib/desktop-area';
+import { useDesktopArea, type WatchEntryPane } from '@/lib/desktop-area';
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, loadAllAddonStreams, type AddonStreamGroup, type AddonMetadata, type AddonOptions, prepareAddonMedia, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry } from '@/lib/hosts/shell/stremio';
+import { publicCinemeta, AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, loadAllAddonStreams, type AddonStreamGroup, type AddonMetadata, type AddonOptions, prepareAddonMedia, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry } from '@/lib/hosts/shell/stremio';
 
 function feedback(reason: unknown) {
   switch(reason instanceof AddonError ? reason.code : 'request'){
@@ -44,6 +44,8 @@ function feedback(reason: unknown) {
 type WatchPane = 'home'|'discover'|'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history'|'refract'|'anime';
 const profileArt=['/design/oto/hero-yuna.webp','/design/yomi/hero-torii.webp','/design/shared/hero-neon.webp','/design/shared/hero-train.webp'];
 export function StremioAddonSettings({workspace=false,onPlay,historyActive=false,setupConnections=false,initialPane='addons'}:{workspace?:boolean;onPlay?:(playback:WatchPlayback)=>void;historyActive?:boolean;setupConnections?:boolean;initialPane?:WatchEntryPane}={}){
+  const desktopArea=useDesktopArea();
+  const [boardSearch,setBoardSearch]=React.useState('');
   const [entered,setEntered]=React.useState(false);
   const [pane,setPane]=React.useState<WatchPane>(initialPane);
   const [creating,setCreating]=React.useState(false);
@@ -186,6 +188,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     clearTitle();setTitle(item);setAutomatic(auto);
     if(item.mediaType==='movie')setVideoId(item.id);
     const candidates=sources.filter(source=>source.enabled&&source.manifest.resources.includes('meta'));
+    if(/^tt[0-9]{1,12}$/.test(item.id)&&['movie','series'].includes(item.mediaType)&&!candidates.some(source=>source.manifest.id===publicCinemeta.manifest.id))candidates.push(publicCinemeta);
     candidates.sort((a,b)=>Number(b.sourceId===preferredSourceId)-Number(a.sourceId===preferredSourceId));
     await run(async()=>{
       let metadata:AddonMetadata|null=null;
@@ -255,7 +258,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
   async function selectPane(next:WatchPane){
     if(flight.current||pane===next)return;
     const previous=clearReview();
-    setImportActive(false);choose(null);setPane(next);
+    setImportActive(false);choose(null);setBoardSearch('');setPane(next);
     if(previous)await run(async()=>{await cancelAddonReview(previous.profileId,previous.reviewId);});
   }
   async function backToProfiles(){
@@ -294,30 +297,44 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     </div>
   </section>;
   const show=(...panes:WatchPane[])=>!workspace||panes.includes(pane);
-  return <section className={workspace?'tsugi-app-general tsugi-watch-workspace':'tsugi-app-general'} data-ui="stremio-addon-settings" data-watch-pane={pane} aria-labelledby={titleId}>
-    {workspace&&<header className="tsugi-watch-workspace-banner" style={{'--tsugi-watch-art':"url('/design/shared/hero-train.webp')"} as React.CSSProperties}>
-      <div><TsugiBrand/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}>{pane==='anime'?<Trans>Anime</Trans>:pane==='home'||pane==='discover'?<Trans>Movies &amp; TV</Trans>:<Trans>Your addon stack.</Trans>}</h3>{(pane==='home'||pane==='discover')?<p><Trans>Watch from your connected catalogues and streaming addons.</Trans></p>:pane!=='anime'&&<p><Trans>Bring your sources home.</Trans></p>}</div>
+  const hubPanes:WatchPane[]=['home','discover','anime','history'];
+  const inSettings=!hubPanes.includes(pane);
+  const settingsTabs=([
+    ['addons',t`Your addons`,'addons'],
+    ['stremio',t`Stremio import`,'stremio'],
+    ['nuvio',t`Nuvio import`,'nuvio'],
+    ['manual',t`Add addon`,'add'],
+    ['order',t`Source order`,'order'],
+    ['mdblist',t`MDBList`,'mdblist'],
+    ['refract',t`Refract`,'refract'],
+    ['profile',t`Profile settings`,'settings']
+  ] as const).filter(([id])=>id!=='refract'||!!onPlay||setupConnections);
+  function searchTitleInAddons(){
+    if(!title||flight.current)return;
+    const name=title.name;
+    choose(null);setBoardSearch(name);setPane('discover');
+  }
+  return <section className={workspace?onPlay?'tsugi-watch-workspace tsugi-watch-hub':'tsugi-app-general tsugi-watch-workspace tsugi-watch-configuration':'tsugi-app-general'} data-ui="stremio-addon-settings" data-watch-pane={pane} aria-labelledby={titleId}>
+    {workspace&&<header className={onPlay&&!inSettings?'tsugi-watch-hub-header':'tsugi-watch-workspace-banner'} style={{'--tsugi-watch-art':"url('/design/shared/hero-train.webp')"} as React.CSSProperties}>
+      <div><TsugiBrand/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}>{pane==='anime'?<Trans>Anime</Trans>:pane==='home'||pane==='discover'||pane==='history'?<Trans>Movies &amp; TV</Trans>:<Trans>Your addon stack.</Trans>}</h3>{(pane==='home'||pane==='discover')?<p><Trans>Watch from your connected catalogues and streaming addons.</Trans></p>:pane!=='anime'&&<p><Trans>Bring your sources home.</Trans></p>}</div>
       <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void backToProfiles()}><MovieGlyph name="people"/> <Trans>Switch profile</Trans></button>
     </header>}
-    {workspace&&<nav className="tsugi-watch-nav" aria-label={onPlay?t`Watch navigation`:t`Watch setup`}>
+    {workspace&&onPlay&&<nav className="tsugi-watch-nav" aria-label={t`Watch navigation`} data-ui="watch-hub-navigation">
       {([
         ['home',t`Home`,'home'],
         ['discover',t`Discover`,'discover'],
-        ['anime',t`Anime`,'anime'],
+        ['anime',t`Anime Hub`,'anime'],
         ['history',t`Watch history`,'history'],
-        ['addons',t`Your addons`,'addons'],
-        ['stremio',t`Stremio import`,'stremio'],
-        ['nuvio',t`Nuvio import`,'nuvio'],
-        ['manual',t`Add addon`,'add'],
-        ['order',t`Source order`,'order'],
-        ['mdblist',t`MDBList`,'mdblist'],
-        ['refract',t`Refract`,'refract'],
-        ['profile',t`Profile settings`,'settings']
-      ] as const).filter(([id])=>id==='history'||id==='home'||id==='discover'?!!onPlay:id==='anime'||id==='refract'?!!onPlay||setupConnections:true).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><MovieGlyph name={icon}/><span>{label}</span></button>)}
+        ['addons',t`Settings`,'settings']
+      ] as const).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={id==='addons'?inSettings:pane===id} disabled={busy} onClick={()=>void selectPane(id)}><MovieGlyph name={icon}/><span>{label}</span></button>)}
     </nav>}
-    <div className={workspace?'tsugi-watch-content':'contents'}>
+    <div className={workspace?'tsugi-watch-content':'contents'} data-watch-settings={workspace&&inSettings||undefined}>
+    {workspace&&(!onPlay||inSettings)&&<nav className="tsugi-watch-settings-nav" aria-label={t`Watch settings`} data-ui="watch-settings-navigation">
+      {(!onPlay&&setupConnections?[...settingsTabs,['anime',t`Anime`,'anime'] as const]:settingsTabs).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><MovieGlyph name={icon}/><span>{label}</span></button>)}
+      {onPlay&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('home')}><Trans>Back to streaming hub</Trans></button>}
+    </nav>}
     {!workspace&&<h3 id={titleId}><Trans>Stremio addons</Trans></h3>}
-    {workspace&&onPlay&&profileReady&&profileId!==undefined&&(pane==='home'||pane==='discover')&&<WatchCatalogueBoard key={JSON.stringify([profileId,pane])} profileId={profileId} sources={sources} busy={busy} run={run} active={historyActive} paused={!!title} includeHistory={pane==='home'} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} openAddons={()=>void selectPane('addons')}/>}
+    {workspace&&onPlay&&profileReady&&profileId!==undefined&&(pane==='home'||pane==='discover')&&<WatchCatalogueBoard key={JSON.stringify([profileId,pane,boardSearch])} initialQuery={boardSearch} profileId={profileId} sources={sources} busy={busy} run={run} active={historyActive} paused={!!title} includeHistory={pane==='home'} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} openAddons={()=>void selectPane('addons')}/>}
     {show('profile')&&<>
     <p><Trans>Each local profile has its own addons, without an AIOStreams connection. Browse catalogues and select supported direct HTTPS streams in Watch.</Trans></p>
     <p><Trans>Configured links are protected by your Windows account and excluded from portable backups. Local profiles are not password-protected from other people using this Windows account. Only contact addon hosts you trust.</Trans></p>
@@ -412,10 +429,11 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
       <div className="flex items-center justify-between gap-3"><h4>{details?.name??title.name}</h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={clearTitle}><Trans>Close title</Trans></button></div>
       {resumeMatch?.episodeTitle&&<p>{resumeMatch.episodeTitle}</p>}
       {resumeMs>0&&<p><Trans>Saved playback position:</Trans> {watchTime(resumeMs)}</p>}
-      {details?.description&&<p className="break-words">{details.description}</p>}
+      {(details?.description||title.description)&&<p className="break-words">{details?.description??title.description}</p>}
+      {automatic&&<div className="flex flex-wrap gap-2"><button type="button" className="tsugi-read-action" disabled={busy} onClick={searchTitleInAddons}><Trans>Search this title across addons</Trans></button>{desktopArea?.openServerSearch&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>desktopArea.openServerSearch?.(title.name)}><Trans>Find on AIOStreams / media server</Trans></button>}</div>}
       {onPlay&&profileReady&&profileId!==undefined&&['movie','series'].includes(title.mediaType)&&<RefractWatchlist key={JSON.stringify([profileId,title.mediaType,title.id])} profileId={profileId} mediaType={title.mediaType} itemId={title.id} busy={busy} run={run}/>}
       <div className="flex flex-wrap gap-2">{sources.filter(s=>s.enabled&&s.manifest.resources.includes('meta')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readMetadata(title,s.sourceId)}><Trans>Details</Trans> · {s.manifest.name}</button>)}</div>
-      {details&&details.videos.length>0&&<label className="block"><Trans>Video</Trans><select className="tsugi-read-input w-full" value={videoId} disabled={busy} onChange={e=>selectVideo(e.target.value)}><option value=""><Trans>Select an episode or video</Trans></option>{details.videos.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></label>}
+      {details&&details.videos.length>0&&<label className="block"><Trans>Video</Trans><select aria-label={t`Video`} className="tsugi-read-input w-full" value={videoId} disabled={busy} onChange={e=>selectVideo(e.target.value)}><option value=""><Trans>Select an episode or video</Trans></option>{details.videos.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></label>}
       {!videoId&&<p><Trans>Select a video from a compatible metadata addon before requesting streams.</Trans></p>}
       {videoId&&automatic&&<section className="space-y-3" data-ui="watch-stream-groups">
         <div className="flex items-center justify-between gap-2 flex-wrap"><h4><Trans>Available sources</Trans></h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={refreshStreams}><Trans>Refresh streams</Trans></button></div>
@@ -439,7 +457,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
         {!onPlay&&<p><Trans>Compatibility preview. Open Watch from the home screen to play direct HTTPS streams.</Trans></p>}
       </div>}
     </section>}
-    {busy&&<p role="status"><Trans>Contacting addon registry…</Trans></p>}
+    {busy&&<p role="status"><Trans>Loading sources…</Trans></p>}
     {notice&&<p role="status">{notice}</p>}{error&&<p role="alert">{error}</p>}
     </div>
   </section>;

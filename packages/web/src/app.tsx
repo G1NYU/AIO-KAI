@@ -177,10 +177,12 @@ function Standalone() {
   const [vaultTrack, setVaultTrack] = React.useState<{id:string;title:string} | null>(null);
   const openVault = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(null); setArea('vault'); }, []);
   const openVaultMusic = React.useCallback((track: {id:string;title:string}) => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(track); setArea('vault'); }, []);
-  const openVideo = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setReadVisited(false); setArea('video'); }, []);
+  const preferredWatch=React.useRef<'video'|'watch'>(area==='video'?'video':'watch');
+  const openVideo = React.useCallback(() => { preferredWatch.current='video'; setResumeTarget(null); setVaultComicTarget(null); setReadVisited(false); setArea('video'); }, []);
   const [watchPane,setWatchPane]=React.useState<WatchEntryPane>('home');
-  const openWatchPane=React.useCallback((pane:WatchEntryPane)=>{setResumeTarget(null);setVaultComicTarget(null);setReadVisited(false);setWatchPane(pane);setArea('watch');},[]);
-  const openWatch=React.useCallback(()=>openWatchPane('home'),[openWatchPane]);
+  const openWatchPane=React.useCallback((pane:WatchEntryPane)=>{if(pane!=='anime')preferredWatch.current='watch';setResumeTarget(null);setVaultComicTarget(null);setReadVisited(false);setWatchPane(pane);setArea('watch');},[]);
+  const openMovies=React.useCallback(()=>{if(preferredWatch.current==='video'||!appBridge()?.stremioAddons)openVideo();else openWatchPane('home');},[openVideo,openWatchPane]);
+  const openServerSearch=React.useCallback((title:string)=>{openVideo();navigate(to.search(title));},[openVideo]);
   const openWelcome = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setArea('welcome'); }, []);
   const openVideoDownloads = React.useCallback(() => { openVideo(); navigate(to.downloads); }, [openVideo]);
   const openResume = React.useCallback((target: ResumeTarget) => {
@@ -191,8 +193,8 @@ function Standalone() {
     setResumeTarget({...target});
   }, [books, reading, readerReady, openBooks, openManga, openMusic]);
   const areaActions = React.useMemo(
-    () => ({ openWelcome, openMusic, openVideo, openWatchPane: appBridge()?.stremioAddons ? openWatchPane : undefined, openSettings, openResume, resumeTarget, consumeResume, vaultComicTarget, consumeVaultComic, musicResumeRows, readerReady, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead: reading || books ? openRead : undefined, openBooks: books ? openBooks : undefined, openManga: reading ? openManga : undefined, openVaultComic: reading ? openVaultComic : undefined }),
-    [openWelcome, openMusic, openVideo, openWatchPane, openSettings, openResume, resumeTarget, consumeResume, vaultComicTarget, consumeVaultComic, musicResumeRows, readerReady, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead, reading, books, openBooks, openManga, openVaultComic]
+    () => ({ openWelcome, openMusic, openVideo, openMovies, openServerSearch, openWatchPane: appBridge()?.stremioAddons ? openWatchPane : undefined, openSettings, openResume, resumeTarget, consumeResume, vaultComicTarget, consumeVaultComic, musicResumeRows, readerReady, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead: reading || books ? openRead : undefined, openBooks: books ? openBooks : undefined, openManga: reading ? openManga : undefined, openVaultComic: reading ? openVaultComic : undefined }),
+    [openWelcome, openMusic, openVideo, openMovies, openServerSearch, openWatchPane, openSettings, openResume, resumeTarget, consumeResume, vaultComicTarget, consumeVaultComic, musicResumeRows, readerReady, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead, reading, books, openBooks, openManga, openVaultComic]
   );
   // Who's watching, asked across the saved servers.
   const [picking, setPicking] = React.useState(() => {
@@ -299,11 +301,11 @@ function Standalone() {
         >
           {desktop && area === 'welcome' ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
-              <DesktopLandingPage openVideo={openVideo} openWatch={appBridge()?.stremioAddons?openWatch:undefined} openMusic={openMusic} openRead={reading || books ? openRead : undefined} openVault={openVault} />
+              <DesktopLandingPage openVideo={openVideo} openWatch={appBridge()?.stremioAddons?openMovies:undefined} openMusic={openMusic} openRead={reading || books ? openRead : undefined} openVault={openVault} />
               <SplashEnd />
             </ServerInfoProvider>
           ) : desktop && area === 'watch' ? (
-            <ServerInfoProvider value={NO_SERVER_INFO}><DirectWatchPage openWelcome={openWelcome} openVideo={openVideo} initialPane={watchPane} /><SplashEnd /></ServerInfoProvider>
+            <ServerInfoProvider value={NO_SERVER_INFO}><DirectWatchPage openWelcome={openWelcome} openVideo={openVideo} initialPane={watchPane} settingsOpen={globalSettings} /><SplashEnd /></ServerInfoProvider>
           ) : desktop && area === 'read' && (reading || books) ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
               {readMode === 'books' ? <BooksPage /> : !readerReady && <ReadSetupPage openBooks={books ? openBooks : undefined} openWelcome={openWelcome} onReady={() => { setReaderReady(true); setReadVisited(true); }} />}

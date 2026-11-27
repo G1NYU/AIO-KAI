@@ -7,7 +7,7 @@ import { useDesktopArea, type DesktopAreaActions } from '@/lib/desktop-area';
 
 export function mediaDestinations(actions: DesktopAreaActions) {
   return [
-    { id: 'video' as const, label: t({ id: "Movies & TV", message: "Movies & TV" }), open: actions.openVideo },
+    { id: 'video' as const, label: t({ id: "Movies & TV", message: "Movies & TV" }), open: actions.openMovies ?? actions.openVideo },
     { id: 'music' as const, label: t({ id: "Music", message: "Music" }), open: actions.openMusic },
     ...(actions.openRead ? [{ id: 'read' as const, label: t({ id: 'Read', message: 'Read' }), open: actions.openRead }] : []),
     ...(actions.openVault ? [{ id: 'vault' as const, label: t({ id: 'Vault', message: 'Vault' }), open: actions.openVault }] : []),

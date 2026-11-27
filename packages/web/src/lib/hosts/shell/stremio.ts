@@ -8,10 +8,21 @@ export interface AddonManifest {
   configurable: boolean; configurationRequired: boolean; p2p: boolean; adult: boolean;
 }
 export interface AddonSource { sourceId: number; enabled: boolean; manifest: AddonManifest }
+/** Virtual public catalogue, never installed, mutated or used for streams. */
+export const publicCinemeta:AddonSource={
+  sourceId:0,enabled:true,manifest:{
+    id:'com.linvo.cinemeta',name:'Cinemeta',version:'3.0.14',resources:['catalog','meta'],
+    configurable:false,configurationRequired:false,p2p:false,adult:false,
+    catalogs:['movie','series'].flatMap(mediaType=>['top','imdbRating'].map(id=>({
+      id,mediaType,name:id==='top'?(mediaType==='movie'?'Popular movies':'Popular series'):(mediaType==='movie'?'Featured movies':'Featured series'),
+      extras:(id==='top'?['search','skip']:['skip']).map(name=>({name,required:false,options:[],optionsLimit:null}))
+    })))
+  }
+};
 export interface AddonReview { reviewId: number; manifest: AddonManifest }
 export interface CatalogPage {
   sourceId: number; mediaType: string; catalogId: string;
-  items: { id: string; name: string; mediaType: string; poster?: string }[]; sourceCount: number; nextSkip: number | null;
+  items: { id: string; name: string; mediaType: string; poster?: string; description?: string }[]; sourceCount: number; nextSkip: number | null;
 }
 export type Mutation = { kind: 'install'; reviewId: number } | { kind: 'set-enabled'; sourceId: number; enabled: boolean }
   | { kind: 'move'; sourceId: number; position: number } | { kind: 'remove'; sourceId: number };
@@ -158,7 +169,7 @@ export function publicAddonPoster(value:unknown):string|undefined{
     if(url.protocol!=='https:'||url.port||url.username||url.password||url.search||url.hash)return undefined;
     const path=url.pathname;
     const file='[A-Za-z0-9_-]{1,80}\\.(?:jpg|jpeg|png|webp)';
-    const valid=url.hostname==='image.tmdb.org'&&new RegExp('^/t/p/(?:w92|w154|w185|w342|w500|w780|original)/'+file+'$').test(path)||
+    const valid=url.hostname==='image.tmdb.org'&&new RegExp('^/t/p/(?:w92|w154|w185|w342|w500|w780|w600_and_h900_bestv2|original)/'+file+'$').test(path)||
       url.hostname==='images.metahub.space'&&/^\/poster\/(?:small|medium|large)\/tt[0-9]{1,12}\/img$/.test(path)||
       url.hostname==='cdn.myanimelist.net'&&new RegExp('^/images/anime/[0-9]{1,12}/'+file+'$').test(path)||
       url.hostname==='media.kitsu.io'&&new RegExp('^/anime/poster_images/[0-9]{1,12}/'+file+'$').test(path);

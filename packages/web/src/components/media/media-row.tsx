@@ -161,10 +161,10 @@ function RowNav() {
 
 /** Per history entry, so a fresh visit to the page starts the row over. */
 function useEntryKey(id: string | undefined) {
-  const router = useRouter();
+  const router = useRouter({ warn: false });
   const [entry] = React.useState(() => {
-    const location = router.state.location;
-    return location.state.__TSR_key ?? location.href;
+    const location = router?.state.location;
+    return location?.state.__TSR_key ?? location?.href ?? 'standalone-watch';
   });
   return id ? `${entry}|${id}` : undefined;
 }

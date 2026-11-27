@@ -178,8 +178,9 @@ export function installStremioFixture(initializeStartup=true){
       case 'remove':profile.sources=profile.sources.filter(s=>s.sourceId!==a.sourceId);return reply({sources:profile.sources});
       case 'metadata':{
         const source=profile.sources.find(s=>s.sourceId===a.sourceId&&s.enabled&&s.manifest.resources.includes('meta'));
+        if(a.sourceId===0&&f.boardFixture&&a.itemId==='tt90003')return reply({sourceId:0,metadata:{id:a.itemId,mediaType:'movie',name:'Public movie fixture',description:'Public metadata without a catalogue addon.',videos:[]}});
         if(!f.boardFixture||!source||source.sourceId!==103)return emit(null,'unsupported-resource');
-        const videos=a.mediaType==='series'?[{id:'ttanime:1:1',name:'Episode one',season:1,episode:1},{id:'ttanime:1:2',name:'Episode two',season:1,episode:2}]:[];
+        const videos=a.mediaType==='series'?[{id:'tt90002:1:1',name:'Episode one',season:1,episode:1},{id:'tt90002:1:2',name:'Episode two',season:1,episode:2}]:[];
         return reply({sourceId:a.sourceId,mediaType:a.mediaType,itemId:a.itemId,metadata:{id:a.itemId,name:a.mediaType==='series'?'Fixture anime series':'Fixture cinema film',mediaType:a.mediaType,description:'Metadata from the separate metadata addon.',videos}});
       }
       case 'all-stream-options':{
@@ -205,12 +206,16 @@ export function installStremioFixture(initializeStartup=true){
         return reply({grantId:f.mediaGrant.id,subtitles:review.subtitles});
       }
       case 'catalog':{
+        if(a.sourceId===0){
+          const items=f.boardFixture&&a.mediaType==='movie'&&a.catalogId==='top'?[{id:'tt90003',mediaType:'movie',name:'Public movie fixture',poster:'https://image.tmdb.org/t/p/w342/public.jpg'}]:[];
+          return reply({sourceId:0,mediaType:a.mediaType,catalogId:a.catalogId,items,sourceCount:items.length,nextSkip:null});
+        }
         if(f.boardFixture){
           const source=profile.sources.find(s=>s.sourceId===a.sourceId&&s.enabled);
           const catalogue=source?.manifest.catalogs.find(c=>c.id===a.catalogId&&c.mediaType===a.mediaType);
           if(!catalogue)return emit(null,'unsupported-resource');
           if(a.catalogId==='broken')return emit(null,'request');
-          const items=a.mediaType==='series'?[{id:'ttanime',mediaType:'series',name:'Fixture anime series',poster:'https://image.tmdb.org/t/p/w342/anime.jpg'}]:[{id:'ttboard',mediaType:'movie',name:'Fixture cinema film',poster:'https://image.tmdb.org/t/p/w342/cinema.jpg'}];
+          const items=a.mediaType==='series'?[{id:'tt90002',mediaType:'series',name:'Fixture anime series',poster:'https://image.tmdb.org/t/p/w342/anime.jpg'}]:[{id:'tt90001',mediaType:'movie',name:'Fixture cinema film',poster:'https://image.tmdb.org/t/p/w342/cinema.jpg'}];
           return reply({sourceId:a.sourceId,mediaType:a.mediaType,catalogId:a.catalogId,items,sourceCount:items.length,nextSkip:null});
         }
         if(!profile.sources.some(s=>s.sourceId===a.sourceId&&s.enabled)||a.catalogId!=='search'||a.mediaType!=='movie'||a.extras.search!=='original')return emit(null,'invalid-extras');
@@ -229,6 +234,10 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
   const page=await browser.newPage({viewport:{width:1600,height:900}});
   try{
     await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
+    await page.route('https://api.jikan.moe/v4/**',route=>{
+      const films=new URL(route.request().url()).searchParams.get('type')==='movie';
+      return route.fulfill({json:{data:[{mal_id:90004,title:films?'Public anime film fixture':'Public anime discovery fixture',type:films?'Movie':'TV',rating:'PG-13 - Teens 13 or older',synopsis:'Independent discovery without addon installation.'}]},headers:{'access-control-allow-origin':'*'}});
+    });
     await page.addInitScript({content:'('+installDesktopFixture.toString()+')();('+installStremioFixture.toString()+')();('+function(){
       const f=window.__stremioFixture;f.boardFixture=true;f.sequence=110;
       localStorage.setItem('tsugi.landscape.local-only','true');
@@ -241,6 +250,8 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
         addon(104,'Failed stream addon',['stream']),
         addon(105,'Disabled addon',['catalog','stream'],[catalog('disabled','movie','Disabled films')],false)
       ];
+      f.profiles.push({...structuredClone(f.profiles[0]),profileId:2,name:'Stream only',sources:[addon(106,'Independent stream',['stream'])]});
+      f.profiles.push({...structuredClone(f.profiles[0]),profileId:3,name:'Browse only',sources:[]});
     }.toString()+')();'});
     await page.goto(origin);
     await page.getByRole('button',{name:'Movies & TV',exact:true}).first().click();
@@ -249,6 +260,9 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const board=watch.locator('[data-ui="watch-catalogue-board"]');
     const film=board.getByRole('button',{name:'Fixture cinema film',exact:true});
     await film.waitFor();
+    assert.equal(await board.locator('[data-ui="media-row"]').count()>0,true);
+    assert.equal(await film.getAttribute('data-ui'),'poster-card');
+    assert.equal(await watch.locator('.tsugi-watch-nav').getByRole('button',{name:/Stremio|Nuvio|Add addon/}).count(),0);
     await board.getByText('This catalogue is unavailable.',{exact:true}).waitFor();
     assert.equal(await board.getByText('Disabled films',{exact:true}).count(),0);
     assert.equal(await watch.getByRole('heading',{name:'Installed addons',exact:true}).count(),0);
@@ -265,18 +279,64 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.getByRole('button',{name:'Pause',exact:true}).waitFor();
     await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
     await player.waitFor({state:'detached'});
-    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime',exact:true}).click();
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
     const anime=watch.locator('[data-ui="mal-anime-library"]');
     await anime.locator('[data-ui="watch-catalogue-board"]').getByRole('button',{name:'Fixture anime series',exact:true}).click();
     const item=watch.locator('[data-ui="watch-item-details"]');
-    await item.getByLabel('Video',{exact:true}).selectOption('ttanime:1:2');
+    await item.getByRole('combobox',{name:'Video',exact:true}).selectOption('tt90002:1:2');
     await groups.getByRole('button',{name:'Play',exact:true}).click();
     await player.getByRole('button',{name:'Pause',exact:true}).waitFor();
-    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='all-stream-options'&&a.action.videoId==='ttanime:1:2')));
+    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='all-stream-options'&&a.action.videoId==='tt90002:1:2')));
     assert.equal(await page.evaluate(()=>window.__stremioFixture.profiles[0].malAnime?.length??0),0);
     await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
     await player.waitFor({state:'detached'});
     console.log('PASS: imported standalone Watch profile loads ordered shelves, isolates failures, resolves metadata and streams across addons, and plays an exact anime episode without MAL or a media server.');
+    await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
+    await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Stream only 1 addons',exact:true}).click();
+    await board.getByRole('button',{name:'Public movie fixture',exact:true}).click();
+    await groups.getByText('Independent stream',{exact:true}).waitFor();
+    await groups.getByRole('button',{name:'Play',exact:true}).click();
+    await player.getByRole('button',{name:'Pause',exact:true}).waitFor();
+    await player.getByRole('button',{name:'Back to Watch',exact:true}).click();
+    await player.waitFor({state:'detached'});
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Settings',exact:true}).click();
+    const config=watch.locator('[data-ui="watch-settings-navigation"]');
+    await config.getByRole('button',{name:'Stremio import',exact:true}).click();
+    async function importAccount(provider){
+      const account=watch.locator('[data-ui="stremio-account-import"]');
+      await account.getByLabel('Account email',{exact:true}).fill('fixture@example.org');
+      await account.getByLabel('Account password',{exact:true}).fill('synthetic-password');
+      await account.getByRole('button',{name:'Connect and read addons',exact:true}).click();
+      if(provider==='nuvio'){
+        await account.locator('select').filter({has:page.locator('option[value="3"]')}).selectOption('3');
+        await account.getByRole('button',{name:'Read selected profile',exact:true}).click();
+      }
+      const candidates=account.locator('[data-import-phase="candidates"]');
+      await candidates.getByRole('button',{name:'Select available addons',exact:true}).click();
+      await candidates.getByRole('checkbox',{name:'I trust the selected addon hosts and want Tsugi to fetch their manifests.',exact:true}).check();
+      await candidates.getByRole('button',{name:'Review selected addons',exact:true}).click();
+      await account.getByRole('button',{name:'Import reviewed addons',exact:true}).click();
+      await watch.locator('[data-watch-pane="home"]').waitFor();
+      assert.equal(await watch.locator('[data-ui="watch-settings-navigation"]').count(),0);
+    }
+    await watch.getByRole('heading',{name:'Connect Stremio',exact:true}).waitFor();
+    await importAccount('stremio');
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Settings',exact:true}).click();
+    await config.getByRole('button',{name:'Nuvio import',exact:true}).click();
+    await watch.getByRole('heading',{name:'Connect Nuvio',exact:true}).waitFor();
+    await importAccount('nuvio');
+    await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
+    await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Browse only 0 addons',exact:true}).click();
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
+    const publicAnime=watch.locator('[data-ui="anime-public-discovery"]');
+    await publicAnime.getByRole('button',{name:'Public anime discovery fixture',exact:true}).first().click();
+    await item.getByRole('heading',{name:'Public anime discovery fixture',exact:true}).waitFor();
+    await item.getByText('Independent discovery without addon installation.',{exact:true}).waitFor();
+    assert.equal(await item.getByRole('button',{name:'Play',exact:true}).count(),0);
+    await item.getByRole('button',{name:'Search this title across addons',exact:true}).click();
+    await board.getByRole('searchbox',{name:'Search across addons',exact:true}).waitFor();
+    assert.equal(await board.getByRole('searchbox',{name:'Search across addons',exact:true}).inputValue(),'Public anime discovery fixture');
+    console.log('PASS: shared streaming cards, stream-only Cinemeta fallback, settings-only account imports, and independent anime discovery with zero addons.');
   }finally{await page.close();}
 }
 
@@ -437,7 +497,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await manager.getByRole('heading',{name:'Your addon stack.',exact:true}).waitFor();
     const requests=await firstLaunch.evaluate(()=>window.__stremioFixture.calls);
     assert.ok(requests.every(a=>['profile-list','profile-create','profile-switch'].includes(a.kind)||(a.kind==='profile-request'&&a.action.kind==='list')));
-    await manager.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime',exact:true}).click();
+    await manager.locator('.tsugi-watch-settings-nav').getByRole('button',{name:'Anime',exact:true}).click();
     const setupAnime=manager.locator('[data-ui="mal-anime-library"]');
     const setupAnimePanel=setupAnime.locator('[data-ui="mal-collection"]');
     const setupXml='<myanimelist><anime><series_animedb_id>700</series_animedb_id><series_title>Onboarding anime</series_title><series_type>Movie</series_type><series_episodes>1</series_episodes><my_status>Plan to Watch</my_status><my_watched_episodes>0</my_watched_episodes><my_score>0</my_score></anime></myanimelist>';
@@ -485,13 +545,18 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 0 addons',exact:true}).click();
     await watch.getByRole('heading',{name:'Movies & TV',exact:true}).waitFor();
     const watchGlyphs=await watch.locator('.tsugi-watch-nav [data-movie-glyph]').evaluateAll(nodes=>nodes.map(node=>({name:node.getAttribute('data-movie-glyph'),fill:node.getAttribute('fill'),stroke:node.getAttribute('stroke')})));
-    assert.equal(watchGlyphs.length,12);assert.equal(new Set(watchGlyphs.map(g=>g.name)).size,12);assert.ok(watchGlyphs.every(g=>g.fill==='currentColor'&&g.stroke==='none'));
-    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Add addon',exact:true}).click();
+    assert.equal(watchGlyphs.length,5);assert.equal(new Set(watchGlyphs.map(g=>g.name)).size,5);assert.ok(watchGlyphs.every(g=>g.fill==='currentColor'&&g.stroke==='none'));
+    async function watchSetting(name){
+      const nav=watch.locator('[data-ui="watch-settings-navigation"]');
+      if(!await nav.isVisible())await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Settings',exact:true}).click();
+      await nav.getByRole('button',{name,exact:true}).click();
+    }
+    await watchSetting('Add addon');
     await watch.getByLabel('Configured manifest URL').fill('https://example.invalid/private-fixture/manifest.json?token=fixture');
     await watch.getByRole('checkbox').check();
     await watch.getByRole('button',{name:'Review addon',exact:true}).click();
     await watch.getByRole('button',{name:'Install into profile',exact:true}).click();
-    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime',exact:true}).click();
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
     const anime=watch.locator('[data-ui="mal-anime-library"]');
     const animePanel=anime.locator('[data-ui="mal-collection"]');
     const hubNav=anime.getByRole('navigation',{name:'Anime Hub sections',exact:true});
@@ -579,7 +644,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.profiles.find(p=>p.profileId===1).malMatches[0].itemId),'tt123');
     assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='watch-record')),false);
     assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='refract-watchlist')),false);
-    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Refract',exact:true}).click();
+    await watchSetting('Refract');
     const refract=watch.locator('[data-ui="watch-refract"]');
     const refractKey=refract.getByLabel('Refract API key',{exact:true});
     const refractConnect=refract.getByRole('button',{name:'Verify and connect',exact:true});
@@ -607,7 +672,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await refract.getByText('This key belongs to another account. Disconnect the current account before connecting a different one.',{exact:true}).waitFor();
     assert.equal(await track.isChecked(),true);
     if(screenshotDir)await firstLaunch.screenshot({path:join(screenshotDir,'watch-refract.png'),animations:'disabled'});
-    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'MDBList',exact:true}).click();
+    await watchSetting('MDBList');
     const mdb=watch.locator('[data-ui="watch-mdblist"]');
     const key=mdb.getByLabel('MDBList API key',{exact:true});
     const connect=mdb.getByRole('button',{name:'Verify and connect',exact:true});
@@ -646,7 +711,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
       {kind:'refract-watchlist',mediaType:'movie',itemId:'tt123',add:false}
     ]);
     if(screenshotDir)await firstLaunch.screenshot({path:join(screenshotDir,'watch-mdblist.png'),animations:'disabled'});
-    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Your addons',exact:true}).click();
+    await watchSetting('Your addons');
     await watch.getByRole('button',{name:'Browse catalogues',exact:true}).click();
     const catalog=watch.locator('[data-ui="stremio-catalog"]');
     await catalog.getByLabel('Search',{exact:true}).fill('original');
@@ -701,16 +766,16 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal(new Set(viewingIds).size,2);
     await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Cinema 0 addons',exact:true}).click();
-    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime',exact:true}).click();
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
     await animePanel.getByText('No imported titles yet.',{exact:true}).waitFor();
     assert.equal(await animeFilm.count(),0);
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Watch history',exact:true}).click();
     await history.getByRole('button',{name:'Load history',exact:true}).click();
     await history.getByText('No Watch history for this profile.',{exact:true}).waitFor();
-    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'MDBList',exact:true}).click();
+    await watchSetting('MDBList');
     await mdb.getByLabel('MDBList API key',{exact:true}).waitFor();
     assert.equal(await mdb.getByText('Connected to MDBList for this profile.',{exact:true}).count(),0);
-    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Refract',exact:true}).click();
+    await watchSetting('Refract');
     await refractConnect.waitFor();
     assert.equal(await refract.getByText('Fixture member',{exact:true}).count(),0);
     assert.equal(await firstLaunch.evaluate(()=>{
@@ -721,7 +786,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal(await refract.getByText('Fixture member',{exact:true}).count(),0);
     await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 1 addons',exact:true}).click();
-    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime',exact:true}).click();
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
     await animeFilm.waitFor();await animeSeries.waitFor();
     assert.match(await animeFilm.innerText(),/Source selected/);
     await animeFilm.click();
@@ -746,7 +811,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await history.getByRole('button',{name:'Remove from history',exact:true}).click();
     await history.getByRole('button',{name:'Confirm removal',exact:true}).click();
     await history.getByText('No Watch history for this profile.',{exact:true}).waitFor();
-    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Refract',exact:true}).click();
+    await watchSetting('Refract');
     await refract.getByText('Fixture member',{exact:true}).waitFor();
     await refract.getByText('Pending: 1',{exact:true}).waitFor();
     // Native delivery attempts and retries update the settings without
@@ -767,12 +832,12 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await refract.getByRole('button',{name:'Confirm disconnect',exact:true}).click();
     await refractConnect.waitFor();
     console.log('Refract personal-key connection, profile isolation, watchlist protection, native status notifications and automatic retry fixture passed');
-    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'MDBList',exact:true}).click();
+    await watchSetting('MDBList');
     await mdb.getByText('Connected to MDBList for this profile.',{exact:true}).waitFor();
     await mdb.getByRole('button',{name:'Disconnect',exact:true}).click();
     await mdb.getByLabel('MDBList API key',{exact:true}).waitFor();
     await firstLaunch.setViewportSize({width:390,height:844});
-    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Your addons',exact:true}).click();
+    await watchSetting('Your addons');
     await watch.getByRole('heading',{name:'Your addon stack.',exact:true}).waitFor();
     await firstLaunch.evaluate(()=>window.scrollTo(0,0));
     const narrow=await watch.evaluate(node=>({scrollWidth:node.scrollWidth,clientWidth:node.clientWidth,nav:node.querySelector('.tsugi-watch-nav').getBoundingClientRect().width,content:node.querySelector('.tsugi-watch-content').getBoundingClientRect().width}));

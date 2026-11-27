@@ -4,6 +4,7 @@ import { t } from '@lingui/core/macro';
 import { MalCollectionPanel } from './mal-collection-panel';
 import { AnimeDiscovery } from './anime-discovery';
 import { WatchCatalogueBoard } from './watch-catalogue-board';
+import { PublicAnimeDiscovery } from './anime-public-discovery';
 import { BrushHeading } from '@/components/brush-heading';
 import { LandscapeDecoration } from '@/components/landscape-decoration';
 import { AnimeCover } from './anime-cover';
@@ -133,12 +134,14 @@ export function MalAnimeLibrary({profileId,sources,busy,historyActive,setupOnly=
         </div>
         <div className="tsugi-anime-hero-controls"><button type="button" aria-label={t({id:'Previous bundled illustration',message:'Previous bundled illustration'})} onClick={()=>setHero(i=>(i+artwork.length-1)%artwork.length)}>‹</button><span>{hero+1} / {artwork.length}</span><button type="button" aria-label={t({id:'Next bundled illustration',message:'Next bundled illustration'})} onClick={()=>setHero(i=>(i+1)%artwork.length)}>›</button></div>
       </section>
+      {!setupOnly&&!detailOpen&&<PublicAnimeDiscovery active={historyActive} busy={busy} openTitle={openTitle}/>}
       {!setupOnly&&<WatchCatalogueBoard key="anime-home" profileId={profileId} sources={sources} busy={busy} active={historyActive} paused={detailOpen||!!entry} scope="anime" run={run} openTitle={openTitle} openAddons={openAddons}/>}
       <HistoryShelf rows={animeHistory} busy={busy} open={openHistory}/>
       <Shelf title={t({id:'Watching in My List',message:'Watching in My List'})} rows={rows.filter(row=>row.status==='active')} busy={busy} onSelect={choose} covers={coverEnabled}/>
       <Shelf title={t({id:'Anime films in My List',message:'Anime films in My List'})} rows={rows.filter(row=>row.format.toLowerCase()==='movie')} busy={busy} onSelect={choose} covers={coverEnabled}/>
       <Shelf title={t({id:'Plan to watch',message:'Plan to watch'})} rows={rows.filter(row=>row.status==='planned')} busy={busy} onSelect={choose} covers={coverEnabled}/>
     </>}
+    {view==='movies'&&!setupOnly&&!detailOpen&&<PublicAnimeDiscovery filmsOnly active={historyActive} busy={busy} openTitle={openTitle}/>}
     {view==='movies'&&!setupOnly&&<WatchCatalogueBoard key="anime-films" profileId={profileId} sources={sources} busy={busy} active={historyActive} paused={detailOpen||!!entry} scope="anime-films" run={run} openTitle={openTitle} openAddons={openAddons}/>}
     {view==='discover'&&<AnimeDiscovery profileId={profileId} sources={sources} busy={busy} run={run} openTitle={openTitle} clearTitle={clearTitle} openAddons={openAddons}/>}
     {view==='history'&&<><HistoryShelf rows={animeHistory} full busy={busy} open={openHistory}/><button className="tsugi-read-action" disabled={busy} onClick={()=>void reloadHistory()}><Trans id="Reload history">Reload history</Trans></button></>}

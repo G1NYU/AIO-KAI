@@ -366,7 +366,9 @@ const SHAPE_CLASS: Record<CardShape, string> = {
 };
 
 export interface PosterCardProps {
-  href: string;
+  href?: string;
+  onClick?: () => void;
+  disabled?: boolean;
   shape?: CardShape;
   image: ArtworkSource;
   title: string;
@@ -411,26 +413,7 @@ export function PosterCard(props: PosterCardProps) {
   const [lines] = useSetting(settings.interface.posterLines);
   const showTitle = lines.includes('title');
   const showSubtitle = !!subtitle && lines.includes('year');
-  return (
-    <Anchor
-      data-ui="poster-card"
-      data-shape={shape}
-      data-type={itemType}
-      data-watched={watched || undefined}
-      data-favourite={favourite || undefined}
-      data-in-progress={(!!progress && progress > 0) || undefined}
-      href={href}
-      title={showTitle ? undefined : title}
-      data-focus="own"
-      className={cn('group/poster block space-y-2', props.className)}
-      {...(animated && {
-        onPointerEnter: () => setActive(true),
-        onPointerLeave: () => setActive(false),
-        onFocus: (e: React.FocusEvent<HTMLAnchorElement>) =>
-          setActive(e.currentTarget.matches(':focus-visible')),
-        onBlur: () => setActive(false),
-      })}
-    >
+  const body=(<>
       <div
         data-ui="poster-card-image"
         data-focus-frame
@@ -481,6 +464,29 @@ export function PosterCard(props: PosterCardProps) {
           )}
         </div>
       )}
+  </>);
+  if(props.onClick)return <button type="button" data-ui="poster-card" data-shape={shape} data-type={itemType} data-focus="own" aria-label={title} disabled={props.disabled} onClick={props.onClick} className={cn('group/poster block w-full space-y-2 text-start',props.className)}>{body}</button>;
+  return (
+    <Anchor
+      data-ui="poster-card"
+      data-shape={shape}
+      data-type={itemType}
+      data-watched={watched || undefined}
+      data-favourite={favourite || undefined}
+      data-in-progress={(!!progress && progress > 0) || undefined}
+      href={href}
+      title={showTitle ? undefined : title}
+      data-focus="own"
+      className={cn('group/poster block space-y-2', props.className)}
+      {...(animated && {
+        onPointerEnter: () => setActive(true),
+        onPointerLeave: () => setActive(false),
+        onFocus: (e: React.FocusEvent<HTMLAnchorElement>) =>
+          setActive(e.currentTarget.matches(':focus-visible')),
+        onBlur: () => setActive(false),
+      })}
+    >
+      {body}
     </Anchor>
   );
 }

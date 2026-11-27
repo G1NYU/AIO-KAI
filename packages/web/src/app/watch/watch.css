@@ -4,7 +4,7 @@
 .tsugi-direct-watch>div>header {margin-bottom:24px;}
 .tsugi-direct-watch .tsugi-watch-picker {min-height:min(72vh,780px);}
 .tsugi-direct-watch .tsugi-watch-content {min-width:0;}
-@media(min-width:761px){.tsugi-direct-watch .tsugi-watch-nav-item:nth-child(5) {margin-top:18px;}}
+@media(min-width:761px){ .tsugi-direct-watch [data-ui='watch-hub-navigation'] .tsugi-watch-nav-item:nth-child(5) {margin-top:18px;}}
 .tsugi-direct-player {position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;justify-content:space-between;color:white;}
 .tsugi-direct-player header,.tsugi-direct-player footer {padding:24px;display:flex;gap:12px;background:linear-gradient(180deg,rgba(0,0,0,.85),transparent);}
 .tsugi-direct-player header {justify-content:space-between;align-items:flex-start;}

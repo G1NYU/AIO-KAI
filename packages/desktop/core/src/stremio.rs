@@ -270,7 +270,7 @@ fn public_poster(value: &Value) -> Option<String> {
     };
     let digits=|s:&str|!s.is_empty()&&s.len()<=12&&s.bytes().all(|b|b.is_ascii_digit());
     let valid=match (url.host_str()?,parts.as_slice()){
-        ("image.tmdb.org",["t","p",size,file])=>matches!(*size,"w92"|"w154"|"w185"|"w342"|"w500"|"w780"|"original")&&safe_file(file),
+        ("image.tmdb.org",["t","p",size,file])=>matches!(*size,"w92"|"w154"|"w185"|"w342"|"w500"|"w780"|"w600_and_h900_bestv2"|"original")&&safe_file(file),
         ("images.metahub.space",["poster",size,id,"img"])=>matches!(*size,"small"|"medium"|"large")&&id.strip_prefix("tt").is_some_and(digits),
         ("cdn.myanimelist.net",["images","anime",folder,file])=>digits(folder)&&safe_file(file),
         ("media.kitsu.io",["anime","poster_images",id,file])=>digits(id)&&safe_file(file),

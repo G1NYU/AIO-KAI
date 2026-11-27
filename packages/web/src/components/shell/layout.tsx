@@ -225,9 +225,7 @@ export function WebLayout() {
   };
   const watchItems: SidebarItem[] = desktopArea?.openWatchPane ? [
     { id: 'anime-hub', name: t`Anime Hub`, iconType: MovieIcons.anime, onClick: () => desktopArea.openWatchPane?.('anime') },
-    { id: 'watch-addons', name: t`Watch addons`, iconType: MovieIcons.addons, onClick: () => desktopArea.openWatchPane?.('addons') },
-    { id: 'stremio-import', name: t`Stremio import`, iconType: MovieIcons.stremio, onClick: () => desktopArea.openWatchPane?.('stremio') },
-    { id: 'nuvio-import', name: t`Nuvio import`, iconType: MovieIcons.nuvio, onClick: () => desktopArea.openWatchPane?.('nuvio') },
+    { id: 'addon-library', name: t`Addon library`, iconType: MovieIcons.tv, onClick: () => desktopArea.openWatchPane?.('home') },
   ] : [];
   const items: SidebarItem[] = [
     {

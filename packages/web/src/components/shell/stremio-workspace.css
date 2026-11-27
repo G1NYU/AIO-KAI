@@ -88,3 +88,13 @@
   .tsugi-watch-avatar { transition:none; }
   .tsugi-watch-profile:is(:hover,:focus-visible) .tsugi-watch-avatar { transform:none; }
 }
+
+/* Content navigation is permanent; imports and provider configuration are
+ * contained in a settings page, not in the media rail. */
+.tsugi-watch-configuration{grid-template-columns:minmax(0,1fr);}
+.tsugi-watch-settings-nav{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding-bottom:12px;border-bottom:1px solid var(--tsugi-line);}
+.tsugi-watch-settings-nav .tsugi-watch-nav-item{border-inline-start:0;border-bottom:2px solid transparent;}
+.tsugi-watch-settings-nav .tsugi-watch-nav-item[aria-pressed='true']{border-bottom-color:var(--tsugi-accent);}
+.tsugi-watch-hub .tsugi-watch-content{padding-inline:0 2.5rem;}
+.tsugi-watch-hub .tsugi-watch-nav{position:sticky;top:calc(var(--tsugi-window-strip,40px) + 16px);}
+@media(max-width:760px){.tsugi-watch-hub .tsugi-watch-nav{position:static;}.tsugi-watch-hub .tsugi-watch-content{padding-inline:0 1rem;}}

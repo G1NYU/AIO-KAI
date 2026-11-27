@@ -11,6 +11,8 @@ export type DesktopAreaActions = {
   openWelcome(): void;
   openMusic(): void;
   openVideo(): void;
+  openMovies?: () => void;
+  openServerSearch?: (title:string) => void;
   openWatchPane?: (pane: WatchEntryPane) => void;
   openSettings(): void;
   openRead?: () => void;

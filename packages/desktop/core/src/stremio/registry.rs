@@ -21,6 +21,13 @@ mod store;
 mod refract_delivery;
 
 const MAX_SOURCES: usize = 16;
+
+// Official Cinemeta fallback for movie/series browsing when a profile only
+// installs stream addons. Not an installed source and never a stream provider.
+fn public_catalog_source()->Result<Source>{
+    let manifest=Manifest::parse(br#"{"id":"com.linvo.cinemeta","name":"Cinemeta","version":"3.0.14","types":["movie","series"],"idPrefixes":["tt"],"resources":["catalog","meta"],"catalogs":[{"type":"movie","id":"top","name":"Popular movies","extra":[{"name":"search"},{"name":"skip"}]},{"type":"series","id":"top","name":"Popular series","extra":[{"name":"search"},{"name":"skip"}]},{"type":"movie","id":"imdbRating","name":"Featured movies","extra":[{"name":"skip"}]},{"type":"series","id":"imdbRating","name":"Featured series","extra":[{"name":"skip"}]}]}"#)?;
+    Ok(Source{id:0,endpoint:Endpoint::parse("https://v3-cinemeta.strem.io/manifest.json")?,manifest,enabled:true})
+}
 const REVIEW_TTL: Duration = Duration::from_secs(300);
 
 #[derive(Deserialize)]
@@ -312,18 +319,23 @@ impl Registry {
                 Ok(self.list())
             }
             Action::Catalog { source_id, media_type, catalog_id, extras } => {
-                let source = &self.sources[self.source_index(source_id)?];
+                let public;
+                let source=if source_id==0{public=public_catalog_source()?;&public}else{&self.sources[self.source_index(source_id)?]};
                 if !source.enabled { return Err("disabled-source"); }
                 let page = source.endpoint.catalog(&source.manifest,&media_type,&catalog_id,&extras)?;
                 let items: Vec<_> = page.items.iter().map(|item| json!({
                     "id":item.id,"mediaType":item.kind,"name":item.name,"poster":item.poster
                 })).collect();
-                self.mal_review=Some(MalCatalogReview{source_id,items:page.items.into_iter().map(|item|(item.kind,item.id,item.name)).collect(),created:Instant::now()});
+                if source_id!=0{self.mal_review=Some(MalCatalogReview{source_id,items:page.items.into_iter().map(|item|(item.kind,item.id,item.name)).collect(),created:Instant::now()});}
                 Ok(json!({"sourceId":source_id,"mediaType":media_type,"catalogId":catalog_id,
                     "items":items,"sourceCount":page.source_count,"nextSkip":page.next_skip}))
             }
             Action::Metadata { source_id,media_type,item_id } => {
-                let source=&self.sources[self.source_index(source_id)?];
+                let public;
+                let source=if source_id==0{
+                    if !item_id.strip_prefix("tt").is_some_and(|id|!id.is_empty()&&id.len()<=12&&id.bytes().all(|b|b.is_ascii_digit())){return Err("unsupported-resource");}
+                    public=public_catalog_source()?;&public
+                }else{&self.sources[self.source_index(source_id)?]};
                 if !source.enabled{return Err("disabled-source");}
                 let meta=source.endpoint.metadata(&source.manifest,&media_type,&item_id)?;
                 Ok(json!({"sourceId":source_id,"metadata":meta}))
@@ -475,6 +487,19 @@ mod tests {
         registry.media_review=Some(review);
         registry.execute(Action::SetEnabled{source_id:id,enabled:false}).unwrap();
         assert_eq!(registry.execute(Action::PrepareMedia{review_id:100,option_index:0,start_ms:0}),Err("expired-review"));
+    }
+    #[test]
+    fn public_catalogue_is_fixed_metadata_only_and_not_installed(){
+        let source=public_catalog_source().unwrap();
+        assert_eq!(source.id,0);
+        assert!(source.manifest.supports(ItemResource::Meta,"movie","tt123"));
+        assert!(!source.manifest.supports(ItemResource::Stream,"movie","tt123"));
+        assert!(!source.manifest.supports(ItemResource::Meta,"anime","mal:123"));
+        assert_eq!(source.manifest.declared_catalogs().count(),4);
+        let mut registry=Registry::default();
+        assert_eq!(registry.list()["sources"],json!([]));
+        assert!(registry.execute(Action::Metadata{source_id:0,media_type:"series".into(),item_id:"mal:123".into()}).is_err());
+        assert!(registry.execute(Action::ItemOptions{source_id:0,media_type:"movie".into(),video_id:"tt123".into(),subtitles:false}).is_err());
     }
     #[test]
     fn grouped_stream_reviews_keep_order_isolate_errors_and_select_exact_source(){
