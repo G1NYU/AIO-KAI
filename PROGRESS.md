@@ -1,3 +1,5 @@
+- 2026-11-27: ✓ Cumulative validation `880ec65` passed run 45968938947 (449 web, 223 native; filled icons, release prompt, MAL snapshot replacement and Watch header clearance). Refresh package-only candidate with these validated fixes; stable v0.1.0 unchanged. See HANDOFF.md. New archive verification pending.
+
 - 2026-11-27: ✓ New Windows candidate `fcf64fe` passed run 45967577646 and independently verified download/ZIP/SHA-256/PE/compiled UI checks. [Download](https://github.com/G1NYU/TSUGI/actions/runs/45967577646/artifacts/15183194644). Stable v0.1.0 unchanged. Next Reader and Watch fixes ready for cumulative CI.
 
 - 2026-11-27: ✓ Independently downloaded and verified prior 93b9366 ZIP (artifact SHA-256, CRC, exact manifest, x64 PE); visually audited CI screenshots. Found Watch narrow header/titlebar overlap and authored scoped clearance fix with browser assertion. New CI pending.

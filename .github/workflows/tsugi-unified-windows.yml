@@ -376,6 +376,10 @@ jobs:
           Watch supports local profiles, reviewed Stremio/Nuvio addon imports,
           supported direct streams, and profile-local history. Anime Hub and
           Reader import local MAL XML/gzip exports with reviewed source matching.
+          Manga reimports preview changed snapshots and keep existing metadata by
+          default; selected replacements preserve assigned sources and local reading
+          history. Watch reserves clearance below native window controls in narrow
+          layouts. Test both flows before moving your personal library.
           Reader supports additive source migration, including guarded partial-page
           and local tracker-binding transfer. Automatic MAL/AniList sync is not
           enabled. Refract personal-key watch logging and MDBList are optional;
