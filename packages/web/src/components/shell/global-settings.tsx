@@ -236,17 +236,25 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
         {[
           ['AIOStreams','https://github.com/Viren070/AIOStreams',t`Upstream application`],
           ['Seanime','https://github.com/5rahim/seanime',t`Interface foundations`],
+          // eslint-disable-next-line lingui/no-unlocalized-strings -- canonical project name; the role is translated below.
           ['Stremio','https://github.com/Stremio',t`Addon ecosystem`],
+          // eslint-disable-next-line lingui/no-unlocalized-strings -- canonical project name; the role is translated below.
           ['Nuvio','https://github.com/NuvioMedia/NuvioDesktop',t`Addon account interoperability reference`],
           ['Jellyfin','https://jellyfin.org',t`Media server API`],
           ['mpv','https://mpv.io',t`Native playback`],
           ['FFmpeg','https://ffmpeg.org',t`Media processing`],
           ['yt-dlp','https://github.com/yt-dlp/yt-dlp',t`Music source tooling`],
+          // eslint-disable-next-line lingui/no-unlocalized-strings -- canonical project name; the role is translated below.
           ['Suwayomi','https://github.com/Suwayomi/Suwayomi-Server',t`Reading runtime`],
+          // eslint-disable-next-line lingui/no-unlocalized-strings -- canonical project name; the role is translated below.
           ['Mihon','https://github.com/mihonapp/mihon',t`Reading library interoperability`],
+          // eslint-disable-next-line lingui/no-unlocalized-strings -- canonical project name; the role is translated below.
           ['Readest / Foliate','https://github.com/readest/foliate-js',t`Ebook rendering`],
+          // eslint-disable-next-line lingui/no-unlocalized-strings -- canonical project name; the role is translated below.
           ['PDF.js','https://github.com/mozilla/pdf.js',t`PDF rendering`],
+          // eslint-disable-next-line lingui/no-unlocalized-strings -- canonical project name; the role is translated below.
           ['Aria2 Next','https://github.com/AnInsomniacy/aria2-next',t`Managed transfers`],
+          // eslint-disable-next-line lingui/no-unlocalized-strings -- canonical project name; the role is translated below.
           ['RE-Harbor','https://github.com/G1NYU/RE-Harbor',t`Refract tracking reference`],
         ].map(([name,url,role])=><li className="flex flex-wrap items-baseline gap-x-2" key={name}><a className="text-[--tsugi-accent] underline" href={url} target="_blank" rel="noopener noreferrer">{name}</a><span>{role}</span></li>)}
       </ul>
