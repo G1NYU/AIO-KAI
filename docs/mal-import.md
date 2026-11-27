@@ -4,7 +4,7 @@ TSUGI imports **local MyAnimeList XML exports** as source-independent collection
 
 ## Reader → Library → MyAnimeList
 
-1. Export your manga list from MyAnimeList and choose its .xml or .xml.gz file with Import MAL list. Review the new/existing counts before saving.
+1. Export your manga list from MyAnimeList and choose its .xml or .xml.gz file with Import MAL list. Review the new/existing counts before saving. If a previously imported manga has changed, review its current and incoming snapshot side by side. Only explicitly selected replacements change existing entries.
 2. Titles are visible immediately, including those with no installed reading source. The original MAL ID, title, reading status, score, read/total chapter counts and read/total volumes are retained.
 3. Select an imported title, choose an installed source from your Mihon/Tachiyomi-compatible extension repositories, edit the search if needed, and review an exact candidate. Install extensions separately using the existing trusted repository flow.
 4. Save source and open manga adds the reviewed native title to the Reader library, verifies its stable source identity and stores the assignment. Open saved source rechecks the identity and membership before opening. You can choose another source; the previous native title is not removed automatically.
@@ -30,7 +30,7 @@ Anime heroes reuse the existing shared landscape decoration component (Kitsu and
 ## Bounds and privacy
 
 - Each file may contain up to 3,000 entries and 8 MiB of decoded UTF-8 XML (also bounded before gzip expansion). Each normalized list is capped at 2 MiB; anime entries plus assignments must fit that same native bound. Reader's local store has an additional 3 MiB bound for source assignments. Invalid files, DTD/entity declarations, contradictory duplicate IDs, wrong list kinds and invalid fields are rejected without applying the preview.
-- Identical duplicate rows collapse by MAL ID, and reimport adds new IDs only. Existing progress/status and reviewed Reader assignments are preserved. Updating an existing entry from a newer export requires a future explicit conflict-review flow.
+- Identical duplicate rows collapse by MAL ID. Reimport adds missing IDs; Reader manga can also replace individually reviewed changed snapshots. The review shows title, status, chapter/volume counts, score and format, with all replacements unchecked by default. Existing entries and source assignments are preserved unless a snapshot is explicitly selected; assignments remain intact even after a replacement. A stale review or invalid selection is rejected. Anime reimport and portable backup restoration remain additive.
 - Account metadata, credentials, personal notes, comments, tags and raw XML are not retained. No remote request is made by the import itself. Search requests happen only on the user's selected source.
 - Portable backups that include Reader data capture the imported manga catalogue and reviewed source assignments. In Data & storage, open the archive, prepare a restore checkpoint, and review the MyAnimeList manga collection. Restore adds missing entries and nonconflicting assignments. Opening a restored assignment checks the installed source and exact title identity again. If the local manga ID changed, choose the source again.
 - MAL metadata imported by either surface is a snapshot; it does not become actual local reading/watching history and does not enqueue Refract or tracker writes. No automatic MAL sync or account-based list fetch is claimed.

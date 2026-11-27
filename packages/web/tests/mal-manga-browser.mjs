@@ -70,7 +70,37 @@ export async function verifyMalMangaBrowser({browser,origin,installDesktopFixtur
     await page.reload({waitUntil:'domcontentloaded'});await enter.click();
     await row.waitFor();assert.match(await row.innerText(),/Source selected/);
     assert.equal((await stored()).entries[0].progress,12);
+    const retained=(await stored()).links;
+    const beforeReplacement=(await requests()).filter(a=>a.kind==='set-library'||a.kind==='chapter-flags'||a.kind.startsWith('tracker-')).length;
+    const updated=manga.replace('Imported manga & fixture','Revised manga & fixture').replace('<my_status>Reading','<my_status>Completed').replace('<my_read_chapters>12','<my_read_chapters>30').replace('<my_read_volumes>2','<my_read_volumes>4').replace('<my_score>8','<my_score>9');
+    const extra=manga.replace('<manga_mangadb_id>501','<manga_mangadb_id>502').replace('Imported manga & fixture','Additional manga');
+    const changedXml='<myanimelist>'+updated+extra+'</myanimelist>';
+    const replaceFile=()=>file.setInputFiles({name:'mangalist.xml',mimeType:'application/xml',buffer:Buffer.from(changedXml)});
+    await replaceFile();await preview.waitFor();
+    const conflict=preview.locator('[data-mal-conflict="501"]');
+    const choice=conflict.getByRole('checkbox');
+    await choice.waitFor();assert.equal(await choice.isChecked(),false);
+    assert.match(await conflict.innerText(),/12 \/ 30 chapters/);assert.match(await conflict.innerText(),/30 \/ 30 chapters/);
+    await preview.getByRole('button',{name:'Import reviewed list',exact:true}).click();
+    await panel.locator('[data-mal-id="502"]').waitFor();
+    assert.equal((await stored()).entries.find(r=>r.malId===501).progress,12);
+    assert.deepEqual((await stored()).links,retained);
+    await replaceFile();await choice.waitFor();
+    assert.equal(await preview.getByRole('button',{name:'Import reviewed list',exact:true}).isEnabled(),false);
+    await choice.check();await preview.getByRole('button',{name:'Cancel',exact:true}).click();
+    assert.equal((await stored()).entries.find(r=>r.malId===501).progress,12);
+    await replaceFile();await choice.waitFor();assert.equal(await choice.isChecked(),false);
+    await choice.check();
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'reader-mal-reimport-review.png'),animations:'disabled'});
+    await preview.getByRole('button',{name:'Import reviewed list',exact:true}).click();
+    await row.getByText('Revised manga & fixture',{exact:true}).waitFor();
+    assert.deepEqual((await stored()).entries.filter(r=>r.malId===501).map(r=>[r.status,r.progress,r.volumesRead,r.score]),[['completed',30,4,9]]);
+    assert.deepEqual((await stored()).links,retained);
+    assert.equal((await requests()).filter(a=>a.kind==='set-library'||a.kind==='chapter-flags'||a.kind.startsWith('tracker-')).length,beforeReplacement);
+    await page.reload({waitUntil:'domcontentloaded'});await enter.click();await row.waitFor();
+    assert.match(await row.innerText(),/30\s*\/\s*30 chapters/);
+    assert.match(await row.innerText(),/Source selected/);
     assert.deepEqual(errors,[]);
-    console.log('PASS: MAL manga XML/gzip validation, review, deduplication, source-independent import, explicit native source assignment and restored collection.');
+    console.log('PASS: MAL manga XML/gzip validation, review, deduplication, source-independent import, explicit native source assignment, reviewed snapshot replacement and restored collection.');
   }finally{await page.close();}
 }

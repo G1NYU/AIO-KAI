@@ -1,3 +1,5 @@
+- 2026-11-27: B5 reviewed MAL manga reimport adds missing IDs and permits individually selected snapshot replacements without changing assigned sources, local chapters or provider accounts. Exact source blob strict TypeScript/18 isolated assertions passed; cumulative CI pending. See HANDOFF.md and docs/mal-import.md.
+
 - 2026-11-27: ✓ Filled Movies navigation and GitHub release prompt at `ff67c1d` passed 45966315386 (446 web, 223 native; profile routing and verified newer-release notice). Rechecked local toolchain/network, added Windows development guide and uploaded-package round-trip checks. Fresh portable candidate pending; stable release unchanged. See HANDOFF.md.
 
 - 2026-11-27: ✓ Packaged Windows candidate `93b9366` passed run 45964495647; [download artifact](https://github.com/G1NYU/TSUGI/actions/runs/45964495647/artifacts/15182399248). Authored original filled Movies/Watch navigation, profile-gated Anime/Stremio/Nuvio shortcuts and a read-only, ancestry-verified startup update notice. New native/parser/browser checks pending; see HANDOFF.md. Stable release unchanged.

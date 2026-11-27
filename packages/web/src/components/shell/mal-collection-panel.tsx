@@ -1,12 +1,14 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { readMalFile, type MalEntry, type MalKind, type MalStatus } from '@/lib/mal-collection';
+import { readMalFile, reviewMalReimport, sameMalSnapshot, type MalReimportReview, type MalEntry, type MalKind, type MalStatus } from '@/lib/mal-collection';
 
 type Props = {
   kind: MalKind; entries: MalEntry[]; busy: boolean; selectedId: number | null;
   run(work:()=>Promise<void>):Promise<void>;
-  onImport(entries:MalEntry[]):Promise<void>; onSelect?(entry:MalEntry):void; renderArtwork?:(entry:MalEntry)=>React.ReactNode;
+  onImport(entries:MalEntry[]):Promise<void>;
+  onReviewedImport?(review:MalReimportReview,replacementIds:number[]):Promise<void>;
+  onSelect?(entry:MalEntry):void; renderArtwork?:(entry:MalEntry)=>React.ReactNode;
   onRemove(id:number):Promise<void>; isAssigned?:(entry:MalEntry)=>boolean; formatScope?:'movie';
 };
 
@@ -20,8 +22,11 @@ function statusLabel(kind:MalKind,status:MalStatus){
   }
 }
 
-export function MalCollectionPanel({kind,entries,busy,selectedId,run,onImport,onSelect,onRemove,isAssigned,formatScope,renderArtwork}:Props){
+export function MalCollectionPanel({kind,entries,busy,selectedId,run,onImport,onReviewedImport,onSelect,onRemove,isAssigned,formatScope,renderArtwork}:Props){
   const [preview,setPreview]=React.useState<MalEntry[]|null>(null);
+  const [review,setReview]=React.useState<MalReimportReview|null>(null);
+  const [replacements,setReplacements]=React.useState<Set<number>>(()=>new Set());
+  const [conflictPage,setConflictPage]=React.useState(0);
   const [reading,setReading]=React.useState(false);
   const [fileError,setFileError]=React.useState('');
   const [notice,setNotice]=React.useState('');
@@ -40,14 +45,22 @@ export function MalCollectionPanel({kind,entries,busy,selectedId,run,onImport,on
     row.title.toLowerCase().includes(filter.trim().toLowerCase())).sort((a,b)=>a.title.localeCompare(b.title)||a.malId-b.malId);
   const pages=Math.max(1,Math.ceil(filtered.length/60)), current=Math.min(page,pages-1);
   const existing=new Set(entries.map(row=>row.malId));
-  const added=preview?.filter(row=>!existing.has(row.malId)).length??0;
+  const added=review?.added??(preview?.filter(row=>!existing.has(row.malId)).length??0);
+  const stale=review!==null&&!sameMalSnapshot(entries,review.baseline);
+  const conflicts=review?.conflicts??[];
+  const conflictPages=Math.max(1,Math.ceil(conflicts.length/20));
+  function clearPreview(){setPreview(null);setReview(null);setReplacements(new Set());setConflictPage(0);}
+  function chooseReplacement(id:number,checked:boolean){setReplacements(previous=>{const next=new Set(previous);if(checked)next.add(id);else next.delete(id);return next;});}
   async function chooseFile(file?:File){
     if(!file||locked)return;
     const id=++request.current;
-    setReading(true);setPreview(null);setNotice('');setFileError('');
+    setReading(true);clearPreview();setNotice('');setFileError('');
     try{
       const next=await readMalFile(file,kind);
-      if(id===request.current)setPreview(next);
+      if(id===request.current){
+        const reviewed=onReviewedImport?reviewMalReimport(entries,next,kind):null;
+        setReview(reviewed);setPreview(next);
+      }
     }catch{
       if(id===request.current)setFileError(kind==='manga'?t({ id: "Choose a valid MyAnimeList manga export (.xml or .xml.gz, up to 8 MiB and 3,000 titles).", message: "Choose a valid MyAnimeList manga export (.xml or .xml.gz, up to 8 MiB and 3,000 titles)." }):
         t({ id: "Choose a valid MyAnimeList anime export (.xml or .xml.gz, up to 8 MiB and 3,000 titles).", message: "Choose a valid MyAnimeList anime export (.xml or .xml.gz, up to 8 MiB and 3,000 titles)." }));
@@ -55,6 +68,12 @@ export function MalCollectionPanel({kind,entries,busy,selectedId,run,onImport,on
       if(id===request.current)setReading(false);
     }
   }
+  function snapshot(row:MalEntry){return <div className="min-w-0 space-y-1 break-words">
+    <strong className="block">{row.title}</strong>
+    <p>{statusLabel(kind,row.status)} · {row.progress} / {row.total||'—'} <Trans id="chapters">chapters</Trans></p>
+    <p>{row.volumesRead} / {row.volumesTotal||'—'} <Trans id="volumes">volumes</Trans> · <Trans id="MAL snapshot score">Score</Trans>: {row.score}/10</p>
+    <p><Trans id="MAL snapshot format">Format</Trans>: {row.format||'—'}</p>
+  </div>;}
   function titleContent(row:MalEntry){return <>{renderArtwork?.(row)}<strong className="block break-words">{row.title}</strong>
       <small className="block text-[--tsugi-muted]">{statusLabel(kind,row.status)} · {row.progress}{row.total>0?' / '+row.total:''} {kind==='manga'?<Trans id="chapters">chapters</Trans>:<Trans id="episodes">episodes</Trans>}
       {row.format&&<> · {row.format}</>}{row.score>0&&<> · {row.score}/10</>}{isAssigned?.(row)&&<> · <Trans id="Source selected">Source selected</Trans></>}</small>
@@ -68,7 +87,7 @@ export function MalCollectionPanel({kind,entries,busy,selectedId,run,onImport,on
         <button type="button" className="tsugi-read-action" disabled={locked} onClick={()=>fileInput.current?.click()}><Trans id="Import MAL list">Import MAL list</Trans></button>
       </div>
     </div>
-    <p className="text-sm text-[--tsugi-muted]"><Trans id="Imported status, progress and scores are a snapshot, not live tracking. Existing entries are kept on reimport. Source matches are never inferred from a title or MAL ID alone.">Imported status, progress and scores are a snapshot, not live tracking. Existing entries are kept on reimport. Source matches are never inferred from a title or MAL ID alone.</Trans></p>
+    <p className="text-sm text-[--tsugi-muted]">{onReviewedImport?<Trans id="MAL snapshot reviewed reimport">Imported status, progress and scores are snapshots, not live tracking. Existing titles are kept unless you explicitly select a replacement after reviewing the changes. Source matches are never inferred from a title or MAL ID alone.</Trans>:<Trans id="Imported status, progress and scores are a snapshot, not live tracking. Existing entries are kept on reimport. Source matches are never inferred from a title or MAL ID alone.">Imported status, progress and scores are a snapshot, not live tracking. Existing entries are kept on reimport. Source matches are never inferred from a title or MAL ID alone.</Trans>}</p>
     {reading&&<p role="status"><Trans id="Reading list…">Reading list…</Trans></p>}
     {fileError&&<p role="alert">{fileError}</p>}
     {preview&&<section className="space-y-2" data-ui="mal-import-preview">
@@ -76,11 +95,31 @@ export function MalCollectionPanel({kind,entries,busy,selectedId,run,onImport,on
       <p><Trans id="New titles:">New titles:</Trans> {added} · <Trans id="Already imported:">Already imported:</Trans> {preview.length-added}</p>
       <ul className="max-h-48 overflow-auto">{preview.slice(0,12).map(row=><li key={row.malId} className="tsugi-read-row"><span className="min-w-0 break-words">{row.title}</span><small>{statusLabel(kind,row.status)}</small></li>)}</ul>
       {preview.length>12&&<p><Trans id="Showing the first 12 titles in this preview.">Showing the first 12 titles in this preview.</Trans></p>}
+      {stale&&<p role="alert"><Trans id="MAL import review stale">The collection changed during review. Choose the export again before applying any changes.</Trans></p>}
+      {review&&<p><Trans id="MAL unchanged snapshots">Unchanged:</Trans> {review.unchanged} · <Trans id="MAL changed snapshots">Changed:</Trans> {conflicts.length} · <Trans id="MAL selected replacements">Selected replacements:</Trans> {replacements.size}</p>}
+      {!!conflicts.length&&<section className="space-y-3" data-ui="mal-reimport-conflicts" aria-label={t({id:'MAL changed snapshot review',message:'Review changed manga snapshots'})}>
+        <p><Trans id="MAL snapshot replacement scope">Nothing is selected by default. Replacing a snapshot may lower or reset its imported progress, but never changes local chapters, source assignments or your MAL account.</Trans></p>
+        {conflicts.slice(conflictPage*20,conflictPage*20+20).map(({current,incoming})=><div className="space-y-2 border-b border-[--tsugi-line] pb-3" key={current.malId} data-mal-conflict={current.malId}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div><p className="text-sm text-[--tsugi-muted]"><Trans id="MAL current snapshot">Current snapshot</Trans></p>{snapshot(current)}</div>
+            <div><p className="text-sm text-[--tsugi-muted]"><Trans id="MAL incoming snapshot">Imported snapshot</Trans></p>{snapshot(incoming)}</div>
+          </div>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={replacements.has(current.malId)} disabled={locked||stale} onChange={event=>chooseReplacement(current.malId,event.target.checked)}/><span><Trans id="MAL replace snapshot">Use imported snapshot</Trans> · {incoming.title}</span></label>
+        </div>)}
+        {conflictPages>1&&<div className="flex items-center flex-wrap gap-2">
+          <button type="button" className="tsugi-read-action" disabled={locked||conflictPage===0} onClick={()=>setConflictPage(n=>n-1)}><Trans id="Previous">Previous</Trans></button>
+          <span>{conflictPage+1} / {conflictPages}</span>
+          <button type="button" className="tsugi-read-action" disabled={locked||conflictPage+1>=conflictPages} onClick={()=>setConflictPage(n=>n+1)}><Trans id="Next">Next</Trans></button>
+        </div>}
+      </section>}
       <div className="flex flex-wrap gap-2">
-        <button type="button" className="tsugi-read-action" disabled={locked||added===0} onClick={()=>void run(async()=>{
-          await onImport(preview);setPreview(null);setPage(0);setNotice(t({ id: "MAL collection saved. Existing titles were kept.", message: "MAL collection saved. Existing titles were kept." }));
+        <button type="button" className="tsugi-read-action" disabled={locked||stale||(added===0&&replacements.size===0)} onClick={()=>void run(async()=>{
+          const replaced=replacements.size;
+          if(review&&onReviewedImport)await onReviewedImport(review,[...replacements]);
+          else await onImport(preview);
+          clearPreview();setPage(0);setNotice(replaced?t({id:'MAL reviewed snapshots saved',message:'MAL collection saved with the selected snapshot replacements.'}):t({ id: "MAL collection saved. Existing titles were kept.", message: "MAL collection saved. Existing titles were kept." }));
         })}><Trans id="Import reviewed list">Import reviewed list</Trans></button>
-        <button type="button" className="tsugi-read-action" disabled={locked} onClick={()=>setPreview(null)}><Trans id="Cancel">Cancel</Trans></button>
+        <button type="button" className="tsugi-read-action" disabled={locked} onClick={clearPreview}><Trans id="Cancel">Cancel</Trans></button>
       </div>
     </section>}
     {notice&&<p role="status">{notice}</p>}

@@ -1,4 +1,5 @@
 import { describe,expect,it } from 'vitest';
+import { reviewMalReimport, applyMalReimport, mergeMalEntries, type MalEntry } from '../src/lib/mal-collection';
 import { parseMangaBackup,snapshotManga,planMangaRestore,missingTitleSources,type LocalManga } from '../src/lib/backup/manga';
 const hash=(n:number)=>n.toString(16).padStart(64,'0');
 const chapter={id:11,identity:hash(11),name:'Chapter one',isRead:false,isBookmarked:true,lastPageRead:3,pageCount:20,lastReadAt:'100'};
@@ -44,4 +45,34 @@ it('distinguishes missing sources from an incomplete inventory without rounding 
     {id,titles:2,status:'missing'},{id:'0',titles:1,status:'installed'}]);
   expect(missingTitleSources(plan,{nodes:[{id:'0'}],totalCount:2})[0].status).toBe('unknown');
   expect(missingTitleSources(plan,null)[0].status).toBe('unknown');
+});
+
+describe('reviewed MAL manga reimport',()=>{
+  const row:MalEntry={malId:501,title:'Original manga',status:'active',progress:12,total:30,score:8,format:'Manga',volumesRead:2,volumesTotal:4};
+  const updated:MalEntry={...row,title:'Updated manga',status:'completed',progress:30,score:9,volumesRead:4};
+  const fresh:MalEntry={...row,malId:502,title:'New manga'};
+  it('adds missing entries and explicitly replaces only selected changed snapshots',()=>{
+    const unchanged={...row,malId:503};
+    const review=reviewMalReimport([row,unchanged],[updated,fresh,unchanged],'manga');
+    expect(review).toMatchObject({added:1,unchanged:1,conflicts:[{current:row,incoming:updated}]});
+    expect(applyMalReimport([row,unchanged],review,[],'manga')).toEqual([row,unchanged,fresh]);
+    expect(applyMalReimport([row,unchanged],review,[501],'manga')).toEqual([updated,unchanged,fresh]);
+    expect(mergeMalEntries([row],[updated],'manga')).toEqual([row]);
+  });
+  it('requires a fresh exact review and rejects invalid or duplicate selections',()=>{
+    const review=reviewMalReimport([row],[updated,fresh],'manga');
+    expect(()=>applyMalReimport([{...row,score:7}],review,[501],'manga')).toThrow('mal-stale');
+    expect(()=>applyMalReimport([row,fresh],review,[501],'manga')).toThrow('mal-stale');
+    for(const selected of [[502],[999],[501,501]])expect(()=>applyMalReimport([row],review,selected,'manga')).toThrow();
+    expect(()=>reviewMalReimport([row],[updated,updated],'manga')).toThrow();
+    expect(()=>reviewMalReimport([row],[{...updated,score:11}],'manga')).toThrow();
+  });
+  it('allows reviewed lower progress without mutating the source or review inputs',()=>{
+    const reset:MalEntry={...row,progress:0,volumesRead:0,status:'planned',score:0};
+    const review=reviewMalReimport([row],[reset],'manga');
+    expect(applyMalReimport([row],review,[501],'manga')).toEqual([reset]);
+    expect(row.progress).toBe(12);
+    expect(review.baseline[0]).toEqual(row);
+    expect(review.baseline[0]).not.toBe(row);
+  });
 });

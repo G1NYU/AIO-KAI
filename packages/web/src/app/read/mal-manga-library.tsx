@@ -3,7 +3,7 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { readRequest } from '@/lib/hosts/shell/reading';
 import { MalCollectionPanel } from '@/components/shell/mal-collection-panel';
-import { mergeMalEntries, type MalEntry } from '@/lib/mal-collection';
+import { applyMalReimport, mergeMalEntries, type MalEntry } from '@/lib/mal-collection';
 import { isReaderIdentity } from './reader-preferences';
 
 import { load, safeLoad, persist, sourceId, positive, type Link } from '@/lib/backup/mal-manga';
@@ -98,6 +98,7 @@ export function MalMangaLibrary({busy,run,onOpen,openExtensions,importOnly=false
     <MalCollectionPanel kind="manga" entries={collection.entries} busy={busy} selectedId={selected} run={run}
       onSelect={importOnly?undefined:choose} isAssigned={row=>collection.links.some(link=>link.malId===row.malId)}
       onImport={async entries=>{update(mergeMalEntries(collection.entries,entries,'manga'),collection.links);}}
+      onReviewedImport={async(review,replacementIds)=>{update(applyMalReimport(collection.entries,review,replacementIds,'manga'),collection.links);setReview(null);setResults(null);}}
       onRemove={async id=>{update(collection.entries.filter(row=>row.malId!==id),collection.links.filter(row=>row.malId!==id));if(selected===id){setSelected(null);setReview(null);setResults(null);}}}/>
     {importOnly&&<p><Trans id="MAL manga onboarding note">Choose reading sources in Reader after setup. Imported titles do not require a running reading engine.</Trans></p>}
     {!importOnly&&entry&&<section ref={selectionRef} tabIndex={-1} aria-labelledby="mal-source-title" className="space-y-3" data-ui="mal-manga-source">

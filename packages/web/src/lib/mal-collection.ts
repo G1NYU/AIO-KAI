@@ -132,3 +132,45 @@ export function mergeMalEntries(current: MalEntry[], incoming: MalEntry[], kind:
   for (const entry of validateMalEntries(incoming,kind)) if (!entries.has(entry.malId)) entries.set(entry.malId,entry);
   return validateMalEntries([...entries.values()],kind);
 }
+
+// Explicit snapshot replacement is separate from the additive backup/import
+// merge. Neither path changes local reading history or provider account state.
+export type MalReimportReview = {
+  baseline: MalEntry[];
+  incoming: MalEntry[];
+  added: number;
+  unchanged: number;
+  conflicts: {current:MalEntry; incoming:MalEntry}[];
+};
+function sameMalEntry(a:MalEntry,b:MalEntry){
+  return a.malId===b.malId&&a.title===b.title&&a.status===b.status&&
+    a.progress===b.progress&&a.total===b.total&&a.score===b.score&&
+    a.format===b.format&&a.volumesRead===b.volumesRead&&a.volumesTotal===b.volumesTotal;
+}
+export function sameMalSnapshot(a:MalEntry[],b:MalEntry[]){
+  return a.length===b.length&&a.every((entry,index)=>sameMalEntry(entry,b[index]));
+}
+export function reviewMalReimport(current:MalEntry[],incoming:MalEntry[],kind:MalKind):MalReimportReview{
+  const baseline=validateMalEntries(current,kind).map(row=>({...row}));
+  const received=validateMalEntries(incoming,kind).map(row=>({...row}));
+  const byId=new Map(baseline.map(row=>[row.malId,row]));
+  const conflicts:MalReimportReview['conflicts']=[];
+  let added=0,unchanged=0;
+  for(const row of received){
+    const previous=byId.get(row.malId);
+    if(!previous)added++;
+    else if(sameMalEntry(previous,row))unchanged++;
+    else conflicts.push({current:previous,incoming:row});
+  }
+  return {baseline,incoming:received,added,unchanged,conflicts};
+}
+export function applyMalReimport(current:MalEntry[],review:MalReimportReview,replacementIds:number[],kind:MalKind){
+  const fresh=reviewMalReimport(current,review.incoming,kind);
+  if(!sameMalSnapshot(fresh.baseline,validateMalEntries(review.baseline,kind)))throw Error('mal-stale');
+  const eligible=new Set(fresh.conflicts.map(row=>row.current.malId));
+  const selected=new Set(replacementIds);
+  if(selected.size!==replacementIds.length||replacementIds.some(id=>!eligible.has(id)))return invalid();
+  const entries=new Map(fresh.baseline.map(row=>[row.malId,row]));
+  for(const row of fresh.incoming)if(!entries.has(row.malId)||selected.has(row.malId))entries.set(row.malId,row);
+  return validateMalEntries([...entries.values()],kind);
+}
