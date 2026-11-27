@@ -347,7 +347,7 @@ pub fn run(app: App) {
             #[cfg(windows)]
             let stremio = stremio.clone();
             #[cfg(windows)]
-            let mut active_watch:Option<(u32,String,String)>=None;
+            let active_watch=RefCell::new(None::<(u32,String,String)>);
             #[cfg(windows)]
             let reading = reading.clone();
             #[cfg(windows)]
@@ -377,7 +377,7 @@ pub fn run(app: App) {
                     #[cfg(windows)]
                     let message = match message {
                         message @ (bridge::Inbound::PlayerLoad { .. } | bridge::Inbound::PlayerStop { .. }) => {
-                            active_watch=None;
+                            *active_watch.borrow_mut()=None;
                             if let Some(worker)=&stremio{worker.invalidate_grant();}
                             message
                         }
@@ -390,13 +390,13 @@ pub fn run(app: App) {
                                 let (profile,kind,video)=grant.identity();
                                 let identity=(profile,kind.to_owned(),video.to_owned());
                                 if grant.is_subtitle(){
-                                    if active_watch.as_ref()!=Some(&identity){return Err("invalid-media-selection");}
+                                    if active_watch.borrow().as_ref()!=Some(&identity){return Err("invalid-media-selection");}
                                     let (url,language)=grant.subtitle();
                                     p.add_subtitle_url(url,"Addon subtitle",language,None,&|_|false).map_err(|_|"request")?;
                                 }else{
                                     p.stop_music_audio();
                                     p.load(&grant.load(),&|_|false).map_err(|_|"request")?;
-                                    active_watch=Some(identity);
+                                    *active_watch.borrow_mut()=Some(identity);
                                 }
                                 Ok(serde_json::json!({"grantId":grant_id,"accepted":true,"subtitles":grant.is_subtitle()}))
                             })();
@@ -406,7 +406,7 @@ pub fn run(app: App) {
                         }
                         bridge::Inbound::StremioRequest { request, action } => {
                             if matches!(&action,aiostreams_desktop_core::stremio::registry::Action::ProfileSwitch{..}|aiostreams_desktop_core::stremio::registry::Action::ProfileRemove{..}){
-                                if active_watch.take().is_some()&&let Some(p)=player.borrow().as_ref(){p.stop();}
+                                if active_watch.borrow_mut().take().is_some()&&let Some(p)=player.borrow().as_ref(){p.stop();}
                             }
                             let error = match &stremio {
                                 Some(worker) => {
