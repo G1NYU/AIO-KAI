@@ -127,13 +127,13 @@ export function MalAnimeLibrary({profileId,sources,busy,historyActive,setupOnly=
     </section>}
     {view==='home'&&<>
       <section className="tsugi-anime-hero">
-        {feature?.background||feature?.poster?<Artwork src={feature.background??feature.poster??null} alt="" className={'tsugi-anime-backdrop tsugi-anime-title-art'+(!feature.background?' tsugi-anime-poster-backdrop':'')}/>:<LandscapeDecoration key={hero} fallback={artwork[hero]} className="tsugi-anime-backdrop" active={historyActive}/>}
+        {feature?.background||feature?.poster?<Artwork src={[feature.background,feature.poster,...(feature.posterAlternatives??[])].filter((value):value is string=>!!value)} alt="" className={'tsugi-anime-backdrop tsugi-anime-title-art'+(!feature.background?' tsugi-anime-poster-backdrop':'')}/>:<LandscapeDecoration key={hero} fallback={artwork[hero]} className="tsugi-anime-backdrop" active={historyActive}/>}
         <div className="tsugi-anime-hero-copy"><span className="tsugi-anime-eyebrow"><Trans id="Your next world">Your next world</Trans></span>
           <h2 className="tsugi-anime-heading">{feature?feature.name:<Trans id="Anime Hub">Anime Hub</Trans>}</h2>
           {feature?.description?<p className="line-clamp-3">{feature.description}</p>:<p><Trans id="Anime Hub description">One home for anime series, films and the stories you want to return to. Discover through your addons, or bring your MyAnimeList collection.</Trans></p>}
           <div className="flex flex-wrap gap-2">{feature&&<Button intent="white" className="rounded-full" disabled={busy} onClick={()=>openTitle(feature)}><Trans>Watch</Trans></Button>}<button className="tsugi-anime-primary" disabled={busy} onClick={()=>navigate('discover')}><Trans id="Discover anime">Discover anime</Trans></button><button className="tsugi-read-action" disabled={busy} onClick={()=>navigate('list')}><Trans id="My List">My List</Trans></button></div>
         </div>
-        {feature?.poster&&<div className="tsugi-anime-feature-poster"><Artwork src={feature.poster} alt=""/></div>}
+        {feature?.poster&&<div className="tsugi-anime-feature-poster"><Artwork src={[feature.poster,...(feature.posterAlternatives??[])]} alt=""/></div>}
         <div className="tsugi-anime-hero-controls"><button type="button" aria-label={t({id:'Previous bundled illustration',message:'Previous bundled illustration'})} onClick={()=>setHero(i=>(i+(featured.length||artwork.length)-1)%(featured.length||artwork.length))}>‹</button><span>{hero%Math.max(1,featured.length||artwork.length)+1} / {featured.length||artwork.length}</span><button type="button" aria-label={t({id:'Next bundled illustration',message:'Next bundled illustration'})} onClick={()=>setHero(i=>(i+1)%(featured.length||artwork.length))}>›</button></div>
       </section>
       <HistoryShelf profileId={profileId} rows={animeHistory} busy={busy} open={openHistory}/>

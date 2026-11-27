@@ -16,9 +16,9 @@ const key = 'tsugi-home-personalization-v1';
 const ids: World[] = ['video', 'music', 'read', 'vault'];
 const art: Record<World, { image: string; character: string }> = {
   video: { image: '/design/shared/hero-neon.webp', character: '映' },
-  music: { image: '/design/oto/hero-yuna.webp', character: '音' },
+  music: { image: '/design/launch/music-cassette.png', character: '音' },
   read: { image: '/design/yomi/hero-torii.webp', character: '読' },
-  vault: { image: '/design/kura/hero-kura.webp', character: '蔵' },
+  vault: { image: '/design/launch/vault-archive.png', character: '蔵' },
 };
 function readPreferences(): Preferences {
   const saved = storage.get<Partial<Preferences>>(key);

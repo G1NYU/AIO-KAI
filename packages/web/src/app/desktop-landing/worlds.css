@@ -45,6 +45,9 @@
 .tsugi-world-card{box-sizing:border-box;min-width:0;min-height:clamp(185px,23vh,245px);display:flex;flex-direction:column;justify-content:space-between;gap:36px;padding:17px;border:0;text-align:left}
 .tsugi-world-card::before{background:linear-gradient(0deg,rgba(7,12,20,.97),rgba(9,15,23,.64) 40%,rgba(9,15,23,.12) 95%)}
 .tsugi-world-card>img{object-position:72% center;transition:filter .18s}
+/* Original atlas crops, not the near-identical city/character hero placeholders. */
+.tsugi-worlds[data-view='welcome'] .tsugi-world-card[data-world='music']>img{object-position:center 66%}
+.tsugi-worlds[data-view='welcome'] .tsugi-world-card[data-world='vault']>img{object-position:center 55%}
 .tsugi-world-card:hover>img{filter:brightness(1.14)}
 .tsugi-world-card-top,.tsugi-world-card-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .tsugi-world-card-top svg{width:23px;height:23px;filter:drop-shadow(0 2px 5px #000)}

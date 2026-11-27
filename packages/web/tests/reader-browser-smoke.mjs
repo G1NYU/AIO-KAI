@@ -343,6 +343,12 @@ try {
   assert.equal(await landing.locator('.tsugi-world-card').count(), 4);
   const welcomeArt=await landing.locator('.tsugi-world-hero img,.tsugi-world-card img').evaluateAll(images=>Promise.all(images.map(async image=>{await image.decode();return image.getAttribute('src');})));
   assert.equal(welcomeArt.length,5);assert.equal(new Set(welcomeArt).size,5);
+  // Different file names alone did not catch the two near-identical city illustrations.
+  for (const [world,src,width,height] of [['music','/design/launch/music-cassette.png',443,443],['vault','/design/launch/vault-archive.png',362,543]]) {
+    const image=landing.locator(`.tsugi-world-card[data-world="${world}"] img`);
+    assert.equal(await image.getAttribute('src'),src);
+    assert.deepEqual(await image.evaluate(img=>[img.naturalWidth,img.naturalHeight]),[width,height],`${world} uses the reviewed original illustration crop`);
+  }
   await capture('00-illustrated-welcome');
   await landing.getByRole('button', { name: 'Make it yours', exact: true }).click();
   await onboarding.waitFor({ state: 'visible' });

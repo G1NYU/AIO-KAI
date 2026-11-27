@@ -342,7 +342,9 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       await page.waitForFunction(el=>Number(getComputedStyle(el).opacity)>=0.95,await image.elementHandle());
     }
     const discoveryPoster='https://cdn.myanimelist.net/images/anime/1/90004.jpg';
-    let discoveryArtRequests=0;
+    const missingDiscoveryPoster='https://cdn.myanimelist.net/images/anime/1/90004l.webp';
+    let missingDiscoveryArtRequests=0,discoveryArtRequests=0;
+    await page.route(missingDiscoveryPoster,route=>{missingDiscoveryArtRequests++;return route.fulfill({status:404,headers:{'access-control-allow-origin':'*'},body:''});});
     await page.route(discoveryPoster,route=>{discoveryArtRequests++;return route.fulfill({contentType:'image/webp',body:posterImage,headers:{'access-control-allow-origin':'*'}});});
     await page.route('https://image.tmdb.org/t/p/**',route=>{
       const url=route.request().url();
@@ -352,7 +354,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await page.route('https://images.metahub.space/background/**',route=>route.fulfill({contentType:'image/webp',body:heroImage,headers:{'access-control-allow-origin':'*'}}));
     await page.route('https://api.tenrai.org/v1/**',route=>{
       const films=new URL(route.request().url()).searchParams.get('type')==='movie';
-      return route.fulfill({json:{data:[{mal_id:90004,title:films?'Public anime film fixture':'Public anime discovery fixture',type:films?'Movie':'TV',rating:'PG-13 - Teens 13 or older',images:{jpg:{image_url:discoveryPoster}},synopsis:'Independent discovery without addon installation.'}]},headers:{'access-control-allow-origin':'*'}});
+      return route.fulfill({json:{data:[{mal_id:90004,title:films?'Public anime film fixture':'Public anime discovery fixture',type:films?'Movie':'TV',rating:'PG-13 - Teens 13 or older',images:{webp:{large_image_url:missingDiscoveryPoster},jpg:{image_url:discoveryPoster}},synopsis:'Independent discovery without addon installation.'}]},headers:{'access-control-allow-origin':'*'}});
     });
     await page.addInitScript({content:'('+installDesktopFixture.toString()+')();('+installStremioFixture.toString()+')();('+function(){
       const f=window.__stremioFixture;f.boardFixture=true;f.sequence=110;
@@ -663,9 +665,10 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const publicAnime=watch.locator('[data-ui="anime-public-discovery"]');
     const publicPoster=publicAnime.getByRole('button',{name:'Public anime discovery fixture',exact:true}).first();
     await publicPoster.waitFor();
-    await publicPoster.locator('img').waitFor({state:'attached'});
+    await publicPoster.scrollIntoViewIfNeeded();
+    await page.waitForFunction(card=>Array.from(card.querySelectorAll('img')).some(image=>image.complete&&image.naturalWidth>0),await publicPoster.elementHandle());
     await assertArtwork(publicPoster);
-    assert.ok(discoveryArtRequests>0,'Tenrai title-specific MAL poster was requested');
+    assert.ok(missingDiscoveryArtRequests>0&&discoveryArtRequests>0,'Tenrai failed large poster falls back to the same title’s valid MAL poster');
     const animeFonts=await watch.locator('.tsugi-anime-hub').locator('.tsugi-anime-heading,[data-ui="media-row-title"],[data-ui="poster-card-title"]').evaluateAll(nodes=>nodes.map(el=>({family:getComputedStyle(el).fontFamily,weight:Number(getComputedStyle(el).fontWeight)})));
     assert.ok(animeFonts.length>=3);
     assert.ok(animeFonts.every(font=>/^Interface(?:,|$)/.test(font.family)&&font.weight>=600&&font.weight<=750),'Anime Hub uses the same Interface font as Movies & TV: '+JSON.stringify(animeFonts));
@@ -673,6 +676,9 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await publicPoster.click();
     await item.getByRole('heading',{name:'Public anime discovery fixture',exact:true}).waitFor();
     await item.getByText('Independent discovery without addon installation.',{exact:true}).waitFor();
+    const publicBackdrop=item.locator('.tsugi-watch-title-backdrop');
+    await page.waitForFunction(card=>Array.from(card.querySelectorAll('img')).some(image=>image.complete&&image.naturalWidth>0),await publicBackdrop.elementHandle());
+    await assertArtwork(publicBackdrop);
     assert.equal(await item.getByRole('button',{name:'Play',exact:true}).count(),0);
     await item.getByRole('button',{name:'Search this title across addons',exact:true}).click();
     await board.getByRole('searchbox',{name:'Search across addons',exact:true}).waitFor();

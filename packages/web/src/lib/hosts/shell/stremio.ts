@@ -26,7 +26,7 @@ export const publicCinemeta:AddonSource={
 export interface AddonReview { reviewId: number; manifest: AddonManifest }
 export interface CatalogPage {
   sourceId: number; mediaType: string; catalogId: string;
-  items: { id: string; name: string; mediaType: string; poster?: string; description?: string; background?: string; imdbId?: string; identities?:string[]; releaseInfo?:string; tmdbRating?:number; logo?:string }[]; sourceCount: number; nextSkip: number | null;
+  items: { id: string; name: string; mediaType: string; poster?: string; posterAlternatives?:string[]; description?: string; background?: string; imdbId?: string; identities?:string[]; releaseInfo?:string; tmdbRating?:number; logo?:string }[]; sourceCount: number; nextSkip: number | null;
 }
 export type Mutation = { kind: 'install'; reviewId: number } | { kind: 'set-enabled'; sourceId: number; enabled: boolean }
   | { kind: 'move'; sourceId: number; position: number } | { kind: 'remove'; sourceId: number };

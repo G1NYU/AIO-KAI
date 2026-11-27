@@ -32,10 +32,11 @@ export function parsePublicAnime(value:unknown,films=false):Item[]{
     const name=text(item.title_english,512)??text(item.title,512);
     if(!name)return [];
     const images=object(item.images),jpg=object(images.jpg),webp=object(images.webp);
-    const poster=publicAddonPoster(webp.large_image_url)??publicAddonPoster(jpg.large_image_url)??publicAddonPoster(webp.image_url)??publicAddonPoster(jpg.image_url);
+    // Keep the API's reviewed same-title variants. A valid CDN URL can still 404.
+    const [poster,...posterAlternatives]=[...new Set([webp.large_image_url,jpg.large_image_url,webp.image_url,jpg.image_url].map(publicAddonPoster).filter((url):url is string=>!!url))];
     const description=text(item.synopsis,4096);
     seen.add(id);
-    return [{id:'mal:'+id,mediaType:type==='Movie'?'movie':'series',name,...(poster?{poster}:{}),...(description?{description}:{})}];
+    return [{id:'mal:'+id,mediaType:type==='Movie'?'movie':'series',name,...(poster?{poster}:{}),...(posterAlternatives.length?{posterAlternatives}:{}),...(description?{description}:{})}];
   });
 }
 async function load(feed:Feed,signal:AbortSignal):Promise<Item[]>{
@@ -75,7 +76,7 @@ export function PublicAnimeDiscovery({filmsOnly=false,seasonal=false,active,busy
   return <section className="space-y-6" data-ui="anime-public-discovery">
     {feeds.map(feed=><div key={feed}>
       <MediaRow shape="poster" title={feed==='airing'?t`Airing now`:feed==='popular'?t`Popular anime`:feed==='films'?t`Anime films`:feed==='romance'?t`Romance anime`:t`Upcoming season`} loading={!rows[feed]&&!errors.includes(feed)}>
-        {rows[feed]?.map(item=><PosterCard key={item.id} title={item.name} image={item.poster??null} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item)}/>)}
+        {rows[feed]?.map(item=><PosterCard key={item.id} title={item.name} image={item.poster?[item.poster,...(item.posterAlternatives??[])]:null} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item)}/>)}
       </MediaRow>
       {errors.includes(feed)&&<p className="text-sm text-[--muted]"><Trans>Public anime catalogue unavailable.</Trans> <button type="button" className="tsugi-read-action" onClick={()=>{setErrors([]);setRetry(n=>n+1);}}><Trans>Retry</Trans></button></p>}
       {rows[feed]?.length===0&&<p className="text-sm text-[--muted]"><Trans>No titles returned by this catalogue.</Trans></p>}
