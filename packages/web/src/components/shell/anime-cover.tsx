@@ -43,7 +43,7 @@ function cover(malId:number,signal:AbortSignal):Promise<string|undefined>{
       lastRequest=Date.now();
       let url:string|undefined;
       try{
-        const response=await fetch('https://api.jikan.moe/v4/anime/'+malId,{
+        const response=await fetch('https://api.tenrai.org/v1/anime/'+malId,{
           credentials:'omit',referrerPolicy:'no-referrer',
           signal:AbortSignal.any([controller.signal,AbortSignal.timeout(10000)]),
         });

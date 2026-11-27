@@ -193,7 +193,8 @@ export function installStremioFixture(initializeStartup=true){
         if(a.sourceId===0&&f.boardFixture&&a.itemId==='tt90003')return reply({sourceId:0,metadata:{id:a.itemId,mediaType:'movie',name:'Public movie fixture',description:'Public metadata without a catalogue addon.',videos:[]}});
         if(a.sourceId===0&&f.boardFixture&&a.itemId==='kitsu:90004'&&a.mediaType==='series')return reply({sourceId:0,metadata:{id:a.itemId,mediaType:'series',name:'Public anime discovery fixture',description:'Public mapped anime metadata.',videos:[{id:'kitsu:90004:1',name:'Episode one',season:1,episode:1},{id:'kitsu:90004:2',name:'Episode two',season:1,episode:2}]}});
         if(!f.boardFixture||!source||source.sourceId!==103)return emit(null,'unsupported-resource');
-        const videos=a.mediaType==='series'?[{id:'tt90002:1:1',name:'Episode one',season:1,episode:1},{id:'tt90002:1:2',name:'Episode two',season:1,episode:2}]:[];
+        if(f.failMetadata)return emit(null,'request');
+        const videos=!f.emptyMetadata&&a.mediaType==='series'?[{id:'tt90002:1:1',name:'Episode one',season:1,episode:1},{id:'tt90002:1:2',name:'Episode two',season:1,episode:2}]:[];
         return reply({sourceId:a.sourceId,mediaType:a.mediaType,itemId:a.itemId,metadata:{id:a.itemId,name:a.mediaType==='series'?'Fixture anime series':'Fixture cinema film',mediaType:a.mediaType,description:'Metadata from the separate metadata addon.',videos}});
       }
       case 'all-stream-options':{
@@ -249,7 +250,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
   try{
     await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
     await page.route('https://relations.yuna.moe/api/ids?**',route=>route.fulfill({json:{kitsu:90004},headers:{'access-control-allow-origin':'*'}}));
-    await page.route('https://api.jikan.moe/v4/**',route=>{
+    await page.route('https://api.tenrai.org/v1/**',route=>{
       const films=new URL(route.request().url()).searchParams.get('type')==='movie';
       return route.fulfill({json:{data:[{mal_id:90004,title:films?'Public anime film fixture':'Public anime discovery fixture',type:films?'Movie':'TV',rating:'PG-13 - Teens 13 or older',synopsis:'Independent discovery without addon installation.'}]},headers:{'access-control-allow-origin':'*'}});
     });
@@ -325,6 +326,19 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await anime.locator('[data-ui="watch-catalogue-board"]').getByRole('button',{name:'Fixture anime series',exact:true}).click();
     const item=watch.locator('[data-ui="watch-item-details"]');
     await item.getByRole('combobox',{name:'Video',exact:true}).selectOption('tt90002:1:2');
+    const metadataButton=item.getByRole('button',{name:/Details.*Metadata only/});
+    const episode=item.getByRole('combobox',{name:'Video',exact:true});
+    await page.evaluate(()=>{window.__stremioFixture.failMetadata=true;});
+    await metadataButton.click();
+    await metadataButton.waitFor();
+    await page.waitForFunction(()=>!document.querySelector('[data-ui="watch-item-details"] select')?.disabled);
+    assert.equal(await episode.inputValue(),'tt90002:1:2');
+    await page.evaluate(()=>{window.__stremioFixture.failMetadata=false;window.__stremioFixture.emptyMetadata=true;});
+    await metadataButton.click();
+    await groups.getByRole('button',{name:'Play',exact:true}).first().waitFor();
+    assert.equal(await episode.inputValue(),'tt90002:1:2');
+    assert.equal(await episode.locator('option').count(),3);
+    await page.evaluate(()=>{window.__stremioFixture.emptyMetadata=false;});
     await groups.getByRole('button',{name:'Play',exact:true}).first().click();
     await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
     await player.hover();
@@ -690,11 +704,11 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal(await firstLaunch.evaluate(()=>JSON.stringify(localStorage).includes('Imported anime film')),false);
     let coverRequests=0;
     const coverUrl='https://cdn.myanimelist.net/images/anime/1/601.jpg';
-    await firstLaunch.route('https://api.jikan.moe/v4/anime/**',route=>{
+    await firstLaunch.route('https://api.tenrai.org/v1/anime/**',route=>{
       coverRequests++;
       const id=Number(new URL(route.request().url()).pathname.split('/').at(-1));
       assert.ok([601,602].includes(id));
-      assert.equal(route.request().url(),'https://api.jikan.moe/v4/anime/'+id);
+      assert.equal(route.request().url(),'https://api.tenrai.org/v1/anime/'+id);
       return route.fulfill({json:{data:{mal_id:id,rating:'PG-13 - Teens 13 or older',images:{jpg:{image_url:'https://cdn.myanimelist.net/images/anime/1/'+id+'.jpg'}}}},headers:{'access-control-allow-origin':'*'}});
     });
     await firstLaunch.route('https://cdn.myanimelist.net/images/anime/1/*.jpg',route=>route.fulfill({contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a4uUAAAAASUVORK5CYII=','base64')}));

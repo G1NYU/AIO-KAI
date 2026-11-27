@@ -74,7 +74,7 @@ fn parse_meta(bytes:&[u8],kind:&str,id:&str)->Result<Metadata>{
             if !seen.insert(video_id){continue;}
             let season=row.get("season").and_then(Value::as_u64).and_then(|v|u32::try_from(v).ok());
             let episode=row.get("episode").and_then(Value::as_u64).and_then(|v|u32::try_from(v).ok());
-            let title=display(row.get("title"),512).unwrap_or_else(||match(season,episode){
+            let title=display(row.get("title"),512).or_else(||display(row.get("name"),512)).unwrap_or_else(||match(season,episode){
                 (Some(s),Some(e))=>format!("S{s} E{e}"),_=>"Video".to_owned()
             });
             videos.push(Video{id:video_id.to_owned(),name:title,season,episode});
@@ -124,11 +124,12 @@ mod tests{
     use super::*;
     #[test]
     fn preserves_exact_series_video_ids_and_rejects_wrong_metadata(){
-        let bytes=br#"{"meta":{"id":"custom:1","type":"series","name":"Example","videos":[{"id":"custom:1:0:7","title":"Special","season":0,"episode":7},{"id":"custom:1:0:7","title":"duplicate"},{"id":"bad/path","title":"bad"}]}}"#;
+        let bytes=br#"{"meta":{"id":"custom:1","type":"series","name":"Example","videos":[{"id":"custom:1:0:7","name":"Special","season":0,"episode":7},{"id":"custom:1:0:7","title":"duplicate"},{"id":"bad/path","title":"bad"}]}}"#;
         let result=parse_meta(bytes,"series","custom:1").unwrap();
         assert_eq!(result.videos.len(),1);
         assert_eq!(result.videos[0].id,"custom:1:0:7");
         assert_eq!(result.videos[0].season,Some(0));
+        assert_eq!(result.videos[0].name,"Special");
         assert!(parse_meta(bytes,"series","custom:2").is_err());
         let movie=parse_meta(br#"{"meta":{"id":"tt123","type":"movie","name":"Movie"}}"#,"movie","tt123").unwrap();
         assert_eq!(movie.videos[0].id,"tt123");

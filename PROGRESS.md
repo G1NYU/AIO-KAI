@@ -1,3 +1,7 @@
+## 2026-11-27 - Anime discovery and episode continuity
+
+On feature/tsugi-read-runtime after 73284d7e, Watch discovery and opt-in MAL anime cover requests now use Tenrai v1. All five public feed requests returned 25 rows and MAL 199 returned eligible artwork. The native parser accepts episode name as a fallback to title. Changing metadata providers retains the current episode and previously discovered exact IDs across failures and partial responses. The Watch Chromium suite covers an error followed by an empty response and playback of the retained episode. Web typecheck, lint, 451 web unit tests and the Linux core suite (107 passed, 3 ignored) passed. Next: destination-first entry, profile continuity and ordered account import. Physical Windows and signed-in provider acceptance remain open.
+
 ## 2026-11-27 - Desktop Watch journey audit
 
 [Full journey and acceptance criteria](docs/watch-journey-audit.md) at 5d512b17. Windows and web checks passed in run 46002993854. Live Cinemeta responses exposed an episode-name mismatch. Next repairs are public anime discovery, preserving successful episode metadata, and the first-run/import transition. Real account and physical Windows playback acceptance remain open.

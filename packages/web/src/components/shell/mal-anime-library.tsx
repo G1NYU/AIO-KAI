@@ -121,7 +121,7 @@ export function MalAnimeLibrary({profileId,sources,busy,historyActive,setupOnly=
       <p><Trans id="Anime connections description">Import your MyAnimeList export without signing in, or connect a Refract personal key to track compatible completed movies and individual episodes in this Watch profile.</Trans></p>
       <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>navigate('list')}><Trans id="Import MyAnimeList anime">Import MyAnimeList anime</Trans></button>
       <RefractSettings key={profileId} profileId={profileId} busy={busy} run={run}/>
-      <p><Trans id="Anime cover lookup description">Optional anime covers use the public Jikan metadata API and the MyAnimeList image CDN. Only visible imported MAL IDs are requested; no progress, scores, profile names or keys are sent.</Trans></p>
+      <p><Trans id="Anime cover lookup description">Optional anime covers use the public Tenrai metadata API and the MyAnimeList image CDN. Only visible imported MAL IDs are requested; no progress, scores, profile names or keys are sent.</Trans></p>
       <label className="flex items-start gap-2"><input type="checkbox" checked={covers} onChange={event=>{const next=event.target.checked;storage.set('tsugi-anime-cover-lookup-v1',next);setCovers(next);}}/><span><Trans id="Fetch anime covers">Fetch anime covers</Trans></span></label>
     </section>}
     {view==='home'&&<>

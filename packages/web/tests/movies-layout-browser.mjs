@@ -81,7 +81,7 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
       return route.fulfill({ json, headers: { 'cache-control': 'no-store' } });
     });
 
-    await page.route('https://api.jikan.moe/v4/**',route=>route.fulfill({json:{data:[]},headers:{'access-control-allow-origin':'*'}}));
+    await page.route('https://api.tenrai.org/v1/**',route=>route.fulfill({json:{data:[]},headers:{'access-control-allow-origin':'*'}}));
     await page.goto(`${origin}/#/`);
     await home().locator('[data-slide="0"][data-details] [data-ui="hero-title"]').filter({ hasText: movies[0].Name }).waitFor();
     await home().locator('[data-ui="home-rows"]').getByText(movies[2].Name, { exact: true }).waitFor();

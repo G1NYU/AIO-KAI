@@ -42,7 +42,7 @@ async function load(feed:Feed,signal:AbortSignal):Promise<Item[]>{
   const hit=cache.get(feed);
   if(hit&&hit.expires>Date.now())return hit.items;
   const endpoint=feed==='airing'?'seasons/now?sfw=true&limit=25':feed==='popular'?'top/anime?filter=bypopularity&sfw=true&limit=25':feed==='films'?'top/anime?type=movie&sfw=true&limit=25':feed==='romance'?'anime?genres=22&order_by=score&sort=desc&sfw=true&limit=25':'seasons/upcoming?sfw=true&limit=25';
-  const response=await fetch('https://api.jikan.moe/v4/'+endpoint,{credentials:'omit',referrerPolicy:'no-referrer',signal:AbortSignal.any([signal,AbortSignal.timeout(12000)])});
+  const response=await fetch('https://api.tenrai.org/v1/'+endpoint,{credentials:'omit',referrerPolicy:'no-referrer',signal:AbortSignal.any([signal,AbortSignal.timeout(12000)])});
   if(!response.ok)throw new Error('anime-request');
   const raw=await response.text();
   if(raw.length>2000000)throw new Error('anime-response');
@@ -80,6 +80,6 @@ export function PublicAnimeDiscovery({filmsOnly=false,seasonal=false,active,busy
       {errors.includes(feed)&&<p className="text-sm text-[--muted]"><Trans>Public anime catalogue unavailable.</Trans> <button type="button" className="tsugi-read-action" onClick={()=>{setErrors([]);setRetry(n=>n+1);}}><Trans>Retry</Trans></button></p>}
       {rows[feed]?.length===0&&<p className="text-sm text-[--muted]"><Trans>No titles returned by this catalogue.</Trans></p>}
     </div>)}
-    <p className="text-sm text-[--muted]"><Trans>Anime discovery by Jikan / MyAnimeList. No account or addon is required to browse. Playback uses your connected sources.</Trans></p>
+    <p className="text-sm text-[--muted]"><Trans>Anime discovery by Tenrai / MyAnimeList. No account or addon is required to browse. Playback uses your connected sources.</Trans></p>
   </section>;
 }

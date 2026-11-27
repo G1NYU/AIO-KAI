@@ -275,13 +275,18 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
   }
   async function readMetadata(item:Title,sourceId:number){
     if(flight.current||profileId===undefined)return;
-    setDetails(null);setVideoId(item.mediaType==='movie'?item.id:'');setOptions(null);setStreamGroups(null);
+    // A metadata request invalidates native stream reviews even on failure.
+    setOptions(null);setStreamGroups(null);
     await run(async()=>{
       const next=await loadAddonMetadata(profileId,sourceId,item.mediaType,item.id);
       if(!mounted.current)return;
-      const chosen=resumeEntry&&resumeEntry.itemId===item.id&&resumeEntry.mediaType===item.mediaType&&next.videos.some(v=>v.id===resumeEntry.videoId)?resumeEntry.videoId:next.videos.length===1?next.videos[0].id:item.mediaType==='movie'&&next.videos.length===0?item.id:'';
-      setDetails(next);setVideoId(chosen);
-      if(automatic&&chosen)await fetchStreams(item,chosen,false,next);
+      const videos=new Map(details?.videos.map(video=>[video.id,video]));
+      for(const video of next.videos)videos.set(video.id,video);
+      const merged={...next,description:next.description??details?.description??null,videos:[...videos.values()]};
+      const preferred=videoId||resumeEntry?.videoId;
+      const chosen=preferred&&videos.has(preferred)?preferred:merged.videos.length===1?merged.videos[0].id:item.mediaType==='movie'&&!videos.size?item.id:'';
+      setDetails(merged);setVideoId(chosen);
+      if(automatic&&chosen)await fetchStreams(item,chosen,false,merged);
     });
   }
   function selectVideo(video:string){
