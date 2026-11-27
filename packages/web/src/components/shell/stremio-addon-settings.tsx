@@ -444,9 +444,9 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const selectedVideo=videos.find(v=>v.id===videoId);
   const titleKey=title?.id,titleKind=title?.mediaType,titleImdb=title?.imdbId;
   React.useEffect(()=>{setCinema(null);if(profileId===undefined||!titleKey||!titleKind)return;let current=true;void loadTmdbTitle(profileId,titleKind,titleImdb??titleKey).then(item=>{if(current)setCinema(item);}).catch(()=>{});return ()=>{current=false;};},[profileId,titleKey,titleKind,titleImdb]);
+  const selectedSeason=seasonChoice!==null&&seasons.includes(seasonChoice)?seasonChoice:selectedVideo?seasonOf(selectedVideo):seasons.find(s=>s!=='0'&&s!=='other')??seasons[0]??'other';
   const cinemaId=cinema?.tmdbId;
   React.useEffect(()=>{setSeasonArt([]);if(profileId===undefined||!cinemaId||cinema?.mediaType!=='series'||!/^\d+$/.test(selectedSeason))return;let current=true;void loadTmdbSeason(profileId,cinemaId,Number(selectedSeason)).then(items=>{if(current)setSeasonArt(items);}).catch(()=>{});return ()=>{current=false;};},[profileId,cinemaId,cinema?.mediaType,selectedSeason]);
-  const selectedSeason=seasonChoice!==null&&seasons.includes(seasonChoice)?seasonChoice:selectedVideo?seasonOf(selectedVideo):seasons.find(s=>s!=='0'&&s!=='other')??seasons[0]??'other';
   const seasonVideos=videos.filter(v=>seasonOf(v)===selectedSeason).sort((a,b)=>(a.episode??Number.MAX_SAFE_INTEGER)-(b.episode??Number.MAX_SAFE_INTEGER));
   if(workspace&&!entered)return <section className="tsugi-watch-picker" data-ui="watch-profile-picker" aria-labelledby={titleId}>
     <div className="tsugi-watch-picker-art" aria-hidden="true" style={{'--tsugi-watch-art':"url('/design/shared/hero-neon.webp')"} as React.CSSProperties}/>
