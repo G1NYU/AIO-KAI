@@ -85,6 +85,7 @@ impl Profiles {
         })).collect();
         json!({"activeProfileId":self.active,"profiles":profiles})
     }
+    pub(super) fn expire_all(&mut self){for profile in &mut self.profiles{profile.registry.expire();}}
     pub(super) fn execute(&mut self, action:Action) -> Result<Value> {
         match action {
             Action::ProfileList => Ok(self.list()),

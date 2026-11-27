@@ -1,4 +1,5 @@
 import React from 'react';
+import { StremioAccountImport } from './stremio-account-import';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation } from '@/lib/hosts/shell/stremio';
@@ -19,6 +20,11 @@ function feedback(reason: unknown) {
     case 'profile-store': case 'profile-store-limit': return t`The protected profile store could not be read or saved. Existing saved data has not been reset.`;
     case 'profile-confirmation': return t`Type the exact profile name before deleting it.`;
     case 'active-profile': return t`Switch to another profile before deleting this one.`;
+    case 'account-auth': return t`The account service refused sign-in or access. Check your credentials and try again.`;
+    case 'account-request': case 'account-response': return t`The account service returned an unsupported response. No addons were imported.`;
+    case 'locked-remote-profile': return t`This Nuvio profile is protected. Choose an unlocked profile instead.`;
+    case 'import-limit': return t`The account addon list exceeds the import limit.`;
+    case 'import-selection': return t`Select compatible addons within the available profile slots.`;
     default: return t`The request could not be confirmed. Refresh the installed list before retrying an installation or change.`;
   }
 }
@@ -31,6 +37,7 @@ export function StremioAddonSettings(){
   const profileId=profileState?.activeProfileId;
   const activeProfile=profileState?.profiles.find(p=>p.profileId===profileId);
   const deleteTarget=profileState?.profiles.find(p=>p.profileId===deleteId&&p.profileId!==profileId);
+  const [importActive,setImportActive]=React.useState(false);
   const [url,setUrl]=React.useState('');
   const [consent,setConsent]=React.useState(false);
   const [review,setReview]=React.useState<AddonReview|null>(null);
@@ -46,6 +53,7 @@ export function StremioAddonSettings(){
   const pending=React.useRef<{profileId:number;reviewId:number}|null>(null);
   const seen=React.useRef(new Set<string>());
   const blocked=busy||!profileReady||profileId===undefined;
+  const manualBlocked=blocked||importActive;
   const source=sources.find(s=>s.sourceId===selection?.sourceId&&s.enabled);
   const catalog=source?.manifest.catalogs[selection?.catalogIndex??0];
 
@@ -90,9 +98,10 @@ export function StremioAddonSettings(){
       await reloadProfiles(result);
     });
   }
+  function updateSources(next:AddonSource[],id:number){setSources(next);setProfileState(old=>old?{...old,profiles:old.profiles.map(p=>p.profileId===id?{...p,sourceCount:next.length}:p)}:null);choose(null);}
   async function inspect(){
     const candidate=url.trim();
-    if(!candidate||!consent||flight.current||profileId===undefined||!profileReady)return;
+    if(!candidate||!consent||flight.current||profileId===undefined||!profileReady||importActive)return;
     setUrl('');setConsent(false);setReview(null);pending.current=null;
     await run(async()=>{
       const next=await reviewAddon(profileId,candidate);
@@ -103,7 +112,7 @@ export function StremioAddonSettings(){
   async function change(action:Mutation){
     if(flight.current||profileId===undefined||!profileReady)return;
     if(action.kind==='install'){setReview(null);pending.current=null;}
-    await run(async()=>{const next=await mutateAddon(profileId,action);if(mounted.current){setSources(next);setProfileState(old=>old?{...old,profiles:old.profiles.map(p=>p.profileId===profileId?{...p,sourceCount:next.length}:p)}:null);choose(null);}});
+    await run(async()=>{const next=await mutateAddon(profileId,action);if(mounted.current)updateSources(next,profileId);});
   }
   async function cancel(){
     const current=pending.current;if(!current||flight.current)return;
@@ -153,10 +162,11 @@ export function StremioAddonSettings(){
       </>}
       <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void refreshProfiles()}><Trans>Refresh profiles</Trans></button>
     </div>
+    {profileReady&&profileId!==undefined&&<StremioAccountImport key={profileId} profileId={profileId} busy={busy} run={run} onActive={setImportActive} onConnect={()=>{clearReview();}} onSources={rows=>updateSources(rows,profileId)}/>}
     <form className="space-y-2" onSubmit={e=>{e.preventDefault();void inspect();}}>
-      <label><Trans>Configured manifest URL</Trans><input className="tsugi-read-input w-full min-w-0" type="password" autoComplete="off" spellCheck={false} maxLength={16384} value={url} required disabled={blocked} onChange={e=>{setUrl(e.target.value);setConsent(false);}}/></label>
-      <label className="flex items-start gap-2"><input type="checkbox" checked={consent} disabled={blocked} onChange={e=>setConsent(e.target.checked)}/><Trans>I trust this addon host and want Tsugi to contact it.</Trans></label>
-      <button type="submit" className="tsugi-read-action" disabled={blocked||!url.trim()||!consent}><Trans>Review addon</Trans></button>
+      <label><Trans>Configured manifest URL</Trans><input className="tsugi-read-input w-full min-w-0" type="password" autoComplete="off" spellCheck={false} maxLength={16384} value={url} required disabled={manualBlocked} onChange={e=>{setUrl(e.target.value);setConsent(false);}}/></label>
+      <label className="flex items-start gap-2"><input type="checkbox" checked={consent} disabled={manualBlocked} onChange={e=>setConsent(e.target.checked)}/><Trans>I trust this addon host and want Tsugi to contact it.</Trans></label>
+      <button type="submit" className="tsugi-read-action" disabled={manualBlocked||!url.trim()||!consent}><Trans>Review addon</Trans></button>
     </form>
     {review&&<div className="space-y-2" data-ui="stremio-review">
       <h4 className="break-words">{review.manifest.name}</h4>
@@ -166,7 +176,7 @@ export function StremioAddonSettings(){
       {review.manifest.p2p&&<p><Trans>This addon declares peer-to-peer support. Tsugi does not enable peer-to-peer playback here.</Trans></p>}
       {review.manifest.adult&&<p><Trans>This addon declares adult content.</Trans></p>}
       <div className="flex flex-wrap gap-2">
-        <button type="button" className="tsugi-read-action" disabled={blocked||review.manifest.configurationRequired} onClick={()=>void change({kind:'install',reviewId:review.reviewId})}><Trans>Install into profile</Trans></button>
+        <button type="button" className="tsugi-read-action" disabled={manualBlocked||review.manifest.configurationRequired} onClick={()=>void change({kind:'install',reviewId:review.reviewId})}><Trans>Install into profile</Trans></button>
         <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void cancel()}><Trans>Cancel review</Trans></button>
       </div>
     </div>}

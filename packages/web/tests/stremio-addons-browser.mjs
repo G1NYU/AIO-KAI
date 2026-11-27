@@ -8,7 +8,7 @@ function installStremioFixture(){
   host.stremioAddons=true;
   const send=host.send.bind(host),subscribe=host.subscribe.bind(host),listeners=new Set();
   const manifest={id:'org.fixture',name:'Original addon fixture',version:'1.0.0',resources:['catalog','stream'],configurable:false,configurationRequired:false,p2p:false,adult:false,catalogs:[{id:'search',mediaType:'movie',name:'Original films',extras:[{name:'search',required:true,options:[],optionsLimit:null},{name:'skip',required:false,options:[],optionsLimit:null}]}]};
-  const f=window.__stremioFixture={calls:[],profiles:[{profileId:1,name:'Default',sources:[]}],active:1,pending:null,sequence:1};
+  const f=window.__stremioFixture={calls:[],profiles:[{profileId:1,name:'Default',sources:[]}],active:1,pending:null,import:null,sequence:1};
   host.subscribe=listener=>{listeners.add(listener);const remove=subscribe(listener);return()=>{listeners.delete(listener);remove();};};
   host.send=message=>{
     if(message.type!=='stremio-request')return send(message);
@@ -19,7 +19,7 @@ function installStremioFixture(){
       case 'profile-list':return emit(profileState());
       case 'profile-create':f.profiles.push({profileId:++f.sequence,name:raw.name,sources:[]});return emit(profileState());
       case 'profile-rename':f.profiles.find(p=>p.profileId===raw.profileId).name=raw.name;return emit(profileState());
-      case 'profile-switch':f.active=raw.profileId;f.pending=null;return emit(profileState());
+      case 'profile-switch':f.active=raw.profileId;f.pending=null;f.import=null;return emit(profileState());
       case 'profile-remove':{
         const target=f.profiles.find(p=>p.profileId===raw.profileId);
         if(!target||target.profileId===f.active||target.name!==raw.confirmedName)return emit(null,'profile-confirmation');
@@ -31,6 +31,39 @@ function installStremioFixture(){
     const reply=data=>emit({...data,profileId:raw.profileId});
     switch(a.kind){
       case 'list':return reply({sources:profile.sources});
+      case 'import-connect':{
+        if(a.email!=='fixture@example.org'||a.password!=='synthetic-password')return emit(null,'account-auth');
+        const id=++f.sequence;f.import={id,provider:a.provider,phase:a.provider==='nuvio'?'profiles':'candidates'};
+        if(a.provider==='nuvio')return reply({importId:id,provider:'nuvio',phase:'profiles',remoteProfiles:[
+          {profileIndex:1,name:'Protected main',usesPrimaryAddons:false,locked:true},
+          {profileIndex:2,name:'Shared protected',usesPrimaryAddons:true,locked:true},
+          {profileIndex:3,name:'Independent',usesPrimaryAddons:false,locked:false}
+        ]});
+        return reply({importId:id,provider:'stremio',phase:'candidates',availableSlots:16-profile.sources.length,skipped:1,candidates:[
+          {candidateId:1,name:'Account film addon',host:'films.example.invalid',enabled:true,alreadyInstalled:false},
+          {candidateId:2,name:'Unavailable fixture',host:'offline.example.invalid',enabled:true,alreadyInstalled:false}
+        ]});
+      }
+      case 'import-nuvio-profile':{
+        if(f.import?.id!==a.importId||f.import.phase!=='profiles'||a.remoteProfile!==3)return emit(null,'locked-remote-profile');
+        f.import.phase='candidates';
+        return reply({importId:a.importId,provider:'nuvio',phase:'candidates',availableSlots:16-profile.sources.length,skipped:0,remoteProfile:3,effectiveProfile:3,candidates:[
+          {candidateId:1,name:'Nuvio audio fixture',host:'nuvio-addon.example.invalid',enabled:false,alreadyInstalled:false}
+        ]});
+      }
+      case 'import-review':{
+        if(f.import?.id!==a.importId||f.import.phase!=='candidates'||!a.selected.includes(1))return emit(null,'import-selection');
+        const nuvio=f.import.provider==='nuvio';f.import.phase='review';
+        const ready={candidateId:1,name:nuvio?'Nuvio audio fixture':'Account film addon',host:nuvio?'nuvio-addon.example.invalid':'films.example.invalid',enabled:!nuvio,manifest:{...manifest,name:nuvio?'Nuvio audio fixture':'Account film addon'}};
+        f.import.ready=[ready];
+        return reply({importId:a.importId,provider:f.import.provider,phase:'review',ready:[ready],rejected:nuvio?[]:[{candidateId:2,name:'Unavailable fixture',reason:'network'}]});
+      }
+      case 'import-apply':{
+        if(f.import?.id!==a.importId||f.import.phase!=='review')return emit(null,'expired-review');
+        for(const ready of f.import.ready)profile.sources.push({sourceId:++f.sequence,enabled:ready.enabled,manifest:ready.manifest});
+        f.import=null;return reply({sources:profile.sources});
+      }
+      case 'import-cancel':f.import=null;return reply({cancelled:true});
       case 'review':
         assertFixtureUrl(a.url);f.pending=++f.sequence;return reply({reviewId:f.pending,manifest});
       case 'cancel-review':if(f.pending===a.reviewId)f.pending=null;return reply({cancelled:true});
@@ -131,6 +164,46 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await page.getByRole('button',{name:'App settings',exact:true}).first().click();await row.waitFor();
     await row.getByRole('button',{name:'Remove',exact:true}).click();
     await panel.getByText('No addons installed for this profile.').waitFor();
-    console.log('Stremio profile isolation, explicit addon review, scoped catalogue, pagination and removal passed');
+    const account=panel.locator('[data-ui="stremio-account-import"]');
+    async function signIn(provider){
+      await account.getByLabel('Import provider',{exact:true}).selectOption(provider);
+      await account.getByLabel('Account email',{exact:true}).fill('fixture@example.org');
+      await account.getByLabel('Account password',{exact:true}).fill('synthetic-password');
+      await account.getByRole('button',{name:'Connect and read addons',exact:true}).click();
+    }
+    async function reviewAccount(){
+      const candidates=account.locator('[data-import-phase="candidates"]');
+      await candidates.waitFor();
+      assert.equal(await candidates.getByRole('button',{name:'Review selected addons',exact:true}).isEnabled(),false);
+      await candidates.getByRole('button',{name:'Select available addons',exact:true}).click();
+      await candidates.getByRole('checkbox',{name:'I trust the selected addon hosts and want Tsugi to fetch their manifests.',exact:true}).check();
+      await candidates.getByRole('button',{name:'Review selected addons',exact:true}).click();
+      await account.locator('[data-import-phase="review"]').waitFor();
+    }
+    await signIn('stremio');
+    await account.locator('[data-import-phase="candidates"]').waitFor();
+    assert.equal((await account.innerText()).includes('synthetic-password'),false);
+    assert.equal(await page.evaluate(()=>JSON.stringify(localStorage).includes('synthetic-password')),false);
+    assert.equal((await calls()).some(a=>a.kind==='import-review'||a.kind==='import-apply'),false);
+    await reviewAccount();
+    assert.equal((await calls()).some(a=>a.kind==='import-apply'),false);
+    await account.getByText('Unavailable fixture · Manifest unavailable or unsupported',{exact:true}).waitFor();
+    await account.getByRole('button',{name:'Import reviewed addons',exact:true}).click();
+    await panel.locator('[data-stremio-source-id]').filter({hasText:'Account film addon'}).waitFor();
+    await signIn('nuvio');
+    const remote=account.getByLabel('Nuvio profile',{exact:true});
+    await remote.waitFor();
+    assert.equal(await remote.locator('option[value="1"]').isDisabled(),true);
+    assert.equal(await remote.locator('option[value="2"]').isDisabled(),true);
+    await remote.selectOption('3');
+    await account.getByRole('button',{name:'Read selected profile',exact:true}).click();
+    await reviewAccount();
+    await account.getByRole('button',{name:'Import reviewed addons',exact:true}).click();
+    const imported=panel.locator('[data-stremio-source-id]').filter({hasText:'Nuvio audio fixture'});
+    await imported.waitFor();
+    assert.ok((await imported.innerText()).includes('Disabled'));
+    const providerCalls=(await calls()).filter(a=>a.kind.startsWith('import-')).map(a=>a.kind);
+    assert.deepEqual(providerCalls,['import-connect','import-review','import-apply','import-connect','import-nuvio-profile','import-review','import-apply']);
+    console.log('Stremio/Nuvio account import, profile isolation, explicit review and local-only apply passed');
   }finally{await page.close();}
 }

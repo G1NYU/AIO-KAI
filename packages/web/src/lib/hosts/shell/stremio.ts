@@ -15,7 +15,19 @@ export interface CatalogPage {
 export type Mutation = { kind: 'install'; reviewId: number } | { kind: 'set-enabled'; sourceId: number; enabled: boolean }
   | { kind: 'move'; sourceId: number; position: number } | { kind: 'remove'; sourceId: number };
 export type CatalogAction = { kind: 'catalog'; sourceId: number; mediaType: string; catalogId: string; extras: Record<string,string> };
-type Action = Mutation | CatalogAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
+export type ImportProvider='stremio'|'nuvio';
+type ImportAction = {kind:'import-connect';provider:ImportProvider;email:string;password:string}
+  | {kind:'import-nuvio-profile';importId:number;remoteProfile:number}
+  | {kind:'import-review';importId:number;selected:number[]}
+  | {kind:'import-apply';importId:number} | {kind:'import-cancel';importId:number};
+type Action = Mutation | CatalogAction | ImportAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
+export type RemoteAddonProfile={profileIndex:number;name:string;usesPrimaryAddons:boolean;locked:boolean};
+export type ImportCandidate={candidateId:number;name:string;host:string;enabled:boolean;alreadyInstalled:boolean};
+type ImportBase={importId:number;provider:ImportProvider};
+export type ImportProfiles=ImportBase&{phase:'profiles';remoteProfiles:RemoteAddonProfile[]};
+export type ImportCandidates=ImportBase&{phase:'candidates';candidates:ImportCandidate[];availableSlots:number;skipped:number;remoteProfile?:number;effectiveProfile?:number};
+export type ImportReview=ImportBase&{phase:'review';ready:(Omit<ImportCandidate,'alreadyInstalled'>&{manifest:AddonManifest})[];rejected:{candidateId:number;name:string;reason:string}[]};
+export type AccountImport=ImportProfiles|ImportCandidates|ImportReview;
 export type AddonProfile = { profileId:number; name:string; sourceCount:number };
 export type ProfileState = { activeProfileId:number; profiles:AddonProfile[] };
 export type ProfileMutation = {kind:'profile-create';name:string} | {kind:'profile-rename';profileId:number;name:string}
@@ -67,11 +79,11 @@ function sources(v: unknown): AddonSource[] {
   if(new Set(rows.map(s=>s.sourceId)).size!==rows.length)return fail();
   return rows;
 }
-const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit']);
+const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit','account-auth','account-request','account-response','import-limit','import-selection','unknown-remote-profile','locked-remote-profile']);
 async function request(action: NativeAction): Promise<unknown> {
   if(!appBridge()?.stremioAddons)throw new AddonError('unsupported');
   const id=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
-  const reply=await ask({type:'stremio-request',request:id,action},'stremio-result',{timeoutMs:85_000,matches:m=>m.request===id})
+  const reply=await ask({type:'stremio-request',request:id,action},'stremio-result',{timeoutMs:action.kind==='profile-request'&&action.action.kind==='import-review'?120_000:85_000,matches:m=>m.request===id})
     .catch(()=>{throw new AddonError('network');});
   if(reply.error!==null)throw new AddonError(codes.has(reply.error)?reply.error:'request');
   return reply.data;
@@ -111,3 +123,62 @@ export async function loadAddonCatalog(profileId:number,action:CatalogAction):Pr
   if(nextSkip!==null&&(!sourceCount||nextSkip!==Number(action.extras.skip??0)+sourceCount))return fail();
   return {sourceId:action.sourceId,mediaType:action.mediaType,catalogId:action.catalogId,items,sourceCount,nextSkip};
 }
+
+function parseAccountImport(v:unknown):AccountImport{
+  const data=obj(v);
+  if(data.provider!=='stremio'&&data.provider!=='nuvio')return fail();
+  const provider:ImportProvider=data.provider,importId=integer(data.importId,1,0xffffffff);
+  const identity={provider,importId};
+  const unique=(ids:number[])=>{if(new Set(ids).size!==ids.length)fail();};
+  if(data.phase==='profiles'&&provider==='nuvio'){
+    const remoteProfiles=array(data.remoteProfiles,6,item=>{
+      const p=obj(item);return {profileIndex:integer(p.profileIndex,1,6),name:str(p.name,256),usesPrimaryAddons:bool(p.usesPrimaryAddons),locked:bool(p.locked)};
+    });
+    unique(remoteProfiles.map(p=>p.profileIndex));
+    return {...identity,phase:'profiles',remoteProfiles};
+  }
+  const candidate=(item:unknown)=>{
+    const c=obj(item);return {candidateId:integer(c.candidateId,1,128),name:str(c.name,256),host:str(c.host,253),enabled:bool(c.enabled)};
+  };
+  if(data.phase==='candidates'){
+    const candidates=array(data.candidates,128,item=>({...candidate(item),alreadyInstalled:bool(obj(item).alreadyInstalled)}));
+    unique(candidates.map(c=>c.candidateId));
+    const skipped=integer(data.skipped,0,128);
+    if(skipped+candidates.length>128)return fail();
+    const result:ImportCandidates={...identity,phase:'candidates',candidates,availableSlots:integer(data.availableSlots,0,16),skipped};
+    if(data.remoteProfile!==undefined||data.effectiveProfile!==undefined){
+      if(provider!=='nuvio')return fail();
+      result.remoteProfile=integer(data.remoteProfile,1,6);result.effectiveProfile=integer(data.effectiveProfile,1,6);
+    }
+    return result;
+  }
+  if(data.phase==='review'){
+    const ready=array(data.ready,16,item=>({...candidate(item),manifest:manifest(obj(item).manifest)}));
+    const rejected=array(data.rejected,16,item=>{
+      const row=obj(item);return {candidateId:integer(row.candidateId,1,128),name:str(row.name,256),reason:typeof row.reason==='string'&&codes.has(row.reason)?row.reason:'request'};
+    });
+    if(ready.length+rejected.length>16)return fail();
+    unique([...ready,...rejected].map(c=>c.candidateId));
+    return {...identity,phase:'review',ready,rejected};
+  }
+  return fail();
+}
+export async function connectAddonImport(profileId:number,provider:ImportProvider,email:string,password:string):Promise<ImportProfiles|ImportCandidates>{
+  const v=parseAccountImport(await scoped(profileId,{kind:'import-connect',provider,email,password}));
+  if(v.provider!==provider||v.phase==='review'||(provider==='stremio'&&v.phase!=='candidates')||(provider==='nuvio'&&v.phase!=='profiles'))return fail();
+  return v;
+}
+export async function chooseNuvioImportProfile(profileId:number,importId:number,remoteProfile:number):Promise<ImportCandidates>{
+  const v=parseAccountImport(await scoped(profileId,{kind:'import-nuvio-profile',importId,remoteProfile}));
+  if(v.provider!=='nuvio'||v.importId!==importId||v.phase!=='candidates'||v.remoteProfile!==remoteProfile)return fail();
+  return v;
+}
+export async function reviewAddonImport(profileId:number,importId:number,provider:ImportProvider,selected:number[]):Promise<ImportReview>{
+  const v=parseAccountImport(await scoped(profileId,{kind:'import-review',importId,selected}));
+  if(v.provider!==provider||v.importId!==importId||v.phase!=='review')return fail();
+  const returned=[...v.ready,...v.rejected].map(c=>c.candidateId);
+  if(returned.length!==selected.length||returned.some(id=>!selected.includes(id)))return fail();
+  return v;
+}
+export async function applyAddonImport(profileId:number,importId:number){return sources(await scoped(profileId,{kind:'import-apply',importId}));}
+export async function cancelAddonImport(profileId:number,importId:number){await scoped(profileId,{kind:'import-cancel',importId});}

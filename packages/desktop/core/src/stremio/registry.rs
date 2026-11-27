@@ -185,7 +185,15 @@ impl Worker {
         let (tx,rx) = mpsc::sync_channel::<(String,Action)>(2);
         thread::spawn(move || {
             let mut opened = store::Store::open(&root);
-            while let Ok((request,action)) = rx.recv() {
+            loop {
+                let (request,action)=match rx.recv_timeout(Duration::from_secs(30)){
+                    Ok(message)=>message,
+                    Err(mpsc::RecvTimeoutError::Timeout)=>{
+                        if let Ok((_,profiles))=&mut opened{profiles.expire_all();}
+                        continue;
+                    }
+                    Err(mpsc::RecvTimeoutError::Disconnected)=>break,
+                };
                 let result = match &mut opened {
                     Ok((storage,profiles)) if profiles::is_mutation(&action) => {
                         // Commit to memory only after the encrypted snapshot
