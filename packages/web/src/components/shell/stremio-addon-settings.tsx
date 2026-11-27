@@ -25,7 +25,7 @@ function feedback(reason: unknown) {
     case 'expired-review': return t`This review expired. Review the manifest again.`;
     case 'auth': return t`The addon rejected the request. Check its configuration.`;
     case 'rate': return t`The addon is limiting requests. Try again later.`;
-    case 'source-limit': return t`Each profile supports up to 16 addons.`;
+    case 'source-limit': return t`Each profile supports up to 128 addons.`;
     case 'profile-limit': return t`You can create up to six profiles.`;
     case 'duplicate-profile': return t`A profile already uses that name.`;
     case 'invalid-profile-name': return t`Enter a valid profile name.`;

@@ -236,10 +236,10 @@ impl Registry{
         }
         let chosen:Vec<_>=rows.into_iter().filter(|c|selected.contains(&c.id)).collect();
         let mut ready=Vec::new();let mut rejected=Vec::new();
-        // Bounded parallel reads; at most four HTTPS requests at once, at
-        // most sixteen selected sources. Do not contact unselected hosts.
+        // Bounded parallel reads; at most eight HTTPS requests at once.
+        // Do not contact unselected hosts.
         // Preserve the provider's order regardless of request completion.
-        for group in chosen.chunks(4){
+        for group in chosen.chunks(8){
             let results=thread::scope(|scope|{
                 let workers:Vec<_>=group.iter().map(|c|{
                     let duplicate=self.sources.iter().any(|s|s.endpoint.0==c.endpoint.0);

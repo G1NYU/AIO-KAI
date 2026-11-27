@@ -7,6 +7,7 @@ export interface AddonManifest {
   id: string; name: string; version: string; resources: string[]; catalogs: AddonCatalog[];
   configurable: boolean; configurationRequired: boolean; p2p: boolean; adult: boolean;
 }
+export const MAX_ADDON_SOURCES = 128;
 export interface AddonSource { sourceId: number; enabled: boolean; manifest: AddonManifest }
 /** Virtual public catalogue, never installed, mutated or used for streams. */
 // The protocol manifest descriptor is not localized; catalogue headings are translated at render time.
@@ -95,7 +96,7 @@ function manifest(v: unknown): AddonManifest {
   };
 }
 function sources(v: unknown): AddonSource[] {
-  const rows=array(obj(v).sources,16,item=>{
+  const rows=array(obj(v).sources,MAX_ADDON_SOURCES,item=>{
     const s=obj(item);return {sourceId:integer(s.sourceId,1,0xffffffff),enabled:bool(s.enabled),manifest:manifest(s.manifest)};
   });
   if(new Set(rows.map(s=>s.sourceId)).size!==rows.length)return fail();
@@ -105,7 +106,7 @@ const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','con
 async function request(action: NativeAction): Promise<unknown> {
   if(!appBridge()?.stremioAddons)throw new AddonError('unsupported');
   const id=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
-  const reply=await ask({type:'stremio-request',request:id,action},'stremio-result',{timeoutMs:action.kind==='profile-request'&&['import-review','all-stream-options'].includes(action.action.kind)?120_000:action.kind==='profile-request'&&action.action.kind.startsWith('watch-')?12_000:85_000,matches:m=>m.request===id})
+  const reply=await ask({type:'stremio-request',request:id,action},'stremio-result',{timeoutMs:action.kind==='profile-request'&&['import-review','all-stream-options'].includes(action.action.kind)?360_000:action.kind==='profile-request'&&action.action.kind.startsWith('watch-')?12_000:85_000,matches:m=>m.request===id})
     .catch(()=>{throw new AddonError('network');});
   if(reply.error!==null)throw new AddonError(codes.has(reply.error)?reply.error:'request');
   return reply.data;
@@ -114,7 +115,7 @@ function profileState(v:unknown):ProfileState{
   const data=obj(v);
   const activeProfileId=integer(data.activeProfileId,1,0xffffffff);
   const profiles=array(data.profiles,6,p=>{
-    const row=obj(p);return {profileId:integer(row.profileId,1,0xffffffff),name:str(row.name,256),sourceCount:integer(row.sourceCount,0,16)};
+    const row=obj(p);return {profileId:integer(row.profileId,1,0xffffffff),name:str(row.name,256),sourceCount:integer(row.sourceCount,0,MAX_ADDON_SOURCES)};
   });
   if(!profiles.some(p=>p.profileId===activeProfileId)||new Set(profiles.map(p=>p.profileId)).size!==profiles.length)return fail();
   return {activeProfileId,profiles};
@@ -172,7 +173,7 @@ export function publicAddonPoster(value:unknown):string|undefined{
     if(url.protocol!=='https:'||url.port||url.username||url.password||url.search||url.hash)return undefined;
     const path=url.pathname;
     const file='[A-Za-z0-9_-]{1,80}\\.(?:jpg|jpeg|png|webp)';
-    const valid=url.hostname==='image.tmdb.org'&&new RegExp('^/t/p/(?:w92|w154|w185|w342|w500|w780|w600_and_h900_bestv2|original)/'+file+'$').test(path)||
+    const valid=url.hostname==='image.tmdb.org'&&new RegExp('^/t/p/(?:w45|w92|w154|w185|w300|w342|w500|w780|w1280|w600_and_h900_bestv2|original)/'+file+'$').test(path)||
       url.hostname==='images.metahub.space'&&/^\/poster\/(?:small|medium|large)\/tt[0-9]{1,12}\/img$/.test(path)||
       url.hostname==='cdn.myanimelist.net'&&new RegExp('^/images/anime/[0-9]{1,12}/'+file+'$').test(path)||
       url.hostname==='media.kitsu.io'&&new RegExp('^/anime/poster_images/[0-9]{1,12}/'+file+'$').test(path);
@@ -215,7 +216,7 @@ function parseAccountImport(v:unknown):AccountImport{
     unique(candidates.map(c=>c.candidateId));
     const skipped=integer(data.skipped,0,128);
     if(skipped+candidates.length>128)return fail();
-    const result:ImportCandidates={...identity,phase:'candidates',candidates,availableSlots:integer(data.availableSlots,0,16),skipped};
+    const result:ImportCandidates={...identity,phase:'candidates',candidates,availableSlots:integer(data.availableSlots,0,MAX_ADDON_SOURCES),skipped};
     if(data.remoteProfile!==undefined||data.effectiveProfile!==undefined){
       if(provider!=='nuvio')return fail();
       result.remoteProfile=integer(data.remoteProfile,1,6);result.effectiveProfile=integer(data.effectiveProfile,1,6);
@@ -223,11 +224,11 @@ function parseAccountImport(v:unknown):AccountImport{
     return result;
   }
   if(data.phase==='review'){
-    const ready=array(data.ready,16,item=>({...candidate(item),manifest:manifest(obj(item).manifest)}));
-    const rejected=array(data.rejected,16,item=>{
+    const ready=array(data.ready,MAX_ADDON_SOURCES,item=>({...candidate(item),manifest:manifest(obj(item).manifest)}));
+    const rejected=array(data.rejected,MAX_ADDON_SOURCES,item=>{
       const row=obj(item);return {candidateId:integer(row.candidateId,1,128),name:str(row.name,256),reason:typeof row.reason==='string'&&codes.has(row.reason)?row.reason:'request'};
     });
-    if(ready.length+rejected.length>16)return fail();
+    if(ready.length+rejected.length>MAX_ADDON_SOURCES)return fail();
     unique([...ready,...rejected].map(c=>c.candidateId));
     return {...identity,phase:'review',ready,rejected};
   }
@@ -288,7 +289,7 @@ export type AddonStreamGroup={sourceId:number;options:AddonOptions|null};
 export async function loadAllAddonStreams(profileId:number,mediaType:string,videoId:string):Promise<AddonStreamGroup[]>{
   const v=await scoped(profileId,{kind:'all-stream-options',mediaType,videoId});
   if(v.mediaType!==mediaType||v.videoId!==videoId)return fail();
-  const groups=array<AddonStreamGroup>(v.groups,16,value=>{
+  const groups=array<AddonStreamGroup>(v.groups,MAX_ADDON_SOURCES,value=>{
     const row=obj(value),sourceId=integer(row.sourceId,1,0xffffffff);
     const rows=parseOptions(row.options);
     if(row.error!==null){

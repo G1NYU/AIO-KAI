@@ -35,7 +35,7 @@ impl Default for Placement {
             width: 1280,
             height: 760,
             position: None,
-            maximized: false,
+            maximized: true,
             pip: None,
         }
     }
@@ -66,4 +66,11 @@ pub fn save(dir: &Path, placement: &Placement) {
     if let Err(e) = written {
         log::warn!("could not save the window's placement: {e}");
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn fresh_window_opens_maximized() { assert!(Placement::default().maximized); }
 }

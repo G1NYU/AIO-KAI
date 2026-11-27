@@ -20,7 +20,7 @@ mod store;
 #[cfg(windows)]
 mod refract_delivery;
 
-const MAX_SOURCES: usize = 16;
+const MAX_SOURCES: usize = 128;
 
 // Official Cinemeta fallback for movie/series browsing when a profile only
 // installs stream addons. Not an installed source and never a stream provider.
@@ -227,7 +227,7 @@ impl Registry {
         let mut groups=Vec::with_capacity(eligible.len());
         let mut reviews=Vec::with_capacity(eligible.len());
         let mut sequence=self.sequence;
-        for chunk in eligible.chunks(4){
+        for chunk in eligible.chunks(8){
             let results=thread::scope(|scope|{
                 let fetch=&fetcher;
                 let workers:Vec<_>=chunk.iter().map(|source|scope.spawn(move||fetch(source,kind,video))).collect();

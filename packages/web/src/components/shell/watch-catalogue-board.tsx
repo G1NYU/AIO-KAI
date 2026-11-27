@@ -32,13 +32,14 @@ export function catalogueTargets(sources:AddonSource[],scope:Scope,kind:Kind,que
   for(const source of available){
     if(!source.enabled||source.manifest.adult||source.manifest.configurationRequired)continue;
     for(const catalog of source.manifest.catalogs){
-      if(!['movie','series','anime'].includes(catalog.mediaType)||kind!=='all'&&kind!==catalog.mediaType)continue;
+      const normalized=catalog.mediaType==='anime.movie'?'movie':catalog.mediaType==='anime.series'?'series':catalog.mediaType;
+      if(!['movie','series','anime'].includes(normalized)||kind!=='all'&&kind!==normalized&&!(kind==='anime'&&catalog.mediaType.startsWith('anime.')))continue;
       const extras:Record<string,string>={};
       const animeGenre=catalog.extras.find(e=>e.name==='genre')?.options.find(o=>o.toLowerCase()==='anime');
-      const explicitAnime=catalog.mediaType==='anime'||animeWord.test(catalog.name)||animeWord.test(catalog.id)||animeWord.test(source.manifest.name);
+      const explicitAnime=(catalog.mediaType==='anime'||catalog.mediaType.startsWith('anime.'))||animeWord.test(catalog.name)||animeWord.test(catalog.id)||animeWord.test(source.manifest.name);
       if(scope!=='all'){
         if(!explicitAnime&&!animeGenre)continue;
-        if(scope==='anime-films'&&catalog.mediaType!=='movie'&&!(catalog.mediaType==='anime'&&/(^|[^a-z])(film|films|movie|movies)([^a-z]|$)/i.test(catalog.name)))continue;
+        if(scope==='anime-films'&&normalized!=='movie'&&!(catalog.mediaType==='anime'&&/(^|[^a-z])(film|films|movie|movies)([^a-z]|$)/i.test(catalog.name)))continue;
         if(!explicitAnime&&animeGenre)extras.genre=animeGenre;
       }
       if(query){
