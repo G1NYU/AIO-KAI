@@ -35,7 +35,7 @@ export type ImportProvider='stremio'|'nuvio';
 type ImportAction = {kind:'import-connect';provider:ImportProvider;email:string;password:string}
   | {kind:'import-nuvio-profile';importId:number;remoteProfile:number}
   | {kind:'import-review';importId:number;selected:number[]}
-  | {kind:'import-apply';importId:number} | {kind:'import-cancel';importId:number};
+  | {kind:'import-apply';importId:number} | {kind:'import-retry';importId:number} | {kind:'import-cancel';importId:number};
 type ItemAction = {kind:'metadata';sourceId:number;mediaType:string;itemId:string} | {kind:'item-options';sourceId:number;mediaType:string;videoId:string;subtitles:boolean} | {kind:'all-stream-options';mediaType:string;videoId:string;alternatives?:VideoRoute[]} | {kind:'retry-stream-options';sourceId:number;mediaType:string;videoId:string} | {kind:'prepare-media';reviewId:number;optionIndex:number;startMs:number};
 type MdblistAction={kind:'mdblist-status'}|{kind:'mdblist-connect';key:string}|{kind:'mdblist-disconnect'}|{kind:'mdblist-lists'}|{kind:'mdblist-page';listId:number;offset:number};
 export type WatchProgress={mediaType:string;itemId:string;videoId:string;title:string;episodeTitle:string|null;positionMs:number;durationMs:number;completed:boolean};
@@ -106,7 +106,7 @@ const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','con
 async function request(action: NativeAction): Promise<unknown> {
   if(!appBridge()?.stremioAddons)throw new AddonError('unsupported');
   const id=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
-  const reply=await ask({type:'stremio-request',request:id,action},'stremio-result',{timeoutMs:action.kind==='profile-request'&&['import-review','all-stream-options'].includes(action.action.kind)?360_000:action.kind==='profile-request'&&action.action.kind.startsWith('watch-')?12_000:85_000,matches:m=>m.request===id})
+  const reply=await ask({type:'stremio-request',request:id,action},'stremio-result',{timeoutMs:action.kind==='profile-request'&&['import-review','import-retry','all-stream-options'].includes(action.action.kind)?360_000:action.kind==='profile-request'&&action.action.kind.startsWith('watch-')?12_000:85_000,matches:m=>m.request===id})
     .catch(()=>{throw new AddonError('network');});
   if(reply.error!==null)throw new AddonError(codes.has(reply.error)?reply.error:'request');
   return reply.data;
@@ -254,7 +254,19 @@ export async function reviewAddonImport(profileId:number,importId:number,provide
   if(returned.length!==selected.length||returned.some(id=>!selected.includes(id)))return fail();
   return v;
 }
-export async function applyAddonImport(profileId:number,importId:number){return sources(await scoped(profileId,{kind:'import-apply',importId}));}
+export type ImportResult={sources:AddonSource[];rejected:ImportReview['rejected'];retryImportId:number|null};
+function parseImportResult(value:unknown,importId:number):ImportResult{
+  const data=obj(value);
+  const rejected=array(data.rejected,MAX_ADDON_SOURCES,item=>{
+    const row=obj(item);return {candidateId:integer(row.candidateId,1,128),name:str(row.name,256),reason:typeof row.reason==='string'&&codes.has(row.reason)?row.reason:'request'};
+  });
+  if(new Set(rejected.map(row=>row.candidateId)).size!==rejected.length)return fail();
+  const retryImportId=data.retryImportId===null?null:integer(data.retryImportId,1,0xffffffff);
+  if(retryImportId!==null&&(retryImportId!==importId||!rejected.length))return fail();
+  return {sources:sources(data),rejected,retryImportId};
+}
+export async function applyAddonImport(profileId:number,importId:number){return parseImportResult(await scoped(profileId,{kind:'import-apply',importId}),importId);}
+export async function retryAddonImport(profileId:number,importId:number){return parseImportResult(await scoped(profileId,{kind:'import-retry',importId}),importId);}
 export async function cancelAddonImport(profileId:number,importId:number){await scoped(profileId,{kind:'import-cancel',importId});}
 
 export type VideoRoute={mediaType:string;videoId:string};

@@ -68,12 +68,12 @@ fn name_valid(name: &str) -> bool {
 fn source_action(action: &Action) -> bool {
     matches!(action,Action::List|Action::Review{..}|Action::Install{..}|Action::CancelReview{..}|
         Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::AllStreamOptions{..}|Action::RetryStreamOptions{..}|Action::PrepareMedia{..}|Action::MalAnimeList|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::MalAnimeMatch{..}|Action::MalAnimeUnmatch{..}|Action::WatchHistory|Action::WatchRecord{..}|Action::WatchComplete{..}|Action::WatchRemove{..}|Action::RefractStatus|Action::RefractConnect{..}|Action::RefractThreshold{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractSync|Action::RefractWatchlist{..}|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
-        Action::ImportConnect{..}|Action::ImportNuvioProfile{..}|Action::ImportReview{..}|Action::ImportApply{..}|Action::ImportCancel{..})
+        Action::ImportConnect{..}|Action::ImportNuvioProfile{..}|Action::ImportReview{..}|Action::ImportApply{..}|Action::ImportRetry{..}|Action::ImportCancel{..})
 }
 pub(super) fn is_mutation(action: &Action) -> bool {
     match action {
         Action::ProfileCreate{..}|Action::ProfileRename{..}|Action::ProfileSwitch{..}|Action::ProfileRemove{..} => true,
-        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::MalAnimeMatch{..}|Action::MalAnimeUnmatch{..}|Action::WatchRecord{..}|Action::WatchComplete{..}|Action::WatchRemove{..}|Action::RefractConnect{..}|Action::RefractThreshold{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractWatchlist{..}),
+        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::ImportRetry{..}|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::MalAnimeMatch{..}|Action::MalAnimeUnmatch{..}|Action::WatchRecord{..}|Action::WatchComplete{..}|Action::WatchRemove{..}|Action::RefractConnect{..}|Action::RefractThreshold{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractWatchlist{..}),
         _ => false,
     }
 }

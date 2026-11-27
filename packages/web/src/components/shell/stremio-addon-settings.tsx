@@ -1,5 +1,5 @@
 import React from 'react';
-import { StremioAccountImport } from './stremio-account-import';
+import { StremioAccountImport, importFailureText } from './stremio-account-import';
 import { MdblistSettings } from './mdblist-settings';
 import { MalAnimeLibrary } from './mal-anime-library';
 import { WatchCatalogueBoard } from './watch-catalogue-board';
@@ -17,7 +17,7 @@ import { isWatchMovie, titleIdentityRoutes, mergeAliasMetadata, watchVideoRoutes
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, loadAllAddonStreams, retryAddonStreams, type AddonStreamGroup, type AddonMetadata, type AddonVideo, type AddonOptions, prepareAddonMedia, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry } from '@/lib/hosts/shell/stremio';
+import { AddonError, retryAddonImport, cancelAddonImport, type ImportResult, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, loadAllAddonStreams, retryAddonStreams, type AddonStreamGroup, type AddonMetadata, type AddonVideo, type AddonOptions, prepareAddonMedia, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry } from '@/lib/hosts/shell/stremio';
 
 function feedback(reason: unknown) {
   switch(reason instanceof AddonError ? reason.code : 'request'){
@@ -72,7 +72,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const [sources,setSources]=React.useState<AddonSource[]>([]);
   const [busy,setBusy]=React.useState(false);
   const [error,setError]=React.useState('');
-  const [importReport,setImportReport]=React.useState<{profileId:number;messages:string[]}|null>(null);
+  const [importReport,setImportReport]=React.useState<{profileId:number;result:ImportResult}|null>(null);
   const [notice,setNotice]=React.useState('');
   const [selection,setSelection]=React.useState<{sourceId:number;catalogIndex:number}|null>(null);
   const [filters,setFilters]=React.useState<Map<string,string>>(()=>new Map());
@@ -533,7 +533,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void refreshProfiles()}><Trans>Refresh profiles</Trans></button>
     </div>
     </>}
-    {show('stremio','nuvio')&&profileReady&&profileId!==undefined&&<StremioAccountImport key={workspace?profileId+':'+pane:profileId} fixedProvider={workspace?(pane==='nuvio'?'nuvio':'stremio'):undefined} profileId={profileId} busy={busy} run={run} onActive={setImportActive} onConnect={()=>{clearReview();setImportReport(null);}} onSources={(rows,messages)=>{updateSources(rows,profileId);setImportReport({profileId,messages});if(workspace&&onPlay)setPane('home');}}/>}
+    {show('stremio','nuvio')&&profileReady&&profileId!==undefined&&<StremioAccountImport key={workspace?profileId+':'+pane:profileId} fixedProvider={workspace?(pane==='nuvio'?'nuvio':'stremio'):undefined} profileId={profileId} busy={busy} run={run} onActive={setImportActive} onConnect={()=>{clearReview();setImportReport(null);}} onSources={result=>{updateSources(result.sources,profileId);setImportReport({profileId,result});if(workspace&&onPlay)setPane('home');}}/>}
     {show('manual')&&<><h4><Trans>Add a manifest</Trans></h4>
     <form className="space-y-2" onSubmit={e=>{e.preventDefault();void inspect();}}>
       <label><Trans>Configured manifest URL</Trans><input className="tsugi-read-input w-full min-w-0" type="password" autoComplete="off" spellCheck={false} maxLength={16384} value={url} required disabled={manualBlocked} onChange={e=>{setUrl(e.target.value);setConsent(false);}}/></label>
@@ -658,9 +658,18 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       </div>}
     </section>}
     {busy&&<p role="status"><Trans>Loading sources…</Trans></p>}
-    {importReport&&importReport.profileId===profileId&&importReport.messages.length>0&&<div role="status">
-      {importReport.messages.map((message,index)=><p key={index}>{message}</p>)}
-      <button type="button" className="tsugi-read-action" onClick={()=>setImportReport(null)}><Trans>Dismiss</Trans></button>
+    {importReport&&importReport.profileId===profileId&&importReport.result.rejected.length>0&&<div className="space-y-2" data-ui="addon-import-report">
+      <div role="status">{importReport.result.rejected.map(row=><p key={row.candidateId}>{importFailureText(row)}</p>)}</div>
+      {importReport.result.retryImportId!==null&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void run(async()=>{
+        const result=await retryAddonImport(importReport.profileId,importReport.result.retryImportId!);
+        if(!mounted.current)return;
+        updateSources(result.sources,importReport.profileId);setImportReport({profileId:importReport.profileId,result});
+        if(!result.rejected.length)setNotice(t`Failed addons recovered.`);
+      })}><Trans>Retry failed addons</Trans></button>}
+      <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void run(async()=>{
+        if(importReport.result.retryImportId!==null)await cancelAddonImport(importReport.profileId,importReport.result.retryImportId);
+        if(mounted.current)setImportReport(null);
+      })}><Trans>Dismiss</Trans></button>
     </div>}
     {notice&&<p role="status">{notice}</p>}{error&&<p role="alert">{error}</p>}
     </div>

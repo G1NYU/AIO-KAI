@@ -35,7 +35,7 @@ pub(super) fn changes_scope(action:&Action)->bool{
     match action{
         Action::ProfileSwitch{..}|Action::ProfileRemove{..}=>true,
         Action::ProfileRequest{action,..}=>matches!(action.as_ref(),
-            Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}),
+            Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::ImportRetry{..}),
         _=>false,
     }
 }

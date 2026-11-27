@@ -1,3 +1,9 @@
+# Watch journey — import recovery
+
+- Retain only selected failed manifests in volatile native memory for an explicit retry; keep existing sources, enabled states and imported order. An order-only review performs no manifest fetches. No sign-in changes.
+- Structured failure reasons and retry control remain in the import result; dismiss cancels the pending retry. Recovery expires after the native review TTL or profile switch; no credentials are persisted.
+- Native test covers partial/all-failed recovery, exact retry selection and order-only restore; browser fixture covers recovery without reconnecting. CI pending.
+
 ## 2026-11-27 — Exact title aliases and episode routes
 
 Native catalogue and metadata parsing retain bounded explicit IMDb, TMDB (typed/untyped), Kitsu, MAL and AniList identities. The Watch detail resolver tries up to three explicit alternate title routes (public metadata first, then up to four configured metadata providers per alternate), and attaches only actually returned, uniquely numbered episode aliases. Native stream review selects one declared-compatible route per enabled provider, with at most eight alternatives; retries reuse that route. Native playback grants keep the original logical identity for subtitle checks, history and source switching. A movie may use an explicitly linked title ID as its video ID; series episode IDs are never synthesized. Next/previous follows numbered regular seasons, keeps specials separate and refuses ambiguous slots. Added native and web identity tests and browser coverage of an explicitly linked TMDB/IMDb movie. Remaining: generic providers that advertise multiple aliases but return no streams for the first route, ambiguous anime absolute numbering and additional live-provider validation. CI required; no sign-in or stable release changes.

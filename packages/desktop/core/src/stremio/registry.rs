@@ -59,6 +59,7 @@ pub enum Action {
     ImportNuvioProfile { import_id: u32, remote_profile: u32 },
     ImportReview { import_id: u32, selected: Vec<u32> },
     ImportApply { import_id: u32 },
+    ImportRetry { import_id: u32 },
     ImportCancel { import_id: u32 },
     List,
     Review { url: String },
@@ -306,8 +307,8 @@ impl Registry {
     fn execute(&mut self, action: Action) -> Result<Value> {
         self.expire();
         self.grant=None;
-        if matches!(&action,Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::ItemOptions{..}|Action::AllStreamOptions{..}|Action::Metadata{..}|Action::Catalog{..}) {self.media_review=None;self.stream_reviews.clear();self.stream_query=None;}
-        if matches!(&action,Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::Catalog{..}){self.mal_review=None;}
+        if matches!(&action,Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::ImportRetry{..}|Action::ItemOptions{..}|Action::AllStreamOptions{..}|Action::Metadata{..}|Action::Catalog{..}) {self.media_review=None;self.stream_reviews.clear();self.stream_query=None;}
+        if matches!(&action,Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::ImportRetry{..}|Action::Catalog{..}){self.mal_review=None;}
         match action {
             Action::List => Ok(self.list()),
             Action::MalAnimeList => Ok(self.mal_anime.list()),
@@ -345,6 +346,7 @@ impl Registry {
             Action::ImportNuvioProfile { import_id,remote_profile } => self.import_nuvio_profile(import_id,remote_profile),
             Action::ImportReview { import_id,selected } => self.import_review(import_id,selected),
             Action::ImportApply { import_id } => self.import_apply(import_id),
+            Action::ImportRetry { import_id } => self.import_retry(import_id),
             Action::ImportCancel { import_id } => Ok(json!({"cancelled":self.import_cancel(import_id)})),
             Action::Review { url } => {
                 // A replacement review invalidates the previous capability

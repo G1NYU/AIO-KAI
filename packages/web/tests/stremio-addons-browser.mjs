@@ -77,7 +77,7 @@ export function installStremioFixture(initializeStartup=true){
     if(raw.kind!=='profile-request'||raw.profileId!==f.active)return emit(null,'profile-changed');
     const a=raw.action,profile=f.profiles.find(p=>p.profileId===f.active);
     const reply=data=>emit({...data,profileId:raw.profileId});
-    if(['catalog','metadata','item-options','all-stream-options','install','remove','move','set-enabled','import-apply'].includes(a.kind)){f.mediaReview=null;f.streamReviews=[];f.streamQuery=null;}
+    if(['catalog','metadata','item-options','all-stream-options','install','remove','move','set-enabled','import-apply','import-retry'].includes(a.kind)){f.mediaReview=null;f.streamReviews=[];f.streamQuery=null;}
     switch(a.kind){
       case 'list':return reply({sources:profile.sources});
       case 'mal-anime-list':return reply({entries:profile.malAnime??[],matches:profile.malMatches??[]});
@@ -183,7 +183,15 @@ export function installStremioFixture(initializeStartup=true){
       case 'import-apply':{
         if(f.import?.id!==a.importId||f.import.phase!=='review')return emit(null,'expired-review');
         profile.sources.unshift(...f.import.ready.map(ready=>({sourceId:++f.sequence,enabled:ready.enabled,manifest:ready.manifest})));
-        f.import=null;return reply({sources:profile.sources});
+        const rejected=f.import.provider==='nuvio'?[]:[{candidateId:2,name:'Unavailable fixture',reason:'network'}];
+        const retryImportId=rejected.length?f.import.id:null;
+        if(retryImportId!==null)f.import.phase='retry';else f.import=null;
+        return reply({sources:profile.sources,rejected,retryImportId});
+      }
+      case 'import-retry':{
+        if(f.import?.id!==a.importId||f.import.phase!=='retry')return emit(null,'expired-review');
+        profile.sources.splice(1,0,{sourceId:++f.sequence,enabled:true,manifest:{...manifest,name:'Recovered fixture'}});
+        f.import=null;return reply({sources:profile.sources,rejected:[],retryImportId:null});
       }
       case 'import-cancel':f.import=null;return reply({cancelled:true});
       case 'review':
@@ -639,8 +647,11 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal(await page.evaluate(()=>JSON.stringify(localStorage).includes('synthetic-password')),false);
     assert.equal((await calls()).some(a=>a.kind==='import-review'||a.kind==='import-apply'),false);
     await reviewAccount();
-    await panel.getByText('Unavailable fixture · Manifest unavailable or unsupported',{exact:true}).waitFor();
+    await panel.getByText('Unavailable fixture · Manifest request failed; check the connection and retry',{exact:true}).waitFor();
     await panel.locator('[data-stremio-source-id]').filter({hasText:'Account film addon'}).waitFor();
+    await panel.getByRole('button',{name:'Retry failed addons',exact:true}).click();
+    await panel.locator('[data-stremio-source-id]').filter({hasText:'Recovered fixture'}).waitFor();
+    assert.equal((await calls()).filter(a=>a.kind==='import-connect').length,1);
     await signIn('nuvio');
     const remote=account.getByRole('combobox',{name:'Nuvio profile',exact:true});
     await remote.waitFor();
@@ -657,7 +668,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await accountFilm.getByRole('button',{name:'Move up',exact:true}).click();
     await panel.locator('[data-stremio-source-id]').first().filter({hasText:'Account film addon'}).waitFor();
     const providerCalls=(await calls()).filter(a=>a.kind.startsWith('import-')).map(a=>a.kind);
-    assert.deepEqual(providerCalls,['import-connect','import-review','import-apply','import-connect','import-nuvio-profile','import-review','import-apply']);
+    assert.deepEqual(providerCalls,['import-connect','import-review','import-apply','import-retry','import-connect','import-nuvio-profile','import-review','import-apply']);
     console.log('Stremio/Nuvio account import, profile isolation and single-action local import passed');
   }finally{await page.close();}
   const firstLaunch=await browser.newPage({viewport:{width:1440,height:900}});

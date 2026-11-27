@@ -31,10 +31,13 @@ struct RemoteProfile {index:u32,name:String,primary:bool,locked:bool}
 #[derive(Clone)]
 struct Prepared {candidate:Candidate,manifest:Manifest}
 #[derive(Clone)]
+struct Failed {candidate:Candidate,reason:&'static str}
+#[derive(Clone)]
 enum Stage {
     Nuvio { token:String, profiles:Vec<RemoteProfile> },
     Candidates { rows:Vec<Candidate>, skipped:usize },
-    Reviewed { rows:Vec<Prepared>, account_order: Vec<Url> },
+    Reviewed { rows:Vec<Prepared>, failed:Vec<Failed>, account_order: Vec<Url> },
+    Retry { failed:Vec<Failed>, account_order:Vec<Url> },
 }
 #[derive(Clone)]
 pub(super) struct Flow {id:u32,provider:Provider,created:Instant,stage:Stage}
@@ -196,7 +199,7 @@ impl Registry{
                 data["availableSlots"]=json!(MAX_SOURCES-self.sources.len());
                 data["candidates"]=json!(rows.iter().map(|c|candidate_summary(c,self.sources.iter().any(|s|s.endpoint.0==c.endpoint.0))).collect::<Vec<_>>());
             }
-            Stage::Reviewed{..}=>return Err("expired-review"),
+            Stage::Reviewed{..}|Stage::Retry{..}=>return Err("expired-review"),
         }
         Ok(data)
     }
@@ -230,47 +233,54 @@ impl Registry{
         let Stage::Candidates{rows,..}=flow.stage else{return Err("expired-review");};
         let selected_count=selected.len();
         let selected:BTreeSet<_>=selected.into_iter().collect();
-        if selected.is_empty()||selected.len()!=selected_count||selected.len()>MAX_SOURCES-self.sources.len()||
+        if (selected.is_empty()&&!rows.iter().any(|row|self.sources.iter().any(|source|source.endpoint.0==row.endpoint.0)))||selected.len()!=selected_count||selected.len()>MAX_SOURCES-self.sources.len()||
             selected.iter().any(|id|!rows.iter().any(|c|c.id==*id)){
             return Err("import-selection");
         }
         let account_order = rows.iter().map(|row| row.endpoint.0.clone()).collect();
         let chosen:Vec<_>=rows.into_iter().filter(|c|selected.contains(&c.id)).collect();
-        let mut ready=Vec::new();let mut rejected=Vec::new();
-        // Bounded parallel reads; at most eight HTTPS requests at once.
-        // Do not contact unselected hosts.
-        // Preserve the provider's order regardless of request completion.
+        let (ready,failed)=self.review_import_candidates(&chosen,&|candidate|candidate.endpoint.manifest());
+        let preview:Vec<_>=ready.iter().map(|row|json!({"candidateId":row.candidate.id,"name":row.candidate.name,
+            "host":host(&row.candidate.endpoint),"enabled":row.candidate.enabled,"manifest":summary(&row.manifest)})).collect();
+        let rejected=failed.iter().map(Self::import_failure).collect::<Vec<_>>();
+        self.import=Some(Flow{id,provider:flow.provider,created:Instant::now(),stage:Stage::Reviewed{rows:ready,failed,account_order}});
+        Ok(json!({"importId":id,"provider":flow.provider.name(),"phase":"review","ready":preview,"rejected":rejected}))
+    }
+    fn import_failure(row:&Failed)->Value{
+        json!({"candidateId":row.candidate.id,"name":row.candidate.name,"reason":row.reason})
+    }
+    fn review_import_candidates(&self,chosen:&[Candidate],fetch:&(impl Fn(&Candidate)->Result<Manifest>+Sync))->(Vec<Prepared>,Vec<Failed>){
+        let mut ready=Vec::new();let mut failed=Vec::new();
+        let slots=MAX_SOURCES-self.sources.len();
+        // Bounded parallel reads of explicitly selected manifests only.
+        // Retain input order; never expose configured URLs to the web layer.
         for group in chosen.chunks(8){
             let results=thread::scope(|scope|{
-                let workers:Vec<_>=group.iter().map(|c|{
-                    let duplicate=self.sources.iter().any(|s|s.endpoint.0==c.endpoint.0);
-                    scope.spawn(move||if duplicate{Err("duplicate")}else{c.endpoint.manifest()})
+                let workers:Vec<_>=group.iter().map(|candidate|{
+                    let duplicate=self.sources.iter().any(|source|source.endpoint.0==candidate.endpoint.0);
+                    scope.spawn(move||if duplicate{Err("duplicate")}else{fetch(candidate)})
                 }).collect();
                 workers.into_iter().map(|worker|worker.join().unwrap_or(Err("request"))).collect::<Vec<_>>()
             });
             for (candidate,result) in group.iter().zip(results){
                 match result{
-                    Ok(manifest) if !manifest.behavior_hints.configuration_required=>ready.push(Prepared{candidate:candidate.clone(),manifest}),
-                    other=>{
-                        let reason=match other{Ok(_)=>"configuration-required",Err(e)=>e};
-                        rejected.push(json!({"candidateId":candidate.id,"name":candidate.name,"reason":reason}));
-                    }
+                    Ok(manifest) if manifest.behavior_hints.configuration_required=>failed.push(Failed{candidate:candidate.clone(),reason:"configuration-required"}),
+                    Ok(manifest) if ready.len()<slots=>ready.push(Prepared{candidate:candidate.clone(),manifest}),
+                    Ok(_)=>failed.push(Failed{candidate:candidate.clone(),reason:"source-limit"}),
+                    Err(reason)=>failed.push(Failed{candidate:candidate.clone(),reason}),
                 }
             }
         }
-        let preview:Vec<_>=ready.iter().map(|row|json!({"candidateId":row.candidate.id,"name":row.candidate.name,
-            "host":host(&row.candidate.endpoint),"enabled":row.candidate.enabled,"manifest":summary(&row.manifest)})).collect();
-        self.import=Some(Flow{id,provider:flow.provider,created:Instant::now(),stage:Stage::Reviewed{rows:ready,account_order}});
-        Ok(json!({"importId":id,"provider":flow.provider.name(),"phase":"review","ready":preview,"rejected":rejected}))
+        (ready,failed)
     }
     pub(super) fn import_apply(&mut self,id:u32)->Result<Value>{
         let Some(flow)=self.import.as_ref().filter(|f|f.id==id&&!f.expired()) else{return Err("expired-review");};
         let Stage::Reviewed{rows,..}= &flow.stage else{return Err("expired-review");};
-        if rows.is_empty()||rows.len()>MAX_SOURCES-self.sources.len(){return Err("import-selection");}
+        if rows.len()>MAX_SOURCES-self.sources.len(){return Err("import-selection");}
         if rows.iter().any(|r|self.sources.iter().any(|s|s.endpoint.0==r.candidate.endpoint.0)){return Err("duplicate");}
         let end=self.sequence.checked_add(rows.len() as u32).ok_or("import-limit")?;
         let flow=self.take_import(id)?;
-        let Stage::Reviewed{rows,account_order}=flow.stage else{return Err("expired-review");};
+        let Stage::Reviewed{rows,failed,account_order}=flow.stage else{return Err("expired-review");};
         for row in rows {
             self.sequence+=1;
             self.sources.push(Source{id:self.sequence,endpoint:row.candidate.endpoint,manifest:row.manifest,enabled:row.candidate.enabled});
@@ -280,7 +290,29 @@ impl Registry{
             .position(|url| url == &source.endpoint.0).unwrap_or(usize::MAX));
         debug_assert_eq!(self.sequence,end);
         self.pending=None;
-        Ok(self.list())
+        let mut data=self.list();
+        data["rejected"]=json!(failed.iter().map(Self::import_failure).collect::<Vec<_>>());
+        let retryable:Vec<_>=failed.into_iter().filter(|row|row.reason!="duplicate"&&row.reason!="configuration-required").collect();
+        data["retryImportId"]=json!(if retryable.is_empty(){None}else{Some(id)});
+        if !retryable.is_empty(){
+            // Only failed manifest endpoints remain in volatile native memory.
+            // No login token, password or unselected account entries are retried.
+            self.import=Some(Flow{id,provider:flow.provider,created:Instant::now(),stage:Stage::Retry{failed:retryable,account_order}});
+        }
+        Ok(data)
+    }
+    pub(super) fn import_retry(&mut self,id:u32)->Result<Value>{
+        self.import_retry_with(id,&|candidate|candidate.endpoint.manifest())
+    }
+    fn import_retry_with(&mut self,id:u32,fetch:&(impl Fn(&Candidate)->Result<Manifest>+Sync))->Result<Value>{
+        let Some(flow)=self.import.as_ref().filter(|flow|flow.id==id&&!flow.expired()) else{return Err("expired-review");};
+        let Stage::Retry{failed,account_order}=&flow.stage else{return Err("expired-review");};
+        let chosen:Vec<_>=failed.iter().map(|row|row.candidate.clone()).collect();
+        let account_order=account_order.clone();
+        let provider=flow.provider;
+        let (rows,failed)=self.review_import_candidates(&chosen,fetch);
+        self.import=Some(Flow{id,provider,created:Instant::now(),stage:Stage::Reviewed{rows,failed,account_order}});
+        self.import_apply(id)
     }
     pub(super) fn import_cancel(&mut self,id:u32)->bool{
         if self.import.as_ref().is_some_and(|f|f.id==id){self.import=None;true}else{false}
@@ -340,13 +372,38 @@ mod tests{
         let existing=Endpoint::parse("https://example.org/existing/manifest.json").unwrap();
         registry.sources.push(Source{id:9,endpoint:existing.clone(),manifest:manifest.clone(),enabled:false});
         let account_order=vec![one.endpoint.0.clone(),existing.0,two.endpoint.0.clone()];
-        registry.import=Some(Flow{id:10,provider:Provider::Nuvio,created:Instant::now(),stage:Stage::Reviewed{account_order,rows:vec![Prepared{candidate:one,manifest:manifest.clone()},Prepared{candidate:two,manifest}]}});
+        registry.import=Some(Flow{id:10,provider:Provider::Nuvio,created:Instant::now(),stage:Stage::Reviewed{account_order,failed:vec![],rows:vec![Prepared{candidate:one,manifest:manifest.clone()},Prepared{candidate:two,manifest}]}});
         assert_eq!(registry.import_apply(9),Err("expired-review"));
         let result=registry.import_apply(10).unwrap();
         assert_eq!(result["sources"][0]["sourceId"],11);assert_eq!(result["sources"][0]["enabled"],false);
         assert_eq!(result["sources"][1]["sourceId"],9);assert_eq!(result["sources"][1]["enabled"],false);
         assert_eq!(result["sources"][2]["sourceId"],12);assert_eq!(result["sources"][2]["enabled"],true);
         assert_eq!(registry.import_apply(10),Err("expired-review"));
+    }
+    #[test]
+    fn failed_import_retries_only_selected_failures_and_restores_order(){
+        let mut registry=Registry::default();registry.sequence=10;
+        let manifest=Manifest::parse(br#"{"id":"fixture","name":"Fixture","version":"1","types":["movie"],"resources":["stream"]}"#).unwrap();
+        let first=candidate(1,Endpoint::parse("https://example.org/first/manifest.json").unwrap(),Some("First"),false);
+        let second=candidate(2,Endpoint::parse("https://example.org/second/manifest.json").unwrap(),Some("Second"),true);
+        registry.sources.push(Source{id:9,endpoint:second.endpoint.clone(),manifest:manifest.clone(),enabled:true});
+        let account_order=vec![first.endpoint.0.clone(),second.endpoint.0.clone()];
+        registry.import=Some(Flow{id:10,provider:Provider::Stremio,created:Instant::now(),stage:Stage::Reviewed{
+            rows:vec![],failed:vec![Failed{candidate:first.clone(),reason:"network"}],account_order}});
+        let applied=registry.import_apply(10).unwrap();
+        assert_eq!(applied["retryImportId"],10);
+        assert_eq!(applied["rejected"][0]["reason"],"network");
+        let retried=registry.import_retry_with(10,&|row|{assert_eq!(row.id,1);Ok(manifest.clone())}).unwrap();
+        assert_eq!(retried["retryImportId"],Value::Null);
+        assert_eq!(retried["sources"][0]["sourceId"],11);
+        assert_eq!(retried["sources"][0]["enabled"],false);
+        assert_eq!(retried["sources"][1]["sourceId"],9);
+        assert_eq!(registry.import_retry(10),Err("expired-review"));
+        registry.sources.reverse();
+        registry.import=Some(Flow{id:12,provider:Provider::Stremio,created:Instant::now(),stage:Stage::Candidates{rows:vec![first,second],skipped:0}});
+        let reviewed=registry.import_review(12,vec![]).unwrap();
+        assert_eq!(reviewed["ready"],json!([]));
+        assert_eq!(registry.import_apply(12).unwrap()["sources"][0]["sourceId"],11);
     }
     #[test]
     fn account_http_fixtures_bound_requests_and_refuse_redirects(){
