@@ -19,3 +19,8 @@
   .tsugi-direct-player header>div {min-width:0;overflow-wrap:anywhere;}
   .tsugi-direct-player input[type=range] {min-width:0;width:100%;}
 }
+
+.tsugi-direct-seek,.tsugi-direct-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.tsugi-direct-seek span{font-variant-numeric:tabular-nums;}
+.tsugi-direct-controls{justify-content:center;}
+.tsugi-direct-controls input[type=range]{flex:0 1 128px;min-width:72px;}

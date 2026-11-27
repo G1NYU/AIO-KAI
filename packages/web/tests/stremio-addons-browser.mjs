@@ -257,6 +257,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await page.getByRole('button',{name:'Movies & TV',exact:true}).first().click();
     const watch=page.locator('[data-page="direct-watch"]');
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 5 addons',exact:true}).click();
+    await watch.locator('[data-ui="watch-hub-picker"] [data-watch-destination="standalone"]').click();
     const board=watch.locator('[data-ui="watch-catalogue-board"]');
     const film=board.getByRole('button',{name:'Fixture cinema film',exact:true});
     await film.waitFor();
@@ -293,6 +294,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     console.log('PASS: imported standalone Watch profile loads ordered shelves, isolates failures, resolves metadata and streams across addons, and plays an exact anime episode without MAL or a media server.');
     await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Stream only 1 addons',exact:true}).click();
+    await watch.locator('[data-ui="watch-hub-picker"] [data-watch-destination="standalone"]').click();
     await board.getByRole('button',{name:'Public movie fixture',exact:true}).click();
     await groups.getByText('Independent stream',{exact:true}).waitFor();
     await groups.getByRole('button',{name:'Play',exact:true}).click();
@@ -327,7 +329,15 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await importAccount('nuvio');
     await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Browse only 0 addons',exact:true}).click();
-    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
+    const destinations=watch.locator('[data-ui="watch-hub-picker"]');
+    await destinations.waitFor();
+    assert.equal(await destinations.locator('[data-watch-destination]').count(),3);
+    assert.ok(await destinations.locator('[data-watch-destination="standalone"]').isEnabled());
+    assert.ok(await destinations.locator('[data-watch-destination="anime"]').isEnabled());
+    await destinations.locator('[data-watch-destination="standalone"]').click();
+    await watch.getByRole('button',{name:'Public movie fixture',exact:true}).waitFor();
+    await watch.getByRole('button',{name:'Streaming hubs',exact:true}).click();
+    await destinations.locator('[data-watch-destination="anime"]').click();
     const publicAnime=watch.locator('[data-ui="anime-public-discovery"]');
     await publicAnime.getByRole('button',{name:'Public anime discovery fixture',exact:true}).first().click();
     await item.getByRole('heading',{name:'Public anime discovery fixture',exact:true}).waitFor();
@@ -543,6 +553,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await firstLaunch.getByRole('button',{name:'Movies & TV',exact:true}).first().click();
     const watch=firstLaunch.locator('[data-page="direct-watch"]');
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 0 addons',exact:true}).click();
+    await watch.locator('[data-ui="watch-hub-picker"] [data-watch-destination="standalone"]').click();
     await watch.getByRole('heading',{name:'Movies & TV',exact:true}).waitFor();
     const watchGlyphs=await watch.locator('.tsugi-watch-nav [data-movie-glyph]').evaluateAll(nodes=>nodes.map(node=>({name:node.getAttribute('data-movie-glyph'),fill:node.getAttribute('fill'),stroke:node.getAttribute('stroke')})));
     assert.equal(watchGlyphs.length,5);assert.equal(new Set(watchGlyphs.map(g=>g.name)).size,5);assert.ok(watchGlyphs.every(g=>g.fill==='currentColor'&&g.stroke==='none'));
@@ -766,6 +777,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal(new Set(viewingIds).size,2);
     await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Cinema 0 addons',exact:true}).click();
+    await watch.locator('[data-ui="watch-hub-picker"] [data-watch-destination="standalone"]').click();
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
     await animePanel.getByText('No imported titles yet.',{exact:true}).waitFor();
     assert.equal(await animeFilm.count(),0);
@@ -786,6 +798,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal(await refract.getByText('Fixture member',{exact:true}).count(),0);
     await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 1 addons',exact:true}).click();
+    await watch.locator('[data-ui="watch-hub-picker"] [data-watch-destination="standalone"]').click();
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
     await animeFilm.waitFor();await animeSeries.waitFor();
     assert.match(await animeFilm.innerText(),/Source selected/);

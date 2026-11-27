@@ -177,11 +177,10 @@ function Standalone() {
   const [vaultTrack, setVaultTrack] = React.useState<{id:string;title:string} | null>(null);
   const openVault = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(null); setArea('vault'); }, []);
   const openVaultMusic = React.useCallback((track: {id:string;title:string}) => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(track); setArea('vault'); }, []);
-  const preferredWatch=React.useRef<'video'|'watch'>(area==='video'?'video':'watch');
-  const openVideo = React.useCallback(() => { preferredWatch.current='video'; setResumeTarget(null); setVaultComicTarget(null); setReadVisited(false); setArea('video'); }, []);
-  const [watchPane,setWatchPane]=React.useState<WatchEntryPane>('home');
-  const openWatchPane=React.useCallback((pane:WatchEntryPane)=>{if(pane!=='anime')preferredWatch.current='watch';setResumeTarget(null);setVaultComicTarget(null);setReadVisited(false);setWatchPane(pane);setArea('watch');},[]);
-  const openMovies=React.useCallback(()=>{if(preferredWatch.current==='video'||!appBridge()?.stremioAddons)openVideo();else openWatchPane('home');},[openVideo,openWatchPane]);
+  const openVideo = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setReadVisited(false); setArea('video'); }, []);
+  const [watchPane,setWatchPane]=React.useState<WatchEntryPane>('hubs');
+  const openWatchPane=React.useCallback((pane:WatchEntryPane)=>{setResumeTarget(null);setVaultComicTarget(null);setReadVisited(false);setWatchPane(pane);setArea('watch');},[]);
+  const openMovies=React.useCallback(()=>{if(!appBridge()?.stremioAddons)openVideo();else openWatchPane('hubs');},[openVideo,openWatchPane]);
   const openServerSearch=React.useCallback((title:string)=>{openVideo();navigate(to.search(title));},[openVideo]);
   const openWelcome = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setArea('welcome'); }, []);
   const openVideoDownloads = React.useCallback(() => { openVideo(); navigate(to.downloads); }, [openVideo]);

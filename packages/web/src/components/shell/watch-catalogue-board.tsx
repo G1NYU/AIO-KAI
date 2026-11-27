@@ -116,7 +116,7 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
       <MediaRow id={profileId+':watch-resume'} title={t({id:'Continue watching',message:'Continue watching'})} shape="wide">
         {continuing.map(({progress:p})=><WideCard key={JSON.stringify([p.mediaType,p.itemId,p.videoId])} onClick={()=>{if(!busy)openHistory?.(p);}} image={null} title={p.title} subtitle={p.episodeTitle??undefined} progress={100*p.positionMs/p.durationMs}/>)}
       </MediaRow>
-    </section>
+    </section>}
     {includeHistory&&historyFailed&&<p className="tsugi-watch-muted"><Trans>Watch history could not be loaded.</Trans> <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>setHistoryFailed(false)}><Trans>Retry</Trans></button></p>}
     {!targets.length?<section className="tsugi-watch-empty">
       <MovieGlyph name="addons"/><h3><Trans>No matching catalogues</Trans></h3>

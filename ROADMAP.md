@@ -2,6 +2,8 @@
 
 ## Streaming hub architecture correction
 
+**Latest acceptance gate:** after profile selection present three independent destinations; AIOStreams alone requires a server config. Standalone Movies & TV and Anime must open with zero addons, with metadata-only discovery and explicit playback availability. Settings only for imports. New title/episode and direct player controls pending CI; exact cross-ID anime resolution and player parity remain open.
+
 - Separate the server-backed and standalone-addon playback backends while reusing the existing Movies media rows, poster cards, wide cards and backdrop presentation. Account import, addon installation and ordering belong to Settings; imports return to the content hub. Anime Hub remains a content destination with public Jikan discovery independent of installed addons or a MAL account.
 - Use a fixed public Cinemeta catalogue/metadata fallback for stream-only profiles. The virtual metadata source is not installed, persisted, or eligible for stream grants. Existing profile-scoped native stream resolution and grant handoff remain unchanged. Public anime identities are exact MAL IDs; other provider identities require explicit source search or server search until validated cross-ID mapping exists. No fabricated episode IDs or automatic streaming-source installation.
 - References: Stremio addon protocol and Cinemeta manifest, Nuvio `HomeCatalogDefinitions.kt`, RE-Harbor `anime-rows.tsx` and `addons-anime-filter.ts`.

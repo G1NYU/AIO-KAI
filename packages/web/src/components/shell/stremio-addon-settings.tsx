@@ -7,6 +7,7 @@ import { RefractSettings, RefractWatchlist } from './refract-settings';
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { TsugiIcon } from '@/components/tsugi-icons';
 import { MovieGlyph } from '@/components/movie-icons';
+import { Artwork, WideCard } from '@/components/media/cards';
 import { useDesktopArea, type WatchEntryPane } from '@/lib/desktop-area';
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
@@ -41,9 +42,9 @@ function feedback(reason: unknown) {
     default: return t`The request could not be confirmed. Refresh the installed list before retrying an installation or change.`;
   }
 }
-type WatchPane = 'home'|'discover'|'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history'|'refract'|'anime';
+type WatchPane = 'hubs'|'home'|'discover'|'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history'|'refract'|'anime';
 const profileArt=['/design/oto/hero-yuna.webp','/design/yomi/hero-torii.webp','/design/shared/hero-neon.webp','/design/shared/hero-train.webp'];
-export function StremioAddonSettings({workspace=false,onPlay,historyActive=false,setupConnections=false,initialPane='addons'}:{workspace?:boolean;onPlay?:(playback:WatchPlayback)=>void;historyActive?:boolean;setupConnections?:boolean;initialPane?:WatchEntryPane}={}){
+export function StremioAddonSettings({workspace=false,onPlay,historyActive=false,setupConnections=false,initialPane='addons',openServer}:{workspace?:boolean;openServer?:()=>void;onPlay?:(playback:WatchPlayback)=>void;historyActive?:boolean;setupConnections?:boolean;initialPane?:WatchEntryPane}={}){
   const desktopArea=useDesktopArea();
   const [boardSearch,setBoardSearch]=React.useState('');
   const [entered,setEntered]=React.useState(false);
@@ -297,8 +298,9 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     </div>
   </section>;
   const show=(...panes:WatchPane[])=>!workspace||panes.includes(pane);
-  const hubPanes:WatchPane[]=['home','discover','anime','history'];
+  const hubPanes:WatchPane[]=['hubs','home','discover','anime','history'];
   const inSettings=!hubPanes.includes(pane);
+  const hubChooser=workspace&&!!onPlay&&pane==='hubs';
   const settingsTabs=([
     ['addons',t`Your addons`,'addons'],
     ['stremio',t`Stremio import`,'stremio'],
@@ -315,11 +317,35 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     choose(null);setBoardSearch(name);setPane('discover');
   }
   return <section className={workspace?onPlay?'tsugi-watch-workspace tsugi-watch-hub':'tsugi-app-general tsugi-watch-workspace tsugi-watch-configuration':'tsugi-app-general'} data-ui="stremio-addon-settings" data-watch-pane={pane} aria-labelledby={titleId}>
-    {workspace&&<header className={onPlay&&!inSettings?'tsugi-watch-hub-header':'tsugi-watch-workspace-banner'} style={{'--tsugi-watch-art':"url('/design/shared/hero-train.webp')"} as React.CSSProperties}>
+    {workspace&&!hubChooser&&<header className={onPlay&&!inSettings?'tsugi-watch-hub-header':'tsugi-watch-workspace-banner'} style={{'--tsugi-watch-art':"url('/design/shared/hero-train.webp')"} as React.CSSProperties}>
       <div><TsugiBrand/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}>{pane==='anime'?<Trans>Anime</Trans>:pane==='home'||pane==='discover'||pane==='history'?<Trans>Movies &amp; TV</Trans>:<Trans>Your addon stack.</Trans>}</h3>{(pane==='home'||pane==='discover')?<p><Trans>Watch from your connected catalogues and streaming addons.</Trans></p>:pane!=='anime'&&<p><Trans>Bring your sources home.</Trans></p>}</div>
-      <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void backToProfiles()}><MovieGlyph name="people"/> <Trans>Switch profile</Trans></button>
+      <div className="flex flex-wrap gap-2">
+        {onPlay&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('hubs')}><MovieGlyph name="grid"/> <Trans>Streaming hubs</Trans></button>}
+        <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void backToProfiles()}><MovieGlyph name="people"/> <Trans>Switch profile</Trans></button>
+      </div>
     </header>}
-    {workspace&&onPlay&&<nav className="tsugi-watch-nav" aria-label={t`Watch navigation`} data-ui="watch-hub-navigation">
+    {hubChooser&&<section className="tsugi-watch-destinations" data-ui="watch-hub-picker" aria-labelledby={titleId}>
+      <header className="tsugi-watch-workspace-banner" style={{'--tsugi-watch-art':"url('/design/shared/hero-neon.webp')"} as React.CSSProperties}>
+        <div><TsugiBrand/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}><Trans>Choose your streaming hub</Trans></h3><p><Trans>Browse movies, series and anime using the sources you choose.</Trans></p></div>
+        <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void backToProfiles()}><Trans>Switch profile</Trans></button>
+      </header>
+      <div className="tsugi-watch-destination-grid">
+        <button type="button" className="tsugi-watch-destination" data-watch-destination="aio" disabled={busy||!openServer} onClick={openServer}>
+          <span className="tsugi-watch-destination-art"><img src="/design/shared/hero-train.webp" alt="" decoding="async"/><MovieGlyph name="tv"/></span>
+          <strong><Trans>AIOStreams</Trans></strong><small><Trans>Requires a configured AIOStreams or media server connection.</Trans></small>
+        </button>
+        <button type="button" className="tsugi-watch-destination" data-watch-destination="standalone" disabled={busy} onClick={()=>void selectPane('home')}>
+          <span className="tsugi-watch-destination-art"><img src="/design/shared/hero-neon.webp" alt="" decoding="async"/><MovieGlyph name="home"/></span>
+          <strong><Trans>Movies &amp; TV</Trans></strong><small><Trans>Browse without addons. Watch with Stremio, Nuvio or individual addons.</Trans></small>
+        </button>
+        <button type="button" className="tsugi-watch-destination" data-watch-destination="anime" disabled={busy} onClick={()=>void selectPane('anime')}>
+          <span className="tsugi-watch-destination-art"><img src="/design/anime/hero-kagezora.webp" alt="" decoding="async"/><MovieGlyph name="anime"/></span>
+          <strong><Trans>Anime Hub</Trans></strong><small><Trans>Explore anime and films. No account or addon needed to browse.</Trans></small>
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-2 justify-center"><button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('addons')}><MovieGlyph name="settings"/> <Trans>Watch settings</Trans></button></div>
+    </section>}
+    {workspace&&onPlay&&!hubChooser&&<nav className="tsugi-watch-nav" aria-label={t`Watch navigation`} data-ui="watch-hub-navigation">
       {([
         ['home',t`Home`,'home'],
         ['discover',t`Discover`,'discover'],
@@ -328,7 +354,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
         ['addons',t`Settings`,'settings']
       ] as const).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={id==='addons'?inSettings:pane===id} disabled={busy} onClick={()=>void selectPane(id)}><MovieGlyph name={icon}/><span>{label}</span></button>)}
     </nav>}
-    <div className={workspace?'tsugi-watch-content':'contents'} data-watch-settings={workspace&&inSettings||undefined}>
+    <div className={workspace?'tsugi-watch-content':'contents'} data-watch-settings={workspace&&inSettings||undefined} hidden={hubChooser}>
     {workspace&&(!onPlay||inSettings)&&<nav className="tsugi-watch-settings-nav" aria-label={t`Watch settings`} data-ui="watch-settings-navigation">
       {(!onPlay&&setupConnections?[...settingsTabs,['anime',t`Anime`,'anime'] as const]:settingsTabs).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><MovieGlyph name={icon}/><span>{label}</span></button>)}
       {onPlay&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('home')}><Trans>Back to streaming hub</Trans></button>}
@@ -426,19 +452,28 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     {workspace&&pane==='mdblist'&&profileReady&&profileId!==undefined&&<MdblistSettings key={profileId} profileId={profileId} openTitle={item=>void openTitle(item)}/>}
     {workspace&&pane==='refract'&&(historyActive||setupConnections)&&profileReady&&profileId!==undefined&&<RefractSettings key={profileId} profileId={profileId} busy={busy} run={run}/>}
     {workspace&&title&&<section ref={detailRef} tabIndex={-1} className={automatic?'space-y-3 tsugi-watch-detail':'space-y-3'} data-ui="watch-item-details">
-      <div className="flex items-center justify-between gap-3"><h4>{details?.name??title.name}</h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={clearTitle}><Trans>Close title</Trans></button></div>
+      <div className="tsugi-watch-title-hero">
+        <div className="tsugi-watch-title-art"><Artwork src={title.poster??null} alt={title.name}/></div>
+        <div className="tsugi-watch-title-copy">
+          <div className="flex items-center justify-between gap-3 flex-wrap"><h4>{details?.name??title.name}</h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={clearTitle}><Trans>Close title</Trans></button></div>
+          <p className="tsugi-watch-muted">{title.mediaType==='movie'?t`Movie`:title.mediaType==='anime'?t`Anime`:t`Series`}</p>
+          {(details?.description||title.description)&&<p className="break-words">{details?.description??title.description}</p>}
+        </div>
+      </div>
       {resumeMatch?.episodeTitle&&<p>{resumeMatch.episodeTitle}</p>}
       {resumeMs>0&&<p><Trans>Saved playback position:</Trans> {watchTime(resumeMs)}</p>}
-      {(details?.description||title.description)&&<p className="break-words">{details?.description??title.description}</p>}
       {automatic&&<div className="flex flex-wrap gap-2"><button type="button" className="tsugi-read-action" disabled={busy} onClick={searchTitleInAddons}><Trans>Search this title across addons</Trans></button>{desktopArea?.openServerSearch&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>desktopArea.openServerSearch?.(title.name)}><Trans>Find on AIOStreams / media server</Trans></button>}</div>}
       {onPlay&&profileReady&&profileId!==undefined&&['movie','series'].includes(title.mediaType)&&<RefractWatchlist key={JSON.stringify([profileId,title.mediaType,title.id])} profileId={profileId} mediaType={title.mediaType} itemId={title.id} busy={busy} run={run}/>}
       <div className="flex flex-wrap gap-2">{sources.filter(s=>s.enabled&&s.manifest.resources.includes('meta')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readMetadata(title,s.sourceId)}><Trans>Details</Trans> · {s.manifest.name}</button>)}</div>
       {details&&details.videos.length>0&&<label className="block"><Trans>Video</Trans><select aria-label={t`Video`} className="tsugi-read-input w-full" value={videoId} disabled={busy} onChange={e=>selectVideo(e.target.value)}><option value=""><Trans>Select an episode or video</Trans></option>{details.videos.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></label>}
+      {automatic&&details&&details.videos.length>1&&<section className="space-y-2" data-ui="watch-episode-grid">
+        <h4><Trans>Episodes</Trans></h4><div className="tsugi-watch-episode-grid">{details.videos.map(video=><WideCard key={video.id} image={null} title={video.name} highlighted={videoId===video.id} unavailable={busy} onClick={()=>selectVideo(video.id)}/>)}</div>
+      </section>}
       {!videoId&&<p><Trans>Select a video from a compatible metadata addon before requesting streams.</Trans></p>}
       {videoId&&automatic&&<section className="space-y-3" data-ui="watch-stream-groups">
         <div className="flex items-center justify-between gap-2 flex-wrap"><h4><Trans>Available sources</Trans></h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={refreshStreams}><Trans>Refresh streams</Trans></button></div>
         {busy&&streamGroups===null&&<p role="status"><Trans>Finding streams from your addons…</Trans></p>}
-        {streamGroups?.length===0&&<p><Trans>No enabled addon declares support for this video.</Trans></p>}
+        {streamGroups?.length===0&&<div className="space-y-2"><p><Trans>No enabled addon declares support for this video.</Trans></p><button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('addons')}><Trans>Manage addons</Trans></button></div>}
         {streamGroups?.map(group=>{
           const provider=sources.find(source=>source.sourceId===group.sourceId);
           const result=group.options;

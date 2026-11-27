@@ -7,16 +7,17 @@ import { appBridge } from '@/lib/hosts/shell/bridge';
 import { consumeAddonMedia, loadAddonOptions, prepareAddonMedia, saveWatchProgress, type AddonOptions, type WatchPlayback, type WatchProgress } from '@/lib/hosts/shell/stremio';
 import { useMediaPresence } from '@/lib/rich-presence';
 import { usePlayerPage } from '@/app/player/page';
+import { leaveFullscreen, toggleDocumentFullscreen } from '@/lib/playback/fullscreen';
 import './watch.css';
 
-export function DirectWatchPage({openWelcome,openVideo,initialPane='home',settingsOpen=false}:{openWelcome:()=>void;openVideo:()=>void;initialPane?:WatchEntryPane;settingsOpen?:boolean}){
+export function DirectWatchPage({openWelcome,openVideo,initialPane='hubs',settingsOpen=false}:{openWelcome:()=>void;openVideo:()=>void;initialPane?:WatchEntryPane;settingsOpen?:boolean}){
   const [playing,setPlaying]=React.useState<WatchPlayback|null>(null);
   const [historyError,setHistoryError]=React.useState(false);
   return <main data-page="direct-watch" className="tsugi-direct-watch">
     <div hidden={!!playing} inert={!!playing}>
-      <header className="flex flex-wrap gap-3 justify-between"><button type="button" className="tsugi-read-action" onClick={openWelcome}><Trans id="All media">All media</Trans></button><button type="button" className="tsugi-read-action" onClick={openVideo}><Trans>AIOStreams / media server</Trans></button></header>
+      <header className="flex flex-wrap gap-3 justify-between"><button type="button" className="tsugi-read-action" onClick={openWelcome}><Trans id="All media">All media</Trans></button></header>
       {historyError&&<p role="alert"><Trans>Watch progress could not be confirmed saved. Check your history before resuming.</Trans></p>}
-      <StremioAddonSettings workspace initialPane={initialPane} onPlay={setPlaying} historyActive={!playing&&!settingsOpen}/>
+      <StremioAddonSettings workspace initialPane={initialPane} openServer={openVideo} onPlay={setPlaying} historyActive={!playing&&!settingsOpen}/>
     </div>
     {playing&&<DirectPlayer key={playing.grantId} playback={playing} close={()=>setPlaying(null)} onHistoryError={setHistoryError}/>}
   </main>;
@@ -24,6 +25,8 @@ export function DirectWatchPage({openWelcome,openVideo,initialPane='home',settin
 function DirectPlayer({playback,close,onHistoryError}:{playback:WatchPlayback;close:()=>void;onHistoryError:(failed:boolean)=>void}){
   const [status,setStatus]=React.useState<'loading'|'ready'|'error'|'ended'>('loading');
   const [paused,setPaused]=React.useState(false);
+  const [volume,setVolume]=React.useState<number|null>(null);
+  const [muted,setMuted]=React.useState(false);
   const [position,setPosition]=React.useState(0);
   const [duration,setDuration]=React.useState(0);
   const [subtitleOptions,setSubtitleOptions]=React.useState<AddonOptions|null>(null);
@@ -65,6 +68,7 @@ function DirectPlayer({playback,close,onHistoryError}:{playback:WatchPlayback;cl
     closing.current=true;setLeaving(true);
     // Freeze the last observation before stopping the native transport.
     appBridge()?.send({type:'player-stop'});
+    leaveFullscreen();
     await checkpoint(true);
     if(mounted.current)close();
   }
@@ -83,6 +87,8 @@ function DirectPlayer({playback,close,onHistoryError}:{playback:WatchPlayback;cl
         if(typeof message.positionMs==='number'&&Number.isFinite(message.positionMs)){current.current.position=Math.max(0,message.positionMs);setPosition(current.current.position);}
         if(typeof message.durationMs==='number'&&Number.isFinite(message.durationMs)){current.current.duration=Math.max(0,message.durationMs);setDuration(current.current.duration);}
         if(typeof message.paused==='boolean'){current.current.paused=message.paused;setPaused(message.paused);}
+        if(typeof message.volume==='number'&&Number.isFinite(message.volume))setVolume(Math.max(0,Math.min(100,message.volume)));
+        if(typeof message.muted==='boolean')setMuted(message.muted);
       }else if(message.type==='player-event'&&message.name==='loaded'){
         loaded.current=true;if(accepted.current)setStatus('ready');
       }else if(message.type==='player-ended'&&loaded.current&&accepted.current){
@@ -135,7 +141,14 @@ function DirectPlayer({playback,close,onHistoryError}:{playback:WatchPlayback;cl
     {!leaving&&status!=='ready'&&<div className="tsugi-direct-player-status" role={status==='error'?'alert':'status'}>{status==='loading'?<Trans>Opening stream…</Trans>:status==='error'?<Trans>Playback failed or the selection expired. Go back and request a fresh stream.</Trans>:<Trans>Playback ended.</Trans>}</div>}
     <footer>
       {!leaving&&status==='ready'&&<>
-        <div className="flex flex-wrap items-center gap-3"><button type="button" className="tsugi-read-action" onClick={()=>appBridge()?.send({type:'player-set',paused:!paused})}>{paused?<Trans>Play</Trans>:<Trans>Pause</Trans>}</button><span>{time(position)} / {time(duration)}</span><input type="range" aria-label={t`Playback position`} min={0} max={Math.max(duration,1)} value={Math.min(position,duration)} disabled={!duration} onChange={e=>seek(Number(e.target.value))}/></div>
+        <div className="tsugi-direct-seek"><span>{time(position)}</span><input type="range" aria-label={t`Playback position`} min={0} max={Math.max(duration,1)} value={Math.min(position,duration)} disabled={!duration} onChange={e=>seek(Number(e.target.value))}/><span>{time(duration)}</span></div>
+        <div className="tsugi-direct-controls">
+          <button type="button" className="tsugi-read-action" aria-label={t`Back 10 seconds`} disabled={!duration} onClick={()=>seek(Math.max(0,position-10000))}><Trans>−10s</Trans></button>
+          <button type="button" className="tsugi-read-action" onClick={()=>appBridge()?.send({type:'player-set',paused:!paused})}>{paused?<Trans>Play</Trans>:<Trans>Pause</Trans>}</button>
+          <button type="button" className="tsugi-read-action" aria-label={t`Forward 10 seconds`} disabled={!duration} onClick={()=>seek(Math.min(duration,position+10000))}><Trans>+10s</Trans></button>
+          {volume!==null&&<><button type="button" className="tsugi-read-action" onClick={()=>appBridge()?.send({type:'player-set',muted:!muted})}>{muted?<Trans>Unmute</Trans>:<Trans>Mute</Trans>}</button><input type="range" aria-label={t`Volume`} min={0} max={100} value={volume} onChange={e=>appBridge()?.send({type:'player-set',volume:Number(e.target.value),muted:false})}/></>}
+          <button type="button" className="tsugi-read-action" onClick={toggleDocumentFullscreen}><Trans>Toggle fullscreen</Trans></button>
+        </div>
         {historyBusy&&<p role="status"><Trans>Saving Watch progress…</Trans></p>}
         {playback.subtitleSources.length>0&&<details><summary><Trans>Addon subtitles</Trans></summary><div className="flex flex-wrap gap-2">{playback.subtitleSources.map(s=><button type="button" key={s.sourceId} className="tsugi-read-action" disabled={subtitleBusy||historyBusy} onClick={()=>void fetchSubtitles(s.sourceId)}>{s.name}</button>)}</div>
           {subtitleOptions&&<div className="max-h-40 overflow-auto">{subtitleOptions.rows.length===0?<p><Trans>No subtitles returned.</Trans></p>:subtitleOptions.rows.map((s,i)=><button className="tsugi-read-action" key={i} type="button" disabled={subtitleBusy||historyBusy||!s.supported} onClick={()=>void applySubtitle(i)}>{s.name} {s.language??''}</button>)}</div>}
