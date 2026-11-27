@@ -21,6 +21,9 @@ import { TsugiReleaseSettings } from './tsugi-release-settings';
 import { DiscordPresenceSettings } from './discord-presence-settings';
 import { StremioAddonSettings } from './stremio-addon-settings';
 import { SupportSummarySettings } from './support-summary-settings';
+import { Licenses } from '@/app/settings/_components/licenses';
+import { TsugiIcon } from '@/components/tsugi-icons';
+import { buildSupportSummary } from '@/lib/support-summary';
 import type { ArchiveKind, PortableArchive } from '@/lib/backup/archive';
 
 const IMPORT_COLORS_KEY = 'tsugi-global-import-colors-v1';
@@ -112,12 +115,19 @@ export function GlobalAppearanceSettings() {
 }
 export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:boolean;onClose():void;hasReadSection?:boolean}) {
   const [archive,setArchive]=React.useState<PortableArchive|null>(null);
+  const [licensesOpen,setLicensesOpen]=React.useState(false);
+  const licenseId=React.useId();
   const archived=(kind:ArchiveKind)=>archive?.entries.find(entry=>entry.kind===kind)?.payload;
   const [startup,setStartup] = React.useState(readStartupArea);
   const [layout,setLayout] = React.useState(() => readPlayerStage().id);
   const [matrix,setMatrix] = React.useState<MatrixMode>(readMatrixMode);
   const bridge = appBridge();
   const dialog = React.useRef<HTMLDialogElement>(null);
+  const build=buildSupportSummary({webBuild:__APP_COMMIT__,webVersion:__APP_VERSION__,bridge,infoStatus:'unavailable'});
+  const repo='https://github.com/G1NYU/TSUGI';
+  const revision=build.web.build?.split(' ')[0];
+  const source=revision?repo+'/tree/'+revision:repo+'/tree/feature/tsugi-read-runtime';
+  const file=(path:string)=>repo+'/blob/'+(revision||'feature/tsugi-read-runtime')+'/'+path;
   React.useEffect(() => {
     const node = dialog.current;
     if (!node) return;
@@ -126,7 +136,7 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
       setMatrix(readMatrixMode());
       node.showModal();
     }
-    else if (!open && node.open) node.close();
+    else if (!open && node.open) {node.close();setLicensesOpen(false);}
   }, [open]);
   return <dialog ref={dialog} className="tsugi-global-settings" onCancel={(event) => { event.preventDefault(); onClose(); }} aria-labelledby="tsugi-app-settings-title">
     <header><h2 id="tsugi-app-settings-title"><Trans id="App settings">App settings</Trans></h2><button className="tsugi-read-action" onClick={onClose}><Trans id="Close">Close</Trans></button></header>
@@ -197,12 +207,60 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
     <MihonImportSettings />
     <StorageUsageSettings />
     <TsugiReleaseSettings />
+    <section className="tsugi-app-general" data-ui="tsugi-report-bugs" aria-label={t`Report bugs`}>
+      <h3 className="flex items-center gap-2"><TsugiIcon name="cicada" className="h-5 w-5 flex-none"/><Trans>Report bugs</Trans></h3>
+      <p><Trans>Found a cicada? Search existing issues first, then describe the steps to reproduce the problem, what happened and what you expected.</Trans></p>
+      <p><Trans>GitHub issues are public. Review screenshots and logs before sharing. Never include passwords, API keys, configured addon links, tokens or private media URLs.</Trans></p>
+      <div className="flex flex-wrap gap-4">
+        <a className="text-[--tsugi-accent] underline" href={repo+'/issues'} target="_blank" rel="noopener noreferrer"><Trans>Browse known issues</Trans></a>
+        <a className="text-[--tsugi-accent] underline" href={repo+'/issues/new/choose'} target="_blank" rel="noopener noreferrer"><Trans>Report a bug</Trans></a>
+        <a className="text-[--tsugi-accent] underline" href={file('docs/support.md')} target="_blank" rel="noopener noreferrer"><Trans>Reporting guide</Trans></a>
+      </div>
+      <p><Trans>Use Diagnostics below to create and review a safe build summary. Nothing is uploaded by this section.</Trans></p>
+    </section>
     <SupportSummarySettings />
-    <section className="tsugi-app-about" aria-label={t`About Tsugi`}>
+    <section className="tsugi-app-about" data-ui="tsugi-about" aria-label={t`About Tsugi`}>
       <h3 className="font-semibold text-[--tsugi-ink]"><Trans>About Tsugi</Trans></h3>
-      {bridge?.version && <p><Trans>Native engine version</Trans> · {bridge.version}</p>}
-      <p><Trans>Open-source desktop media workspace. Music sources and server connections are managed in their respective sections.</Trans></p>
-      <a className="text-[--tsugi-accent] underline" href="https://github.com/G1NYU/TSUGI" target="_blank" rel="noopener noreferrer"><Trans>Project and documentation</Trans></a>
+      {build.web.version&&<p><Trans>Application version</Trans> · {build.web.version}</p>}
+      {build.web.build&&<p><Trans>Web build</Trans> · {build.web.build}</p>}
+      {build.native.bridgeVersion&&<p><Trans>Native engine version</Trans> · {build.native.bridgeVersion}</p>}
+      <p><Trans>Open-source desktop media workspace maintained by giinyu, independently developed from AIOStreams. Tsugi does not provide media, subscriptions or bundled content sources.</Trans></p>
+      <div className="flex flex-wrap gap-4">
+        <a className="text-[--tsugi-accent] underline" href={repo} target="_blank" rel="noopener noreferrer"><Trans>Project and documentation</Trans></a>
+        <a className="text-[--tsugi-accent] underline" href={source} target="_blank" rel="noopener noreferrer">{revision?<Trans>Source for this build</Trans>:<Trans>Development source</Trans>}</a>
+        <a className="text-[--tsugi-accent] underline" href={repo+'/releases'} target="_blank" rel="noopener noreferrer"><Trans>Releases and changelog</Trans></a>
+      </div>
+      <h4 className="mt-4 font-semibold text-[--tsugi-ink]"><Trans>Credits and attribution</Trans></h4>
+      <p><Trans>Built on the work of open-source maintainers, contributors and independent service developers. Tsugi is not affiliated with or endorsed by these projects.</Trans></p>
+      <ul className="grid gap-2">
+        {[
+          ['AIOStreams','https://github.com/Viren070/AIOStreams',t`Upstream application`],
+          ['Seanime','https://github.com/5rahim/seanime',t`Interface foundations`],
+          ['Stremio','https://github.com/Stremio',t`Addon ecosystem`],
+          ['Nuvio','https://github.com/NuvioMedia/NuvioDesktop',t`Addon account interoperability reference`],
+          ['Jellyfin','https://jellyfin.org',t`Media server API`],
+          ['mpv','https://mpv.io',t`Native playback`],
+          ['FFmpeg','https://ffmpeg.org',t`Media processing`],
+          ['yt-dlp','https://github.com/yt-dlp/yt-dlp',t`Music source tooling`],
+          ['Suwayomi','https://github.com/Suwayomi/Suwayomi-Server',t`Reading runtime`],
+          ['Mihon','https://github.com/mihonapp/mihon',t`Reading library interoperability`],
+          ['Readest / Foliate','https://github.com/readest/foliate-js',t`Ebook rendering`],
+          ['PDF.js','https://github.com/mozilla/pdf.js',t`PDF rendering`],
+          ['Aria2 Next','https://github.com/AnInsomniacy/aria2-next',t`Managed transfers`],
+          ['RE-Harbor','https://github.com/G1NYU/RE-Harbor',t`Refract tracking reference`],
+        ].map(([name,url,role])=><li className="flex flex-wrap items-baseline gap-x-2" key={name}><a className="text-[--tsugi-accent] underline" href={url} target="_blank" rel="noopener noreferrer">{name}</a><span>{role}</span></li>)}
+      </ul>
+      <p><Trans>Thanks also to Refract, MDBList, Discord, Deno, libass, the Eclipse community and all contributors to the libraries and providers used by Tsugi.</Trans></p>
+      <h4 className="mt-4 font-semibold text-[--tsugi-ink]"><Trans>Licenses and notices</Trans></h4>
+      <p><Trans>Tsugi is licensed under the GNU Affero General Public License version 3 (AGPL-3.0), inherited from AIOStreams. It is provided without warranty. Third-party components retain their own licenses and source obligations.</Trans></p>
+      <div className="flex flex-wrap gap-4">
+        <a className="text-[--tsugi-accent] underline" href={file('LICENSE')} target="_blank" rel="noopener noreferrer"><Trans>Read AGPL-3.0</Trans></a>
+        <a className="text-[--tsugi-accent] underline" href={file('packages/desktop/THIRD-PARTY.md')} target="_blank" rel="noopener noreferrer"><Trans>Third-party notices</Trans></a>
+        <a className="text-[--tsugi-accent] underline" href={file('README.md')+'#credits--license'} target="_blank" rel="noopener noreferrer"><Trans>Full acknowledgments</Trans></a>
+      </div>
+      <p><Trans>The portable release includes the project license, component notices and applicable source references. Browse the indexed licenses below, and consult the packaged notices for separately distributed tools.</Trans></p>
+      <button type="button" className="tsugi-read-action justify-self-start" aria-expanded={licensesOpen} aria-controls={licenseId} onClick={()=>setLicensesOpen(value=>!value)}>{licensesOpen?<Trans>Hide dependency licenses</Trans>:<Trans>Browse dependency licenses</Trans>}</button>
+      <div id={licenseId} hidden={!licensesOpen} className="min-w-0 space-y-3">{open&&licensesOpen&&<Licenses/>}</div>
     </section>
   </dialog>;
 }

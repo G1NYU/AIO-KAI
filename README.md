@@ -164,6 +164,10 @@ pnpm -F @aiostreams/web prepare:ebooks
 
 Node.js 24+, pnpm 11+ and Rust are required. See the [Windows packaging workflow](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/.github/workflows/tsugi-unified-windows.yml), [reading runtime notes](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/docs/tsugi-read-runtime.md), [roadmap](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/ROADMAP.md) and [development history](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/PROGRESS.md). Latest web, native and packaging checks passed. Live source compatibility, tracker authorization, provider transfers and physical performance remain acceptance items. Refract and MangaBaka are not shipped.
 
+## Support and bug reports
+
+Found a cicada? Use **App settings → Report bugs** or [browse Tsugi issues](https://github.com/G1NYU/TSUGI/issues). The in-app Diagnostics section creates a reviewable, allowlisted build summary without uploading logs or account details. See the [reporting guide](docs/support.md). About Tsugi includes matching source references, credits, dependency licenses and third-party notices.
+
 ## Credits & license
 
 Maintained by [giinyu](https://github.com/G1NYU) as an independent fork of [Viren070/AIOStreams](https://github.com/Viren070/AIOStreams). Not an official AIOStreams, Stremio, Jellyfin, Suwayomi, Mihon, Eclipse or YouTube application.

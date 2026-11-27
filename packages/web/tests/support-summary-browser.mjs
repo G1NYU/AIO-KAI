@@ -31,6 +31,10 @@ function installSupportSummaryFixture() {
   host.subscribe = listener => { listeners.add(listener); const remove = subscribe(listener); return () => { listeners.delete(listener); remove(); }; };
   host.send = message => {
     fixture.messages.push(message);
+    if (message.type === 'licenses') {
+      queueMicrotask(() => { for (const listener of listeners) listener({type:'licenses',texts:['Synthetic native license notice'],libraries:[{name:'tsugi-native-license-fixture',version:'1.0.0',licence:'MIT',texts:[0]}]}); });
+      return;
+    }
     if (message.type === 'app-info') {
       if (fixture.mode === 'respond') queueMicrotask(() => { for (const listener of listeners) listener(fixture.info); });
       return;
@@ -137,12 +141,46 @@ export async function verifySupportSummaryBrowser({ browser, origin, installDesk
     await page.evaluate(() => { window.aiostreamsApp = window.__supportSummaryFixture.bridge; });
     const forbidden = (await messages()).filter(message => ['diagnostics', 'download-list', 'open-logs', 'crash-report'].includes(message.type));
     assert.deepEqual(forbidden, [], 'the support-summary flow never collects logs, downloads or crash contents');
+    const report=page.locator('[data-ui="tsugi-report-bugs"]'),about=page.locator('[data-ui="tsugi-about"]');
+    assert.equal(await report.getByRole('heading',{name:'Report bugs',exact:true}).locator('svg').count(),1);
+    assert.equal(await report.getByRole('link',{name:'Report a bug',exact:true}).getAttribute('href'),'https://github.com/G1NYU/TSUGI/issues/new/choose');
+    assert.equal(await report.getByRole('link',{name:'Browse known issues',exact:true}).getAttribute('href'),'https://github.com/G1NYU/TSUGI/issues');
+    for(const link of await report.getByRole('link').all()){
+      assert.equal(await link.getAttribute('target'),'_blank');
+      assert.match(await link.getAttribute('rel'),/noopener/);
+      assert.equal((await link.getAttribute('href')).includes('SYNTHETIC_PRIVATE_SENTINEL'),false);
+    }
+    await about.getByRole('heading',{name:'Credits and attribution',exact:true}).waitFor();
+    await about.getByRole('heading',{name:'Licenses and notices',exact:true}).waitFor();
+    assert.match(await about.getByRole('link',{name:'Read AGPL-3.0',exact:true}).getAttribute('href'),/^https:\/\/github\.com\/G1NYU\/TSUGI\/blob\//);
+    assert.equal((await about.innerText()).includes('SYNTHETIC_PRIVATE_SENTINEL'),false);
+    const licenseCalls=async()=>(await messages()).filter(message=>message.type==='licenses');
+    assert.equal((await licenseCalls()).length,0,'opening settings does not request licenses');
+    const browse=about.getByRole('button',{name:'Browse dependency licenses',exact:true});
+    await browse.focus();await page.keyboard.press('Enter');
+    const search=about.getByRole('textbox',{name:'Search',exact:true});
+    await search.waitFor();await search.fill('tsugi-native-license-fixture');
+    const entry=about.locator('[data-ui="license-entry"]').filter({hasText:'tsugi-native-license-fixture'});
+    await entry.click();
+    await about.locator('[data-ui="license-text"]').getByText('Synthetic native license notice',{exact:true}).waitFor();
+    await about.getByRole('button',{name:'Back',exact:true}).click();
+    await entry.waitFor();
+    assert.equal((await licenseCalls()).length,1);
+    await about.getByRole('button',{name:'Hide dependency licenses',exact:true}).click();
+    assert.equal(await search.count(),0);
+    await about.scrollIntoViewIfNeeded();
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'tsugi-about-wide.png'),animations:'disabled'});
+    await report.scrollIntoViewIfNeeded();
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'tsugi-report-bugs.png'),animations:'disabled'});
     await summary.scrollIntoViewIfNeeded();
     if (screenshotDir) { await mkdir(screenshotDir, { recursive: true }); await page.screenshot({ path: join(screenshotDir, 'support-summary-wide.png'), animations: 'disabled' }); }
     await page.setViewportSize({ width: 440, height: 1000 }); await summary.scrollIntoViewIfNeeded(); await frames();
     assert.equal(await summary.evaluate(element => element.scrollWidth <= element.clientWidth + 1), true, 'the report fits its narrow settings panel');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
     if (screenshotDir) await page.screenshot({ path: join(screenshotDir, 'support-summary-narrow.png'), animations: 'disabled' });
+    await about.scrollIntoViewIfNeeded();await frames();
+    assert.equal(await about.evaluate(element=>element.scrollWidth<=element.clientWidth+1),true,'About fits its narrow settings panel');
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'tsugi-about-narrow.png'),animations:'disabled'});
     assert.deepEqual(errors, []);
     console.log('PASS: explicit safe support summary, tainted-field exclusion, exact preview copy, refreshed versions, timeout/unavailable recovery, keyboard actions and narrow layout.');
   } finally { await page.close(); }

@@ -55,7 +55,7 @@ export function LicensesSetting() {
   );
 }
 
-function Licenses() {
+export function Licenses() {
   const list = useQuery({
     queryKey: ['licenses'],
     queryFn: loadLicenses,

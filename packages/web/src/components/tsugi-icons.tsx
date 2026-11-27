@@ -42,6 +42,7 @@ const paths = {
   lyrics: 'M4 5h16v12h-9l-5 4v-4H4ZM8 9h8m-8 4h5',
   trash: 'M4 6h16M9 6V3.5h6V6M6 6l1 14h10l1-14M10 10v6m4-6v6',
   file: 'M5 3.5h9l5 5V21H5ZM14 3.5V9h5M9 15h6m-3-3v6',
+  cicada: 'M8 8C7 5 9 3.5 12 3.5S17 5 16 8M9 4.5 7.5 3m7.5 1.5L16.5 3M8 7h8M8 8C4 8 3.5 12 5 16c1 3 3.5 5 6 5L12 9m4-1c4 0 4.5 4 3 8-1 3-3.5 5-6 5L12 9M6.5 10.5 10 17m7.5-6.5L14 17M4.5 10 2.5 8m2 6L2 14m4 3-2 3m15.5-10L21.5 8m-2 6H22m-4 3 2 3',
 } as const;
 export type TsugiIconName = keyof typeof paths;
 export function TsugiIcon({ name, ...props }: Omit<SVGProps<SVGSVGElement>, 'name'> & { name: TsugiIconName }) {
