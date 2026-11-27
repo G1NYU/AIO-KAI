@@ -1,3 +1,7 @@
+## 2026-11-27 - Desktop Watch journey audit
+
+[Full journey and acceptance criteria](docs/watch-journey-audit.md) at 5d512b17. Windows and web checks passed in run 46002993854. Live Cinemeta responses exposed an episode-name mismatch. Next repairs are public anime discovery, preserving successful episode metadata, and the first-run/import transition. Real account and physical Windows playback acceptance remain open.
+
 ## 2026-11-27 — D4/D5 test beta verified after interrupted chat
 
 **Test candidate:** `cfa9aa69b432536db61c03c68cca06b77e13ee9e` — [CI 45991042639](https://github.com/G1NYU/TSUGI/actions/runs/45991042639) completed successfully. [Download Tsugi-Windows-x64-test](https://github.com/G1NYU/TSUGI/actions/runs/45991042639/artifacts/15195045278); extract the complete inner portable ZIP and launch `current/Tsugi.exe` in a separate test folder. Stable release publication skipped. Artifact ID 15195045278, outer artifact 178483898 bytes, SHA-256 `63d2acfaf58869205845c85f0f9d49e747d55197d3eaf4f0b8458811308733a0`; CI verified inner portable ZIP SHA-256 `D0BB91A586649383A3AD11FF493F52452E4057778243884DDA65A12B2E49DD36` after upload/download, exact build identity and required entries. Web typecheck/lint, 451 unit tests in 41 files, browser suite, native Windows build, 226 native tests (18 ignored) and actual bundled media tool validation passed. The separate windows-check job was skipped in package mode; prior cumulative CI passed it.
