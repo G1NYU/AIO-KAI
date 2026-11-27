@@ -9,7 +9,7 @@ import { TsugiBrand } from '@/components/tsugi-brand';
 import { TsugiIcon } from '@/components/tsugi-icons';
 import { MovieGlyph } from '@/components/movie-icons';
 import { Artwork } from '@/components/media/cards';
-import { Drawer } from '@aiostreams/ui/drawer';
+import { createPortal } from 'react-dom';
 import { useDesktopArea, type WatchEntryPane } from '@/lib/desktop-area';
 import { settings, useSetting } from '@/lib/settings';
 import { WatchPlaybackSettings } from '@/app/settings/page';
@@ -18,7 +18,7 @@ import { isWatchMovie, titleIdentityRoutes, mergeAliasMetadata, watchVideoRoutes
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { AddonError, retryAddonImport, cancelAddonImport, type ImportResult, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, loadAllAddonStreams, retryAddonStreams, type AddonStreamGroup, type AddonMetadata, type AddonVideo, type AddonOptions, prepareAddonMedia, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry } from '@/lib/hosts/shell/stremio';
+import { AddonError, retryAddonImport, cancelAddonImport, type ImportResult, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, beginAddonStreams, pollAddonStreams, cancelAddonStreams, retryAddonStreams, type AddonStreamGroup, type AddonMetadata, type AddonVideo, type AddonOptions, prepareAddonMedia, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry } from '@/lib/hosts/shell/stremio';
 
 function feedback(reason: unknown) {
   const code=reason instanceof AddonError?reason.code:'request';
@@ -89,6 +89,9 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const [sourceOpen,setSourceOpen]=React.useState(false);
   const sourceTrigger=React.useRef<HTMLElement|null>(null);
   const suppressSourceFocus=React.useRef(false);
+  const streamRequest=React.useRef<{profileId:number;queryId?:number;cancelled:boolean}|null>(null);
+  const [streamPending,setStreamPending]=React.useState<number|null>(null);
+  const streamBack=React.useRef<HTMLButtonElement>(null);
   const browseTrigger=React.useRef<HTMLElement|null>(null);
   const browseScroll=React.useRef<{element:Element;top:number;left:number}[]>([]);
   const handledReturn=React.useRef<WatchPlayback|null>(null);
@@ -123,9 +126,16 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       await reloadProfiles(state);
       if(mounted.current&&initialProfileId===state.activeProfileId)setEntered(true);
     });
-    return ()=>{mounted.current=false;const current=pending.current;pending.current=null;if(current)void cancelAddonReview(current.profileId,current.reviewId).catch(()=>{});};
+    return ()=>{mounted.current=false;stopStreams(true,false);const current=pending.current;pending.current=null;if(current)void cancelAddonReview(current.profileId,current.reviewId).catch(()=>{});};
   },[]);
-  function clearTitle(){setTitle(null);setDetails(null);setVideoId('');setSeasonChoice(null);setSourceOpen(false);setOptions(null);setResumeEntry(null);setStreamGroups(null);setAutomatic(false);}
+  function stopStreams(cancelNative=true,update=true){
+    const request=streamRequest.current;streamRequest.current=null;
+    if(request){request.cancelled=true;if(cancelNative&&request.queryId!==undefined)void cancelAddonStreams(request.profileId,request.queryId).catch(()=>{});}
+    if(update)setStreamPending(null);
+  }
+  function closeStreams(){if(flight.current)return;stopStreams();setSourceOpen(false);if(!suppressSourceFocus.current)requestAnimationFrame(()=>sourceTrigger.current?.focus({preventScroll:true}));}
+  React.useEffect(()=>{if(sourceOpen)streamBack.current?.focus({preventScroll:true});},[sourceOpen]);
+  function clearTitle(){stopStreams();setTitle(null);setDetails(null);setVideoId('');setSeasonChoice(null);setSourceOpen(false);setOptions(null);setResumeEntry(null);setStreamGroups(null);setAutomatic(false);}
   function rememberBrowse(){
     browseTrigger.current=document.activeElement instanceof HTMLElement?document.activeElement:null;
     const ancestors:Element[]=[];
@@ -223,6 +233,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   function contentPane(){return !!onPlay&&['home','discover','anime'].includes(pane);}
   async function launchStream(item:Title,video:string,metadata:AddonMetadata|null,picked:AddonOptions,index:number,startMs=0,episodeTitle:string|null=null){
     if(profileId===undefined||!onPlay||!picked.rows[index]?.supported)return;
+    stopStreams(false);
     const grantId=await prepareAddonMedia(profileId,picked.reviewId,index,false,startMs);
     if(!mounted.current)return;
     suppressSourceFocus.current=true;setSourceOpen(false);setOptions(null);setStreamGroups(null);
@@ -234,19 +245,32 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   async function fetchStreams(item:Title,video:string,autoStart=false,metadata:AddonMetadata|null=null,entry:WatchProgress|null=null){
     if(profileId===undefined||!video)return;
     const resolvedMetadata=metadata??(details?.id===item.id&&details.mediaType===item.mediaType?details:null);
-    const response=await loadAllAddonStreams(profileId,item.mediaType,video,watchVideoRoutes(item,video,resolvedMetadata));
-    if(!mounted.current)return;
-    // The installed source order is the standalone equivalent of the server's
-    // preferred-version order. Never race untrusted media URLs or bypass grants.
-    const groups=sources.filter(s=>s.enabled).flatMap(s=>response.filter(g=>g.sourceId===s.sourceId));
-    setStreamGroups(groups);
-    if(!autoStart||!autoPlayFirst||!onPlay)return;
-    const first=groups.find(group=>group.options?.rows.some(row=>row.supported))?.options;
-    if(!first)return;
-    const index=first.rows.findIndex(row=>row.supported);
-    const startMs=entry&&!entry.completed&&entry.positionMs<entry.durationMs?entry.positionMs:0;
-    try{await launchStream(item,video,resolvedMetadata,first,index,startMs,entry?.episodeTitle??null);}
-    catch{if(mounted.current)setNotice(t`Automatic playback could not start. Choose a stream below.`);}
+    stopStreams();setStreamGroups(null);setStreamPending(-1);setError('');setNotice('');
+    const request:{profileId:number;queryId?:number;cancelled:boolean}={profileId,cancelled:false};
+    streamRequest.current=request;
+    try{
+      let snapshot=await beginAddonStreams(profileId,item.mediaType,video,watchVideoRoutes(item,video,resolvedMetadata));
+      request.queryId=snapshot.queryId;
+      if(request.cancelled){void cancelAddonStreams(profileId,snapshot.queryId).catch(()=>{});return;}
+      while(mounted.current&&streamRequest.current===request){
+        const groups=sources.filter(s=>s.enabled).flatMap(s=>snapshot.groups.filter(g=>g.sourceId===s.sourceId));
+        setStreamGroups(groups);setStreamPending(snapshot.done?null:snapshot.pendingSourceIds.length);
+        if(snapshot.done){
+          if(autoStart&&autoPlayFirst&&onPlay&&!flight.current){
+            const first=groups.find(group=>group.options?.rows.some(row=>row.supported))?.options;
+            if(first){
+              const index=first.rows.findIndex(row=>row.supported);
+              const startMs=entry&&!entry.completed&&entry.positionMs<entry.durationMs?entry.positionMs:0;
+              await run(()=>launchStream(item,video,resolvedMetadata,first,index,startMs,entry?.episodeTitle??null));
+            }
+          }
+          return;
+        }
+        await new Promise(resolve=>setTimeout(resolve,250));
+        if(request.cancelled||!mounted.current||streamRequest.current!==request)return;
+        snapshot=await pollAddonStreams(profileId,snapshot.queryId,item.mediaType,video);
+      }
+    }catch(reason){if(mounted.current&&streamRequest.current===request){setStreamPending(null);setError(feedback(reason));}}
   }
   async function resolveMetadata(item:Title,preferredSourceId?:number,allowMapping=true):Promise<{item:Title;metadata:AddonMetadata|null}>{
     if(profileId===undefined)return {item,metadata:null};
@@ -328,7 +352,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       const {metadata}=await resolveMetadata(item,undefined,false);
       if(!mounted.current)return;
       setDetails(metadata);
-      await fetchStreams(item,entry.videoId,true,metadata,entry);
+      void fetchStreams(item,entry.videoId,true,metadata,entry);
     });}
   }
   async function readMetadata(item:Title,sourceId:number){
@@ -358,7 +382,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   function selectVideo(video:string){
     if(flight.current)return;
     setVideoId(video);setOptions(null);setStreamGroups(null);
-    if(automatic&&title&&video){showSources();void run(()=>fetchStreams(title,video,true,details,resumeEntry?.videoId===video?resumeEntry:null));}
+    if(automatic&&title&&video){showSources();void fetchStreams(title,video,true,details,resumeEntry?.videoId===video?resumeEntry:null);}
   }
   React.useEffect(()=>{
     if(!returnedPlayback||handledReturn.current===returnedPlayback||!title||returnedPlayback.profileId!==profileId||returnedPlayback.mediaType!==title.mediaType||returnedPlayback.itemId!==title.id)return;
@@ -373,7 +397,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     return ()=>{current=false;};
   },[returnedPlayback,profileId,title]);
   function retryStream(sourceId:number){
-    if(flight.current||profileId===undefined||!title||!videoId||!streamGroups?.some(group=>group.sourceId===sourceId))return;
+    if(flight.current||streamPending!==null||profileId===undefined||!title||!videoId||!streamGroups?.some(group=>group.sourceId===sourceId))return;
     void run(async()=>{
       const group=await retryAddonStreams(profileId,sourceId,title.mediaType,videoId);
       if(mounted.current)setStreamGroups(previous=>previous?.map(row=>row.sourceId===sourceId?group:row)??null);
@@ -381,7 +405,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   }
   function refreshStreams(){
     if(flight.current||!title||!videoId)return;
-    setOptions(null);setStreamGroups(null);if(!sourceOpen)showSources();void run(()=>fetchStreams(title,videoId));
+    setOptions(null);setStreamGroups(null);if(!sourceOpen)showSources();void fetchStreams(title,videoId);
   }
   async function readOptions(sourceId:number,subtitles:boolean){
     if(flight.current||profileId===undefined||!title||!videoId)return;
@@ -653,19 +677,18 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
         </button>)}</div>
       </section>}
       {!videoId&&!videos.length&&<p><Trans>Select a video from a compatible metadata addon before requesting streams.</Trans></p>}
-      {automatic&&<Drawer open={sourceOpen} title={t`Choose your stream`} description={details?.name??title.name} side="right" size="lg"
-        onOpenChange={open=>{if(!open&&!flight.current)setSourceOpen(false);}}
-        onCloseAutoFocus={event=>{event.preventDefault();if(!suppressSourceFocus.current&&sourceTrigger.current?.isConnected)sourceTrigger.current.focus({preventScroll:true});}}
-        contentClass="flex flex-col gap-3 overflow-y-auto p-4">
-        <section className="space-y-3" data-ui="watch-stream-groups">
-          {selectedVideo&&!isWatchMovie(title.mediaType)&&<h4>{selectedVideo.name}</h4>}
-          <div className="flex items-center justify-between gap-2 flex-wrap"><h4><Trans>Available sources</Trans></h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={refreshStreams}><Trans>Refresh streams</Trans></button></div>
-          {busy&&streamGroups===null&&<p role="status"><Trans>Finding streams from your addons…</Trans></p>}
-          {streamGroups&&streamGroups.every(group=>group.error==='unsupported-resource')&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('addons')}><Trans>Manage addons</Trans></button>}
-          {streamGroups&&<AddonVersionList groups={streamGroups} sources={sources.map(s=>({sourceId:s.sourceId,name:s.manifest.name}))} busy={busy} resumeMs={resumeMs} onRetry={retryStream} onPick={(group,result,index,resume)=>void playOption(index,resume,{sourceId:group.sourceId,subtitles:false,...result})}/>}
+      {automatic&&sourceOpen&&createPortal(<section className="tsugi-watch-stream-page" role="dialog" aria-modal="true" aria-label={t`Choose your stream`} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();closeStreams();}}}>
+        <div className="tsugi-watch-stream-background" aria-hidden="true"><Artwork src={[selectedVideo?.thumbnail,details?.background,title.background,details?.poster,title.poster].filter((value):value is string=>!!value)} alt=""/></div>
+        <div className="tsugi-watch-stream-inner" data-ui="watch-stream-groups">
+          <header className="tsugi-watch-stream-header"><button ref={streamBack} type="button" className="tsugi-read-action" disabled={busy} onClick={closeStreams}>← <Trans>Back</Trans></button><button type="button" className="tsugi-read-action" disabled={busy} onClick={refreshStreams}><Trans>Refresh streams</Trans></button></header>
+          <div className="tsugi-watch-stream-intro"><p className="tsugi-watch-muted">{details?.name??title.name}</p><h2>{selectedVideo&&!isWatchMovie(title.mediaType)?selectedVideo.name:details?.name??title.name}</h2>{selectedVideo?.description&&<p>{selectedVideo.description}</p>}</div>
+          <h3><Trans>Available sources</Trans></h3>
+          {streamPending!==null&&<p role="status" className="tsugi-watch-muted">{streamPending<0?<Trans>Finding streams from your addons…</Trans>:<Trans>{streamPending} providers still loading…</Trans>}</p>}
+          {streamGroups&&streamPending===null&&streamGroups.every(group=>group.error==='unsupported-resource')&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>{closeStreams();void selectPane('addons');}}><Trans>Manage addons</Trans></button>}
+          {streamGroups&&(streamGroups.length>0||streamPending===null)&&<AddonVersionList groups={streamGroups} sources={sources.map(s=>({sourceId:s.sourceId,name:s.manifest.name}))} busy={busy} resumeMs={resumeMs} onRetry={streamPending===null?retryStream:undefined} onPick={(group,result,index,resume)=>void playOption(index,resume,{sourceId:group.sourceId,subtitles:false,...result})}/>}
           {notice&&<p role="status">{notice}</p>}{error&&<p role="alert">{error}</p>}
-        </section>
-      </Drawer>}
+        </div>
+      </section>,document.body)}
       {videoId&&!automatic&&<><h4><Trans>Available sources</Trans></h4><div className="flex flex-wrap gap-2">
         {sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readOptions(s.sourceId,false)}><Trans>Streams</Trans> · {s.manifest.name}</button>)}
         {sources.filter(s=>s.enabled&&s.manifest.resources.includes('subtitles')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readOptions(s.sourceId,true)}><Trans>Subtitles</Trans> · {s.manifest.name}</button>)}

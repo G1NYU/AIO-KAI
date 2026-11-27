@@ -77,7 +77,7 @@ export function installStremioFixture(initializeStartup=true){
     if(raw.kind!=='profile-request'||raw.profileId!==f.active)return emit(null,'profile-changed');
     const a=raw.action,profile=f.profiles.find(p=>p.profileId===f.active);
     const reply=data=>emit({...data,profileId:raw.profileId});
-    if(['catalog','metadata','item-options','all-stream-options','install','remove','move','set-enabled','import-apply','import-retry'].includes(a.kind)){f.mediaReview=null;f.streamReviews=[];f.streamQuery=null;}
+    if(['catalog','metadata','item-options','all-stream-options','begin-stream-options','install','remove','move','set-enabled','import-apply','import-retry'].includes(a.kind)){f.mediaReview=null;f.streamReviews=[];f.streamQuery=null;}
     switch(a.kind){
       case 'list':return reply({sources:profile.sources});
       case 'mal-anime-list':return reply({entries:profile.malAnime??[],matches:profile.malMatches??[]});
@@ -223,6 +223,7 @@ export function installStremioFixture(initializeStartup=true){
         const videos=!f.emptyMetadata&&a.mediaType==='series'?[{id:'tt90002:1:1',name:'Episode one',season:1,episode:1,thumbnail:'https://image.tmdb.org/t/p/w300/episode.jpg',description:'Episode overview from the provider.'},{id:'tt90002:1:2',name:'Episode two',season:1,episode:2},{id:'tt90002:0:1',name:'Special',season:0,episode:1},{id:'tt90002:2:1',name:'Second season',season:2,episode:1},{id:'tt90002:extra',name:'Unnumbered episode',season:null,episode:null}]:[];
         return reply({sourceId:a.sourceId,mediaType:a.mediaType,itemId:a.itemId,metadata:{id:a.itemId,name:a.mediaType==='series'?'Fixture anime series':'Fixture cinema film',mediaType:a.mediaType,description:'Metadata from the separate metadata addon.',poster:'https://image.tmdb.org/t/p/w500/detail.jpg',background:'https://images.metahub.space/background/medium/tt90001/img',imdbRating:8.6,releaseInfo:'2024',runtime:'57 min',genres:['Drama'],cast:['Fixture Actor'],directors:['Fixture Director'],videos}});
       }
+      case 'begin-stream-options':
       case 'all-stream-options':{
         f.streamQuery={mediaType:a.mediaType,videoId:a.videoId,sourceIds:profile.sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(s=>s.sourceId)};
         const groups=profile.sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(source=>{
@@ -230,7 +231,20 @@ export function installStremioFixture(initializeStartup=true){
           const id=++f.sequence;f.streamReviews.push({id,sourceId:source.sourceId,subtitles:false});
           return {sourceId:source.sourceId,reviewId:id,error:null,options:[{name:'HD fixture',supported:true,reason:'direct-https',language:null},...(f.boardFixture&&source.sourceId===102?[{name:'Alternate HD fixture',detail:'1080p HEVC',supported:true,reason:'direct-https',language:null}]:[]),{name:'Unsupported fixture',supported:false,reason:'unsupported-transport',language:null}]};
         });
+        if(a.kind==='begin-stream-options'){
+          const queryId=++f.sequence;f.progressive={queryId,mediaType:a.mediaType,videoId:a.videoId,groups};
+          const pending=groups.length>1?groups.slice(1):[];
+          return reply({queryId,mediaType:a.mediaType,videoId:a.videoId,groups:groups.slice(0,1),pendingSourceIds:pending.map(g=>g.sourceId),done:pending.length===0});
+        }
         return reply({mediaType:a.mediaType,videoId:a.videoId,groups});
+      }
+      case 'poll-stream-options':{
+        if(!f.progressive||f.progressive.queryId!==a.queryId||!f.streamQuery)return emit(null,'expired-review');
+        return reply({...f.progressive,pendingSourceIds:[],done:true});
+      }
+      case 'cancel-stream-options':{
+        if(f.progressive?.queryId===a.queryId){f.progressive=null;f.streamQuery=null;f.streamReviews=[];}
+        return reply({cancelled:true});
       }
       case 'retry-stream-options':{
         if(!f.streamQuery||f.streamQuery.mediaType!==a.mediaType||f.streamQuery.videoId!==a.videoId)return emit(null,'expired-review');
@@ -351,7 +365,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await item.getByText('Fixture Actor',{exact:true}).waitFor();
     assert.equal(await item.locator('.tsugi-watch-title-backdrop').count(),1);
     assert.equal(await groups.count(),0);
-    assert.equal(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='all-stream-options')),false);
+    assert.equal(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&['all-stream-options','begin-stream-options'].includes(a.action.kind))),false);
     await item.locator('[data-ui="watch-play-title"]').click();
     await groups.getByText('Streaming only',{exact:true}).waitFor();
     await groups.getByText('This addon could not return streams. Other sources remain available.',{exact:true}).waitFor();
@@ -418,7 +432,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await results.getByRole('button',{name:'Fixture alias movie',exact:true}).click();
     await item.locator('[data-ui="watch-play-title"]').click();
     await groups.getByRole('button',{name:'Play',exact:true}).first().waitFor();
-    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='all-stream-options'&&a.action.videoId==='tmdb:90007'&&a.action.alternatives?.some(route=>route.videoId==='tt90007'&&route.mediaType==='movie'))));
+    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&['all-stream-options','begin-stream-options'].includes(a.action.kind)&&a.action.videoId==='tmdb:90007'&&a.action.alternatives?.some(route=>route.videoId==='tt90007'&&route.mediaType==='movie'))));
     await page.keyboard.press('Escape');
     await groups.waitFor({state:'detached'});
     await item.getByRole('button',{name:'Close title',exact:true}).click();
@@ -457,7 +471,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await groups.getByRole('button',{name:'Play',exact:true}).first().click();
     await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
     await player.hover();
-    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='all-stream-options'&&a.action.videoId==='tt90002:1:2')));
+    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&['all-stream-options','begin-stream-options'].includes(a.action.kind)&&a.action.videoId==='tt90002:1:2')));
     assert.equal(await page.evaluate(()=>window.__stremioFixture.profiles[0].malAnime?.length??0),0);
     await player.hover();
     await player.getByRole('button',{name:'Back',exact:true}).click();
@@ -480,12 +494,12 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await item.locator('[data-video-id="kitsu:90004:1"]').click();
     await groups.getByRole('button',{name:'Play',exact:true}).first().click();
     await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
-    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='all-stream-options'&&a.action.videoId==='kitsu:90004:1')));
+    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&['all-stream-options','begin-stream-options'].includes(a.action.kind)&&a.action.videoId==='kitsu:90004:1')));
     const beforeNext=await page.evaluate(()=>window.__stremioFixture.mediaCalls.filter(m=>m.type==='stremio-consume-grant').length);
     await page.evaluate(()=>{window.__stremioFixture.emitPlayer({type:'player-state',positionMs:119000,durationMs:120000});window.__stremioFixture.emitPlayer({type:'player-ended',reason:'eof',error:null});});
     await page.waitForFunction(n=>window.__stremioFixture.mediaCalls.filter(m=>m.type==='stremio-consume-grant').length===n+1,beforeNext);
     await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
-    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='all-stream-options'&&a.action.videoId==='kitsu:90004:2')));
+    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&['all-stream-options','begin-stream-options'].includes(a.action.kind)&&a.action.videoId==='kitsu:90004:2')));
     await player.hover();
     await player.getByRole('button',{name:'Back',exact:true}).click();
     await player.waitFor({state:'detached'});

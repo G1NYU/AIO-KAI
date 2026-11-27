@@ -71,7 +71,7 @@ fn name_valid(name: &str) -> bool {
 }
 fn source_action(action: &Action) -> bool {
     matches!(action,Action::List|Action::Review{..}|Action::Install{..}|Action::CancelReview{..}|
-        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::AllStreamOptions{..}|Action::RetryStreamOptions{..}|Action::PrepareMedia{..}|Action::MalAnimeList|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::MalAnimeMatch{..}|Action::MalAnimeUnmatch{..}|Action::WatchHistory|Action::WatchRecord{..}|Action::WatchComplete{..}|Action::WatchRemove{..}|Action::RefractStatus|Action::RefractConnect{..}|Action::RefractThreshold{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractSync|Action::RefractWatchlist{..}|Action::WatchSetupStatus|Action::TmdbConnect{..}|Action::TmdbDisconnect|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
+        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::AllStreamOptions{..}|Action::BeginStreamOptions{..}|Action::PollStreamOptions{..}|Action::CancelStreamOptions{..}|Action::RetryStreamOptions{..}|Action::PrepareMedia{..}|Action::MalAnimeList|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::MalAnimeMatch{..}|Action::MalAnimeUnmatch{..}|Action::WatchHistory|Action::WatchRecord{..}|Action::WatchComplete{..}|Action::WatchRemove{..}|Action::RefractStatus|Action::RefractConnect{..}|Action::RefractThreshold{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractSync|Action::RefractWatchlist{..}|Action::WatchSetupStatus|Action::TmdbConnect{..}|Action::TmdbDisconnect|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
         Action::ImportConnect{..}|Action::ImportNuvioProfile{..}|Action::ImportReview{..}|Action::ImportApply{..}|Action::ImportRetry{..}|Action::ImportCancel{..})
 }
 pub(super) fn is_mutation(action: &Action) -> bool {
@@ -104,6 +104,20 @@ impl Profiles {
         let mut grant=self.profiles[index].registry.grant.take()?;
         grant.profile_id=self.active;
         Some(grant)
+    }
+    #[cfg(windows)]
+    pub(super) fn next_stream_job(&mut self)->Option<super::stream_progress::Job>{
+        let index=self.index(self.active).ok()?;
+        self.profiles[index].registry.next_stream_job(self.active)
+    }
+    #[cfg(windows)]
+    pub(super) fn finish_stream_job(&mut self,job:super::stream_progress::JobResult){
+        if job.profile_id!=self.active{return;}
+        let Ok(index)=self.index(self.active)else{return;};
+        let registry=&mut self.profiles[index].registry;
+        registry.sequence=self.sequence;
+        registry.finish_stream_job(job);
+        self.sequence=registry.sequence;
     }
     pub(super) fn expire_all(&mut self){for profile in &mut self.profiles{profile.registry.expire();}}
     #[cfg(any(windows,test))]
@@ -149,7 +163,7 @@ impl Profiles {
                 if self.active!=profile_id {
                     // Reviews cannot survive a profile switch. Source ids
                     // are globally unique and never reused by another profile.
-                    for profile in &mut self.profiles {profile.registry.pending=None;profile.registry.import=None;profile.registry.media_review=None;profile.registry.stream_reviews.clear();profile.registry.stream_query=None;profile.registry.mal_review=None;profile.registry.grant=None;}
+                    for profile in &mut self.profiles {profile.registry.pending=None;profile.registry.import=None;profile.registry.media_review=None;profile.registry.stream_reviews.clear();profile.registry.stream_query=None;profile.registry.progressive=None;profile.registry.mal_review=None;profile.registry.grant=None;}
                     self.active=profile_id;
                 }
                 Ok(self.list())

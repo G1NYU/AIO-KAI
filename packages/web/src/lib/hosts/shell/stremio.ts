@@ -36,7 +36,7 @@ type ImportAction = {kind:'import-connect';provider:ImportProvider;email:string;
   | {kind:'import-nuvio-profile';importId:number;remoteProfile:number}
   | {kind:'import-review';importId:number;selected:number[]}
   | {kind:'import-apply';importId:number} | {kind:'import-retry';importId:number} | {kind:'import-cancel';importId:number};
-type ItemAction = {kind:'metadata';sourceId:number;mediaType:string;itemId:string} | {kind:'item-options';sourceId:number;mediaType:string;videoId:string;subtitles:boolean} | {kind:'all-stream-options';mediaType:string;videoId:string;alternatives?:VideoRoute[]} | {kind:'retry-stream-options';sourceId:number;mediaType:string;videoId:string} | {kind:'prepare-media';reviewId:number;optionIndex:number;startMs:number};
+type ItemAction = {kind:'metadata';sourceId:number;mediaType:string;itemId:string} | {kind:'item-options';sourceId:number;mediaType:string;videoId:string;subtitles:boolean} | {kind:'all-stream-options';mediaType:string;videoId:string;alternatives?:VideoRoute[]} | {kind:'begin-stream-options';mediaType:string;videoId:string;alternatives?:VideoRoute[]} | {kind:'poll-stream-options'|'cancel-stream-options';queryId:number} | {kind:'retry-stream-options';sourceId:number;mediaType:string;videoId:string} | {kind:'prepare-media';reviewId:number;optionIndex:number;startMs:number};
 type MdblistAction={kind:'mdblist-status'}|{kind:'mdblist-connect';key:string}|{kind:'mdblist-disconnect'}|{kind:'mdblist-lists'}|{kind:'mdblist-page';listId:number;offset:number};
 export type WatchProgress={mediaType:string;itemId:string;videoId:string;title:string;episodeTitle:string|null;positionMs:number;durationMs:number;completed:boolean};
 export type WatchHistoryEntry={progress:WatchProgress;updatedAt:number};
@@ -339,6 +339,25 @@ function parseStreamGroup(value:unknown):AddonStreamGroup{
     return {sourceId,options:null,error:codes.has(row.error)?row.error:'request'};
   }
   return {sourceId,options:{reviewId:integer(row.reviewId,1,0xffffffff),rows}};
+}
+export type StreamSnapshot={queryId:number;groups:AddonStreamGroup[];pendingSourceIds:number[];done:boolean};
+function streamSnapshot(v:Record<string,unknown>,mediaType:string,videoId:string,queryId?:number):StreamSnapshot{
+  if(v.mediaType!==mediaType||v.videoId!==videoId)return fail();
+  const id=integer(v.queryId,1,0xffffffff),groups=array(v.groups,MAX_ADDON_SOURCES,parseStreamGroup),pendingSourceIds=array(v.pendingSourceIds,MAX_ADDON_SOURCES,value=>integer(value,1,0xffffffff)),done=bool(v.done);
+  const ids=[...groups.map(g=>g.sourceId),...pendingSourceIds];
+  if((queryId!==undefined&&id!==queryId)||ids.length>MAX_ADDON_SOURCES||new Set(ids).size!==ids.length||done!==(pendingSourceIds.length===0))return fail();
+  const reviews=groups.flatMap(g=>g.options?[g.options.reviewId]:[]);
+  if(new Set(reviews).size!==reviews.length)return fail();
+  return {queryId:id,groups,pendingSourceIds,done};
+}
+export async function beginAddonStreams(profileId:number,mediaType:string,videoId:string,alternatives:VideoRoute[]=[]){
+  return streamSnapshot(await scoped(profileId,{kind:'begin-stream-options',mediaType,videoId,alternatives:alternatives.slice(0,8)}),mediaType,videoId);
+}
+export async function pollAddonStreams(profileId:number,queryId:number,mediaType:string,videoId:string){
+  return streamSnapshot(await scoped(profileId,{kind:'poll-stream-options',queryId}),mediaType,videoId,queryId);
+}
+export async function cancelAddonStreams(profileId:number,queryId:number){
+  await scoped(profileId,{kind:'cancel-stream-options',queryId});
 }
 export async function retryAddonStreams(profileId:number,sourceId:number,mediaType:string,videoId:string):Promise<AddonStreamGroup>{
   const v=await scoped(profileId,{kind:'retry-stream-options',sourceId,mediaType,videoId});

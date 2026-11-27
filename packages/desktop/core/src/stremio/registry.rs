@@ -8,6 +8,7 @@ use std::{collections::{BTreeMap, BTreeSet}, fmt, sync::{mpsc, Arc, Mutex}, thre
 
 mod accounts;
 mod browse;
+mod stream_progress;
 mod mdblist;
 mod tmdb;
 mod history;
@@ -77,6 +78,9 @@ pub enum Action {
     Metadata { source_id: u32, media_type: String, item_id: String },
     ItemOptions { source_id: u32, media_type: String, video_id: String, subtitles: bool },
     AllStreamOptions { media_type: String, video_id: String, #[serde(default)] alternatives:Vec<VideoRoute> },
+    BeginStreamOptions { media_type:String, video_id:String, #[serde(default)] alternatives:Vec<VideoRoute> },
+    PollStreamOptions { query_id:u32 },
+    CancelStreamOptions { query_id:u32 },
     RetryStreamOptions { source_id:u32, media_type:String, video_id:String },
     PrepareMedia { review_id: u32, option_index: usize, start_ms: u64 },
     MalAnimeList,
@@ -166,6 +170,7 @@ struct Registry {
     media_review: Option<MediaReview>,
     stream_reviews: Vec<MediaReview>,
     stream_query: Option<StreamQuery>,
+    progressive: Option<stream_progress::Progress>,
     grant: Option<MediaGrant>,
     mdblist: mdblist::Connection,
     tmdb: tmdb::Connection,
@@ -220,7 +225,7 @@ impl Registry {
         if self.import.as_ref().is_some_and(|p| p.expired()) { self.import = None; }
         if self.media_review.as_ref().is_some_and(|p|p.created.elapsed()>=REVIEW_TTL){self.media_review=None;}
         self.stream_reviews.retain(|p|p.created.elapsed()<REVIEW_TTL);
-        if self.stream_query.as_ref().is_some_and(|query|query.created.elapsed()>=REVIEW_TTL){self.stream_query=None;}
+        if self.stream_query.as_ref().is_some_and(|query|query.created.elapsed()>=REVIEW_TTL){self.stream_query=None;self.progressive=None;}
         if self.mal_review.as_ref().is_some_and(|p|p.created.elapsed()>=REVIEW_TTL){self.mal_review=None;}
         if self.grant.as_ref().is_some_and(|p|p.created.elapsed()>=Duration::from_secs(15)){self.grant=None;}
     }
@@ -267,7 +272,7 @@ impl Registry {
     fn review_all_streams(&mut self,kind:&str,video:&str,alternatives:&[VideoRoute],fetcher:impl Fn(&Source,&str,&str,Duration)->Result<Vec<OptionSummary>>+Sync)->Result<Value>{
         if !super::type_valid(kind)||!super::id_valid(video)||alternatives.len()>8||
             alternatives.iter().any(|route|!super::type_valid(&route.media_type)||!super::id_valid(&route.video_id)){return Err("invalid-resource");}
-        self.media_review=None;self.stream_reviews.clear();self.stream_query=None;
+        self.media_review=None;self.stream_reviews.clear();self.stream_query=None;self.progressive=None;
         let mut routes=vec![VideoRoute{media_type:kind.to_owned(),video_id:video.to_owned()}];
         for route in alternatives{
             if !routes.iter().any(|old|old.media_type==route.media_type&&old.video_id==route.video_id){routes.push(route.clone());}
@@ -349,7 +354,7 @@ impl Registry {
     fn execute(&mut self, action: Action) -> Result<Value> {
         self.expire();
         self.grant=None;
-        if matches!(&action,Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::ImportRetry{..}|Action::ItemOptions{..}|Action::AllStreamOptions{..}|Action::Metadata{..}|Action::Catalog{..}) {self.media_review=None;self.stream_reviews.clear();self.stream_query=None;}
+        if matches!(&action,Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::ImportRetry{..}|Action::ItemOptions{..}|Action::AllStreamOptions{..}|Action::Metadata{..}|Action::Catalog{..}) {self.media_review=None;self.stream_reviews.clear();self.stream_query=None;self.progressive=None;}
         if matches!(&action,Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::ImportRetry{..}|Action::Catalog{..}){self.mal_review=None;}
         match action {
             Action::List => Ok(self.list()),
@@ -465,12 +470,18 @@ impl Registry {
             Action::AllStreamOptions {media_type,video_id,alternatives}=>{
                 self.review_all_streams(&media_type,&video_id,&alternatives,|source,kind,video,timeout|source.endpoint.item_options_with_timeout(&source.manifest,ItemResource::Stream,kind,video,timeout))
             }
+            Action::BeginStreamOptions{media_type,video_id,alternatives}=>self.begin_streams(&media_type,&video_id,&alternatives),
+            Action::PollStreamOptions{query_id}=>self.stream_snapshot(query_id),
+            Action::CancelStreamOptions{query_id}=>{
+                if self.progressive.as_ref().is_some_and(|p|p.id==query_id){self.progressive=None;self.stream_query=None;self.stream_reviews.clear();}
+                Ok(json!({"cancelled":true}))
+            }
             Action::RetryStreamOptions{source_id,media_type,video_id}=>{
                 self.retry_stream(source_id,&media_type,&video_id,|source,kind,video,timeout|source.endpoint.item_options_with_timeout(&source.manifest,ItemResource::Stream,kind,video,timeout))
             }
             Action::PrepareMedia {review_id,option_index,start_ms}=>{
                 if start_ms>604800000{return Err("invalid-media-selection");}
-                self.stream_query=None;
+                self.stream_query=None;self.progressive=None;
                 let single=self.media_review.take();
                 let grouped=std::mem::take(&mut self.stream_reviews);
                 let review=single.into_iter().chain(grouped).find(|p|p.id==review_id).ok_or("expired-review")?;
@@ -500,6 +511,7 @@ impl Worker {
             let mut opened = store::Store::open(&root);
             let mut delivery = refract_delivery::AutoSync::new();
             let mut catalogues=browse::Pool::new(browse_rx);
+            let mut streams=stream_progress::Pool::default();
             loop {
                 let message=match rx.recv_timeout(Duration::from_millis(100)){
                     Ok(message)=>Some(message),
@@ -543,6 +555,7 @@ impl Worker {
                 // Delivery never calls Worker::request or executes a registry
                 // action. In particular it cannot invalidate media grants.
                 if let Ok((storage,profiles))=&mut opened{
+                    streams.tick(profiles);
                     delivery.tick(storage,profiles,&emit);
                 }
             }
@@ -564,6 +577,10 @@ impl Worker {
             other=>other,
         };
         let Ok(mut slot)=self.1.lock() else{return false;};
+        // A late poll or exact-query cancellation must not revoke a playback grant.
+        if matches!(&action,Action::ProfileRequest{action,..} if matches!(action.as_ref(),Action::PollStreamOptions{..}|Action::CancelStreamOptions{..})){
+            return self.0.try_send((request,action,slot.generation)).is_ok();
+        }
         // A newer stateful request immediately invalidates a pending handoff, even
         // when the worker is occupied and the newer request cannot enqueue.
         slot.grant=None;
