@@ -46,6 +46,52 @@ try {
 
 These are the core checks, not the complete distribution assembly. The workflow also verifies media and Vault binaries, upstream source notices, staged WebView assets and native Reader preparation. Use GitHub Actions for the complete portable candidate unless you reproduce all its staging and verification steps.
 
+## Local Watch acceptance before packaging
+
+The Watch recovery gate requires a matching runnable source revision before a distributable package is accepted. A plain debug `cargo run` or a remote `--web` session is **not** equivalent: the trusted bundled-directory check also controls the Stremio addon bridge. Keep this security boundary intact.
+
+On a Windows x64 development workstation, use a fresh checkout of the exact revision under test and the requirements above (including 7-Zip on PATH). Complete the checkout/web checks, then build production web assets and the local release-mode binary:
+
+```powershell
+pnpm -F @aiostreams/web build:standalone
+if ($LASTEXITCODE -ne 0) { throw 'Standalone build failed' }
+./packages/desktop/scripts/fetch-libs.ps1 -Arch x86_64
+Push-Location packages/desktop
+try {
+    cargo build --locked --release
+    if ($LASTEXITCODE -ne 0) { throw 'Desktop build failed' }
+} finally { Pop-Location }
+```
+
+Create a **new** local-only disposable runtime; these commands neither assemble an archive nor publish a release. Never point them at the existing portable installation. The existing `.portable` mechanism directs application data into this new root's `data` directory.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$sha = (git rev-parse HEAD).Trim()
+$root = Join-Path $env:TEMP "tsugi-watch-$([Guid]::NewGuid().ToString('N'))"
+$null = New-Item -ItemType Directory -Path $root
+$current = Join-Path $root 'current'
+$null = New-Item -ItemType Directory -Path $current
+$null = New-Item -ItemType File -Path (Join-Path $root '.portable')
+Copy-Item packages/desktop/target/release/aiostreams-desktop.exe "$current/Tsugi.exe"
+Copy-Item packages/desktop/vendor/x86_64/*.dll $current
+Copy-Item packages/desktop/vendor/x86_64/vulkan "$current/vulkan" -Recurse
+Copy-Item packages/desktop/vendor/x86_64/licenses "$current/licenses" -Recurse
+Copy-Item packages/desktop/THIRD-PARTY.md $current
+Copy-Item LICENSE $root
+Copy-Item packages/web/dist-standalone "$current/web" -Recurse
+$oldRunnerTemp = $env:RUNNER_TEMP
+try {
+    $env:RUNNER_TEMP = Join-Path $root 'fetch-temp'
+    $null = New-Item -ItemType Directory -Path $env:RUNNER_TEMP
+    ./packages/desktop/scripts/fetch-music-tools.ps1 -Destination "$current/music-tools"
+} finally { $env:RUNNER_TEMP = $oldRunnerTemp }
+Set-Content -LiteralPath "$root/SOURCE-REVISION.txt" -Value $sha
+```
+
+Before launching, ensure `AIOSTREAMS_WEB_DIR` and `AIOSTREAMS_LIBMPV` are unset in the new development shell, and do not use `--web`, `--web-dir`, `--devtools` or `--remote-debugging-port`. Launch `$current/Tsugi.exe` without arguments. Verify the native log identifies the disposable data root before entering accounts. To test Reader navigation with its normal native support, also stage the JDK 21-compiled `read-launcher` and pinned setup script using the exact existing `Stage native application and tools` workflow step; for Vault/media validation use all corresponding pinned tool stages. The minimal local Watch/Music runtime above does not establish full Reader/Vault acceptance. Do not work around the bridge guard to make a missing destination appear.
+
+Use [the live Watch acceptance checklist](watch-live-acceptance.md). Record the exact source SHA, observations and sanitized timings; never share account secrets. Local source staging is a means of testing the pre-package gate, not an accepted or distributed candidate. This procedure is derived from the actual native path checks and Windows workflow and still needs execution on a Windows development workstation.
 ## Package and test
 
 Open [Unified Tsugi Windows Build](https://github.com/G1NYU/TSUGI/actions/workflows/tsugi-unified-windows.yml), select the development branch and use Run workflow if you have repository access. A development push marked `[package tsugi]` also triggers packaging when it touches an included workflow path. Do not add the release-publication marker for a test candidate. Subsequent pushes on the same branch may cancel a running package.
