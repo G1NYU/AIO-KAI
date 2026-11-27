@@ -37,15 +37,16 @@ type Viewing={playback:WatchPlayback;viewingId:string};
 export function DirectWatchPage({openWelcome,openVideo,initialProfileId,initialPane='hubs',settingsOpen=false}:{openWelcome:()=>void;openVideo:()=>void;initialProfileId?:number;initialPane?:WatchEntryPane;settingsOpen?:boolean}){
   const [viewing,setViewing]=React.useState<Viewing|null>(null);
   const [historyError,setHistoryError]=React.useState(false);
+  const [returnedPlayback,setReturnedPlayback]=React.useState<WatchPlayback|null>(null);
   const playing=viewing?.playback;
   return <main data-page="direct-watch" className="tsugi-direct-watch">
     <div hidden={!!playing} inert={!!playing}>
       <header className="flex flex-wrap gap-3 justify-between"><button type="button" className="tsugi-read-action" onClick={openWelcome}><Trans id="All media">All media</Trans></button></header>
       {historyError&&<p role="alert"><Trans>Watch progress could not be confirmed saved. Check your history before resuming.</Trans></p>}
-      <StremioAddonSettings workspace initialProfileId={initialProfileId} initialPane={initialPane} openServer={openVideo} onPlay={playback=>setViewing({playback,viewingId:newViewingId()})} historyActive={!playing&&!settingsOpen}/>
+      <StremioAddonSettings workspace initialProfileId={initialProfileId} initialPane={initialPane} openServer={openVideo} onPlay={playback=>setViewing({playback,viewingId:newViewingId()})} returnedPlayback={returnedPlayback} historyActive={!playing&&!settingsOpen}/>
     </div>
     {playing&&viewing&&<DirectPlayer key={playing.grantId??'review:'+playing.selection?.reviewId} playback={playing} viewingId={viewing.viewingId}
-      close={()=>setViewing(null)} switchPlayback={playback=>setViewing({playback,viewingId:playback.videoId===playing.videoId?viewing.viewingId:newViewingId()})}
+      close={()=>{setReturnedPlayback(playing);setViewing(null);}} switchPlayback={playback=>setViewing({playback,viewingId:playback.videoId===playing.videoId?viewing.viewingId:newViewingId()})}
       onHistoryError={setHistoryError}/>}
   </main>;
 }

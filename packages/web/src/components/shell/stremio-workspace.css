@@ -118,3 +118,8 @@
 .tsugi-watch-title-copy h4{font-size:clamp(1.5rem,3vw,2.5rem);overflow-wrap:anywhere;}
 .tsugi-watch-episode-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;max-height:480px;overflow:auto;padding:4px;}
 @media(max-width:760px){.tsugi-watch-destination-grid{grid-template-columns:1fr;gap:16px;}.tsugi-watch-title-hero{grid-template-columns:minmax(80px,112px) minmax(0,1fr);gap:16px;}.tsugi-watch-episode-grid{grid-template-columns:repeat(auto-fill,minmax(128px,1fr));}}
+
+/* Season rows keep exact provider video IDs and avoid empty artwork cards. */
+.tsugi-watch-episode-list{display:grid;gap:8px;}
+.tsugi-watch-episode{display:flex;align-items:center;gap:14px;min-height:48px;width:100%;text-align:start;white-space:normal;}
+.tsugi-watch-episode[aria-current='true']{border-color:var(--tsugi-accent);}
