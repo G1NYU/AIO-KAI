@@ -173,3 +173,29 @@
 .tsugi-watch-provider-details summary{cursor:pointer;padding:8px 0}
 .tsugi-watch-stream-page{background:var(--tsugi-canvas);color:var(--tsugi-ink);font-family:var(--tsugi-font)}
 .tsugi-watch-stream-background::after{background:linear-gradient(180deg,color-mix(in srgb,var(--tsugi-canvas) 48%,transparent),var(--tsugi-canvas) 86%)}
+
+/* Watch uses the shared desktop rail and restrained profile artwork. */
+.tsugi-watch-hub:has(.tsugi-watch-shared-rail){display:grid;grid-template-columns:var(--tsugi-rail-width,208px) minmax(0,1fr);gap:20px 28px;align-items:start}
+.tsugi-watch-hub:has(.tsugi-watch-shared-rail)>header{grid-column:2;grid-row:1}
+.tsugi-watch-hub:has(.tsugi-watch-shared-rail)>.tsugi-watch-content{grid-column:2;grid-row:2}
+.tsugi-watch-shared-rail{grid-column:1;grid-row:1/3;min-width:0}
+.tsugi-watch-shared-rail .tsugi-watch-nav{position:static;width:100%;min-width:0;background:none;border:0;padding:0;gap:4px}
+.tsugi-watch-shared-rail .tsugi-watch-nav-item{width:100%;justify-content:flex-start;text-align:left}
+.tsugi-watch-hub:has(.tsugi-watch-shared-rail)>.tsugi-watch-hub-header>div:first-child>.tsugi-brand{display:none}
+.tsugi-watch-picker-art{background:radial-gradient(ellipse at 75% 12%,color-mix(in srgb,var(--tsugi-accent) 16%,transparent),transparent 62%),var(--tsugi-surface)}
+.tsugi-watch-avatar-minimal{font-family:var(--tsugi-font);font-size:clamp(34px,4vw,56px);font-weight:700;display:grid;place-items:center;letter-spacing:-.06em;background:linear-gradient(150deg,#40585b,#18282c);color:#e6f0ec}
+.tsugi-watch-avatar-minimal[data-color="1"]{background:linear-gradient(150deg,#68634d,#302d24);color:#faf2d8}
+.tsugi-watch-avatar-minimal[data-color="2"]{background:linear-gradient(150deg,#786253,#35261e);color:#ffe5ce}
+.tsugi-watch-avatar-minimal[data-color="3"]{background:linear-gradient(150deg,#59657b,#232b3c);color:#edf0ff}
+.tsugi-watch-avatar-minimal[data-color="4"]{background:linear-gradient(150deg,#78576b,#382b39);color:#ffebf7}
+.tsugi-watch-avatar-minimal[data-color="5"]{background:linear-gradient(150deg,#536b51,#233126);color:#e6f3df}
+.tsugi-watch-title-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px}
+.tsugi-watch-title-actions button{display:inline-flex;align-items:center;gap:8px;border-radius:999px;min-height:44px;padding:10px 17px;font-weight:650}
+.tsugi-watch-title-actions svg{width:18px;height:18px}
+.tsugi-watch-title-secondary{background:color-mix(in srgb,var(--tsugi-surface) 75%,transparent);backdrop-filter:blur(8px)}
+.tsugi-watch-title-secondary[aria-pressed="true"]{border-color:var(--tsugi-accent);color:var(--tsugi-accent)}
+.tsugi-watch-collection{display:grid;gap:20px}
+.tsugi-watch-collection h3{font-size:28px;font-weight:650}
+.tsugi-watch-collection-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:18px}
+.tsugi-watch-collection-grid>div{display:grid;gap:8px;align-content:start;min-width:0}
+@media(max-width:760px){.tsugi-watch-hub:has(.tsugi-watch-shared-rail){grid-template-columns:1fr}.tsugi-watch-hub:has(.tsugi-watch-shared-rail)>header,.tsugi-watch-hub:has(.tsugi-watch-shared-rail)>.tsugi-watch-content,.tsugi-watch-shared-rail{grid-column:1;grid-row:auto}}

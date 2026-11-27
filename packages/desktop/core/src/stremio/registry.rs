@@ -12,10 +12,12 @@ mod stream_progress;
 mod mdblist;
 mod tmdb;
 mod history;
+mod collections;
 mod refract;
 mod mal_anime;
 pub use mal_anime::Entry as MalAnimeEntry;
 pub use history::Progress as WatchProgress;
+pub use collections::Entry as WatchCollectionEntry;
 pub use accounts::Provider as ImportProvider;
 mod profiles;
 #[cfg(windows)]
@@ -89,6 +91,8 @@ pub enum Action {
     MalAnimeMatch { mal_id:u32,source_id:u32,media_type:String,item_id:String },
     MalAnimeUnmatch { mal_id:u32 },
     WatchHistory,
+    WatchCollections,
+    WatchCollectionSet { collection:String,item:WatchCollectionEntry,enabled:bool },
     WatchRecord { progress: WatchProgress, #[serde(default)] viewing_id: Option<String> },
     WatchRemove { media_type: String, item_id: String, video_id: String },
     RefractStatus,
@@ -179,6 +183,7 @@ struct Registry {
     tmdb: tmdb::Connection,
     account_provider: Option<accounts::Provider>,
     history: history::History,
+    collections: collections::Collections,
     refract: refract::Connection,
     mal_anime: mal_anime::Collection,
     mal_review: Option<MalCatalogReview>,
@@ -373,6 +378,8 @@ impl Registry {
                 self.mal_anime.assign(mal_id,source_id,media_type,item_id,name)
             },
             Action::WatchHistory => Ok(self.history.list()),
+            Action::WatchCollections => Ok(self.collections.list()),
+            Action::WatchCollectionSet {collection,item,enabled} => self.collections.set(&collection,item,enabled),
             Action::WatchRecord {progress,viewing_id} => self.record_watch(progress,viewing_id),
             Action::WatchComplete {media_type,item_id,video_id,updated_at} => {
                 let (progress,viewing)=self.history.manual_completion(&media_type,&item_id,&video_id,updated_at)?;

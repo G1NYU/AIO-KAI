@@ -40,12 +40,16 @@ type ItemAction = {kind:'metadata';sourceId:number;mediaType:string;itemId:strin
 type MdblistAction={kind:'mdblist-status'}|{kind:'mdblist-connect';key:string}|{kind:'mdblist-disconnect'}|{kind:'mdblist-lists'}|{kind:'mdblist-page';listId:number;offset:number};
 export type WatchProgress={mediaType:string;itemId:string;videoId:string;title:string;episodeTitle:string|null;positionMs:number;durationMs:number;completed:boolean};
 export type WatchHistoryEntry={progress:WatchProgress;updatedAt:number};
+export type WatchCollectionItem=Pick<CatalogPage['items'][number],'id'|'mediaType'|'name'|'poster'|'background'>;
+export type WatchCollection='favorites'|'queue';
+export type WatchCollections=Record<WatchCollection,WatchCollectionItem[]>;
+type WatchCollectionAction={kind:'watch-collections'}|{kind:'watch-collection-set';collection:WatchCollection;item:WatchCollectionItem;enabled:boolean};
 type WatchHistoryAction={kind:'watch-history'}|{kind:'watch-record';progress:WatchProgress;viewingId?:string}|({kind:'watch-remove'}&Pick<WatchProgress,'mediaType'|'itemId'|'videoId'>);
 type RefractAction={kind:'refract-threshold';percent:number|null}|{kind:'watch-complete';mediaType:string;itemId:string;videoId:string;updatedAt:number}|{kind:'refract-status'}|{kind:'refract-connect';key:string}|{kind:'refract-enable';enabled:boolean}|{kind:'refract-disconnect';discardPending:boolean}|{kind:'refract-sync'}|{kind:'refract-watchlist';mediaType:string;itemId:string;add:boolean};
 type MalAnimeAction={kind:'mal-anime-list'}|{kind:'mal-anime-import';entries:MalEntry[]}|{kind:'mal-anime-remove';malId:number}|{kind:'mal-anime-match';malId:number;sourceId:number;mediaType:string;itemId:string}|{kind:'mal-anime-unmatch';malId:number};
 type TmdbAction={kind:'tmdb-search';query:string}|{kind:'tmdb-title';mediaType:string;itemId:string}|{kind:'tmdb-season';tmdbId:number;season:number};
 type SetupAction={kind:'watch-setup-status'}|{kind:'tmdb-connect';key:string}|{kind:'tmdb-disconnect'};
-type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | SetupAction | TmdbAction | WatchHistoryAction | RefractAction | MalAnimeAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
+type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | SetupAction | TmdbAction | WatchCollectionAction | WatchHistoryAction | RefractAction | MalAnimeAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
 export type RemoteAddonProfile={profileIndex:number;name:string;usesPrimaryAddons:boolean;locked:boolean};
 export type ImportCandidate={candidateId:number;name:string;host:string;enabled:boolean;alreadyInstalled:boolean};
 type ImportBase={importId:number;provider:ImportProvider};
@@ -406,6 +410,18 @@ function watchHistory(v:unknown):WatchHistoryEntry[]{
   });
   if(new Set(rows.map(({progress:p})=>JSON.stringify([p.mediaType,p.itemId,p.videoId]))).size!==rows.length)return fail();
   return rows;
+}
+function watchCollections(v:unknown):WatchCollections{
+  const data=obj(v);
+  const rows=(value:unknown)=>array(value,250,x=>{
+    const row=obj(x),poster=publicAddonPoster(row.poster),background=publicAddonPoster(row.background);
+    return {id:str(row.id,512),mediaType:str(row.mediaType,32),name:str(row.name,512),...(poster?{poster}:{}),...(background?{background}:{})};
+  });
+  return {favorites:rows(data.favorites),queue:rows(data.queue)};
+}
+export async function listWatchCollections(profileId:number){return watchCollections(await scoped(profileId,{kind:'watch-collections'}));}
+export async function setWatchCollection(profileId:number,collection:WatchCollection,item:WatchCollectionItem,enabled:boolean){
+  return watchCollections(await scoped(profileId,{kind:'watch-collection-set',collection,item,enabled}));
 }
 export async function listWatchHistory(profileId:number){return watchHistory(await scoped(profileId,{kind:'watch-history'}));}
 export async function saveWatchProgress(profileId:number,progress:WatchProgress,viewingId?:string){

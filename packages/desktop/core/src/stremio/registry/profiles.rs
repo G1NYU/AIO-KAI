@@ -50,6 +50,8 @@ struct SavedProfile {
     #[serde(default)]
     history: Vec<super::history::Entry>,
     #[serde(default)]
+    collections: super::collections::Collections,
+    #[serde(default)]
     refract: Option<super::refract::Saved>,
     #[serde(default,skip_serializing_if="Vec::is_empty")]
     mal_anime: Vec<super::mal_anime::Entry>,
@@ -71,13 +73,13 @@ fn name_valid(name: &str) -> bool {
 }
 fn source_action(action: &Action) -> bool {
     matches!(action,Action::List|Action::Review{..}|Action::Install{..}|Action::CancelReview{..}|
-        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::AllStreamOptions{..}|Action::BeginStreamOptions{..}|Action::PollStreamOptions{..}|Action::CancelStreamOptions{..}|Action::RetryStreamOptions{..}|Action::PrepareMedia{..}|Action::MalAnimeList|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::MalAnimeMatch{..}|Action::MalAnimeUnmatch{..}|Action::WatchHistory|Action::WatchRecord{..}|Action::WatchComplete{..}|Action::WatchRemove{..}|Action::RefractStatus|Action::RefractConnect{..}|Action::RefractThreshold{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractSync|Action::RefractWatchlist{..}|Action::WatchSetupStatus|Action::TmdbConnect{..}|Action::TmdbDisconnect|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
+        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::AllStreamOptions{..}|Action::BeginStreamOptions{..}|Action::PollStreamOptions{..}|Action::CancelStreamOptions{..}|Action::RetryStreamOptions{..}|Action::PrepareMedia{..}|Action::MalAnimeList|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::MalAnimeMatch{..}|Action::MalAnimeUnmatch{..}|Action::WatchCollections|Action::WatchHistory|Action::WatchCollectionSet{..}|Action::WatchRecord{..}|Action::WatchComplete{..}|Action::WatchRemove{..}|Action::RefractStatus|Action::RefractConnect{..}|Action::RefractThreshold{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractSync|Action::RefractWatchlist{..}|Action::WatchSetupStatus|Action::TmdbConnect{..}|Action::TmdbDisconnect|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
         Action::ImportConnect{..}|Action::ImportNuvioProfile{..}|Action::ImportReview{..}|Action::ImportApply{..}|Action::ImportRetry{..}|Action::ImportCancel{..})
 }
 pub(super) fn is_mutation(action: &Action) -> bool {
     match action {
         Action::ProfileCreate{..}|Action::ProfileRename{..}|Action::ProfileSwitch{..}|Action::ProfileRemove{..} => true,
-        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::ImportRetry{..}|Action::TmdbConnect{..}|Action::TmdbDisconnect|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::MalAnimeMatch{..}|Action::MalAnimeUnmatch{..}|Action::WatchRecord{..}|Action::WatchComplete{..}|Action::WatchRemove{..}|Action::RefractConnect{..}|Action::RefractThreshold{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractWatchlist{..}),
+        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::ImportRetry{..}|Action::TmdbConnect{..}|Action::TmdbDisconnect|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::MalAnimeMatch{..}|Action::MalAnimeUnmatch{..}|Action::WatchCollectionSet{..}|Action::WatchRecord{..}|Action::WatchComplete{..}|Action::WatchRemove{..}|Action::RefractConnect{..}|Action::RefractThreshold{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractWatchlist{..}),
         _ => false,
     }
 }
@@ -204,6 +206,7 @@ impl Profiles {
                 id:p.id,name:p.name.clone(),mdblist_key:p.registry.mdblist.saved_key(),
                 tmdb_key:p.registry.tmdb.saved_key(),account_provider:p.registry.account_provider,
                 history:p.registry.history.saved(),
+                collections:p.registry.collections.clone(),
                 refract:p.registry.refract.saved(),
                 mal_anime:p.registry.mal_anime.saved(),
                 mal_anime_matches:p.registry.mal_anime.saved_matches(),
@@ -242,7 +245,7 @@ impl Profiles {
                 sources.push(Source{id:source.id,endpoint,manifest,enabled:source.enabled});
             }
             if profile.mal_anime_matches.iter().any(|row|!sources.iter().any(|source|source.id==row.source_id)){return Err("profile-store");}
-            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,mdblist:super::mdblist::Connection::restored(profile.mdblist_key)?,tmdb:super::tmdb::Connection::restored(profile.tmdb_key)?,account_provider:profile.account_provider,history:super::history::History::restore(profile.history)?,refract:super::refract::Connection::restored(profile.refract)?,mal_anime:super::mal_anime::Collection::restored(profile.mal_anime,profile.mal_anime_matches)?,..Registry::default()}});
+            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,mdblist:super::mdblist::Connection::restored(profile.mdblist_key)?,tmdb:super::tmdb::Connection::restored(profile.tmdb_key)?,account_provider:profile.account_provider,history:super::history::History::restore(profile.history)?,collections:profile.collections.restored()?,refract:super::refract::Connection::restored(profile.refract)?,mal_anime:super::mal_anime::Collection::restored(profile.mal_anime,profile.mal_anime_matches)?,..Registry::default()}});
         }
         if !profiles.iter().any(|p|p.id==saved.active){return Err("profile-store");}
         Ok(Self{active:saved.active,sequence:saved.sequence,profiles})
