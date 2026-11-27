@@ -335,7 +335,19 @@ try {
   const landing = page.locator('[data-page="desktop-landing"]');
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).waitFor();
   const onboarding = page.locator('[data-ui="tsugi-onboarding"]');
+  assert.equal(await landing.getAttribute('data-view'), 'welcome');
+  assert.equal(await onboarding.isVisible(), false, 'first launch does not force setup');
+  await landing.locator('[data-ui="tsugi-world-hero"] img').evaluate(image => image.decode());
+  assert.equal(await landing.locator('.tsugi-world-card').count(), 4);
+  await capture('00-illustrated-welcome');
+  await landing.getByRole('button', { name: 'Make it yours', exact: true }).click();
   await onboarding.waitFor({ state: 'visible' });
+  await onboarding.getByLabel('What should we call you?').fill('Fixture');
+  const favoriteMusic = onboarding.getByRole('button', { name: 'Music', exact: true });
+  await favoriteMusic.click();
+  assert.equal(await favoriteMusic.getAttribute('aria-pressed'), 'false');
+  await favoriteMusic.click();
+  assert.equal(await favoriteMusic.getAttribute('aria-pressed'), 'true');
   await onboarding.locator('.tsugi-intro-art img').evaluate(image=>image.decode());
   assert.ok(await onboarding.locator('.tsugi-intro-art img').evaluate(image=>image.naturalWidth>0));
   await page.emulateMedia({reducedMotion:'reduce'});
@@ -353,6 +365,8 @@ try {
   await landing.getByRole('button', { name: 'Movies & TV', exact: true }).waitFor();
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'mocha' && document.documentElement.dataset.tsugiAccent === 'blue');
   assert.equal(await onboarding.isVisible(), false, 'onboarding does not reopen after completion');
+  assert.equal(await landing.getAttribute('data-view'), 'home');
+  await landing.getByRole('heading', { name: 'Welcome, Fixture.', exact: true }).waitFor();
   await landing.getByRole('button', { name: 'Introduction', exact: true }).click();
   await onboarding.waitFor({ state: 'visible' });
   await page.setViewportSize({ width:440, height:500 });
@@ -431,7 +445,9 @@ try {
     await destination.addInitScript(installDesktopFixture);
     await destination.route('**/*', route => route.request().url().startsWith(origin+'/') ? route.continue() : route.abort());
     await destination.goto(origin,{waitUntil:'domcontentloaded'});
-    await destination.locator('[data-ui="tsugi-onboarding"]').getByRole('button',{name:'Enter Tsugi'}).click();
+    await destination.getByRole('button',{name:'Explore first',exact:true}).click();
+    assert.equal(await destination.locator('[data-page="desktop-landing"]').getAttribute('data-view'),'home');
+    assert.equal(await destination.locator('[data-ui="tsugi-onboarding"]').isVisible(),false);
     await destination.getByRole('button',{name:'App settings',exact:true}).click();
     const settings=destination.getByRole('dialog');
     const restore=settings.getByRole('region',{name:'Portable backup',exact:true});
@@ -580,33 +596,24 @@ try {
   assert.ok(await page.evaluate(()=>window.__readerFixture.managedBackups.at(-1).row.name.startsWith('tsugi-auto-backup-')));
   await page.evaluate(()=>{const key='tsugi-backup-schedule-v1';const state=JSON.parse(localStorage.getItem(key));localStorage.setItem(key,JSON.stringify({...state,cadence:'off',dueMs:0}));window.dispatchEvent(new Event('tsugi-backup-schedule-change'));});
   console.log('PASS: opt-in schedule defers during settings, then saves verified automatic copy.');
-  assert.deepEqual(await landing.locator('.tsugi-index-link').allTextContents(), ['Movies & TV', 'Music', 'Read', 'Vault']);
-  assert.equal(await landing.locator('.tsugi-index-link svg').count(), 4);
-  assert.equal(await landing.locator('.tsugi-index-kanji').count(), 0);
-  assert.equal(await landing.getByRole('heading', { name: 'Tsugi', exact: true }).count(), 1);
-  assert.equal(await landing.locator('.tsugi-index-pattern').count(), 0);
+  assert.deepEqual(await landing.locator('.tsugi-world-card').evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label'))), ['Movies & TV', 'Music', 'Read', 'Vault']);
+  assert.equal(await landing.locator('.tsugi-world-card .tsugi-media-icon').count(), 4);
   assert.equal(await page.locator('html').getAttribute('class').then(value => value.includes('tsugi-desktop-boot')), true);
-  assert.equal(await landing.locator('.tsugi-index-link').first().evaluate(node => getComputedStyle(node).borderRadius), '8px');
   const assertLauncherGeometry = async () => {
-    const width = await page.evaluate(() => document.documentElement.clientWidth);
-    const height = await page.evaluate(() => window.innerHeight);
-    const canvas = await landing.boundingBox();
-    const brandBox = await landing.locator('.tsugi-index-wordmark').boundingBox();
-    const choices = await landing.locator('.tsugi-index-destinations').boundingBox();
-    const buttons = await landing.locator('.tsugi-index-link').evaluateAll(nodes => nodes.map(node => {
-      const { x, y, width, height } = node.getBoundingClientRect();
-      return { x, y, width, height };
+    const hero = await landing.locator('.tsugi-world-hero').boundingBox();
+    const grid = await landing.locator('.tsugi-world-grid').boundingBox();
+    assert.ok(hero && grid && grid.y >= hero.y + hero.height, 'illustrated destinations below the hero');
+    const buttons = await landing.locator('.tsugi-world-card').evaluateAll(nodes => nodes.map(node => {
+      const { y, width } = node.getBoundingClientRect();
+      return { y, width };
     }));
-    const center = canvas.x + canvas.width / 2;
-    assert.ok(Math.abs(center - width / 2) <= 8, 'launcher canvas centered within viewport including scrollbar: ' + JSON.stringify({ canvas, width }));
-    assert.ok(Math.abs(brandBox.x + brandBox.width / 2 - center) < 3, 'launcher brand centered: ' + JSON.stringify({ brandBox, canvas }));
-    assert.ok(Math.abs(choices.x + choices.width / 2 - center) < 3, 'launcher destinations centered: ' + JSON.stringify({ choices, canvas }));
-    assert.ok(brandBox.y + brandBox.height / 2 < height * .53, 'brand raised above the midpoint');
-    assert.ok(choices.y > brandBox.y + brandBox.height && choices.y + choices.height <= height, 'destination row below wordmark and within viewport');
-    assert.ok(buttons.every(button => Math.abs(button.y - buttons[0].y) < 2 && Math.abs(button.width - buttons[0].width) < 2), 'equal-width destinations on one baseline');
+    assert.ok(buttons.every(button => Math.abs(button.y - buttons[0].y) < 2 && Math.abs(button.width - buttons[0].width) < 2), 'equal-width illustrated destinations on one baseline');
+    assert.ok(await landing.evaluate(node => node.scrollWidth <= node.clientWidth + 1), 'launcher has no horizontal overflow');
+    await landing.locator('.tsugi-world-card img').evaluateAll(images => Promise.all(images.map(image => image.decode())));
+    await landing.locator('.tsugi-world-hero img').evaluate(image => image.decode());
   };
   await assertLauncherGeometry();
-  const wordmarkAsset = await landing.locator('.tsugi-index-wordmark').evaluate(async node => {
+  const wordmarkAsset = await landing.locator('.tsugi-world-brand .tsugi-brand-wordmark').evaluate(async node => {
     const mask = getComputedStyle(node, '::before').maskImage;
     const url = mask.match(/^url\(["']?(.*?)["']?\)$/)?.[1];
     if (!url) return null;
@@ -620,6 +627,8 @@ try {
   await page.setViewportSize({ width: 2560, height: 1440 });
   await assertLauncherGeometry();
   await capture('01-launcher-wide');
+  await page.setViewportSize({ width: 440, height: 700 });
+  assert.ok(await landing.evaluate(node => node.scrollWidth <= node.clientWidth + 1), 'compact illustrated home has no horizontal overflow');
   await page.setViewportSize({ width: 1440, height: 900 });
   await landing.getByRole('button', { name: 'Vault', exact: true }).click();
   const vault = page.locator('[data-page="vault"]');

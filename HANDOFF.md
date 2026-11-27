@@ -1,3 +1,7 @@
+## 2026-11-27 — Illustrated first launch and returning home
+
+The centered media index is replaced with a cinematic welcome, explicit optional personalization and a returning home, following the recovered TSUGI-First-Launch.html layout. Real media callbacks, Watch profile handoff, settings, Up next and optional connections remain intact. Name, favorite ordering, existing startup preference and welcome-art motion are persisted locally. Setup remains an accessible illustrated dialog. Existing bundled artwork is reused at this checkpoint; the dedicated city illustration and final bespoke replacements are not yet integrated. Browser coverage now exercises welcome, personalization, skip, persistence, artwork decoding and responsive geometry. Baseline 61abda869 passed cumulative CI 46025031699; new CI and actual Windows visual acceptance remain required. No stable release or package requested. Next: verify CI and finish bespoke artwork and visual parity before packaging.
+
 ## 2026-11-27 — Profile service placement
 
 Watch Settings now offers a clearly labeled MyAnimeList XML entry alongside MDBList and Refract, reusing the existing setup-only anime collection for the active profile. Anime Hub remains a browsing destination with its existing shortcuts. The browser fixture imports from settings, sees the same collection in Anime Hub, then removes the entry in settings. No account login or OAuth behavior changed. Requires cumulative CI.

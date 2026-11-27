@@ -1,0 +1,85 @@
+/* Illustrated first launch and returning home. */
+.tsugi-worlds{box-sizing:border-box;width:100%;min-height:100dvh;min-width:0;padding:calc(var(--tsugi-window-strip,0px) + 18px) 0 24px;font-family:var(--tsugi-font);color:var(--tsugi-ink)}
+.tsugi-worlds[data-view='home']{display:grid;grid-template-columns:var(--tsugi-rail-width,208px) minmax(0,1fr);align-items:start}
+.tsugi-world-content{box-sizing:border-box;width:100%;min-width:0;max-width:1900px;margin:0 auto;padding:0 clamp(18px,2.5vw,42px)}
+.tsugi-world-brand{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0}
+.tsugi-world-brand small,.tsugi-world-eyebrow{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.16em;line-height:1.6}
+.tsugi-world-brand small,.tsugi-world-breadcrumb,.tsugi-world-eyebrow,.tsugi-world-footer{color:var(--tsugi-muted)}
+.tsugi-world-topbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;min-height:52px;margin-bottom:18px}
+.tsugi-world-toolbar{display:flex;align-items:center;flex-wrap:wrap;justify-content:flex-end;gap:8px 20px;margin-left:auto}
+.tsugi-world-toolbar button,.tsugi-world-rail nav button,.tsugi-world-current{display:flex;align-items:center;gap:10px;text-align:left;min-height:38px;padding:5px 2px;background:transparent;border:0;color:var(--tsugi-muted);font-size:13px}
+.tsugi-world-toolbar button:hover,.tsugi-world-rail nav button:hover,.tsugi-world-current{color:var(--tsugi-ink)}
+.tsugi-world-toolbar svg,.tsugi-world-rail nav svg{width:18px;height:18px;flex:none}
+.tsugi-world-rail{box-sizing:border-box;min-width:0;display:flex;flex-direction:column;gap:34px;min-height:calc(100dvh - var(--tsugi-window-strip,0px) - 42px);padding:8px 20px 12px;border-right:1px solid var(--tsugi-line)}
+.tsugi-world-rail nav{display:grid;gap:5px}
+.tsugi-world-rail nav small{margin-top:18px}
+.tsugi-world-current{color:var(--tsugi-ink);font-weight:600}
+.tsugi-world-rail-note{margin-top:auto;color:var(--tsugi-muted);font-size:12px;line-height:1.65}
+.tsugi-worlds [lang='ja']{font-family:var(--tsugi-japanese)}
+.tsugi-world-rail-note [lang='ja']{display:block;margin-bottom:9px;color:var(--tsugi-ink);letter-spacing:.14em}
+.tsugi-world-greeting{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px 16px;margin:0 0 18px}
+.tsugi-world-greeting h1{font-family:var(--tsugi-font);font-size:clamp(20px,2vw,30px);font-weight:600}
+.tsugi-world-greeting>span{color:var(--tsugi-muted);font-size:13px}
+.tsugi-world-hero,.tsugi-world-card{position:relative;isolation:isolate;overflow:hidden;background:#17212b;border-radius:var(--tsugi-radius-panel,14px);color:#f4f0e7}
+.tsugi-world-hero{box-sizing:border-box;display:flex;align-items:center;min-height:clamp(350px,44vh,500px);padding:clamp(26px,3.8vw,54px)}
+.tsugi-worlds[data-view='home'] .tsugi-world-hero{min-height:clamp(300px,37vh,420px)}
+.tsugi-world-hero>img,.tsugi-world-card>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2}
+.tsugi-world-hero::before,.tsugi-world-card::before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none}
+.tsugi-world-hero::before{background:linear-gradient(90deg,rgba(9,15,23,.94),rgba(9,15,23,.79) 40%,rgba(9,15,23,.15) 84%),linear-gradient(0deg,rgba(9,15,23,.35),transparent 50%)}
+.tsugi-world-hero-copy{max-width:660px;position:relative;z-index:1;min-width:0}
+.tsugi-world-hero-copy .tsugi-world-eyebrow{color:#e4dacb}
+.tsugi-world-hero-copy h1,.tsugi-world-hero-copy h2,.tsugi-world-card-title{font-family:var(--tsugi-feature-font);font-weight:400;letter-spacing:0}
+.tsugi-world-hero-copy h1,.tsugi-world-hero-copy h2{margin:14px 0 18px;line-height:1.06;font-size:clamp(42px,5.2vw,76px)}
+.tsugi-worlds[data-view='home'] .tsugi-world-hero-copy h2{font-size:clamp(38px,4.3vw,64px)}
+.tsugi-world-hero-copy p{max-width:470px;color:#e4e2db;font-size:14px;line-height:1.8}
+.tsugi-world-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:20px}
+.tsugi-world-actions button{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:42px;padding:10px 17px;border-radius:var(--tsugi-radius-control,8px);font-size:13px;font-weight:600}
+.tsugi-world-primary{background:var(--tsugi-accent);color:var(--tsugi-on-accent)}
+.tsugi-world-secondary{background:#15202dd9;color:#f4f0e7}
+.tsugi-world-quiet{color:var(--tsugi-ink);background:transparent}
+.tsugi-world-hero-japanese{position:absolute;top:24px;right:24px;color:#f3e7da;writing-mode:vertical-rl;letter-spacing:.28em;font-size:19px;text-shadow:0 2px 8px #000}
+.tsugi-world-heading{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:24px 0 14px}
+.tsugi-world-heading h2,.tsugi-world-discovery h2{font-family:var(--tsugi-font);font-size:22px;font-weight:600;margin-top:5px}
+.tsugi-world-heading p,.tsugi-world-discovery p{color:var(--tsugi-muted);font-size:13px}
+.tsugi-world-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(10px,1.4vw,20px)}
+.tsugi-world-card{box-sizing:border-box;min-width:0;min-height:clamp(185px,23vh,245px);display:flex;flex-direction:column;justify-content:space-between;gap:36px;padding:17px;border:0;text-align:left}
+.tsugi-world-card::before{background:linear-gradient(0deg,rgba(7,12,20,.97),rgba(9,15,23,.64) 40%,rgba(9,15,23,.12) 95%)}
+.tsugi-world-card>img{object-position:72% center;transition:filter .18s}
+.tsugi-world-card:hover>img{filter:brightness(1.14)}
+.tsugi-world-card-top,.tsugi-world-card-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.tsugi-world-card-top svg{width:23px;height:23px;filter:drop-shadow(0 2px 5px #000)}
+.tsugi-world-card-top [lang='ja']{font-size:20px;text-shadow:0 2px 8px #000}
+.tsugi-world-card-copy{display:grid;gap:5px;min-width:0}
+.tsugi-world-card-title{font-size:clamp(22px,2.2vw,34px);line-height:1.15;overflow-wrap:anywhere}
+.tsugi-world-card-title svg{flex:none;width:18px;height:18px}
+.tsugi-world-detail{font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+.tsugi-world-discovery{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:18px;padding:24px 0;margin-top:14px;border-bottom:1px solid var(--tsugi-line)}
+.tsugi-world-discovery p{margin-top:7px}
+.tsugi-world-discovery .tsugi-world-actions{margin-top:0}
+.tsugi-world-footer{display:flex;align-items:center;flex-wrap:wrap;gap:8px 16px;margin-top:20px;font-size:11px}
+.tsugi-worlds button:focus-visible,.tsugi-worlds input:focus-visible,.tsugi-worlds select:focus-visible{outline:2px solid var(--tsugi-focus);outline-offset:3px}
+:root[data-host='desktop'] .tsugi-onboarding.tsugi-world-setup:not(.tsugi-watch-setup){width:min(1360px,94vw);max-height:calc(100dvh - var(--tsugi-window-strip,0px) - 24px)}
+.tsugi-world-setup-copy{position:absolute;left:clamp(18px,3vw,42px);right:18px;bottom:100px;color:#f3eee6}
+.tsugi-world-setup-copy>span{font-size:16px;letter-spacing:.16em}
+.tsugi-world-setup-copy h2{font-family:var(--tsugi-feature-font);font-size:clamp(32px,4vw,60px);line-height:1.08;margin:12px 0}
+.tsugi-world-setup-copy p{font-size:13px;line-height:1.6}
+.tsugi-world-personalization{display:grid;gap:10px;min-width:0;margin:0 0 24px}
+.tsugi-world-personalization label,.tsugi-world-personalization strong{font-size:13px;font-weight:600}
+.tsugi-world-personalization small,.tsugi-world-personalization p{font-size:12px;font-weight:400;color:var(--tsugi-muted)}
+.tsugi-world-personalization p{line-height:1.55;margin-bottom:4px}
+.tsugi-world-personalization>input,.tsugi-world-personalization>select{width:100%;min-width:0;min-height:40px}
+.tsugi-world-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.tsugi-world-choices button{display:flex;align-items:center;text-align:left;gap:9px;min-width:0;min-height:48px;padding:6px;border:1px solid var(--tsugi-line);border-radius:var(--tsugi-radius-control);background:var(--tsugi-surface);color:var(--tsugi-ink)}
+.tsugi-world-choices button[aria-pressed='true']{border-color:var(--tsugi-accent)}
+.tsugi-world-choices button img{width:45px;height:38px;flex:none;object-fit:cover;object-position:75% center;border-radius:4px}
+.tsugi-world-choices button span{flex:1;min-width:0;overflow-wrap:anywhere;font-size:12px}
+.tsugi-world-choices button svg{flex:none;width:16px;height:16px;color:var(--tsugi-accent)}
+.tsugi-world-motion{display:flex;align-items:center;gap:9px;min-height:34px}
+.tsugi-world-motion input{accent-color:var(--tsugi-accent)}
+.tsugi-worlds[data-motion='still'] .tsugi-world-card>img{transition:none}
+.tsugi-world-setup[data-motion='still'][open] .tsugi-intro-art>img{animation:none}
+@media(max-width:1000px){.tsugi-worlds[data-view='home']{grid-template-columns:minmax(0,1fr)}.tsugi-world-rail{display:none}}
+@media(max-width:800px){.tsugi-world-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tsugi-world-hero-japanese{display:none}.tsugi-world-hero::before{background:linear-gradient(90deg,rgba(9,15,23,.91),rgba(9,15,23,.56))}}
+@media(max-width:760px){.tsugi-world-setup-copy{display:none}}
+@media(max-width:420px){.tsugi-world-hero{padding:22px}.tsugi-world-grid,.tsugi-world-choices{grid-template-columns:minmax(0,1fr)}.tsugi-world-toolbar{justify-content:flex-start;margin-left:0}}
+@media(prefers-reduced-motion:reduce){.tsugi-world-card>img{transition:none}}

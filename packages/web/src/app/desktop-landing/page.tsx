@@ -2,45 +2,118 @@ import React from 'react';
 import { UpNext } from './up-next';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { FiClock, FiPlay, FiSettings } from 'react-icons/fi';
+import { FiArrowRight, FiCheck, FiClock, FiHome, FiPlay, FiSettings } from 'react-icons/fi';
 import { TsugiBrand, TsugiMediaIcon } from '@/components/tsugi-brand';
-import { useDesktopArea } from '@/lib/desktop-area';
-import { FirstBootAppearance } from './first-boot-appearance';
+import { isStartupArea, readStartupArea, saveStartupArea, useDesktopArea } from '@/lib/desktop-area';
+import { storage } from '@/lib/storage';
+import { completeIntroduction, FirstBootAppearance, hasCompletedIntroduction } from './first-boot-appearance';
+import './worlds.css';
 
-/** Direct media destinations, independent of server configuration. */
+type World = 'video' | 'music' | 'read' | 'vault';
+type Preferences = { name: string; favorites: World[]; stillArtwork: boolean };
+const key = 'tsugi-home-personalization-v1';
+const ids: World[] = ['video', 'music', 'read', 'vault'];
+const art: Record<World, { image: string; character: string }> = {
+  video: { image: '/design/shared/hero-neon.webp', character: '映' },
+  music: { image: '/design/oto/hero-yuna.webp', character: '音' },
+  read: { image: '/design/yomi/hero-torii.webp', character: '読' },
+  vault: { image: '/design/kura/hero-kura.webp', character: '蔵' },
+};
+function readPreferences(): Preferences {
+  const saved = storage.get<Partial<Preferences>>(key);
+  const favorites = saved?.favorites;
+  return { name: typeof saved?.name === 'string' ? saved.name.slice(0, 28) : '',
+    favorites: Array.isArray(favorites) ? ids.filter(id => favorites.includes(id)) : [...ids],
+    stillArtwork: saved?.stillArtwork === true };
+}
+
+/** Distinct first launch, optional personalization, and returning home. */
 export function DesktopLandingPage({ openVideo, openWatch, openMusic, openRead, openVault }: {
-  openVideo(): void; openWatch?: (profileId?:number) => void; openMusic(): void; openRead?: () => void; openVault?: () => void;
+  openVideo(): void; openWatch?: (profileId?: number) => void; openMusic(): void; openRead?: () => void; openVault?: () => void;
 }) {
   const desktopArea = useDesktopArea();
   const [upNextOpen, setUpNextOpen] = React.useState(false);
-  const [introRevisit,setIntroRevisit]=React.useState(0);
-  const [introProfile,setIntroProfile]=React.useState<number>();
-  const enterWatch=()=>openWatch?openWatch(introProfile):openVideo();
+  const [introRevisit, setIntroRevisit] = React.useState(0);
+  const [introProfile, setIntroProfile] = React.useState<number>();
+  const [welcome, setWelcome] = React.useState(() => !!openVault && !hasCompletedIntroduction());
+  const [preferences, setPreferences] = React.useState(readPreferences);
+  const [startup, setStartup] = React.useState(readStartupArea);
   const sections = [
-    { id: 'video' as const, label: t({ id: "Movies & TV", message: "Movies & TV" }), open: enterWatch },
-    { id: 'music' as const, label: t({ id: "Music", message: "Music" }), open: openMusic },
-    ...(openRead ? [{ id: 'read' as const, label: t({ id: 'Read', message: 'Read' }), open: openRead }] : []),
-    ...(openVault ? [{ id: 'vault' as const, label: t({ id: 'Vault', message: 'Vault' }), open: openVault }] : []),
+    { id: 'video' as const, label: t({ id: 'Movies & TV', message: 'Movies & TV' }), detail: t`Movies, television and anime`, open: () => openWatch ? openWatch(introProfile) : openVideo() },
+    { id: 'music' as const, label: t({ id: 'Music', message: 'Music' }), detail: t`Music and audio`, open: openMusic },
+    ...(openRead ? [{ id: 'read' as const, label: t({ id: 'Read', message: 'Read' }), detail: t`Manga, ebooks and PDFs`, open: openRead }] : []),
+    ...(openVault ? [{ id: 'vault' as const, label: t({ id: 'Vault', message: 'Vault' }), detail: t`Downloads, files and collections`, open: openVault }] : []),
   ];
-  return <main data-page="desktop-landing" className="tsugi-landing tsugi-index">
-    {openVault && <FirstBootAppearance revisit={introRevisit} onProfileSelected={setIntroProfile} />}
-    {desktopArea?.openResume && <UpNext open={upNextOpen} onClose={()=>setUpNextOpen(false)}/>}
-    <header className="tsugi-index-header">
-      {openVault && <button type="button" className="tsugi-category-link" onClick={()=>setIntroRevisit(value=>value+1)}><FiPlay aria-hidden/><Trans id="Introduction">Introduction</Trans></button>}
-      {desktopArea?.openResume && <button type="button" className="tsugi-category-link" onClick={()=>setUpNextOpen(true)}><FiClock aria-hidden/><Trans>Up next</Trans></button>}
-      {desktopArea && <button type="button" className="tsugi-category-link" onClick={desktopArea.openSettings}><FiSettings aria-hidden /><Trans id="App settings">App settings</Trans></button>}
-    </header>
-    <div className="tsugi-index-body">
-      <div className="tsugi-index-identity">
-        <div className="tsugi-index-signature"><TsugiBrand markOnly /></div>
-        <h1 className="tsugi-index-wordmark"><Trans id="Tsugi">Tsugi</Trans></h1>
-      </div>
-      <nav className="tsugi-index-destinations" aria-label={t({ id: "Media sections", message: "Media sections" })}>
-        {sections.map(({ id, label, open }) => <button key={id} type="button" onClick={open} className="tsugi-index-link" aria-label={label}>
-          <TsugiMediaIcon area={id} />
-          <span className="tsugi-index-copy">{label}</span>
+  const worlds = welcome ? sections : [...sections].sort((a, b) => Number(preferences.favorites.includes(b.id)) - Number(preferences.favorites.includes(a.id)));
+  const displayName = preferences.name.trim();
+  const personalize = () => { setStartup(readStartupArea()); setIntroRevisit(value => value + 1); };
+  const explore = () => { completeIntroduction(); setWelcome(false); };
+  const enter = (open: () => void) => { if (welcome) explore(); open(); };
+  function update(next: Preferences) { setPreferences(next); storage.set(key, next); }
+  const personalization = <section className="tsugi-world-personalization" aria-label={t`Personalize your home`}>
+    <label htmlFor="tsugi-home-name"><Trans>What should we call you?</Trans> <small><Trans>Optional</Trans></small></label>
+    <input id="tsugi-home-name" className="tsugi-read-input" value={preferences.name} maxLength={28} placeholder={t`Your name`} onChange={event => update({ ...preferences, name: event.target.value })}/>
+    <strong><Trans>What would you like to see first?</Trans></strong>
+    <div className="tsugi-world-choices">{sections.map(({ id, label }) => {
+      const selected = preferences.favorites.includes(id);
+      return <button key={id} type="button" aria-label={label} aria-pressed={selected} onClick={() => update({ ...preferences, favorites: selected ? preferences.favorites.filter(value => value !== id) : [...preferences.favorites, id] })}>
+        <img src={art[id].image} alt="" decoding="async"/><span>{label}</span>{selected && <FiCheck aria-hidden/>}
+      </button>;
+    })}</div>
+    <p><Trans>Favorites appear first in your home. Every available world stays accessible.</Trans></p>
+    <label htmlFor="tsugi-home-start"><Trans>Start each visit in</Trans></label>
+    <select id="tsugi-home-start" className="tsugi-read-input" value={startup} onChange={event => {
+      const value = event.target.value;
+      if (isStartupArea(value)) { saveStartupArea(value); setStartup(value); }
+    }}>
+      <option value="auto"><Trans>Automatic</Trans></option><option value="welcome"><Trans>Home hub</Trans></option>
+      {sections.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
+    </select>
+    <label className="tsugi-world-motion"><input type="checkbox" checked={preferences.stillArtwork} onChange={event => update({ ...preferences, stillArtwork: event.target.checked })}/><Trans>Keep welcome artwork still</Trans></label>
+    <p><Trans>Connect services and organize your files whenever you are ready. Nothing is required to explore.</Trans></p>
+  </section>;
+  return <main data-page="desktop-landing" data-view={welcome ? 'welcome' : 'home'} data-motion={preferences.stillArtwork ? 'still' : undefined} className="tsugi-landing tsugi-worlds">
+    {openVault && <FirstBootAppearance manual revisit={introRevisit} onProfileSelected={setIntroProfile} onFinished={() => setWelcome(false)} appearanceExtra={personalization} stillArtwork={preferences.stillArtwork}/>}
+    {desktopArea?.openResume && <UpNext open={upNextOpen} onClose={() => setUpNextOpen(false)}/>}
+    {!welcome && <aside className="tsugi-world-rail">
+      <div className="tsugi-world-brand"><TsugiBrand/><small><Trans>One home. Many worlds.</Trans></small></div>
+      <nav aria-label={t`Home navigation`}>
+        <span className="tsugi-world-current" aria-current="page"><FiHome aria-hidden/><Trans>Home</Trans></span>
+        <small className="tsugi-world-eyebrow"><Trans>Your worlds</Trans></small>
+        {worlds.map(({ id, label, open }) => <button key={id} type="button" aria-label={t`Open ${label}`} onClick={() => enter(open)}><TsugiMediaIcon area={id}/><span>{label}</span></button>)}
+      </nav>
+      <div className="tsugi-world-rail-note"><span lang="ja">次の世界へ。</span><p><Trans>A little less searching. A little more getting lost.</Trans></p></div>
+    </aside>}
+    <div className="tsugi-world-content">
+      <header className="tsugi-world-topbar">
+        {welcome ? <div className="tsugi-world-brand"><TsugiBrand/><small><Trans>One home. Many worlds.</Trans></small></div> : <span className="tsugi-world-breadcrumb"><Trans>Your space</Trans> / <strong><Trans>Home</Trans></strong></span>}
+        <div className="tsugi-world-toolbar">
+          {!welcome && openVault && <button type="button" onClick={personalize}><FiPlay aria-hidden/><Trans id="Introduction">Introduction</Trans></button>}
+          {desktopArea?.openResume && <button type="button" onClick={() => setUpNextOpen(true)}><FiClock aria-hidden/><Trans>Up next</Trans></button>}
+          {desktopArea && <button type="button" onClick={desktopArea.openSettings}><FiSettings aria-hidden/><Trans id="App settings">App settings</Trans></button>}
+        </div>
+      </header>
+      {!welcome && <div className="tsugi-world-greeting"><h1>{displayName ? <Trans>Welcome, {displayName}.</Trans> : <Trans>Welcome to Tsugi.</Trans>}</h1><span><Trans>Make yourself at home.</Trans></span></div>}
+      <section className="tsugi-world-hero" data-ui="tsugi-world-hero">
+        <img src={welcome ? '/design/shared/hero-train.webp' : '/design/anime/hero-kagezora.webp'} alt="" decoding="async"/>
+        <div className="tsugi-world-hero-copy">
+          <span className="tsugi-world-eyebrow">{welcome ? <Trans>Welcome to your next world</Trans> : <Trans>This is the beginning of something good</Trans>}</span>
+          {welcome ? <h1><Trans>Your next world starts here.</Trans></h1> : <h2><Trans>One home. A thousand worlds.</Trans></h2>}
+          <p>{welcome ? <Trans>Films to fall into. Pages to turn. Sounds to keep. Everything you love, with a little more room to get lost.</Trans> : <Trans>What you watch. What you read. What you listen to. And all the things you want to keep.</Trans>}</p>
+          {openVault && <div className="tsugi-world-actions"><button type="button" className="tsugi-world-primary" onClick={personalize}><Trans>Make it yours</Trans><FiArrowRight aria-hidden/></button>{welcome && <button type="button" className="tsugi-world-secondary" onClick={explore}><Trans>Explore first</Trans></button>}</div>}
+        </div>
+        <span className="tsugi-world-hero-japanese" lang="ja" aria-hidden="true">{welcome ? '好きな世界へ。' : '好きなものを、ひとつに。'}</span>
+      </section>
+      <div className="tsugi-world-heading"><div><span className="tsugi-world-eyebrow">{welcome ? <Trans>One home. Many ways in.</Trans> : <Trans>Follow what moves you</Trans>}</span><h2>{welcome ? <Trans>Where will you get lost?</Trans> : <Trans>Where will you go first?</Trans>}</h2></div><p><Trans>Every world is already open to you.</Trans></p></div>
+      <nav className="tsugi-world-grid" aria-label={t({ id: 'Media sections', message: 'Media sections' })}>
+        {worlds.map(({ id, label, detail, open }) => <button key={id} type="button" className="tsugi-world-card" aria-label={label} onClick={() => enter(open)}>
+          <img src={art[id].image} alt="" decoding="async"/>
+          <span className="tsugi-world-card-top"><TsugiMediaIcon area={id}/><span lang="ja" aria-hidden="true">{art[id].character}</span></span>
+          <span className="tsugi-world-card-copy"><span className="tsugi-world-card-title">{label}<FiArrowRight aria-hidden/></span><span className="tsugi-world-detail">{detail}</span></span>
         </button>)}
       </nav>
+      {!welcome && openVault && <section className="tsugi-world-discovery"><div><span className="tsugi-world-eyebrow"><Trans>Your next discovery</Trans></span><h2><Trans>Bring your library together.</Trans></h2><p><Trans>Collect files, links and downloads in the Vault, or pick up a story where you left off.</Trans></p></div><div className="tsugi-world-actions"><button type="button" className="tsugi-world-primary" onClick={() => enter(openVault)}><Trans>Open Vault</Trans><FiArrowRight aria-hidden/></button>{desktopArea?.openResume && <button type="button" className="tsugi-world-quiet" onClick={() => setUpNextOpen(true)}><Trans>Continue your journey</Trans></button>}</div></section>}
+      <footer className="tsugi-world-footer"><span lang="ja">物語は、ここから。</span><span><Trans>Your stories. Your sounds. Your little universe.</Trans></span></footer>
     </div>
   </main>;
 }

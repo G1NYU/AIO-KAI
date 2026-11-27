@@ -11,9 +11,18 @@ import { storage } from '@/lib/storage';
 const key = 'tsugi-onboarding-complete-v1';
 let completedInSession = false;
 
-export function FirstBootAppearance({onProfileSelected,revisit=0,watchRevisit=0,onWatchContinue}:{onProfileSelected:(id:number|undefined)=>void;revisit?:number;watchRevisit?:number;onWatchContinue?:()=>void}) {
+export const hasCompletedIntroduction = () => completedInSession || storage.get<boolean>(key) === true;
+export function completeIntroduction() {
+  completedInSession = true;
+  storage.set(key, true);
+}
+
+export function FirstBootAppearance({onProfileSelected,revisit=0,watchRevisit=0,onWatchContinue,manual=false,onFinished,appearanceExtra,stillArtwork=false}:{
+  onProfileSelected:(id:number|undefined)=>void;revisit?:number;watchRevisit?:number;onWatchContinue?:()=>void;
+  manual?:boolean;onFinished?:()=>void;appearanceExtra?:React.ReactNode;stillArtwork?:boolean;
+}) {
   const supportsAddons=appBridge()?.stremioAddons===true;
-  const [open, setOpen] = React.useState(() => !supportsAddons && !completedInSession && storage.get<boolean>(key) !== true);
+  const [open, setOpen] = React.useState(() => !manual && !supportsAddons && !hasCompletedIntroduction());
   const dialog = React.useRef<HTMLDialogElement>(null);
   const supportsReader=appBridge()?.reading===true||appBridge()?.readingSetup===true;
   const [mangaOpen,setMangaOpen]=React.useState(false);
@@ -45,15 +54,20 @@ export function FirstBootAppearance({onProfileSelected,revisit=0,watchRevisit=0,
   }, [open]);
   function finish(continueWatch=false) {
     if(mangaFlight.current)return;
-    completedInSession = true;
-    storage.set(key, true);
+    completeIntroduction();
     setOpen(false);setStep('appearance');setWatchEntry(false);setAnimeEntry(false);setMangaOpen(false);setMangaError('');
+    onFinished?.();
     if(continueWatch&&watchEntry)onWatchContinue?.();
   }
-  return <dialog ref={dialog} className={'tsugi-global-settings tsugi-onboarding'+(step==='addons'?' tsugi-watch-setup':'')} data-ui="tsugi-onboarding" aria-labelledby="tsugi-onboarding-title" onCancel={event => { event.preventDefault(); finish(); }}>
+  function back() {
+    if(mangaFlight.current)return;
+    setOpen(false);setStep('appearance');setWatchEntry(false);setAnimeEntry(false);setMangaOpen(false);setMangaError('');
+  }
+  return <dialog ref={dialog} data-motion={stillArtwork?'still':undefined} className={'tsugi-global-settings tsugi-onboarding'+(step==='addons'?' tsugi-watch-setup':'')+(manual?' tsugi-world-setup':'')} data-ui="tsugi-onboarding" aria-labelledby="tsugi-onboarding-title" onCancel={event => { event.preventDefault(); finish(); }}>
     {step==='appearance'&&<div className="tsugi-intro-art" aria-hidden="true">
-      <img src="/design/shared/hero-train.webp" alt="" decoding="async"/>
+      <img src={manual?"/design/anime/art-torii.webp":"/design/shared/hero-train.webp"} alt="" decoding="async"/>
       <div className="tsugi-intro-art-shade"/>
+      {manual&&<div className="tsugi-world-setup-copy"><span lang="ja">あなたの世界。</span><h2><Trans>A little more you.</Trans></h2><p><Trans>The stories you return to. The sounds you carry with you.</Trans></p></div>}
       <div className="tsugi-intro-art-signature"><TsugiBrand /></div>
     </div>}
     <div className="tsugi-intro-content">
@@ -64,6 +78,7 @@ export function FirstBootAppearance({onProfileSelected,revisit=0,watchRevisit=0,
       </div>
     </header>
     {step==='addons'&&open?<StremioAddonSettings workspace setupConnections onProfileSelected={onProfileSelected} initialPane={animeEntry?'anime':'addons'} />:step==='appearance'&&open?<>
+      {appearanceExtra}
       <GlobalAppearanceSettings />
       <section className="tsugi-app-general" data-ui="first-launch-connections">
         <h3><Trans>Collections and connections</Trans></h3>
@@ -78,9 +93,10 @@ export function FirstBootAppearance({onProfileSelected,revisit=0,watchRevisit=0,
     <footer className="tsugi-onboarding-footer">
       <p><Trans>Your choices apply immediately. You can always change them in App settings.</Trans></p>
       <div className="tsugi-onboarding-actions">
+        {manual&&step==='appearance'&&<button type="button" className="tsugi-read-action" disabled={mangaBusy} onClick={back}><Trans>Back</Trans></button>}
         {step==='addons'&&<button type="button" className="tsugi-read-action" onClick={()=>setStep('appearance')}><Trans>Appearance</Trans></button>}
         <button type="button" className="tsugi-read-action" disabled={mangaBusy} onClick={()=>finish()}><Trans>Skip for now</Trans></button>
-        {supportsAddons&&step==='appearance'?<button type="button" className="tsugi-read-action tsugi-series-primary" disabled={mangaBusy} onClick={()=>{setAnimeEntry(false);setStep('addons');}}><Trans>Set up addons</Trans></button>:
+        {supportsAddons&&step==='appearance'&&!manual?<button type="button" className="tsugi-read-action tsugi-series-primary" disabled={mangaBusy} onClick={()=>{setAnimeEntry(false);setStep('addons');}}><Trans>Set up addons</Trans></button>:
         <button type="button" className="tsugi-read-action tsugi-series-primary" disabled={mangaBusy} onClick={()=>finish(true)}>{watchEntry?<Trans>Continue to Movies &amp; TV</Trans>:<Trans>Enter Tsugi</Trans>}</button>}
       </div>
     </footer>
