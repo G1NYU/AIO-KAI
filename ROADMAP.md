@@ -2,6 +2,8 @@
 
 ## Streaming hub architecture correction
 
+**Current beta gates:** cumulative web/Windows CI passed at `63ca4b8` (run 45983108026; no package). Shared Settings parity is not yet complete: reuse the existing searchable Playback/Player/Audio/Subtitles/Interface/Browsing/Theme/Shortcuts/Desktop sections where applicable, and wire their values into standalone playback/browsing. Preserve provider-specific account settings and do not claim server-only features work without a server. Automatic anime identity resolution, real Windows/provider playback and verified package remain open. Discord public application identity supplied and presence priority corrected; real desktop client acceptance and CI still pending.
+
 **Playback preference:** reuse the existing Auto-play the first version switch in Playback settings. Manual by default; explicit device choice shared by all three desktop hubs. Standalone manual lists all compatible enabled addon stream responses in source order and shows unsupported options; automatic picks first compatible native-grant stream. Tests and Windows beta verification pending.
 
 **Visual reference:** user-supplied Anime Hub interactive HTML. Use live content in its hero, shelves and seasonal sections; share AIO version presentation and ordered automatic first-stream semantics, with an addon-specific adapter and secure native grant. No fictional prototype data. CI and real Windows acceptance remain gates.
@@ -99,7 +101,7 @@ Baseline: [official v0.1.0](https://github.com/G1NYU/TSUGI/releases/tag/v0.1.0);
 | B5 | P1 | Tracker sync and source migration | Partial: reviewed source migration, guarded partial-page and local tracker-binding transfer, MAL manga import/restore and individually approved snapshot replacements verified through `880ec65`. Account-bound automatic MAL/AniList tracking and live OAuth acceptance remain open |
 | C1 | P2 | Cross-media Up Next | Partial: launcher resume for Reader, local books and listening; authenticated Video handoff; cumulative browser acceptance, exact video rows and persistent audio queue/position remain |
 | C2 | P2 | Vault-to-library handoff | Partial: reviewed EPUB/PDF and persistent deduplicated audio import, per-job result and independent retry implemented; audio CI acceptance, automatic/CBZ handoff remain |
-| C3 | P2 | Connections, privacy and diagnostics | Partial: safe support preview/copy and optional cross-media Discord presence implemented; registered TSUGI Application ID, live presence acceptance, full log export, lock and background controls remain |
+| C3 | P2 | Connections, privacy and diagnostics | Partial: safe support preview/copy and optional cross-media Discord presence implemented; registered TSUGI Application ID supplied and prefilled (new CI pending), live presence acceptance, full log export, lock and background controls remain |
 | D1 | Later | AI stories in Books and Manga | Requested 2026-11-26: refreshable, automatically curated YouTube stories with in-app listening/watching; planned only |
 | D2 | Later | TorBox cached music discovery and Eclipse source | Requested 2026-11-26: evaluate Debrify, Debrid Media Manager and Debrid Vault as discovery references/integrations; planned only, API and addon compatibility investigation required |
 | D3 | Later | Anime introduction and welcome experience | Implemented: offline illustrated introduction with existing appearance controls, skip/revisit and reduced-motion behavior; cumulative browser acceptance passed. Physical Windows visual acceptance remains open |

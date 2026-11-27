@@ -1,3 +1,5 @@
+- 2026-11-27: Prior shared-autoplay CI `63ca4b8` passed. Register TSUGI's public Discord identity as default (sharing remains opt-in), correct video/music presence priority, add regressions and document standalone settings parity gaps. New CI and live Discord pending.
+
 - 2026-11-27: Unified the existing Playback auto-play first version setting across all three Watch hubs, replacing the temporary standalone checkbox. Shared switch and device override with account fallback; regression assertions updated. CI pending.
 
 - 2026-11-27: Ported content-first Anime mockup details and standalone featured rotation, shared version frame, device-local first-stream preference and CI localization fixes; validation pending.

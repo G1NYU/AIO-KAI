@@ -49,7 +49,11 @@ export async function verifyDiscordPresenceBrowser({ browser, origin, installDes
     await openSettings(landing); await frames();
     assert.equal((await latest('discord-configure')).config.enabled, false);
     assert.equal((await messages()).some(message => message.type === 'discord-check'), false);
-    assert.equal(await settings.getByRole('checkbox', { name: 'Enable Rich Presence', exact: true }).isEnabled(), false);
+    assert.equal((await latest('discord-configure')).config.applicationId, '1575822403211362365');
+    assert.equal(await settings.getByRole('checkbox', { name: 'Enable Rich Presence', exact: true }).isEnabled(), true);
+    assert.equal(await settings.getByRole('checkbox', { name: 'Enable Rich Presence', exact: true }).isChecked(), false);
+    await settings.getByText('Discord application setup', { exact: true }).click();
+    assert.equal(await settings.getByRole('textbox', { name: 'Application ID', exact: true }).inputValue(), '1575822403211362365');
     await settings.getByRole('textbox', { name: 'Application ID', exact: true }).fill('123');
     assert.equal(await settings.getByRole('button', { name: 'Save application ID', exact: true }).isEnabled(), false);
     await settings.getByRole('textbox', { name: 'Application ID', exact: true }).fill('123456789012345678');

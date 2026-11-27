@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  defaultPresencePreferences, parsePresencePreferences, PRESENCE_MEDIA, publicPresence,
+  defaultPresencePreferences, parsePresencePreferences, PRESENCE_MEDIA, publicPresence, TSUGI_DISCORD_APPLICATION_ID,
   publicPresenceText, selectMediaPresence, sharesPresence, validApplicationId,
   type MediaPresence,
 } from '../src/lib/presence-model';
@@ -20,7 +20,25 @@ describe('optional Discord sharing', () => {
     expect(defaultPresencePreferences().enabled).toBe(false);
     expect(selectMediaPresence(defaultPresencePreferences(), [sample('music')])).toBeNull();
   });
-  it('requires a valid explicit application identity without rounding snowflakes', () => {
+  it('uses the registered TSUGI identity without enabling sharing or replacing a custom ID', () => {
+    const defaults = defaultPresencePreferences();
+    expect(defaults.applicationId).toBe('1575822403211362365');
+    expect(validApplicationId(TSUGI_DISCORD_APPLICATION_ID)).toBe(true);
+    expect(parsePresencePreferences({ ...defaults, applicationId: '', enabled: true, privateMode: true })).toMatchObject({
+      applicationId: TSUGI_DISCORD_APPLICATION_ID, enabled: false, privateMode: true,
+    });
+    expect(parsePresencePreferences(enabled())).toEqual(enabled());
+  });
+  it('watching outranks background music but video browsing does not', () => {
+    const music = sample('music'), video = sample('video'), manga = sample('manga');
+    for (const candidates of [[music, video, manga], [video, manga, music]]) {
+      expect(selectMediaPresence(enabled(), candidates)?.media).toBe('video');
+    }
+    expect(selectMediaPresence(enabled(), [music, { ...video, browsing: true }])?.media).toBe('music');
+    expect(selectMediaPresence(enabled(), [music, video])?.media).toBe('video');
+    expect(selectMediaPresence(enabled(), [music])?.media).toBe('music');
+  });
+  it('requires a valid application identity without rounding snowflakes', () => {
     for (const id of ['', '123', '123456789012345678x', '123456789012345678 ', '00000000000000000', '18446744073709551616']) expect(validApplicationId(id)).toBe(false);
     expect(validApplicationId('123456789012345678')).toBe(true);
     expect(validApplicationId('18446744073709551615')).toBe(true);

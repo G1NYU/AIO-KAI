@@ -18,8 +18,10 @@ export type MediaPresence = {
   browsing: boolean;
 };
 export const PRESENCE_KEY = 'tsugi-discord-presence-v1';
+/** Public application identity registered for TSUGI; never a token or secret. */
+export const TSUGI_DISCORD_APPLICATION_ID = '1575822403211362365';
 export function defaultPresencePreferences(): PresencePreferences {
-  return { enabled: false, applicationId: '', privateMode: false,
+  return { enabled: false, applicationId: TSUGI_DISCORD_APPLICATION_ID, privateMode: false,
     media: { video: true, music: true, manga: true, books: true } };
 }
 export function validApplicationId(value: string): boolean {
@@ -32,7 +34,9 @@ export function parsePresencePreferences(value: unknown): PresencePreferences {
   if (typeof v.enabled !== 'boolean' || typeof v.privateMode !== 'boolean'
     || typeof v.applicationId !== 'string' || (v.applicationId !== '' && !validApplicationId(v.applicationId))
     || !v.media || PRESENCE_MEDIA.some(media => typeof v.media?.[media] !== 'boolean')) return defaults;
-  return { enabled: v.enabled, privateMode: v.privateMode, applicationId: v.applicationId,
+  // Upgrade an unset identity without enabling sharing, changing privacy or
+  // replacing a user's explicitly configured application.
+  return { enabled: v.enabled && v.applicationId !== '', privateMode: v.privateMode, applicationId: v.applicationId || defaults.applicationId,
     media: Object.fromEntries(PRESENCE_MEDIA.map(media => [media, v.media![media]])) as PresencePreferences['media'] };
 }
 export function sharesPresence(preferences: PresencePreferences, media: PresenceMedia): boolean {
@@ -55,12 +59,12 @@ export function publicPresence(input: MediaPresence): MediaPresence {
     position: Math.min(position, duration ?? Number.MAX_SAFE_INTEGER), duration,
     paused: input.paused === true, browsing: input.browsing === true };
 }
-/** A visible reading session takes priority over music that continues in the background. */
+/** Watching outranks background playback; browsing never hides active media. */
 export function selectMediaPresence(preferences: PresencePreferences, candidates: Iterable<MediaPresence>): MediaPresence | null {
-  const priority: Record<PresenceMedia, number> = { video: 1, music: 2, manga: 3, books: 3 };
+  const priority = (p: MediaPresence) => p.browsing ? 1 : p.media === 'video' ? 4 : p.media === 'music' ? 2 : 3;
   let selected: MediaPresence | null = null;
   for (const candidate of candidates) {
-    if (sharesPresence(preferences, candidate.media) && (!selected || priority[candidate.media] > priority[selected.media])) selected = candidate;
+    if (sharesPresence(preferences, candidate.media) && (!selected || priority(candidate) > priority(selected))) selected = candidate;
   }
   return selected ? publicPresence(selected) : null;
 }
