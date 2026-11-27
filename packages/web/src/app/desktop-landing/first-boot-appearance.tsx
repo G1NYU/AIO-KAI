@@ -96,6 +96,7 @@ export function FirstBootAppearance({onProfileSelected,revisit=0,watchRevisit=0,
         {manual&&step==='appearance'&&<button type="button" className="tsugi-read-action" disabled={mangaBusy} onClick={back}><Trans>Back</Trans></button>}
         {step==='addons'&&<button type="button" className="tsugi-read-action" onClick={()=>setStep('appearance')}><Trans>Appearance</Trans></button>}
         <button type="button" className="tsugi-read-action" disabled={mangaBusy} onClick={()=>finish()}><Trans>Skip for now</Trans></button>
+        {supportsAddons&&step==='appearance'&&manual&&<button type="button" className="tsugi-read-action" disabled={mangaBusy} onClick={()=>{setAnimeEntry(false);setStep('addons');}}><Trans>Set up addons</Trans></button>}
         {supportsAddons&&step==='appearance'&&!manual?<button type="button" className="tsugi-read-action tsugi-series-primary" disabled={mangaBusy} onClick={()=>{setAnimeEntry(false);setStep('addons');}}><Trans>Set up addons</Trans></button>:
         <button type="button" className="tsugi-read-action tsugi-series-primary" disabled={mangaBusy} onClick={()=>finish(true)}>{watchEntry?<Trans>Continue to Movies &amp; TV</Trans>:<Trans>Enter Tsugi</Trans>}</button>}
       </div>

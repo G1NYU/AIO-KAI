@@ -88,7 +88,7 @@ export function DesktopLandingPage({ openVideo, openWatch, openMusic, openRead, 
       <header className="tsugi-world-topbar">
         {welcome ? <div className="tsugi-world-brand"><TsugiBrand/><small><Trans>One home. Many worlds.</Trans></small></div> : <span className="tsugi-world-breadcrumb"><Trans>Your space</Trans> / <strong><Trans>Home</Trans></strong></span>}
         <div className="tsugi-world-toolbar">
-          {!welcome && openVault && <button type="button" onClick={personalize}><FiPlay aria-hidden/><Trans id="Introduction">Introduction</Trans></button>}
+          {openVault && <button type="button" onClick={personalize}><FiPlay aria-hidden/><Trans id="Introduction">Introduction</Trans></button>}
           {desktopArea?.openResume && <button type="button" onClick={() => setUpNextOpen(true)}><FiClock aria-hidden/><Trans>Up next</Trans></button>}
           {desktopArea && <button type="button" onClick={desktopArea.openSettings}><FiSettings aria-hidden/><Trans id="App settings">App settings</Trans></button>}
         </div>
@@ -112,7 +112,7 @@ export function DesktopLandingPage({ openVideo, openWatch, openMusic, openRead, 
           <span className="tsugi-world-card-copy"><span className="tsugi-world-card-title">{label}<FiArrowRight aria-hidden/></span><span className="tsugi-world-detail">{detail}</span></span>
         </button>)}
       </nav>
-      {!welcome && openVault && <section className="tsugi-world-discovery"><div><span className="tsugi-world-eyebrow"><Trans>Your next discovery</Trans></span><h2><Trans>Bring your library together.</Trans></h2><p><Trans>Collect files, links and downloads in the Vault, or pick up a story where you left off.</Trans></p></div><div className="tsugi-world-actions"><button type="button" className="tsugi-world-primary" onClick={() => enter(openVault)}><Trans>Open Vault</Trans><FiArrowRight aria-hidden/></button>{desktopArea?.openResume && <button type="button" className="tsugi-world-quiet" onClick={() => setUpNextOpen(true)}><Trans>Continue your journey</Trans></button>}</div></section>}
+      {!welcome && openVault && <section className="tsugi-world-discovery"><div><span className="tsugi-world-eyebrow"><Trans>Your next discovery</Trans></span><h2><Trans>Bring your library together.</Trans></h2><p><Trans>Collect files, links and downloads in the Vault, or pick up a story where you left off.</Trans></p></div><div className="tsugi-world-actions"><button type="button" className="tsugi-world-primary" onClick={() => enter(openVault)}><Trans>Manage downloads</Trans><FiArrowRight aria-hidden/></button>{desktopArea?.openResume && <button type="button" className="tsugi-world-quiet" onClick={() => setUpNextOpen(true)}><Trans>Continue your journey</Trans></button>}</div></section>}
       <footer className="tsugi-world-footer"><span lang="ja">物語は、ここから。</span><span><Trans>Your stories. Your sounds. Your little universe.</Trans></span></footer>
     </div>
   </main>;
