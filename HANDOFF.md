@@ -252,3 +252,5 @@ Continue the reliability/recovery roadmap while the user tests the candidate; se
 
 ## 2026-11-27 — Independent Watch screen and playback
 - Direct Watch now has a dedicated desktop area, entered from Movies & TV, with illustrated profile selection, actual addon management and a separate server connection route. Stream selection requests a native opaque grant and starts the existing player without a server session. Basic pause/seek/back, native playback events, subtitle selection by exact active video and opt-in Discord presence are wired. Music playback is excluded in Watch. First launch still supports profile setup and optional skip. Fixed three Lingui expression lint failures in feff65e. Browser/native verification, direct playback fixture, actual provider and physical player smoke remain required; do not package yet.
+
+- Added native grant one-use/invalidation and source-disable regression plus browser fixture for direct Watch catalogue, explicit Play, subtitle attachment and stop. Fixture simulates player events; physical mpv verification remains outstanding.

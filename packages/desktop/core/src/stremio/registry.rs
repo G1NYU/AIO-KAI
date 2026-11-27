@@ -320,6 +320,31 @@ mod tests {
         result["reviewId"].as_u64().unwrap() as u32
     }
     #[test]
+    fn media_grant_is_exact_one_use_and_not_serialized(){
+        let mut registry=Registry::default();
+        let id=stage(&mut registry,"media");
+        registry.execute(Action::Install{review_id:id}).unwrap();
+        let review=MediaReview{id:100,source_id:id,media_type:"movie".into(),video_id:"tt123".into(),subtitles:false,
+            rows:vec![OptionSummary{name:"HD".into(),supported:true,reason:"direct-https",language:None,url:Some("https://cdn.example.org/video?token=private-fixture".into())}],created:Instant::now()};
+        registry.media_review=Some(review.clone());
+        let data=registry.execute(Action::PrepareMedia{review_id:100,option_index:0,start_ms:12000}).unwrap();
+        assert!(!data.to_string().contains("private-fixture"));
+        let grant=registry.grant.take().unwrap();
+        assert_eq!(grant.load().start_ms,12000.0);
+        assert!(grant.load().url.contains("private-fixture"));
+        assert_eq!(registry.execute(Action::PrepareMedia{review_id:100,option_index:0,start_ms:0}),Err("expired-review"));
+        let (tx,_rx)=mpsc::sync_channel(2);
+        let worker=Worker(tx,Arc::new(Mutex::new(GrantSlot{generation:0,grant:Some(grant.clone())})));
+        assert!(worker.take_grant(grant.id()).is_some());
+        assert!(worker.take_grant(grant.id()).is_none());
+        worker.1.lock().unwrap().grant=Some(grant.clone());
+        worker.invalidate_grant();
+        assert!(worker.take_grant(grant.id()).is_none());
+        registry.media_review=Some(review);
+        registry.execute(Action::SetEnabled{source_id:id,enabled:false}).unwrap();
+        assert_eq!(registry.execute(Action::PrepareMedia{review_id:100,option_index:0,start_ms:0}),Err("expired-review"));
+    }
+    #[test]
     fn review_is_one_use_explicit_and_never_returns_configured_url() {
         let mut registry = Registry::default();
         let id = stage(&mut registry,"one");

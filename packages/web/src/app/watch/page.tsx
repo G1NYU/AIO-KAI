@@ -1,5 +1,6 @@
 import React from 'react';
 import { Trans } from '@lingui/react/macro';
+import { t } from '@lingui/core/macro';
 import { StremioAddonSettings } from '@/components/shell/stremio-addon-settings';
 import { appBridge } from '@/lib/hosts/shell/bridge';
 import { consumeAddonMedia, loadAddonOptions, prepareAddonMedia, type AddonOptions, type WatchPlayback } from '@/lib/hosts/shell/stremio';
@@ -93,7 +94,7 @@ function DirectPlayer({playback,close}:{playback:WatchPlayback;close:()=>void}){
     {status!=='ready'&&<div className="tsugi-direct-player-status" role={status==='error'?'alert':'status'}>{status==='loading'?<Trans>Opening stream…</Trans>:status==='error'?<Trans>Playback failed or the selection expired. Go back and request a fresh stream.</Trans>:<Trans>Playback ended.</Trans>}</div>}
     <footer>
       {status==='ready'&&<>
-        <div className="flex flex-wrap items-center gap-3"><button type="button" className="tsugi-read-action" onClick={()=>appBridge()?.send({type:'player-set',paused:!paused})}>{paused?<Trans>Play</Trans>:<Trans>Pause</Trans>}</button><span>{time(position)} / {time(duration)}</span><input type="range" aria-label="Playback position" min={0} max={Math.max(duration,1)} value={Math.min(position,duration)} disabled={!duration} onChange={e=>seek(Number(e.target.value))}/></div>
+        <div className="flex flex-wrap items-center gap-3"><button type="button" className="tsugi-read-action" onClick={()=>appBridge()?.send({type:'player-set',paused:!paused})}>{paused?<Trans>Play</Trans>:<Trans>Pause</Trans>}</button><span>{time(position)} / {time(duration)}</span><input type="range" aria-label={t`Playback position`} min={0} max={Math.max(duration,1)} value={Math.min(position,duration)} disabled={!duration} onChange={e=>seek(Number(e.target.value))}/></div>
         {playback.subtitleSources.length>0&&<details><summary><Trans>Addon subtitles</Trans></summary><div className="flex flex-wrap gap-2">{playback.subtitleSources.map(s=><button type="button" key={s.sourceId} className="tsugi-read-action" disabled={subtitleBusy} onClick={()=>void fetchSubtitles(s.sourceId)}>{s.name}</button>)}</div>
           {subtitleOptions&&<div className="max-h-40 overflow-auto">{subtitleOptions.rows.length===0?<p><Trans>No subtitles returned.</Trans></p>:subtitleOptions.rows.map((s,i)=><button className="tsugi-read-action" key={i} type="button" disabled={subtitleBusy||!s.supported} onClick={()=>void applySubtitle(i)}>{s.name} {s.language??''}</button>)}</div>}
           {subtitleBusy&&<p role="status"><Trans>Contacting addon…</Trans></p>}{subtitleApplied&&<p role="status"><Trans>Subtitle request accepted.</Trans></p>}{subtitleError&&<p role="alert"><Trans>Could not select this subtitle. Request a fresh list.</Trans></p>}</details>}
