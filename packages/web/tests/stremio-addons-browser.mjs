@@ -1242,12 +1242,13 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await firstLaunch.evaluate(()=>window.scrollTo(0,0));
     const narrow=await watch.evaluate(node=>({scrollWidth:node.scrollWidth,clientWidth:node.clientWidth,nav:node.querySelector('.tsugi-watch-nav').getBoundingClientRect().width,content:node.querySelector('.tsugi-watch-content').getBoundingClientRect().width}));
     assert.ok(narrow.scrollWidth<=narrow.clientWidth+2,`Watch workspace overflow: ${JSON.stringify(narrow)}`);
-    const headerClearance=await watch.evaluate(node=>{
-      const controls=document.querySelector('[data-ui="window-controls"]');
-      const header=node.querySelector(':scope > div > header');
-      return {controlsBottom:controls?.getBoundingClientRect().bottom??0,headerTop:header?.getBoundingClientRect().top??0};
-    });
-    assert.ok(headerClearance.controlsBottom>=32&&headerClearance.headerTop>=headerClearance.controlsBottom+8,`Watch header must clear the native window controls: ${JSON.stringify(headerClearance)}`);
+    // The shared rail hides the legacy outer header; measure the visible workspace instead.
+    const visibleHeader=watch.locator('[data-ui="stremio-addon-settings"] > header');
+    await visibleHeader.waitFor({state:'visible'});
+    assert.equal(await watch.locator(':scope > div > header').isVisible(),false,'Shared rail replaces the legacy Watch header');
+    const controls=await firstLaunch.locator('[data-ui="window-controls"]').boundingBox();
+    const header=await visibleHeader.boundingBox();
+    assert.ok(controls&&header&&controls.height>=32&&header.height>0&&header.y>=controls.y+controls.height+8,`Watch header must clear the native window controls: ${JSON.stringify({controls,header})}`);
     if(screenshotDir)await firstLaunch.screenshot({path:join(screenshotDir,'watch-workspace-narrow.png'),animations:'disabled'});
     console.log('Watch history, direct Watch Rich Presence, MDBList connection/pagination/isolation and narrow layout passed');
     await watch.getByRole('button',{name:'All media',exact:true}).click();
