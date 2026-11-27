@@ -35,12 +35,13 @@ export function MdblistSettings({profileId,openTitle}:{profileId:number;openTitl
       setPage(old=>{
         const items=offset===0?[]:old?.items??[];
         const ids=new Set(items.map(item=>JSON.stringify([item.mediaType,item.id])));
-        return {items:[...items,...result.items.filter(item=>!ids.has(JSON.stringify([item.mediaType,item.id])))],nextOffset:result.nextOffset};
+        const merged=[...items,...result.items.filter(item=>!ids.has(JSON.stringify([item.mediaType,item.id])))];
+        return {items:merged.slice(0,5000),nextOffset:merged.length>=5000?null:result.nextOffset};
       });
     });
   }
   return <section className="space-y-3" data-ui="watch-mdblist">
-    <h4>MDBList</h4>
+    <h4><Trans>MDBList</Trans></h4>
     <p><Trans>Connect your account to browse lists and ratings. Only read requests are sent. Titles open through your installed Watch addons.</Trans></p>
     {!connected&&<form className="space-y-2" onSubmit={e=>{e.preventDefault();const candidate=key.trim();setKey('');void run(async()=>{const result=await mdblistConnect(profileId,candidate);if(mounted.current){setConnected(result);setReady(true);}});}}>
       <label><Trans>MDBList API key</Trans><input className="tsugi-read-input w-full" type="password" autoComplete="off" value={key} maxLength={512} onChange={e=>setKey(e.target.value)} disabled={busy}/></label>

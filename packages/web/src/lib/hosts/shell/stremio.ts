@@ -240,7 +240,7 @@ export async function mdblistPage(profileId:number,listId:number,offset:number){
   const v=await scoped(profileId,{kind:'mdblist-page',listId,offset});
   const items=array<MdblistItem>(v.items,100,value=>{
     const row=obj(value),mediaType=str(row.mediaType,32),id=str(row.id,512);
-    if(!['movie','series'].includes(mediaType)||!/^tt\d{1,12}$|^tmdb:(movie|tv):[1-9]\d*$/.test(id))return fail();
+    if(!['movie','series'].includes(mediaType)||(!/^tt\d{1,12}$/.test(id)&&!(mediaType==='movie'?/^tmdb:movie:[1-9]\d*$/:/^tmdb:tv:[1-9]\d*$/).test(id)))return fail();
     const ratings=Object.fromEntries(Object.entries(obj(row.ratings)).filter(([k,v])=>['imdb','tmdb','mdblist','trakt','letterboxd','tomatoes','metacritic'].includes(k)&&typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=100)) as Record<string,number>;
     return {id,mediaType,name:str(row.name,512),ratings};
   });

@@ -246,14 +246,14 @@ export function StremioAddonSettings({workspace=false,onPlay}:{workspace?:boolea
         ['nuvio',t`Nuvio import`,'migrate'],
         ['manual',t`Add addon`,'plus'],
         ['order',t`Source order`,'list'],
-        ['mdblist','MDBList','library'],
+        ['mdblist',t`MDBList`,'bookmark'],
         ['profile',t`Profile settings`,'settings']
       ] as const).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><TsugiIcon name={icon}/><span>{label}</span></button>)}
     </nav>}
     <div className={workspace?'tsugi-watch-content':'contents'}>
     {!workspace&&<h3 id={titleId}><Trans>Stremio addons</Trans></h3>}
     {show('profile')&&<>
-    <p><Trans>Each local profile has its own addons, without an AIOStreams connection. Catalogue browsing is available here; direct playback is not available yet.</Trans></p>
+    <p><Trans>Each local profile has its own addons, without an AIOStreams connection. Browse catalogues and select supported direct HTTPS streams in Watch.</Trans></p>
     <p><Trans>Configured links are protected by your Windows account and excluded from portable backups. Local profiles are not password-protected from other people using this Windows account. Only contact addon hosts you trust.</Trans></p>
     <div className="space-y-3" data-ui="stremio-profile-management">
       <h4><Trans>Addon profiles</Trans></h4>
