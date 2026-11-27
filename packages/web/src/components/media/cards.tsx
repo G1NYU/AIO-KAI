@@ -93,6 +93,7 @@ export function Artwork({
   className,
   own,
   standIn,
+  eager = false,
 }: {
   src: ArtworkSource;
   alt: string;
@@ -100,6 +101,8 @@ export function Artwork({
   /** How many leading sources are the item's own, `standIn` covering the rest. */
   own?: number;
   standIn?: React.ReactNode;
+  /** Large, immediately visible artwork must not wait for a lazy card measurement. */
+  eager?: boolean;
 }) {
   const [box, measure] = useBox();
   const resolved =
@@ -162,7 +165,7 @@ export function Artwork({
   }
   return (
     <>
-      {canShrink && plain !== current ? (
+      {!eager && canShrink && plain !== current ? (
         <ShrunkImage
           src={current}
           early={early?.src}
@@ -179,7 +182,7 @@ export function Artwork({
           data-ui="artwork"
           src={current}
           alt={alt}
-          loading="lazy"
+          loading={eager ? "eager" : "lazy"}
           decoding="async"
           draggable={false}
           onLoad={(e) => onLoad(e.currentTarget)}

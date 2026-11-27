@@ -143,7 +143,7 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
   return <>
     {includeHistory&&featured&&<section data-ui="hero" className="tsugi-watch-featured">
       <BackdropFrame className="pointer-events-none tsugi-watch-featured-art">
-        <Artwork src={[featuredMetadata?.background,featured.item.background,featured.item.poster].filter((value):value is string=>!!value)} alt="" className={featuredMetadata?.background||featured.item.background?'tsugi-watch-featured-backdrop':'tsugi-watch-featured-poster'}/>
+        <Artwork eager src={[featuredMetadata?.background,featured.item.background,featured.item.poster].filter((value):value is string=>!!value)} alt="" className={featuredMetadata?.background||featured.item.background?'tsugi-watch-featured-backdrop':'tsugi-watch-featured-poster'}/>
       </BackdropFrame>
       <div className="tsugi-watch-featured-copy">
         <small><Trans>Featured</Trans> · {featured.target.catalog.name}</small>
@@ -163,7 +163,7 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
       {(pending||tmdbPending)&&<p className="tsugi-watch-muted" role="status"><Trans>Searching metadata…</Trans></p>}
       {hits.length===0&&!pending&&!tmdbPending&&<p role="status"><Trans>No matching titles found.</Trans></p>}
       {hits[0]&&<div className="tsugi-search-best-match" data-ui="watch-top-match">
-        <Artwork src={hits[0].item.background??hits[0].item.poster??null} alt="" className="tsugi-search-best-art"/>
+        <Artwork eager src={hits[0].item.background??hits[0].item.poster??null} alt="" className="tsugi-search-best-art"/>
         <div className="tsugi-search-best-copy"><small><Trans>Top match</Trans> · {hits[0].item.mediaType.includes('movie')?t`Movie`:t`Series`}{hits[0].item.releaseInfo?' · '+hits[0].item.releaseInfo.slice(0,4):''}</small>
           <h4>{hits[0].item.name}</h4>
           {hits[0].item.description&&<p className="line-clamp-2">{hits[0].item.description}</p>}

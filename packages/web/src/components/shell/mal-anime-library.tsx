@@ -109,7 +109,7 @@ export function MalAnimeLibrary({profileId,sources,busy,historyActive,setupOnly=
   }
   if(!collection&&setupOnly)return <section className="space-y-3" data-ui="mal-anime-library"><h2><Trans id="Anime collection">Anime collection</Trans></h2><button className="tsugi-read-action" disabled={busy} onClick={()=>void reload()}><Trans id="Load anime collection">Load anime collection</Trans></button></section>;
   const rows=collection?.entries??[];
-  return <section className="tsugi-anime-hub space-y-5" data-ui="mal-anime-library">
+  return <section className="tsugi-anime-hub space-y-5" data-ui="mal-anime-library" hidden={detailOpen} inert={detailOpen}>
     <nav className="tsugi-anime-nav" aria-label={t({id:'Anime Hub sections',message:'Anime Hub sections'})}>
       {([
         ['home',t({id:'Anime Hub',message:'Anime Hub'})],['discover',t({id:'Discover',message:'Discover'})],

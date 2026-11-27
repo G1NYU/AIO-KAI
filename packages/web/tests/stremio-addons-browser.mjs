@@ -333,6 +333,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       const image=card.locator('img[src]:not([src=""])');
       await image.waitFor({state:'visible'});
       assert.ok(await image.evaluate(async el=>{await el.decode();return el.naturalWidth>0&&el.naturalHeight>0;}),'actual artwork decodes');
+      await page.waitForFunction(el=>Number(getComputedStyle(el).opacity)>=0.95,await image.elementHandle());
     }
     const discoveryPoster='https://cdn.myanimelist.net/images/anime/1/90004.jpg';
     let discoveryArtRequests=0;
@@ -396,6 +397,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await item.getByText('Fixture Director',{exact:true}).waitFor();
     await item.getByText('Fixture Actor',{exact:true}).waitFor();
     assert.equal(await item.locator('.tsugi-watch-title-backdrop').count(),1);
+    await assertArtwork(item.locator('.tsugi-watch-title-backdrop'));
     if(screenshotDir){await item.locator('.tsugi-watch-title-hero').scrollIntoViewIfNeeded();await page.screenshot({path:join(screenshotDir,'watch-movie-details.png'),animations:'disabled'});}
     assert.equal(await groups.count(),0);
     await item.getByRole('button',{name:'Add to favorites',exact:true}).click();
@@ -406,6 +408,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await item.locator('[data-ui="watch-play-title"]').click();
     await groups.getByRole('heading',{name:'Streaming only',exact:true}).waitFor();
     await groups.getByRole('button',{name:'Play',exact:true}).first().waitFor();
+    await assertArtwork(page.locator('.tsugi-watch-stream-background'));
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-stream-selector.png'),animations:'disabled'});
     await groups.getByText('This addon could not return streams. Other sources remain available.',{exact:true}).waitFor();
     assert.equal(await groups.getByRole('button',{name:'Play',exact:true}).count(),2);
@@ -509,6 +512,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const episode=item.locator('[data-video-id="tt90002:1:2"]');
     await episode.getByText('A synopsis supplied by TMDB.',{exact:true}).waitFor();
     await assertArtwork(episode);
+    assert.equal(await anime.isVisible(),false,'title details replace the Anime Hub rather than stacking above it');
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-episode-list.png'),animations:'disabled'});
     await episode.click();
     await groups.getByRole('button',{name:'Play',exact:true}).first().waitFor();
@@ -657,7 +661,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     const button=panel.getByRole('button',{name:'Review addon',exact:true});
     await panel.getByText('No addons installed for this profile.').waitFor();
     const calls=()=>page.evaluate(()=>window.__stremioFixture.calls.filter(a=>a.kind==='profile-request').map(a=>a.action));
-    assert.equal((await calls()).filter(a=>a.kind!=='list').length,0);
+    assert.deepEqual((await calls()).filter(a=>!['list','watch-setup-status'].includes(a.kind)),[],'opening settings only reads profile and setup status');
     async function inspect(){
       await field.fill('https://example.invalid/private-fixture/manifest.json?token=fixture');
       assert.equal(await field.getAttribute('type'),'password');

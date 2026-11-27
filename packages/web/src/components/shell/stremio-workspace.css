@@ -211,3 +211,21 @@
 .tsugi-watch-episode-rating{position:absolute;bottom:7px;left:7px;padding:3px 6px;border-radius:5px;background:#101015d9;color:#fff;font-size:11px;font-weight:650;z-index:1}
 .tsugi-watch-episode-progress{position:absolute;bottom:0;left:0;height:3px;background:var(--tsugi-accent);z-index:2}
 .tsugi-watch-episode-action{flex:none;color:var(--tsugi-muted);font-size:12px;font-weight:600}
+
+
+/* Details replace the browse surface; the mounted hub retains its state. */
+.tsugi-anime-hub[hidden]{display:none!important}
+.tsugi-watch-title-logo-frame{position:relative;display:block;width:min(360px,65vw);height:clamp(64px,9vw,108px)}
+.tsugi-watch-title-logo-frame .tsugi-watch-title-logo{object-fit:contain;object-position:left center;max-width:none;max-height:none}
+.tsugi-watch-episode-list{gap:6px}
+.tsugi-watch-episode{background:transparent;border-color:transparent;min-height:96px;padding:8px;gap:16px}
+.tsugi-watch-episode:is(:hover,:focus-visible){background:color-mix(in srgb,var(--tsugi-surface) 78%,transparent);border-color:transparent}
+.tsugi-watch-episode[aria-current='true']{background:color-mix(in srgb,var(--tsugi-accent) 7%,transparent);border-color:transparent}
+.tsugi-watch-episode-art{width:clamp(106px,12vw,168px)}
+.tsugi-watch-episode-number{position:absolute;top:7px;left:7px;min-width:22px;height:22px;display:grid;place-items:center;border-radius:50%;font-size:11px;font-weight:650;background:#101015d9;color:white;z-index:1}
+.tsugi-watch-episode-copy{display:grid;gap:4px}
+.tsugi-watch-episode-meta{display:flex;gap:7px;flex-wrap:wrap;color:var(--tsugi-muted);font-size:12px}
+.tsugi-watch-episode-meta>span+span::before{content:' · ';margin-inline-end:5px}
+.tsugi-watch-episode-synopsis{color:var(--tsugi-muted);font-size:13px;line-height:1.55}
+.tsugi-watch-stream-inner{width:min(1120px,100%)}
+.tsugi-watch-stream-background{position:absolute;inset:0 0 auto;height:min(76vh,680px)}
