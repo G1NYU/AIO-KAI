@@ -47,6 +47,8 @@ struct SavedProfile {
     history: Vec<super::history::Entry>,
     #[serde(default)]
     refract: Option<super::refract::Saved>,
+    #[serde(default,skip_serializing_if="Vec::is_empty")]
+    mal_anime: Vec<super::mal_anime::Entry>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -63,13 +65,13 @@ fn name_valid(name: &str) -> bool {
 }
 fn source_action(action: &Action) -> bool {
     matches!(action,Action::List|Action::Review{..}|Action::Install{..}|Action::CancelReview{..}|
-        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::PrepareMedia{..}|Action::WatchHistory|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::RefractStatus|Action::RefractConnect{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractSync|Action::RefractWatchlist{..}|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
+        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::PrepareMedia{..}|Action::MalAnimeList|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::WatchHistory|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::RefractStatus|Action::RefractConnect{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractSync|Action::RefractWatchlist{..}|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
         Action::ImportConnect{..}|Action::ImportNuvioProfile{..}|Action::ImportReview{..}|Action::ImportApply{..}|Action::ImportCancel{..})
 }
 pub(super) fn is_mutation(action: &Action) -> bool {
     match action {
         Action::ProfileCreate{..}|Action::ProfileRename{..}|Action::ProfileSwitch{..}|Action::ProfileRemove{..} => true,
-        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::RefractConnect{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractWatchlist{..}),
+        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::RefractConnect{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractWatchlist{..}),
         _ => false,
     }
 }
@@ -169,6 +171,7 @@ impl Profiles {
                 id:p.id,name:p.name.clone(),mdblist_key:p.registry.mdblist.saved_key(),
                 history:p.registry.history.saved(),
                 refract:p.registry.refract.saved(),
+                mal_anime:p.registry.mal_anime.saved(),
                 sources:p.registry.sources.iter().map(|s|SavedSource{
                     id:s.id,endpoint:s.endpoint.0.as_str().to_owned(),enabled:s.enabled,manifest:s.manifest.clone()
                 }).collect()
@@ -203,7 +206,7 @@ impl Profiles {
                 if manifest.behavior_hints.configuration_required{return Err("profile-store");}
                 sources.push(Source{id:source.id,endpoint,manifest,enabled:source.enabled});
             }
-            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,mdblist:super::mdblist::Connection::restored(profile.mdblist_key)?,history:super::history::History::restore(profile.history)?,refract:super::refract::Connection::restored(profile.refract)?,..Registry::default()}});
+            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,mdblist:super::mdblist::Connection::restored(profile.mdblist_key)?,history:super::history::History::restore(profile.history)?,refract:super::refract::Connection::restored(profile.refract)?,mal_anime:super::mal_anime::Collection::restored(profile.mal_anime)?,..Registry::default()}});
         }
         if !profiles.iter().any(|p|p.id==saved.active){return Err("profile-store");}
         Ok(Self{active:saved.active,sequence:saved.sequence,profiles})
@@ -214,6 +217,35 @@ impl Profiles {
 mod tests {
     use super::*;
     fn scoped(profile_id:u32,action:Action)->Action{Action::ProfileRequest{profile_id,action:Box::new(action)}}
+    #[test]
+    fn mal_anime_import_is_profile_scoped_and_survives_snapshot(){
+        let mut p=Profiles::default();
+        let import=|id:u32,format:&str|serde_json::from_value::<Action>(json!({
+            "kind":"mal-anime-import","entries":[{"malId":id,"title":"Fixture","status":"active",
+                "progress":2,"total":12,"score":8,"format":format,"volumesRead":0,"volumesTotal":0}]
+        })).unwrap();
+        assert!(is_mutation(&scoped(1,import(7,"TV"))));
+        assert_eq!(p.execute(scoped(1,Action::MalAnimeList)).unwrap()["entries"],json!([]));
+        p.execute(scoped(1,import(7,"TV"))).unwrap();
+        p.execute(Action::ProfileCreate{name:"Second".into()}).unwrap();
+        let second=p.sequence;
+        p.execute(Action::ProfileSwitch{profile_id:second}).unwrap();
+        assert_eq!(p.execute(scoped(1,Action::MalAnimeList)),Err("profile-changed"));
+        assert_eq!(p.execute(scoped(second,Action::MalAnimeList)).unwrap()["entries"],json!([]));
+        p.execute(scoped(second,import(9,"Movie"))).unwrap();
+        let mut restored=Profiles::decode(&p.encode().unwrap()).unwrap();
+        assert_eq!(restored.execute(scoped(second,Action::MalAnimeList)).unwrap()["entries"][0]["malId"],9);
+        restored.execute(Action::ProfileSwitch{profile_id:1}).unwrap();
+        assert_eq!(restored.execute(scoped(1,Action::MalAnimeList)).unwrap()["entries"][0]["malId"],7);
+        assert_eq!(restored.execute(scoped(1,Action::MalAnimeRemove{mal_id:7})).unwrap()["entries"],json!([]));
+        restored.execute(Action::ProfileSwitch{profile_id:second}).unwrap();
+        assert_eq!(restored.execute(scoped(second,Action::MalAnimeList)).unwrap()["entries"][0]["malId"],9);
+        // Previous snapshot versions without the new field remain readable.
+        let mut previous:Value=serde_json::from_slice(&restored.encode().unwrap()).unwrap();
+        for row in previous["profiles"].as_array_mut().unwrap(){row.as_object_mut().unwrap().remove("mal_anime");}
+        let mut legacy=Profiles::decode(&serde_json::to_vec(&previous).unwrap()).unwrap();
+        assert_eq!(legacy.execute(scoped(second,Action::MalAnimeList)).unwrap()["entries"],json!([]));
+    }
     fn stage(profiles:&mut Profiles,profile_id:u32)->u32{
         let i=profiles.index(profile_id).unwrap();
         profiles.profiles[i].registry.sequence=profiles.sequence;

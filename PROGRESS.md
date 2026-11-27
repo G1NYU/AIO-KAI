@@ -1,5 +1,11 @@
 # AIO-KAI development handoff
 
+## 2026-11-27 — MAL collections and D5 verification
+
+- [cb30dba](https://github.com/G1NYU/TSUGI/commit/cb30dbae813caaae3dd959e3107818fa3894254a) passed [Unified Windows 45949501631](https://github.com/G1NYU/TSUGI/actions/runs/45949501631), including 215 native tests (18 ignored) and cumulative web CI.
+- Added Reader Library → MyAnimeList and Watch → Anime collection source, with bounded local XML/gzip import, reviewed source selection, preserved MAL metadata, exact Reader source assignment and native profile-owned anime lists. Native and browser coverage added; cumulative CI is pending. [Import guide](docs/mal-import.md) documents snapshot/backup/compatibility limits. No package or release.
+
+
 ## 2026-11-27 — TSUGI current verification checkpoint
 
 - Active branch: `feature/tsugi-read-runtime`; main unchanged.

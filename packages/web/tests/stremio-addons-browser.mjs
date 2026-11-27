@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { gzipSync } from 'node:zlib';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -58,6 +59,13 @@ function installStremioFixture(){
     const reply=data=>emit({...data,profileId:raw.profileId});
     switch(a.kind){
       case 'list':return reply({sources:profile.sources});
+      case 'mal-anime-list':return reply({entries:profile.malAnime??[]});
+      case 'mal-anime-import':{
+        const entries=new Map((profile.malAnime??[]).map(row=>[row.malId,row]));
+        for(const row of a.entries)if(!entries.has(row.malId))entries.set(row.malId,row);
+        profile.malAnime=[...entries.values()];return reply({entries:profile.malAnime});
+      }
+      case 'mal-anime-remove':profile.malAnime=(profile.malAnime??[]).filter(row=>row.malId!==a.malId);return reply({entries:profile.malAnime});
       case 'mdblist-status':return reply({connected:profile.mdblistConnected});
       case 'mdblist-connect':{
         if(a.key!=='fixture-mdblist-key')return emit(null,'mdblist-auth');
@@ -348,6 +356,47 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await watch.getByRole('checkbox').check();
     await watch.getByRole('button',{name:'Review addon',exact:true}).click();
     await watch.getByRole('button',{name:'Install into profile',exact:true}).click();
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime',exact:true}).click();
+    const anime=watch.locator('[data-ui="mal-anime-library"]');
+    const animePanel=anime.locator('[data-ui="mal-collection"]');
+    const malFile=animePanel.getByLabel('Choose MyAnimeList export',{exact:true});
+    const malPreview=animePanel.locator('[data-ui="mal-import-preview"]');
+    await malFile.setInputFiles({name:'mangalist.xml',mimeType:'application/xml',buffer:Buffer.from('<myanimelist><manga/></myanimelist>')});
+    await animePanel.getByRole('alert').waitFor();
+    assert.equal(await malPreview.count(),0);
+    const animeXml='<myanimelist><myinfo><user_name>private-anime-fixture</user_name></myinfo>'+
+      '<anime><series_animedb_id>601</series_animedb_id><series_title>Imported anime film</series_title><series_type>Movie</series_type><series_episodes>1</series_episodes><my_status>Completed</my_status><my_watched_episodes>1</my_watched_episodes><my_score>9</my_score></anime>'+
+      '<anime><series_animedb_id>602</series_animedb_id><series_title>Imported anime series</series_title><series_type>TV</series_type><series_episodes>12</series_episodes><my_status>Watching</my_status><my_watched_episodes>4</my_watched_episodes><my_score>8</my_score></anime></myanimelist>';
+    await malFile.setInputFiles({name:'animelist.xml.gz',mimeType:'application/gzip',buffer:gzipSync(Buffer.from(animeXml))});
+    await malPreview.getByRole('heading',{name:'Review MAL import',exact:true}).waitFor();
+    assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='mal-anime-import')),false);
+    await malPreview.getByRole('button',{name:'Import reviewed list',exact:true}).click();
+    const animeFilm=animePanel.locator('button[data-mal-id="601"]'), animeSeries=animePanel.locator('button[data-mal-id="602"]');
+    await animeFilm.waitFor();await animeSeries.waitFor();
+    assert.match(await animeSeries.innerText(),/4\s*\/\s*12 episodes/);
+    const format=animePanel.getByRole('combobox',{name:'Anime format',exact:true});
+    await format.selectOption('movie');await animeSeries.waitFor({state:'detached'});
+    await format.selectOption('series');await animeFilm.waitFor({state:'detached'});
+    await format.selectOption('');
+    await malFile.setInputFiles({name:'animelist.xml',mimeType:'application/xml',buffer:Buffer.from(animeXml)});
+    await malPreview.waitFor();
+    assert.equal(await malPreview.getByRole('button',{name:'Import reviewed list',exact:true}).isEnabled(),false);
+    await malPreview.getByRole('button',{name:'Cancel',exact:true}).click();
+    const storedAnime=await firstLaunch.evaluate(()=>window.__stremioFixture.profiles.find(p=>p.profileId===1).malAnime);
+    assert.deepEqual(storedAnime.map(row=>[row.malId,row.format,row.progress,row.score]),[[601,'Movie',1,9],[602,'TV',4,8]]);
+    assert.equal(JSON.stringify(storedAnime).includes('private-anime-fixture'),false);
+    assert.equal(await firstLaunch.evaluate(()=>JSON.stringify(localStorage).includes('Imported anime film')),false);
+    if(screenshotDir)await firstLaunch.screenshot({path:join(screenshotDir,'watch-mal-anime.png'),animations:'disabled'});
+    await animeFilm.click();
+    const animeSource=anime.locator('[data-ui="mal-anime-source"]');
+    await animeSource.getByRole('combobox',{name:'Anime source catalogue',exact:true}).selectOption({index:1});
+    await animeSource.getByRole('textbox',{name:'Search imported anime',exact:true}).fill('original');
+    await animeSource.getByRole('button',{name:'Search anime',exact:true}).click();
+    await animeSource.getByRole('button',{name:/First original film/}).click();
+    await animeSource.locator('[data-ui="mal-anime-match"]').getByRole('button',{name:'Open matched anime',exact:true}).click();
+    await watch.locator('[data-ui="watch-item-details"]').getByRole('heading',{name:'First original film',exact:true}).waitFor();
+    assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='watch-record')),false);
+    assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='refract-watchlist')),false);
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Refract',exact:true}).click();
     const refract=watch.locator('[data-ui="watch-refract"]');
     const refractKey=refract.getByLabel('Refract API key',{exact:true});
@@ -466,6 +515,9 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal(new Set(viewingIds).size,2);
     await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Cinema 0 addons',exact:true}).click();
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime',exact:true}).click();
+    await animePanel.getByText('No imported titles yet.',{exact:true}).waitFor();
+    assert.equal(await animeFilm.count(),0);
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Watch history',exact:true}).click();
     await history.getByRole('button',{name:'Load history',exact:true}).click();
     await history.getByText('No Watch history for this profile.',{exact:true}).waitFor();
@@ -483,6 +535,12 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal(await refract.getByText('Fixture member',{exact:true}).count(),0);
     await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 1 addons',exact:true}).click();
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime',exact:true}).click();
+    await animeFilm.waitFor();await animeSeries.waitFor();
+    await animeSeries.locator('xpath=..').getByRole('button',{name:'Remove',exact:true}).click();
+    await animePanel.getByRole('button',{name:'Confirm removal',exact:true}).click();
+    await animeSeries.waitFor({state:'detached'});await animeFilm.waitFor();
+    console.log('PASS: MAL anime movies and series import, reviewed addon search, reimport, native profile isolation and removal.');
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Watch history',exact:true}).click();
     await history.getByRole('button',{name:'Load history',exact:true}).click();
     await history.getByText('Completed',{exact:true}).waitFor();

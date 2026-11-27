@@ -1,0 +1,76 @@
+import assert from 'node:assert/strict';
+import { gzipSync } from 'node:zlib';
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
+
+export async function verifyMalMangaBrowser({browser,origin,installDesktopFixture,screenshotDir}){
+  const page=await browser.newPage({viewport:{width:1440,height:900},locale:'en-GB',reducedMotion:'reduce'});
+  try{
+    await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
+    await page.addInitScript({content:'('+installDesktopFixture.toString()+')();'+
+      'localStorage.setItem("tsugi-onboarding-complete-v1","true");localStorage.setItem("tsugi-startup-area-v1",JSON.stringify("read"));localStorage.setItem("tsugi.landscape.local-only","true");window.__readerFixture.installed=true;window.__readerFixture.transferEnabled=true;'});
+    const errors=[];page.on('pageerror',error=>errors.push(error.message));
+    await page.goto(origin,{waitUntil:'domcontentloaded'});
+    const reader=page.locator('[data-page="read"]');
+    const enter=reader.getByRole('button',{name:'MyAnimeList',exact:true});
+    await enter.click();
+    const shelf=reader.locator('[data-ui="mal-manga-library"]');
+    const panel=shelf.locator('[data-ui="mal-collection"]');
+    const file=panel.getByLabel('Choose MyAnimeList export',{exact:true});
+    const preview=panel.locator('[data-ui="mal-import-preview"]');
+    const row=panel.locator('button[data-mal-id="501"]');
+    const bad=async xml=>{
+      await file.setInputFiles({name:'mangalist.xml',mimeType:'application/xml',buffer:Buffer.from(xml)});
+      await panel.getByRole('alert').waitFor();
+      assert.equal(await preview.count(),0);
+      assert.equal(await page.evaluate(()=>localStorage.getItem('tsugi-mal-manga-v1')),null);
+    };
+    await bad('<myanimelist><anime/></myanimelist>');
+    await bad('<!DOCTYPE myanimelist [<!ENTITY bad SYSTEM "file:///private">]><myanimelist><manga/></myanimelist>');
+    const manga='<manga><manga_mangadb_id>501</manga_mangadb_id><manga_title><![CDATA[Imported manga & fixture]]></manga_title><my_status>Reading</my_status><my_read_chapters>12</my_read_chapters><manga_chapters>30</manga_chapters><my_read_volumes>2</my_read_volumes><manga_volumes>4</manga_volumes><my_score>8</my_score></manga>';
+    const xml='<myanimelist><myinfo><user_name>private-fixture-member</user_name></myinfo>'+manga+manga+'</myanimelist>';
+    await bad('<myanimelist>'+manga+manga.replace('<my_read_chapters>12','<my_read_chapters>1')+'</myanimelist>');
+    await file.setInputFiles({name:'mangalist.xml.gz',mimeType:'application/gzip',buffer:gzipSync(Buffer.from(xml))});
+    await preview.getByRole('heading',{name:'Review MAL import',exact:true}).waitFor();
+    assert.match(await preview.innerText(),/New titles:\s*1/);
+    const requests=()=>page.evaluate(()=>window.__readerFixture.requests);
+    const before=(await requests()).filter(a=>a.kind==='set-library'||a.kind.startsWith('tracker-')).length;
+    await preview.getByRole('button',{name:'Import reviewed list',exact:true}).click();
+    await row.waitFor();
+    assert.match(await row.innerText(),/12\s*\/\s*30 chapters/);
+    assert.match(await row.innerText(),/2\s*\/\s*4 volumes/);
+    assert.equal((await requests()).filter(a=>a.kind==='set-library'||a.kind.startsWith('tracker-')).length,before);
+    const stored=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('tsugi-mal-manga-v1')));
+    assert.deepEqual((await stored()).entries.map(r=>[r.malId,r.status,r.progress,r.score]),[[501,'active',12,8]]);
+    assert.deepEqual((await stored()).links,[]);
+    assert.equal(JSON.stringify(await stored()).includes('private-fixture-member'),false);
+    await file.setInputFiles({name:'mangalist.xml',mimeType:'application/xml',buffer:Buffer.from(xml)});
+    await preview.waitFor();
+    assert.equal(await preview.getByRole('button',{name:'Import reviewed list',exact:true}).isEnabled(),false);
+    await preview.getByRole('button',{name:'Cancel',exact:true}).click();
+    if(screenshotDir){await mkdir(screenshotDir,{recursive:true});await page.screenshot({path:join(screenshotDir,'reader-mal-collection.png'),animations:'disabled'});}
+    await row.click();
+    const source=shelf.locator('[data-ui="mal-manga-source"]');
+    await source.getByRole('combobox',{name:'Reading source',exact:true}).selectOption('67890');
+    await source.getByRole('button',{name:'Search source',exact:true}).click();
+    await source.getByRole('button',{name:/Tsugi Original Fixture/}).click();
+    const match=source.locator('[data-ui="mal-manga-match"]');
+    await match.getByRole('heading',{name:'Review source match',exact:true}).waitFor();
+    assert.equal((await requests()).filter(a=>a.kind==='set-library'||a.kind.startsWith('tracker-')).length,before);
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'reader-mal-source-review.png'),animations:'disabled'});
+    await match.getByRole('button',{name:'Save source and open manga',exact:true}).click();
+    await reader.getByRole('heading',{name:'Tsugi Original Fixture',exact:true}).waitFor();
+    assert.ok((await requests()).some(a=>a.kind==='set-library'&&a.id===3&&a.inLibrary));
+    assert.equal((await requests()).some(a=>a.kind==='chapter-flags'||a.kind==='tracker-bind'),false);
+    assert.deepEqual((await stored()).links,[{malId:501,mangaId:3,sourceId:'67890',identity:'3'.padStart(64,'0')}]);
+    await reader.getByRole('button',{name:'Back',exact:true}).click();
+    await row.click();
+    await source.getByRole('button',{name:'Open saved source',exact:true}).click();
+    await reader.getByRole('heading',{name:'Tsugi Original Fixture',exact:true}).waitFor();
+    await page.reload({waitUntil:'domcontentloaded'});await enter.click();
+    await row.waitFor();assert.match(await row.innerText(),/Source selected/);
+    assert.equal((await stored()).entries[0].progress,12);
+    assert.deepEqual(errors,[]);
+    console.log('PASS: MAL manga XML/gzip validation, review, deduplication, source-independent import, explicit native source assignment and restored collection.');
+  }finally{await page.close();}
+}

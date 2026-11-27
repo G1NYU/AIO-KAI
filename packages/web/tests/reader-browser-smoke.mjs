@@ -15,6 +15,7 @@ import { verifyBrushHeadingsBrowser } from './brush-headings-browser.mjs';
 import { verifyRestoreSessionBrowser } from './restore-session-browser.mjs';
 import { verifyExtensionUpdatesBrowser } from './extension-updates-browser.mjs';
 import { verifyMihonImportBrowser } from './mihon-import-browser.mjs';
+import { verifyMalMangaBrowser } from './mal-manga-browser.mjs';
 import { verifyMihonReconstructionBrowser } from './mihon-reconstruction-browser.mjs';
 import { verifyDiscordPresenceBrowser } from './discord-presence-browser.mjs';
 import { verifyYouTubeSessionBrowser } from './youtube-session-browser.mjs';
@@ -1597,6 +1598,7 @@ try {
   await verifyRestoreSessionBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyExtensionUpdatesBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyMihonImportBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyMalMangaBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyMihonReconstructionBrowser({ browser, origin, installDesktopFixture });
   await verifyDiscordPresenceBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyDownloadCleanupBrowser({ browser, origin, installDesktopFixture, screenshotDir });

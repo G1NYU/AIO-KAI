@@ -10,6 +10,8 @@ mod accounts;
 mod mdblist;
 mod history;
 mod refract;
+mod mal_anime;
+pub use mal_anime::Entry as MalAnimeEntry;
 pub use history::Progress as WatchProgress;
 pub use accounts::Provider as ImportProvider;
 mod profiles;
@@ -46,6 +48,9 @@ pub enum Action {
     Metadata { source_id: u32, media_type: String, item_id: String },
     ItemOptions { source_id: u32, media_type: String, video_id: String, subtitles: bool },
     PrepareMedia { review_id: u32, option_index: usize, start_ms: u64 },
+    MalAnimeList,
+    MalAnimeImport { entries: Vec<MalAnimeEntry> },
+    MalAnimeRemove { mal_id: u32 },
     WatchHistory,
     WatchRecord { progress: WatchProgress, #[serde(default)] viewing_id: Option<String> },
     WatchRemove { media_type: String, item_id: String, video_id: String },
@@ -118,6 +123,7 @@ struct Registry {
     mdblist: mdblist::Connection,
     history: history::History,
     refract: refract::Connection,
+    mal_anime: mal_anime::Collection,
 }
 
 /// Only bounded display fields and declared capabilities cross the bridge.
@@ -175,6 +181,9 @@ impl Registry {
         if matches!(&action,Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::ItemOptions{..}|Action::Metadata{..}|Action::Catalog{..}) {self.media_review=None;}
         match action {
             Action::List => Ok(self.list()),
+            Action::MalAnimeList => Ok(self.mal_anime.list()),
+            Action::MalAnimeImport{entries} => self.mal_anime.import(entries),
+            Action::MalAnimeRemove{mal_id} => self.mal_anime.remove(mal_id),
             Action::WatchHistory => Ok(self.history.list()),
             Action::WatchRecord { progress,viewing_id } => {
                 let already_completed=self.history.completed_at(&progress,viewing_id.as_deref()).is_some();

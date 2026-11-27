@@ -1,4 +1,5 @@
 import { appBridge, ask } from './bridge';
+import { validateMalEntries, type MalEntry } from '../../mal-collection';
 
 export interface AddonExtra { name: string; required: boolean; options: string[]; optionsLimit: number | null }
 export interface AddonCatalog { id: string; mediaType: string; name: string; extras: AddonExtra[] }
@@ -26,7 +27,8 @@ export type WatchProgress={mediaType:string;itemId:string;videoId:string;title:s
 export type WatchHistoryEntry={progress:WatchProgress;updatedAt:number};
 type WatchHistoryAction={kind:'watch-history'}|{kind:'watch-record';progress:WatchProgress;viewingId?:string}|({kind:'watch-remove'}&Pick<WatchProgress,'mediaType'|'itemId'|'videoId'>);
 type RefractAction={kind:'refract-status'}|{kind:'refract-connect';key:string}|{kind:'refract-enable';enabled:boolean}|{kind:'refract-disconnect';discardPending:boolean}|{kind:'refract-sync'}|{kind:'refract-watchlist';mediaType:string;itemId:string;add:boolean};
-type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | WatchHistoryAction | RefractAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
+type MalAnimeAction={kind:'mal-anime-list'}|{kind:'mal-anime-import';entries:MalEntry[]}|{kind:'mal-anime-remove';malId:number};
+type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | WatchHistoryAction | RefractAction | MalAnimeAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
 export type RemoteAddonProfile={profileIndex:number;name:string;usesPrimaryAddons:boolean;locked:boolean};
 export type ImportCandidate={candidateId:number;name:string;host:string;enabled:boolean;alreadyInstalled:boolean};
 type ImportBase={importId:number;provider:ImportProvider};
@@ -85,7 +87,7 @@ function sources(v: unknown): AddonSource[] {
   if(new Set(rows.map(s=>s.sourceId)).size!==rows.length)return fail();
   return rows;
 }
-const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit','account-auth','account-request','account-response','import-limit','import-selection','unknown-remote-profile','locked-remote-profile','unsupported-resource','invalid-item','item-limit','invalid-media-selection','mdblist-response','mdblist-auth','mdblist-network','mdblist-request','mdblist-not-found','mdblist-rate','mdblist-disconnected','invalid-watch-progress','refract-auth','refract-scope','refract-rate','refract-network','refract-request','refract-response','refract-rejected','refract-conflict','refract-unmatched','refract-queue-full','refract-clock','refract-protected','refract-account-changed','refract-disconnected','refract-paused','refract-pending']);
+const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit','account-auth','account-request','account-response','import-limit','import-selection','unknown-remote-profile','locked-remote-profile','unsupported-resource','invalid-item','item-limit','invalid-media-selection','mdblist-response','mdblist-auth','mdblist-network','mdblist-request','mdblist-not-found','mdblist-rate','mdblist-disconnected','invalid-watch-progress','refract-auth','refract-scope','refract-rate','refract-network','refract-request','refract-response','refract-rejected','refract-conflict','refract-unmatched','refract-queue-full','refract-clock','refract-protected','refract-account-changed','refract-disconnected','refract-paused','refract-pending','mal-invalid','mal-limit']);
 async function request(action: NativeAction): Promise<unknown> {
   if(!appBridge()?.stremioAddons)throw new AddonError('unsupported');
   const id=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
@@ -111,6 +113,10 @@ async function scoped(profileId:number,action:Action){
   return v;
 }
 export async function listAddons(profileId:number){return sources(await scoped(profileId,{kind:'list'}));}
+function malAnimeEntries(value:unknown){try{return validateMalEntries(obj(value).entries,'anime');}catch{return fail();}}
+export async function listMalAnime(profileId:number){return malAnimeEntries(await scoped(profileId,{kind:'mal-anime-list'}));}
+export async function importMalAnime(profileId:number,entries:MalEntry[]){return malAnimeEntries(await scoped(profileId,{kind:'mal-anime-import',entries:validateMalEntries(entries,'anime')}));}
+export async function removeMalAnime(profileId:number,malId:number){return malAnimeEntries(await scoped(profileId,{kind:'mal-anime-remove',malId:integer(malId,1,2147483647)}));}
 export async function reviewAddon(profileId:number,url:string):Promise<AddonReview>{
   const v=await scoped(profileId,{kind:'review',url});return {reviewId:integer(v.reviewId,1,0xffffffff),manifest:manifest(v.manifest)};
 }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { StremioAccountImport } from './stremio-account-import';
 import { MdblistSettings } from './mdblist-settings';
+import { MalAnimeLibrary } from './mal-anime-library';
 import { RefractSettings, RefractWatchlist } from './refract-settings';
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { TsugiIcon } from '@/components/tsugi-icons';
@@ -25,6 +26,8 @@ function feedback(reason: unknown) {
     case 'profile-store': case 'profile-store-limit': return t`The protected profile store could not be read or saved. Existing saved data has not been reset.`;
     case 'profile-confirmation': return t`Type the exact profile name before deleting it.`;
     case 'active-profile': return t`Switch to another profile before deleting this one.`;
+    case 'mal-invalid': return t`The anime collection contains invalid data. No import was applied.`;
+    case 'mal-limit': return t`The anime collection exceeds the local storage limit.`;
     case 'account-auth': return t`The account service refused sign-in or access. Check your credentials and try again.`;
     case 'account-request': case 'account-response': return t`The account service returned an unsupported response. No addons were imported.`;
     case 'unsupported-resource': return t`This addon does not declare support for that title or video identity.`;
@@ -35,7 +38,7 @@ function feedback(reason: unknown) {
     default: return t`The request could not be confirmed. Refresh the installed list before retrying an installation or change.`;
   }
 }
-type WatchPane = 'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history'|'refract';
+type WatchPane = 'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history'|'refract'|'anime';
 const profileArt=['/design/oto/hero-yuna.webp','/design/yomi/hero-torii.webp','/design/shared/hero-neon.webp','/design/shared/hero-train.webp'];
 export function StremioAddonSettings({workspace=false,onPlay,historyActive=false}:{workspace?:boolean;onPlay?:(playback:WatchPlayback)=>void;historyActive?:boolean}={}){
   const [entered,setEntered]=React.useState(false);
@@ -254,11 +257,12 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
         ['nuvio',t`Nuvio import`,'migrate'],
         ['manual',t`Add addon`,'plus'],
         ['order',t`Source order`,'list'],
+        ['anime',t`Anime`,'bookmark'],
         ['mdblist',t`MDBList`,'bookmark'],
         ['refract',t`Refract`,'bookmark'],
         ['history',t`Watch history`,'list'],
         ['profile',t`Profile settings`,'settings']
-      ] as const).filter(([id])=>(id!=='history'&&id!=='refract')||!!onPlay).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><TsugiIcon name={icon}/><span>{label}</span></button>)}
+      ] as const).filter(([id])=>(id!=='history'&&id!=='refract'&&id!=='anime')||!!onPlay).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><TsugiIcon name={icon}/><span>{label}</span></button>)}
     </nav>}
     <div className={workspace?'tsugi-watch-content':'contents'}>
     {!workspace&&<h3 id={titleId}><Trans>Stremio addons</Trans></h3>}
@@ -279,7 +283,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
         {profileState.profiles.length>1&&<details>
           <summary><Trans>Delete an inactive profile</Trans></summary>
           <div className="space-y-2">
-            <p><Trans>Deleting a profile removes its saved addon configurations, connected account credentials and local Watch history. Switch away from it first. This cannot be undone.</Trans></p>
+            <p><Trans>Deleting a profile removes its saved addon configurations, connected account credentials, imported anime collection and local Watch history. Switch away from it first. This cannot be undone.</Trans></p>
             <label><Trans>Profile to delete</Trans><select className="tsugi-menu-select w-full" disabled={busy} value={deleteId} onChange={e=>{setDeleteId(Number(e.target.value));setDeleteName('');}}>
               <option value={0}>{t`Select`}</option>{profileState.profiles.filter(p=>p.profileId!==profileId).map(p=><option key={p.profileId} value={p.profileId}>{p.name}</option>)}
             </select></label>
@@ -349,6 +353,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     </form>}
     </>}
     {workspace&&pane==='history'&&historyActive&&profileReady&&profileId!==undefined&&<WatchHistory key={profileId} profileId={profileId} busy={busy} run={run} open={openHistory} removed={clearTitle}/>}
+    {workspace&&pane==='anime'&&profileReady&&profileId!==undefined&&<MalAnimeLibrary key={profileId} profileId={profileId} sources={sources} busy={busy} run={run} openTitle={item=>void openTitle(item)} clearTitle={clearTitle} openAddons={()=>void selectPane('addons')}/>}
     {workspace&&pane==='mdblist'&&profileReady&&profileId!==undefined&&<MdblistSettings key={profileId} profileId={profileId} openTitle={item=>void openTitle(item)}/>}
     {workspace&&pane==='refract'&&historyActive&&profileReady&&profileId!==undefined&&<RefractSettings key={profileId} profileId={profileId} busy={busy} run={run}/>}
     {workspace&&title&&<section className="space-y-3" data-ui="watch-item-details">
