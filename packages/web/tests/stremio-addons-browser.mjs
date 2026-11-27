@@ -370,7 +370,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 5 addons',exact:true}).click();
     await watch.locator('[data-ui="watch-hub-picker"] [data-watch-destination="standalone"]').click();
     const board=watch.locator('[data-ui="watch-catalogue-board"]');
-    const film=board.getByRole('button',{name:'Fixture cinema film',exact:true});
+    const film=board.locator('[data-ui="poster-card"][aria-label="Fixture cinema film"]');
     await film.waitFor();
     assert.equal(await board.locator('[data-ui="media-row"]').count()>0,true);
     assert.equal(await film.getAttribute('data-ui'),'poster-card');
@@ -465,6 +465,10 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.getByRole('button',{name:'Back',exact:true}).click();
     await player.waitFor({state:'detached'});
     await item.getByRole('button',{name:'Close title',exact:true}).click();
+    const resumedCard=board.locator('[data-ui="watch-continue-shelf"] [data-ui="wide-card"]').filter({hasText:'Fixture cinema film'});
+    await resumedCard.waitFor();
+    assert.equal(await resumedCard.getAttribute('data-in-progress'),'true');
+    await assertArtwork(resumedCard);
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-resume-art.png'),animations:'disabled'});
     await film.click();
     await item.locator('[data-ui="watch-play-title"]').filter({hasText:/^Resume$/}).waitFor();
@@ -1012,6 +1016,8 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await discovery.getByRole('button',{name:'Load catalogue',exact:true}).click();
     await discovery.getByRole('button',{name:/First original film/}).click();
     await watch.locator('[data-ui="watch-item-details"]').getByRole('heading',{name:'First original film',exact:true}).waitFor();
+    assert.equal(await anime.isVisible(),false,'Title detail replaces the Anime Hub while open');
+    await watch.locator('[data-ui="watch-item-details"]').getByRole('button',{name:'Close title',exact:true}).click();
     await hubNav.getByRole('button',{name:'My List',exact:true}).click();
     await animeFilm.click();
     const animeSource=anime.locator('[data-ui="mal-anime-source"]');
@@ -1185,6 +1191,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await animeFilm.click();
     await animeSource.getByRole('button',{name:'Open saved anime source',exact:true}).click();
     await watch.locator('[data-ui="watch-item-details"]').getByRole('heading',{name:'First original film',exact:true}).waitFor();
+    await watch.locator('[data-ui="watch-item-details"]').getByRole('button',{name:'Close title',exact:true}).click();
     await hubNav.getByRole('button',{name:'History',exact:true}).click();
     await anime.locator('[data-ui="anime-history"]').getByRole('button',{name:/First original film/}).waitFor();
     await hubNav.getByRole('button',{name:'My List',exact:true}).click();
