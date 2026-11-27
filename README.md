@@ -162,7 +162,7 @@ pnpm -F @aiostreams/web lint
 pnpm -F @aiostreams/web prepare:ebooks
 ```
 
-Node.js 24+, pnpm 11+ and Rust are required. See the [Windows packaging workflow](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/.github/workflows/tsugi-unified-windows.yml), [reading runtime notes](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/docs/tsugi-read-runtime.md), [roadmap](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/ROADMAP.md) and [development history](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/PROGRESS.md). Latest web, native and packaging checks passed. Live source compatibility, tracker authorization, provider transfers and physical performance remain acceptance items. Refract and MangaBaka are not shipped.
+Node.js 24+, pnpm 11+ and Rust are required (pnpm is pinned to 11.0.8). See the [Windows development and acceptance guide](docs/windows-development.md) and the [Windows packaging workflow](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/.github/workflows/tsugi-unified-windows.yml), [reading runtime notes](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/docs/tsugi-read-runtime.md), [roadmap](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/ROADMAP.md) and [development history](https://github.com/G1NYU/TSUGI/blob/feature/tsugi-read-runtime/PROGRESS.md). Latest web, native and packaging checks passed. Live source compatibility, tracker authorization, provider transfers and physical performance remain acceptance items. Refract and MangaBaka are not shipped.
 
 ## Support and bug reports
 

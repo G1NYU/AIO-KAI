@@ -380,6 +380,11 @@ jobs:
           and local tracker-binding transfer. Automatic MAL/AniList sync is not
           enabled. Refract personal-key watch logging and MDBList are optional;
           live provider compatibility and account acceptance remain unverified.
+          Movies and Watch use flat filled navigation icons, including direct
+          Anime Hub, addon management, Stremio import and Nuvio import shortcuts
+          after profile selection. App settings includes a manual release check;
+          a proven newer stable release is also offered once at startup via
+          its official GitHub page. No automatic file replacement is performed.
           Settings includes attribution, licenses and cicada bug reporting.
           Discord presence is off by default. Its setup requires a public
           Discord Application ID for TSUGI, never an account or bot token.
@@ -446,6 +451,28 @@ jobs:
           retention-days: 7
           path: Tsugi-windows-x64-test.zip
           if-no-files-found: error
+      - uses: actions/download-artifact@v5
+        with:
+          name: Tsugi-Windows-x64-test
+          path: roundtrip
+      - name: Verify downloadable portable ZIP and build identity
+        run: |
+          $original = (Get-FileHash -LiteralPath Tsugi-windows-x64-test.zip -Algorithm SHA256).Hash
+          $downloaded = (Resolve-Path roundtrip/Tsugi-windows-x64-test.zip).Path
+          $actual = (Get-FileHash -LiteralPath $downloaded -Algorithm SHA256).Hash
+          if ($original -ne $actual) { throw 'Downloaded portable ZIP does not match the assembled archive' }
+          $archive = [IO.Compression.ZipFile]::OpenRead($downloaded)
+          try {
+            foreach ($name in @('.portable','current/Tsugi.exe','current/web/index.html','BUILD-INFO.json')) {
+              if (@($archive.Entries | Where-Object FullName -CEQ $name).Count -ne 1) { throw "Downloaded ZIP missing unique $name" }
+            }
+            $reader = [IO.StreamReader]::new($archive.GetEntry('BUILD-INFO.json').Open())
+            try { $identity = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
+            if ($identity.repository -cne $env:GITHUB_REPOSITORY -or $identity.commit -cne $env:GITHUB_SHA -or $identity.run_id -cne $env:GITHUB_RUN_ID -or $identity.run_attempt -cne $env:GITHUB_RUN_ATTEMPT -or $identity.ref -cne $env:GITHUB_REF -or $identity.architecture -cne 'windows-x64' -or $identity.package_format -ne 1) {
+              throw 'Downloaded ZIP build identity mismatch'
+            }
+          } finally { $archive.Dispose() }
+          Write-Host "PASS: downloaded portable ZIP matches assembled bytes and exact build identity. SHA256=$actual"
 
   publish-release:
     needs: [package]

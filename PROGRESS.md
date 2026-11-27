@@ -1,3 +1,5 @@
+- 2026-11-27: ✓ Filled Movies navigation and GitHub release prompt at `ff67c1d` passed 45966315386 (446 web, 223 native; profile routing and verified newer-release notice). Rechecked local toolchain/network, added Windows development guide and uploaded-package round-trip checks. Fresh portable candidate pending; stable release unchanged. See HANDOFF.md.
+
 - 2026-11-27: ✓ Packaged Windows candidate `93b9366` passed run 45964495647; [download artifact](https://github.com/G1NYU/TSUGI/actions/runs/45964495647/artifacts/15182399248). Authored original filled Movies/Watch navigation, profile-gated Anime/Stremio/Nuvio shortcuts and a read-only, ancestry-verified startup update notice. New native/parser/browser checks pending; see HANDOFF.md. Stable release unchanged.
 
 - 2026-11-27: ✓ Latest native/web and Reader runtime CI at `1f658fa` passed (443 web, 222 native, 69 focused broker, 42 CBZ, 13 packaged-runtime cases). Requested fresh development-only package; added Vault direct-transfer suite to cumulative CI, four Anime Hub archive asset checks, and updated test instructions. Actual package pending; stable release unchanged. See HANDOFF.md.
