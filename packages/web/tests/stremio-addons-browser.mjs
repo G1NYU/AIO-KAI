@@ -323,9 +323,15 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
     await page.route('https://relations.yuna.moe/api/ids?**',route=>route.fulfill({json:{kitsu:90004},headers:{'access-control-allow-origin':'*'}}));
     const posterImage='<svg xmlns="http://www.w3.org/2000/svg" width="120" height="180"><rect width="120" height="180" fill="#40516d"/></svg>';
+    async function assertArtwork(card){
+      await card.scrollIntoViewIfNeeded();
+      const image=card.locator('img[src]:not([src=""])');
+      await image.waitFor({state:'visible'});
+      assert.ok(await image.evaluate(async el=>{await el.decode();return el.naturalWidth>0&&el.naturalHeight>0;}),'actual artwork decodes');
+    }
     const discoveryPoster='https://cdn.myanimelist.net/images/anime/1/90004.jpg';
-    await page.route('https://cdn.myanimelist.net/images/anime/1/90004.jpg',route=>route.fulfill({contentType:'image/svg+xml',body:posterImage}));
-    await page.route('https://image.tmdb.org/t/p/**',route=>route.fulfill({contentType:'image/svg+xml',body:posterImage}));
+    await page.route('https://cdn.myanimelist.net/images/anime/1/90004.jpg',route=>route.fulfill({contentType:'image/svg+xml',body:posterImage,headers:{'access-control-allow-origin':'*'}}));
+    await page.route('https://image.tmdb.org/t/p/**',route=>route.fulfill({contentType:'image/svg+xml',body:posterImage,headers:{'access-control-allow-origin':'*'}}));
     await page.route('https://api.tenrai.org/v1/**',route=>{
       const films=new URL(route.request().url()).searchParams.get('type')==='movie';
       return route.fulfill({json:{data:[{mal_id:90004,title:films?'Public anime film fixture':'Public anime discovery fixture',type:films?'Movie':'TV',rating:'PG-13 - Teens 13 or older',images:{jpg:{image_url:discoveryPoster}},synopsis:'Independent discovery without addon installation.'}]},headers:{'access-control-allow-origin':'*'}});
@@ -356,8 +362,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await film.waitFor();
     assert.equal(await board.locator('[data-ui="media-row"]').count()>0,true);
     assert.equal(await film.getAttribute('data-ui'),'poster-card');
-    await film.locator('img').waitFor({state:'attached'});
-    assert.ok(await film.locator('img').evaluate(async image=>{await image.decode();return image.naturalWidth>0&&image.naturalHeight>0;}),'standalone movie poster decodes');
+    await assertArtwork(film);
     const shelfFont=await board.locator('[data-ui="media-row-title"]').first().evaluate(el=>({family:getComputedStyle(el).fontFamily,weight:Number(getComputedStyle(el).fontWeight)}));
     assert.match(shelfFont.family,/^Interface(?:,|$)/);
     assert.ok(await page.evaluate(async()=>{const faces=await document.fonts.load('600 18px Interface','Popular films');return faces.some(face=>face.family==='Interface'&&face.status==='loaded');}));
@@ -463,7 +468,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.equal(await movieResults.locator('[data-ui="poster-card"]').count(),2);
     assert.equal(await results.getByRole('button',{name:'Unrelated series',exact:true}).count(),0);
     assert.equal(await results.locator('[data-ui="watch-top-match"] h4').innerText(),'Family Guy');
-    await seriesResults.getByRole('button',{name:'Family Guy',exact:true}).locator('img').evaluate(image=>image.decode());
+    await assertArtwork(seriesResults.getByRole('button',{name:'Family Guy',exact:true}));
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-search-overlay.png'),animations:'disabled'});
     console.log('PASS: TMDB title search places the exact series match first and separates related movies below it.');
     await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Fixture alias movie');
