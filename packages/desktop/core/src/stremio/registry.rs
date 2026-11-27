@@ -45,7 +45,7 @@ pub enum Action {
     ItemOptions { source_id: u32, media_type: String, video_id: String, subtitles: bool },
     PrepareMedia { review_id: u32, option_index: usize, start_ms: u64 },
     WatchHistory,
-    WatchRecord { progress: WatchProgress },
+    WatchRecord { progress: WatchProgress, #[serde(default)] viewing_id: Option<String> },
     WatchRemove { media_type: String, item_id: String, video_id: String },
     RefractStatus,
     RefractConnect { key: String },
@@ -174,13 +174,13 @@ impl Registry {
         match action {
             Action::List => Ok(self.list()),
             Action::WatchHistory => Ok(self.history.list()),
-            Action::WatchRecord { progress } => {
-                let already_completed=self.history.completed_at(&progress).is_some();
-                let result=self.history.record(progress.clone())?;
+            Action::WatchRecord { progress,viewing_id } => {
+                let already_completed=self.history.completed_at(&progress,viewing_id.as_deref()).is_some();
+                let result=self.history.record(progress.clone(),viewing_id.clone())?;
                 // Persist the optional outbound event together with local history.
                 // A provider outage cannot prevent recording local playback.
-                if progress.completed&&!already_completed&&let Some(at)=self.history.completed_at(&progress){
-                    self.refract.enqueue(&progress,at);
+                if progress.completed&&!already_completed&&let Some(at)=self.history.completed_at(&progress,viewing_id.as_deref()){
+                    self.refract.enqueue(&progress,at,viewing_id.as_deref());
                 }
                 Ok(result)
             },

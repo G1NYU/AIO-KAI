@@ -20,6 +20,11 @@ fn valid_key(key:&str)->bool{
 fn uuid(id:&str)->bool{
     id.len()==36&&id.bytes().enumerate().all(|(i,b)|if matches!(i,8|13|18|23){b==b'-'}else{b.is_ascii_hexdigit()})
 }
+// Harbor accepts opaque string and numeric Refract identifiers. Restrict
+// the string form to safe path segments; never interpolate arbitrary URLs.
+fn safe_provider_id(id:&str)->bool{
+    !id.is_empty()&&id.len()<=128&&id.bytes().all(|b|b.is_ascii_alphanumeric()||matches!(b,b'-'|b'_'))
+}
 fn safe_name(name:&str)->bool{
     text_valid(name,256)&&!name.contains("://")&&!name.contains("rfk_")
 }
@@ -85,21 +90,37 @@ impl Identity{
     }
 }
 #[derive(Clone,PartialEq,Eq)]
-struct Match{id:String,season:Option<u32>,number:Option<u32>}
+enum RemoteId{Text(String),Number(u64)}
+impl RemoteId{
+    fn parse(value:&Value)->Option<Self>{
+        if let Some(id)=value.as_str().filter(|id|safe_provider_id(id)){return Some(Self::Text(id.into()));}
+        value.as_u64().filter(|n|*n>0&&*n<=9007199254740991).map(Self::Number)
+    }
+    fn path(&self)->String{match self{Self::Text(id)=>id.clone(),Self::Number(id)=>id.to_string()}}
+    fn value(&self)->Value{match self{Self::Text(id)=>json!(id),Self::Number(id)=>json!(id)}}
+}
+#[derive(Clone,PartialEq,Eq)]
+struct Match{id:RemoteId,season:Option<u32>,number:Option<u32>}
 fn unique_match(value:Value,kind:&Kind)->Result<Match>{
     let rows=value["data"].as_array().ok_or("refract-response")?;
     if rows.len()>100{return Err("refract-response");}
     let mut found:Option<Match>=None;
     for row in rows{
-        if row["type"].as_str()!=Some(kind.name()){continue;}
+        if !row.is_object(){return Err("refract-response");}
+        // The exact lookup query already specifies type. Some Harbor-tested
+        // responses omit that redundant field; reject any explicit mismatch.
+        if row.get("type").is_some_and(|v|v.as_str()!=Some(kind.name())){continue;}
         let (id,season,number)=if *kind==Kind::Episode{
-            if row["show"]["type"].as_str()!=Some("show"){return Err("refract-response");}
+            if row["show"].get("type").is_some_and(|v|v.as_str()!=Some("show")){return Err("refract-response");}
             let s=row["episode"]["season"].as_u64().and_then(|n|u32::try_from(n).ok()).ok_or("refract-response")?;
             let n=row["episode"]["number"].as_u64().and_then(|n|u32::try_from(n).ok()).filter(|n|*n>0).ok_or("refract-response")?;
             (&row["show"]["ids"]["refract"],Some(s),Some(n))
-        }else{(&row["ids"]["refract"],None,None)};
-        let id=id.as_str().filter(|id|uuid(id)).ok_or("refract-response")?;
-        let matched=Match{id:id.to_ascii_lowercase(),season,number};
+        }else{
+            if row.get("episode").is_some()||row.get("show").is_some(){return Err("refract-response");}
+            (&row["ids"]["refract"],None,None)
+        };
+        let id=RemoteId::parse(id).ok_or("refract-response")?;
+        let matched=Match{id,season,number};
         if found.as_ref().is_some_and(|old|*old!=matched){return Err("refract-unmatched");}
         found=Some(matched);
     }
@@ -144,18 +165,18 @@ pub(super) struct Saved{
     sent:u32,skipped:u32,retry_at:u64,last_error:Option<String>,
 }
 fn known_error(code:&str)->bool{
-    matches!(code,"refract-auth"|"refract-scope"|"refract-rate"|"refract-network"|"refract-request"|"refract-response"|
+    matches!(code,"refract-auth"|"refract-scope"|"refract-rate"|"refract-network"|"refract-request"|"refract-response"|"refract-rejected"|
         "refract-conflict"|"refract-unmatched"|"refract-queue-full"|"refract-clock"|"refract-protected"|"unsupported")
 }
 impl Saved{
     fn valid(&self)->bool{
         let mut ids=BTreeSet::new();
-        valid_key(&self.key)&&uuid(&self.member_id)&&safe_name(&self.username)&&self.jobs.len()<=QUEUE_LIMIT&&
+        valid_key(&self.key)&&safe_provider_id(&self.member_id)&&safe_name(&self.username)&&self.jobs.len()<=QUEUE_LIMIT&&
         self.retry_at<=MAX_MS&&self.last_error.as_deref().is_none_or(known_error)&&
         self.jobs.iter().all(|job|job.valid()&&ids.insert(&job.request_id))
     }
 }
-#[derive(Clone,Copy)]
+#[derive(Clone,Copy,Debug)]
 struct Failure{code:&'static str,retry_ms:u64}
 impl Failure{
     fn new(code:&'static str)->Self{Self{code,retry_ms:0}}
@@ -165,40 +186,53 @@ fn agent()->ureq::Agent{
     ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(15))).max_redirects(0)
         .http_status_as_error(false).build().into()
 }
-fn response(response:ureq::http::Response<ureq::Body>)->Remote<Value>{
-    let status=response.status().as_u16();
-    if status==204{return Ok(Value::Null);}
-    let retry_ms=response.headers().get("Retry-After").and_then(|v|v.to_str().ok())
-        .and_then(|v|v.parse::<u64>().ok()).unwrap_or(60).clamp(1,86400)*1000;
+// Match the verified Harbor contract: GET requires structured data, but a
+// successful mutation is acknowledged by its HTTP status (including 204 and
+// an empty 200/201). Do not retry a confirmed write because a result field is
+// absent. Terminal client errors must not block later queued events.
+fn decode_response(status:u16,retry_ms:u64,bytes:&[u8],read_json:bool)->Remote<Value>{
+    if (200..300).contains(&status){
+        return if read_json{serde_json::from_slice(bytes).map_err(|_|Failure::new("refract-response"))}else{Ok(Value::Null)};
+    }
     if status==429{return Err(Failure{code:"refract-rate",retry_ms});}
     if status==401{return Err(Failure::new("refract-auth"));}
     if status==403{return Err(Failure::new("refract-scope"));}
     if status==503{return Err(Failure{code:"refract-network",retry_ms});}
-    let bytes=read_bounded(response.into_body().into_reader(),LIMIT).map_err(|_|Failure::new("refract-response"))?;
-    if !(200..300).contains(&status){
-        let code=serde_json::from_slice::<Value>(&bytes).ok().and_then(|v|v["code"].as_str().map(str::to_owned));
-        return Err(Failure::new(match (status,code.as_deref()){
-            (_,Some("IN_LIBRARY"))=>"refract-protected",
-            (_,Some("IDEMPOTENCY_KEY_MISMATCH"))=>"refract-conflict",
-            (409,_)=>"refract-conflict",
-            (404,_)=>"refract-unmatched",
-            (500..=599,_)=>"refract-network",
-            _=>"refract-request",
-        }));
+    let code=serde_json::from_slice::<Value>(bytes).ok().and_then(|v|v["code"].as_str().map(str::to_owned));
+    Err(Failure::new(match (status,code.as_deref()){
+        (409,Some("IN_LIBRARY"))=>"refract-protected",
+        (409,_)=>"refract-conflict",
+        (404,_)=>"refract-unmatched",
+        (400..=499,_)=>"refract-rejected",
+        (500..=599,_)=>"refract-network",
+        _=>"refract-request",
+    }))
+}
+fn response(response:ureq::http::Response<ureq::Body>,read_json:bool)->Remote<Value>{
+    let status=response.status().as_u16();
+    let retry_ms=response.headers().get("Retry-After").and_then(|v|v.to_str().ok())
+        .and_then(|v|v.parse::<u64>().ok()).unwrap_or(60).clamp(1,86400)*1000;
+    if (!read_json&&(200..300).contains(&status))||matches!(status,401|403|429|503){
+        return decode_response(status,retry_ms,&[],read_json);
     }
-    serde_json::from_slice(&bytes).map_err(|_|Failure::new("refract-response"))
+    let bytes=read_bounded(response.into_body().into_reader(),LIMIT).map_err(|_|Failure::new("refract-response"))?;
+    decode_response(status,retry_ms,&bytes,read_json)
 }
 fn get(key:&str,url:&str)->Remote<Value>{
     let bearer=format!("Bearer {key}");
     response(agent().get(url).header("Accept","application/json").header("Authorization",bearer.as_str())
-        .call().map_err(|_|Failure::new("refract-network"))?)
+        .call().map_err(|_|Failure::new("refract-network"))?,true)
 }
 fn member(key:&str)->Result<(String,String)>{
     if !valid_key(key){return Err("refract-auth");}
     let url=format!("{API}/me");let v=get(key,&url).map_err(|e|e.code)?;
-    let id=v["id"].as_str().filter(|v|uuid(v)).ok_or("refract-response")?;
-    let name=v["username"].as_str().filter(|v|safe_name(v)).ok_or("refract-response")?;
-    Ok((id.to_ascii_lowercase(),name.into()))
+    parse_member(&v)
+}
+fn parse_member(v:&Value)->Result<(String,String)>{
+    let id=RemoteId::parse(&v["id"]).ok_or("refract-response")?.path();
+    let name=v["username"].as_str().filter(|v|safe_name(v))
+        .or_else(||v["display_name"].as_str().filter(|v|safe_name(v))).unwrap_or("Connected");
+    Ok((if uuid(&id){id.to_ascii_lowercase()}else{id},name.into()))
 }
 fn resolve(key:&str,identity:&Identity)->Remote<Match>{
     let url=identity.lookup().map_err(Failure::new)?;
@@ -210,17 +244,16 @@ fn send_watch(key:&str,job:&Job)->Remote<()>{
     let bearer=format!("Bearer {key}");let agent=agent();
     if job.identity.kind==Kind::Movie{
         let url=format!("{API}/history/movies");let idem=format!("\"{}\"",job.request_id);
-        let body=json!({"movie_id":matched.id,"watched_at":watched_at}).to_string();
-        let value=response(agent.post(url.as_str()).header("Accept","application/json").header("Authorization",bearer.as_str())
+        let body=json!({"movie_id":matched.id.value(),"watched_at":watched_at}).to_string();
+        response(agent.post(url.as_str()).header("Accept","application/json").header("Authorization",bearer.as_str())
             .header("Content-Type","application/json").header("Idempotency-Key",idem.as_str())
-            .send(body).map_err(|_|Failure::new("refract-network"))?)?;
-        if !matches!(value["result"].as_str(),Some("watched"|"rewatched"|"duplicate")){return Err(Failure::new("refract-response"));}
+            .send(body).map_err(|_|Failure::new("refract-network"))?,false)?;
     }else{
         let (season,number)=(matched.season.ok_or(Failure::new("refract-unmatched"))?,matched.number.ok_or(Failure::new("refract-unmatched"))?);
-        let url=format!("{API}/history/episodes/{}/{season}/{number}",matched.id);
+        let url=format!("{API}/history/episodes/{}/{season}/{number}",matched.id.path());
         response(agent.put(url.as_str()).header("Accept","application/json").header("Authorization",bearer.as_str())
             .header("Content-Type","application/json").send(json!({"watched_at":watched_at}).to_string())
-            .map_err(|_|Failure::new("refract-network"))?)?;
+            .map_err(|_|Failure::new("refract-network"))?,false)?;
     }
     Ok(())
 }
@@ -259,13 +292,25 @@ impl Connection{
         if self.saved.as_ref().is_some_and(|s|!s.jobs.is_empty())&&!discard_pending{return Err("refract-pending");}
         self.saved=None;Ok(self.status())
     }
-    pub(super) fn enqueue(&mut self,progress:&Progress,watched_at:u64){
+    pub(super) fn enqueue(&mut self,progress:&Progress,watched_at:u64,viewing_id:Option<&str>){
         let Some(saved)=self.saved.as_mut().filter(|s|s.enabled)else{return;};
         let Some(identity)=Identity::completed(progress)else{saved.skipped=saved.skipped.saturating_add(1);saved.last_error=Some("refract-unmatched".into());return;};
-        // Identical completed events and close-in-time observations are not new viewings.
-        if saved.jobs.iter().any(|j|j.identity==identity&&j.watched_at.abs_diff(watched_at)<30*60*1000){return;}
+        // Harbor review-completion distinguishes separate movie viewings,
+        // while a queued episode PUT represents one idempotent watched state.
+        // A movie's stable viewing UUID is also its request id; even a retry
+        // after a lost acknowledgment must not append the same play twice.
+        let movie_id=if identity.kind==Kind::Movie{viewing_id}else{None};
+        if let Some(id)=movie_id{
+            if !uuid(id){saved.skipped=saved.skipped.saturating_add(1);saved.last_error=Some("refract-request".into());return;}
+            if let Some(previous)=saved.jobs.iter().find(|j|j.request_id==id){
+                if previous.identity!=identity||previous.watched_at!=watched_at{
+                    saved.skipped=saved.skipped.saturating_add(1);saved.last_error=Some("refract-conflict".into());
+                }
+                return;
+            }
+        }else if saved.jobs.iter().any(|j|j.identity==identity&&(identity.kind!=Kind::Movie||j.watched_at==watched_at)){return;}
         if saved.jobs.len()>=QUEUE_LIMIT{saved.skipped=saved.skipped.saturating_add(1);saved.last_error=Some("refract-queue-full".into());return;}
-        match request_id(){
+        match movie_id.map(str::to_owned).map(Ok).unwrap_or_else(request_id){
             Ok(request_id)=>saved.jobs.push(Job{identity,watched_at,request_id,attempts:0}),
             Err(code)=>{saved.skipped=saved.skipped.saturating_add(1);saved.last_error=Some(code.into());}
         }
@@ -279,7 +324,7 @@ impl Connection{
             Ok(())=>{saved.jobs.remove(0);saved.sent=saved.sent.saturating_add(1);saved.last_error=None;saved.retry_at=0;},
             Err(error)=>{
                 saved.last_error=Some(error.code.into());
-                if error.code=="refract-unmatched"{
+                if matches!(error.code,"refract-unmatched"|"refract-rejected"|"refract-protected"){
                     saved.jobs.remove(0);saved.skipped=saved.skipped.saturating_add(1);saved.retry_at=0;
                 }else{
                     let job=&mut saved.jobs[0];job.attempts=job.attempts.saturating_add(1).min(32);
@@ -297,14 +342,14 @@ impl Connection{
         let identity=Identity::title(media_type,item_id).ok_or("refract-unmatched")?;
         let result=(||->Remote<Value>{
             let matched=resolve(&saved.key,&identity)?;
-            let url=format!("{API}/watchlist/{}",matched.id);let bearer=format!("Bearer {}",saved.key);
+            let url=format!("{API}/watchlist/{}",matched.id.path());let bearer=format!("Bearer {}",saved.key);
             let agent=agent();
             if add{
                 response(agent.put(url.as_str()).header("Accept","application/json").header("Authorization",bearer.as_str())
-                    .send("").map_err(|_|Failure::new("refract-network"))?)
+                    .send("").map_err(|_|Failure::new("refract-network"))?,false)
             }else{
                 response(agent.delete(url.as_str()).header("Accept","application/json").header("Authorization",bearer.as_str())
-                    .call().map_err(|_|Failure::new("refract-network"))?)
+                    .call().map_err(|_|Failure::new("refract-network"))?,false)
             }
         })();
         match result{
@@ -349,6 +394,33 @@ mod tests{
         let mut other=match_row.clone();other["episode"]["number"]=json!(5);
         assert!(matches!(unique_match(json!({"data":[match_row,other]}),&Kind::Episode),Err("refract-unmatched")));
         assert!(matches!(unique_match(json!({"data":[]}),&Kind::Movie),Err("refract-unmatched")));
+        // Shapes used by Harbor's API/sync fixtures: opaque string IDs,
+        // numeric IDs, and absent redundant nested type discriminators.
+        let movie=unique_match(json!({"data":[{"ids":{"refract":"movie-ref"}}]}),&Kind::Movie).unwrap();
+        assert_eq!(movie.id.value(),json!("movie-ref"));
+        let episode=unique_match(json!({"data":[{"show":{"ids":{"refract":37}},"episode":{"season":2,"number":6}}]}),&Kind::Episode).unwrap();
+        assert_eq!(episode.id.value(),json!(37));assert_eq!(episode.id.path(),"37");
+        assert_eq!((episode.season,episode.number),(Some(2),Some(6)));
+        assert!(unique_match(json!({"data":[{"type":"show","ids":{"refract":"movie-ref"}}]}),&Kind::Movie).is_err());
+        assert!(unique_match(json!({"data":[{"ids":{"refract":"../../bad"}}]}),&Kind::Movie).is_err());
+        assert!(unique_match(json!({"data":[{"ids":{"refract":"movie-ref"}},{"ids":{"refract":"other-ref"}}]}),&Kind::Movie).is_err());
+        assert_eq!(parse_member(&json!({"id":"member-ref","display_name":"Fixture"})).unwrap(),("member-ref".into(),"Fixture".into()));
+        assert!(parse_member(&json!({"username":"Fixture"})).is_err());
+    }
+    #[test]
+    fn harbor_http_ack_and_retry_contract(){
+        for status in [200,201,204]{
+            assert_eq!(decode_response(status,60000,b"",false).unwrap(),Value::Null);
+        }
+        assert_eq!(decode_response(201,60000,b"{}",false).unwrap(),Value::Null);
+        assert_eq!(decode_response(200,60000,b"",true).unwrap_err().code,"refract-response");
+        assert_eq!(decode_response(200,60000,br#"{"data":[]}"#,true).unwrap()["data"],json!([]));
+        for (status,code) in [(401,"refract-auth"),(403,"refract-scope"),(404,"refract-unmatched"),
+            (409,"refract-conflict"),(422,"refract-rejected"),(429,"refract-rate"),(503,"refract-network")]{
+            assert_eq!(decode_response(status,13000,b"{}",false).unwrap_err().code,code);
+        }
+        assert_eq!(decode_response(429,13000,b"",false).unwrap_err().retry_ms,13000);
+        assert_eq!(decode_response(409,60000,br#"{"code":"IN_LIBRARY"}"#,false).unwrap_err().code,"refract-protected");
     }
     #[test]
     fn original_utc_time_and_credential_validation(){
@@ -366,9 +438,26 @@ mod tests{
     #[test]
     fn opt_in_queue_persists_and_disconnect_requires_confirmation(){
         let mut c=connection();let p=progress("movie","tt123","tt123");
-        c.enqueue(&p,1609459200123);assert_eq!(c.status()["pending"],0);
-        c.enable(true).unwrap();c.enqueue(&p,1609459200123);c.enqueue(&p,1609459201123);
+        c.enqueue(&p,1609459200123,None);assert_eq!(c.status()["pending"],0);
+        c.enable(true).unwrap();c.enqueue(&p,1609459200123,None);c.enqueue(&p,1609459200123,None);
         assert_eq!(c.status()["pending"],1);
+        c.enqueue(&p,1609459201123,None);
+        assert_eq!(c.status()["pending"],2);
+        let episode=progress("series","tt456","tt456:1:2");
+        c.enqueue(&episode,1609459200123,None);c.enqueue(&episode,1609459201123,None);
+        assert_eq!(c.status()["pending"],3);
+        let saved=c.saved().unwrap();
+        assert_eq!(saved.jobs[0].watched_at,1609459200123);
+        assert_eq!(saved.jobs[1].watched_at,1609459201123);
+        assert_ne!(saved.jobs[0].request_id,saved.jobs[1].request_id);
+        let first="00000000-0000-4000-8000-000000000001";
+        let second="00000000-0000-4000-8000-000000000002";
+        c.enqueue(&p,1609459202123,Some(first));
+        c.enqueue(&p,1609459202123,Some(first));
+        c.enqueue(&p,1609459202123,Some(second));
+        assert_eq!(c.status()["pending"],5);
+        assert_eq!(c.saved().unwrap().jobs[3].request_id,first);
+        assert_eq!(c.saved().unwrap().jobs[4].request_id,second);
         let saved=c.saved().unwrap();assert!(uuid(&saved.jobs[0].request_id));
         let mut restored=Connection::restored(Some(saved)).unwrap();
         assert_eq!(restored.status(),c.status());

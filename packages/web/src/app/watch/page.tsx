@@ -33,6 +33,13 @@ function DirectPlayer({playback,close,onHistoryError}:{playback:WatchPlayback;cl
   const current=React.useRef({paused:false,position:0,duration:0});
   const loaded=React.useRef(false),accepted=React.useRef(false),completed=React.useRef(false),closing=React.useRef(false);
   const historyFlight=React.useRef<Promise<void>|null>(null),lastSaved=React.useRef('');
+  const [viewingId]=React.useState(()=>{
+    // getRandomValues also works in older native WebView origin contexts.
+    const bytes=crypto.getRandomValues(new Uint8Array(16));
+    bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;
+    const hex=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
+    return [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-');
+  });
   const [historyBusy,setHistoryBusy]=React.useState(false),[leaving,setLeaving]=React.useState(false);
   async function checkpoint(force=false){
     if(!loaded.current||!accepted.current||(!force&&(closing.current||subtitleFlight.current)))return;
@@ -45,7 +52,7 @@ function DirectPlayer({playback,close,onHistoryError}:{playback:WatchPlayback;cl
     const fingerprint=JSON.stringify(progress);
     if(fingerprint===lastSaved.current)return;
     if(mounted.current)setHistoryBusy(true);
-    historyFlight.current=saveWatchProgress(playback.profileId,progress).then(()=>{
+    historyFlight.current=saveWatchProgress(playback.profileId,progress,viewingId).then(()=>{
       lastSaved.current=fingerprint;onHistoryError(false);
     },()=>onHistoryError(true)).finally(()=>{
       historyFlight.current=null;if(mounted.current)setHistoryBusy(false);

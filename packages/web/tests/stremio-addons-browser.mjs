@@ -91,10 +91,10 @@ function installStremioFixture(){
       case 'watch-history':return reply({history:profile.history});
       case 'watch-record':{
         const p=a.progress;
-        const completed=profile.history.some(({progress:q})=>q.completed&&q.mediaType===p.mediaType&&q.itemId===p.itemId&&q.videoId===p.videoId);
+        const completed=profile.history.some(({progress:q,viewingId})=>q.completed&&q.mediaType===p.mediaType&&q.itemId===p.itemId&&q.videoId===p.videoId&&(!a.viewingId||a.viewingId===viewingId));
         if(p.completed&&!completed&&profile.refract.enabled)profile.refract.pending++;
         profile.history=profile.history.filter(({progress:q})=>q.mediaType!==p.mediaType||q.itemId!==p.itemId||q.videoId!==p.videoId);
-        profile.history.unshift({progress:p,updatedAt:Date.now()});
+        profile.history.unshift({progress:p,updatedAt:Date.now(),viewingId:a.viewingId});
         return reply({saved:true});
       }
       case 'watch-remove':{
@@ -453,6 +453,9 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await history.getByRole('button',{name:'Load history',exact:true}).click();
     await history.getByText('Completed',{exact:true}).waitFor();
     assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.profiles.find(p=>p.profileId===1).refract.pending),1);
+    const viewingIds=await firstLaunch.evaluate(()=>window.__stremioFixture.calls.filter(a=>a.kind==='profile-request'&&a.action.kind==='watch-record').map(a=>a.action.viewingId));
+    assert.ok(viewingIds.every(id=>/^[0-9a-f-]{36}$/.test(id)));
+    assert.equal(new Set(viewingIds).size,2);
     await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Cinema 0 addons',exact:true}).click();
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Watch history',exact:true}).click();

@@ -12,6 +12,7 @@ function feedback(code:string){
     case 'refract-scope': return t`The key is missing the required permissions. Create a replacement key for the same account.`;
     case 'refract-account-changed': return t`This key belongs to another account. Disconnect the current account before connecting a different one.`;
     case 'refract-rate': return t`Refract is rate limiting requests. Try again after the retry time.`;
+    case 'refract-rejected': return t`Refract rejected this request. Permanently rejected queued watches are skipped so later watches can still be sent.`;
     case 'refract-unmatched': return t`Refract could not uniquely match the external title or episode identity.`;
     case 'refract-queue-full': return t`The local Refract queue is full. Sync pending watches before recording more.`;
     case 'refract-disconnected': return t`Connect your Refract key for this Watch profile first.`;
@@ -61,7 +62,7 @@ export function RefractSettings({profileId,busy,run}:CommonProps){
     {status?.connected&&<>
       <p><Trans>Connected to Refract:</Trans> <strong className="break-words">{status.username}</strong></p>
       <label className="flex items-start gap-2"><input type="checkbox" checked={status.enabled} disabled={busy} onChange={e=>void perform(()=>refractEnable(profileId,e.target.checked))}/><span><Trans>Track completed movies and episodes</Trans></span></label>
-      <p><Trans>Completed playback is queued with its original time. Sync queued watches to send them to Refract. Older local history is not uploaded automatically; episode rewatches are not appended. Avoid enabling another tracker that sends the same watches.</Trans></p>
+      <p><Trans>Completed movies and individual episodes are queued with their original time. Completing one episode does not mark the entire series as watched. Sync queued watches to send them to Refract. Older local history is not uploaded automatically; episode rewatches are not appended. Avoid enabling another tracker that sends the same watches.</Trans></p>
       <div className="flex flex-wrap gap-4" aria-live="polite">
         <span><Trans>Pending:</Trans> {status.pending}</span><span><Trans>Sent:</Trans> {status.sent}</span><span><Trans>Skipped:</Trans> {status.skipped}</span>
       </div>

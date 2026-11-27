@@ -292,14 +292,17 @@ mod tests {
         let saved=serde_json::from_value(json!({"key":"rfk_fixture-only","member_id":"3f2a9c4e-6b1d-4e8a-9c27-5d0b8e41f6a2",
             "username":"Fixture","enabled":false,"jobs":[],"sent":0,"skipped":0,"retry_at":0,"last_error":null})).unwrap();
         p.profiles[0].registry.refract=super::super::refract::Connection::restored(Some(saved)).unwrap();
-        let complete=||serde_json::from_value::<Action>(json!({"kind":"watch-record","progress":{"mediaType":"movie","itemId":"tt123","videoId":"tt123",
+        let complete=|viewing_id:&str|serde_json::from_value::<Action>(json!({"kind":"watch-record","viewingId":viewing_id,"progress":{"mediaType":"movie","itemId":"tt123","videoId":"tt123",
             "title":"Fixture","episodeTitle":null,"positionMs":120000,"durationMs":120000,"completed":true}})).unwrap();
         assert!(is_mutation(&scoped(1,Action::RefractEnable{enabled:true})));
         p.execute(scoped(1,Action::RefractEnable{enabled:true})).unwrap();
-        p.execute(scoped(1,complete())).unwrap();
-        p.execute(scoped(1,complete())).unwrap();
+        let first="00000000-0000-4000-8000-000000000001";
+        let rewatch="00000000-0000-4000-8000-000000000002";
+        p.execute(scoped(1,complete(first))).unwrap();
+        p.execute(scoped(1,complete(first))).unwrap();
+        p.execute(scoped(1,complete(rewatch))).unwrap();
         let status=p.execute(scoped(1,Action::RefractStatus)).unwrap();
-        assert_eq!(status["pending"],1);assert!(!status.to_string().contains("rfk_fixture-only"));
+        assert_eq!(status["pending"],2);assert!(!status.to_string().contains("rfk_fixture-only"));
         let second=p.execute(Action::ProfileCreate{name:"Second".into()}).unwrap()["profiles"][1]["profileId"].as_u64().unwrap() as u32;
         p.execute(Action::ProfileSwitch{profile_id:second}).unwrap();
         assert_eq!(p.execute(scoped(second,Action::RefractStatus)).unwrap()["connected"],false);

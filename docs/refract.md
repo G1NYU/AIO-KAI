@@ -13,11 +13,15 @@ This feature is under validation, not part of the existing stable release.
 ## Privacy and scope
 - Native Windows DPAPI-protected profile storage holds the key and queue; the renderer receives only the username and bounded status. No credential in portable exports or logs.
 - Only exact IMDb, canonical TMDB movie/show and TVDB show identities qualify. Episodes require matching show-prefixed season and episode IDs. No guessed titles or anime numbering. Unmatched items are counted.
-- A completed local playback transition queues a timestamped event. Up to 256 pending events per profile; close duplicate observations coalesce. Movie POST carries a stable Idempotency-Key; episode first-watch PUT is state-setting. Inbound sync, episode rewatch append, historical import and autonomous delivery are not implemented in this first batch. Local history and the outbound queue are independent.
-- Network failures retain pending events for retry; backoff and rate limits are surfaced. A full queue or unmatched identity does not interrupt local history.
+- A completed local movie or individual episode queues a timestamped event, not an entire series. Up to 256 pending events per profile. Movie POST uses a per-viewing stable Idempotency-Key; distinct rewatches remain distinct even if close together, and repeat checkpoints of one viewing are deduplicated. Episode first-watch PUT is state-setting. Inbound sync, episode rewatch append, historical import and autonomous delivery are not implemented in this batch. Local history and the outbound queue are independent.
+- Network failures retain pending events for retry; backoff and rate limits are surfaced. Successful 2xx writes are acknowledged even without a response body. Permanent rejected or unmatched history events are counted and removed from the queue instead of blocking later events. A full queue or unmatched identity does not interrupt local history.
 - Expand Refract watchlist on a movie/show detail to explicitly add or remove membership. The service protects other tracked library data; no whole-library deletion or automatic watchlist writes. Avoid enabling a second tracker for the same viewing.
 
 [Lookup](https://getrefract.app/developers/search.html) · [Writes](https://getrefract.app/developers/writing.html) · [Rate limits](https://getrefract.app/developers/rate-limits).
 
 ## Validation
 Synthetic native and browser fixtures are not live-provider acceptance. Verify real key eligibility, movie and episode writes, membership protection, profile isolation and physical Windows playback before packaging. See HANDOFF.md.
+
+## Harbor reference behavior
+
+[Upstream tracker](https://github.com/G1NYU/RE-Harbor/tree/1b72d2887ffa08520ac5b11a78ec5a56beabd890) separates local playback completion from configurable early logging (default 70%). [Review completion](https://github.com/G1NYU/RE-Harbor/tree/8f808b14eb7a3069160064cf75cd83c5f4c68f5e) preserves distinct viewings and guards concurrent queues. [Watchlist retry fixes](https://github.com/G1NYU/RE-Harbor/tree/00d264dd31bb65a6b6267c3947b8d225bab13e23) serialize retries with account guards. [Native two-way branch](https://github.com/G1NYU/RE-Harbor/tree/47d10b2e9742a65ba2bbdd06b2b8d7683e463d2f) demonstrates non-destructive cursor-based inbound history. TSUGI retains completion-only capture for now and adapts tested wire shapes, acknowledgment/error semantics and rewatch identity to its protected native profiles; it does not yet claim the remaining features.

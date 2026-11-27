@@ -24,7 +24,7 @@ type ItemAction = {kind:'metadata';sourceId:number;mediaType:string;itemId:strin
 type MdblistAction={kind:'mdblist-status'}|{kind:'mdblist-connect';key:string}|{kind:'mdblist-disconnect'}|{kind:'mdblist-lists'}|{kind:'mdblist-page';listId:number;offset:number};
 export type WatchProgress={mediaType:string;itemId:string;videoId:string;title:string;episodeTitle:string|null;positionMs:number;durationMs:number;completed:boolean};
 export type WatchHistoryEntry={progress:WatchProgress;updatedAt:number};
-type WatchHistoryAction={kind:'watch-history'}|{kind:'watch-record';progress:WatchProgress}|({kind:'watch-remove'}&Pick<WatchProgress,'mediaType'|'itemId'|'videoId'>);
+type WatchHistoryAction={kind:'watch-history'}|{kind:'watch-record';progress:WatchProgress;viewingId?:string}|({kind:'watch-remove'}&Pick<WatchProgress,'mediaType'|'itemId'|'videoId'>);
 type RefractAction={kind:'refract-status'}|{kind:'refract-connect';key:string}|{kind:'refract-enable';enabled:boolean}|{kind:'refract-disconnect';discardPending:boolean}|{kind:'refract-sync'}|{kind:'refract-watchlist';mediaType:string;itemId:string;add:boolean};
 type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | WatchHistoryAction | RefractAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
 export type RemoteAddonProfile={profileIndex:number;name:string;usesPrimaryAddons:boolean;locked:boolean};
@@ -85,7 +85,7 @@ function sources(v: unknown): AddonSource[] {
   if(new Set(rows.map(s=>s.sourceId)).size!==rows.length)return fail();
   return rows;
 }
-const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit','account-auth','account-request','account-response','import-limit','import-selection','unknown-remote-profile','locked-remote-profile','unsupported-resource','invalid-item','item-limit','invalid-media-selection','mdblist-response','mdblist-auth','mdblist-network','mdblist-request','mdblist-not-found','mdblist-rate','mdblist-disconnected','invalid-watch-progress','refract-auth','refract-scope','refract-rate','refract-network','refract-request','refract-response','refract-conflict','refract-unmatched','refract-queue-full','refract-clock','refract-protected','refract-account-changed','refract-disconnected','refract-paused','refract-pending']);
+const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit','account-auth','account-request','account-response','import-limit','import-selection','unknown-remote-profile','locked-remote-profile','unsupported-resource','invalid-item','item-limit','invalid-media-selection','mdblist-response','mdblist-auth','mdblist-network','mdblist-request','mdblist-not-found','mdblist-rate','mdblist-disconnected','invalid-watch-progress','refract-auth','refract-scope','refract-rate','refract-network','refract-request','refract-response','refract-rejected','refract-conflict','refract-unmatched','refract-queue-full','refract-clock','refract-protected','refract-account-changed','refract-disconnected','refract-paused','refract-pending']);
 async function request(action: NativeAction): Promise<unknown> {
   if(!appBridge()?.stremioAddons)throw new AddonError('unsupported');
   const id=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
@@ -228,8 +228,8 @@ function watchHistory(v:unknown):WatchHistoryEntry[]{
   return rows;
 }
 export async function listWatchHistory(profileId:number){return watchHistory(await scoped(profileId,{kind:'watch-history'}));}
-export async function saveWatchProgress(profileId:number,progress:WatchProgress){
-  if((await scoped(profileId,{kind:'watch-record',progress})).saved!==true)return fail();
+export async function saveWatchProgress(profileId:number,progress:WatchProgress,viewingId?:string){
+  if((await scoped(profileId,{kind:'watch-record',progress,viewingId})).saved!==true)return fail();
 }
 export async function removeWatchHistory(profileId:number,progress:Pick<WatchProgress,'mediaType'|'itemId'|'videoId'>){
   return watchHistory(await scoped(profileId,{kind:'watch-remove',mediaType:progress.mediaType,itemId:progress.itemId,videoId:progress.videoId}));
@@ -269,7 +269,7 @@ export async function mdblistPage(profileId:number,listId:number,offset:number){
 }
 
 export type RefractStatus={connected:boolean;username:string|null;enabled:boolean;pending:number;sent:number;skipped:number;retryAt:number;lastError:string|null};
-const refractErrors=new Set(['refract-auth','refract-scope','refract-rate','refract-network','refract-request','refract-response','refract-conflict','refract-unmatched','refract-queue-full','refract-clock','refract-protected','unsupported']);
+const refractErrors=new Set(['refract-auth','refract-scope','refract-rate','refract-network','refract-request','refract-response','refract-rejected','refract-conflict','refract-unmatched','refract-queue-full','refract-clock','refract-protected','unsupported']);
 function refractState(v:unknown):RefractStatus{
   const row=obj(v),connected=bool(row.connected),enabled=bool(row.enabled);
   const username=row.username===null?null:str(row.username,256);
