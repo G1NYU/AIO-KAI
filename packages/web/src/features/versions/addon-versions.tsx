@@ -17,9 +17,10 @@ function qualityOf(row:AddonOption):Quality|undefined{
 
 /** The same reviewed addon choices appear on the title and inside the player.
  * Rows carry only native review handles, never playback URLs. */
-export function AddonVersionList({groups,sources,busy,resumeMs=0,switching=false,onPick}:{
+export function AddonVersionList({groups,sources,busy,resumeMs=0,switching=false,onPick,onRetry}:{
   groups:AddonStreamGroup[];sources:{sourceId:number;name:string}[];busy:boolean;resumeMs?:number;switching?:boolean;
   onPick(group:AddonStreamGroup,options:AddonOptions,index:number,resume:boolean):void;
+  onRetry?(sourceId:number):void;
 }){
   const [provider,setProvider]=React.useState('all');
   const [quality,setQuality]=React.useState('all');
@@ -50,9 +51,11 @@ export function AddonVersionList({groups,sources,busy,resumeMs=0,switching=false
       const result=group.options;
       return <section key={group.sourceId} className="space-y-2" data-stream-source={group.sourceId}>
         <h5 className="font-medium">{sources.find(s=>s.sourceId===group.sourceId)?.name}</h5>
-        {!result?<div><p><Trans>This addon could not return streams. Other sources remain available.</Trans></p>
-          {group.error==='network'?<small><Trans>Network request failed. Refresh to retry.</Trans></small>:group.error==='rate'?<small><Trans>Provider rate limit reached.</Trans></small>:group.error==='auth'?<small><Trans>Provider authorization failed.</Trans></small>:group.error==='unsupported-resource'?<small><Trans>Unsupported video identity.</Trans></small>:null}
-        </div>:result.rows.length===0?<p><Trans>No streams returned.</Trans></p>:rowsFor(group).length===0?<p><Trans>No streams match this quality.</Trans></p>:<ul className="space-y-2">{rowsFor(group).map(({row,index,quality:reportedQuality})=><li key={index}>
+        {!result||result.rows.length===0?<div className="space-y-2">
+          {group.error==='unsupported-resource'?<p><Trans>This addon does not support this video identity.</Trans></p>:!result?<><p><Trans>This addon could not return streams. Other sources remain available.</Trans></p>
+            {group.error==='network'?<small><Trans>Network request failed.</Trans></small>:group.error==='rate'?<small><Trans>Provider rate limit reached.</Trans></small>:group.error==='auth'?<small><Trans>Provider authorization failed.</Trans></small>:null}</>:<p><Trans>No streams returned.</Trans></p>}
+          {onRetry&&group.error!=='unsupported-resource'&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>onRetry(group.sourceId)}><Trans>Retry provider</Trans></button>}
+        </div>:rowsFor(group).length===0?<p><Trans>No streams match this quality.</Trans></p>:<ul className="space-y-2">{rowsFor(group).map(({row,index,quality:reportedQuality})=><li key={index}>
           <VersionFrame><div className="flex w-full flex-wrap items-center justify-between gap-3 p-3">
             <span className="min-w-0 flex-1 break-words">
               {reportedQuality&&<small className="block font-semibold">{reportedQuality}</small>}

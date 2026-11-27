@@ -16,7 +16,7 @@ import { AddonVersionList } from '@/features/versions/addon-versions';
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, loadAllAddonStreams, type AddonStreamGroup, type AddonMetadata, type AddonVideo, type AddonOptions, prepareAddonMedia, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry } from '@/lib/hosts/shell/stremio';
+import { AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, loadAllAddonStreams, retryAddonStreams, type AddonStreamGroup, type AddonMetadata, type AddonVideo, type AddonOptions, prepareAddonMedia, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry } from '@/lib/hosts/shell/stremio';
 
 function feedback(reason: unknown) {
   switch(reason instanceof AddonError ? reason.code : 'request'){
@@ -345,6 +345,13 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     }).catch(()=>{});
     return ()=>{current=false;};
   },[returnedPlayback,profileId,title]);
+  function retryStream(sourceId:number){
+    if(flight.current||profileId===undefined||!title||!videoId||!streamGroups?.some(group=>group.sourceId===sourceId))return;
+    void run(async()=>{
+      const group=await retryAddonStreams(profileId,sourceId,title.mediaType,videoId);
+      if(mounted.current)setStreamGroups(previous=>previous?.map(row=>row.sourceId===sourceId?group:row)??null);
+    });
+  }
   function refreshStreams(){
     if(flight.current||!title||!videoId)return;
     setOptions(null);setStreamGroups(null);if(!sourceOpen)showSources();void run(()=>fetchStreams(title,videoId));
@@ -614,8 +621,8 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
           {selectedVideo&&title.mediaType!=='movie'&&<h4>{selectedVideo.name}</h4>}
           <div className="flex items-center justify-between gap-2 flex-wrap"><h4><Trans>Available sources</Trans></h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={refreshStreams}><Trans>Refresh streams</Trans></button></div>
           {busy&&streamGroups===null&&<p role="status"><Trans>Finding streams from your addons…</Trans></p>}
-          {streamGroups?.length===0&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('addons')}><Trans>Manage addons</Trans></button>}
-          {streamGroups&&<AddonVersionList groups={streamGroups} sources={sources.map(s=>({sourceId:s.sourceId,name:s.manifest.name}))} busy={busy} resumeMs={resumeMs} onPick={(group,result,index,resume)=>void playOption(index,resume,{sourceId:group.sourceId,subtitles:false,...result})}/>}
+          {streamGroups&&streamGroups.every(group=>group.error==='unsupported-resource')&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('addons')}><Trans>Manage addons</Trans></button>}
+          {streamGroups&&<AddonVersionList groups={streamGroups} sources={sources.map(s=>({sourceId:s.sourceId,name:s.manifest.name}))} busy={busy} resumeMs={resumeMs} onRetry={retryStream} onPick={(group,result,index,resume)=>void playOption(index,resume,{sourceId:group.sourceId,subtitles:false,...result})}/>}
           {notice&&<p role="status">{notice}</p>}{error&&<p role="alert">{error}</p>}
         </section>
       </Drawer>}

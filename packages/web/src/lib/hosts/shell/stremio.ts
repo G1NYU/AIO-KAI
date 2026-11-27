@@ -36,7 +36,7 @@ type ImportAction = {kind:'import-connect';provider:ImportProvider;email:string;
   | {kind:'import-nuvio-profile';importId:number;remoteProfile:number}
   | {kind:'import-review';importId:number;selected:number[]}
   | {kind:'import-apply';importId:number} | {kind:'import-cancel';importId:number};
-type ItemAction = {kind:'metadata';sourceId:number;mediaType:string;itemId:string} | {kind:'item-options';sourceId:number;mediaType:string;videoId:string;subtitles:boolean} | {kind:'all-stream-options';mediaType:string;videoId:string} | {kind:'prepare-media';reviewId:number;optionIndex:number;startMs:number};
+type ItemAction = {kind:'metadata';sourceId:number;mediaType:string;itemId:string} | {kind:'item-options';sourceId:number;mediaType:string;videoId:string;subtitles:boolean} | {kind:'all-stream-options';mediaType:string;videoId:string} | {kind:'retry-stream-options';sourceId:number;mediaType:string;videoId:string} | {kind:'prepare-media';reviewId:number;optionIndex:number;startMs:number};
 type MdblistAction={kind:'mdblist-status'}|{kind:'mdblist-connect';key:string}|{kind:'mdblist-disconnect'}|{kind:'mdblist-lists'}|{kind:'mdblist-page';listId:number;offset:number};
 export type WatchProgress={mediaType:string;itemId:string;videoId:string;title:string;episodeTitle:string|null;positionMs:number;durationMs:number;completed:boolean};
 export type WatchHistoryEntry={progress:WatchProgress;updatedAt:number};
@@ -301,18 +301,25 @@ function parseOptions(options:unknown):AddonOption[]{
 }
 
 export type AddonStreamGroup={sourceId:number;options:AddonOptions|null;error?:string};
+function parseStreamGroup(value:unknown):AddonStreamGroup{
+  const row=obj(value),sourceId=integer(row.sourceId,1,0xffffffff),rows=parseOptions(row.options);
+  if(row.error!==null){
+    if(typeof row.error!=='string'||row.reviewId!==null||rows.length)return fail();
+    return {sourceId,options:null,error:codes.has(row.error)?row.error:'request'};
+  }
+  return {sourceId,options:{reviewId:integer(row.reviewId,1,0xffffffff),rows}};
+}
+export async function retryAddonStreams(profileId:number,sourceId:number,mediaType:string,videoId:string):Promise<AddonStreamGroup>{
+  const v=await scoped(profileId,{kind:'retry-stream-options',sourceId,mediaType,videoId});
+  if(v.mediaType!==mediaType||v.videoId!==videoId)return fail();
+  const group=parseStreamGroup(v.group);
+  if(group.sourceId!==sourceId)return fail();
+  return group;
+}
 export async function loadAllAddonStreams(profileId:number,mediaType:string,videoId:string):Promise<AddonStreamGroup[]>{
   const v=await scoped(profileId,{kind:'all-stream-options',mediaType,videoId});
   if(v.mediaType!==mediaType||v.videoId!==videoId)return fail();
-  const groups=array<AddonStreamGroup>(v.groups,MAX_ADDON_SOURCES,value=>{
-    const row=obj(value),sourceId=integer(row.sourceId,1,0xffffffff);
-    const rows=parseOptions(row.options);
-    if(row.error!==null){
-      if(typeof row.error!=='string'||row.reviewId!==null||rows.length)return fail();
-      return {sourceId,options:null,error:codes.has(row.error)?row.error:'request'};
-    }
-    return {sourceId,options:{reviewId:integer(row.reviewId,1,0xffffffff),rows}};
-  });
+  const groups=array(v.groups,MAX_ADDON_SOURCES,parseStreamGroup);
   if(new Set(groups.map(g=>g.sourceId)).size!==groups.length||
     new Set(groups.flatMap(g=>g.options?[g.options.reviewId]:[])).size!==groups.filter(g=>g.options).length)return fail();
   return groups;

@@ -7,7 +7,7 @@ import type { WatchEntryPane } from '@/lib/desktop-area';
 import { StremioAddonSettings } from '@/components/shell/stremio-addon-settings';
 import { appBridge } from '@/lib/hosts/shell/bridge';
 import { appEngine } from '@/lib/hosts/shell/player';
-import { consumeAddonMedia, loadAllAddonStreams, loadAddonOptions, prepareAddonMedia, saveWatchProgress, type AddonOptions, type AddonStreamGroup, type AddonVideo, type WatchPlayback, type WatchProgress } from '@/lib/hosts/shell/stremio';
+import { consumeAddonMedia, loadAllAddonStreams, retryAddonStreams, loadAddonOptions, prepareAddonMedia, saveWatchProgress, type AddonOptions, type AddonStreamGroup, type AddonVideo, type WatchPlayback, type WatchProgress } from '@/lib/hosts/shell/stremio';
 import { useMediaPresence } from '@/lib/rich-presence';
 import { usePlayerPage, PageSubtitle, PlayerStats } from '@/app/player/page';
 import { chapterSegments } from '@/lib/playback/chapters';
@@ -185,6 +185,13 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
       if(auto&&video&&choices.length&&(choices.length===1||fallbackFirst))await switchTo(choices[0].result,choices[0].index,video,true);
     });
   }
+  function retryVersion(sourceId:number){
+    if(flight.current||closing.current||!groups?.some(group=>group.sourceId===sourceId))return;
+    void run(async()=>{
+      const group=await retryAddonStreams(playback.profileId,sourceId,playback.mediaType,target?.id??playback.videoId);
+      if(mounted.current)setGroups(previous=>previous?.map(row=>row.sourceId===sourceId?group:row)??null);
+    });
+  }
   async function pickStream(result:AddonOptions,index:number){
     if(!result.rows[index]?.supported)return;
     await run(()=>switchTo(result,index,target));
@@ -274,7 +281,7 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
       {dialog==='versions'&&<div className="space-y-3" data-ui="watch-player-versions">
         <h3>{target?.name??playback.episodeTitle??playback.title}</h3>
         <Button intent="gray-outline" disabled={busy} onClick={()=>openVersions(target)}><Trans>Refresh streams</Trans></Button>
-        {groups&&<AddonVersionList groups={groups} sources={playback.streamSources} busy={busy} switching={!target||target.id===playback.videoId} onPick={(_group,result,index)=>void pickStream(result,index)}/>}
+        {groups&&<AddonVersionList groups={groups} sources={playback.streamSources} busy={busy} switching={!target||target.id===playback.videoId} onRetry={retryVersion} onPick={(_group,result,index)=>void pickStream(result,index)}/>}
       </div>}
       {dialog==='episodes'&&<div className="space-y-2" data-ui="watch-player-episodes">
         {playback.videos.map(v=><button key={v.id} type="button" className="tsugi-read-action block w-full text-start" aria-current={v.id===playback.videoId?'true':undefined} disabled={busy} onClick={()=>openVersions(v)}>{v.name}</button>)}

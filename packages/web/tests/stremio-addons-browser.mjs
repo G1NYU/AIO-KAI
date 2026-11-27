@@ -77,7 +77,7 @@ export function installStremioFixture(initializeStartup=true){
     if(raw.kind!=='profile-request'||raw.profileId!==f.active)return emit(null,'profile-changed');
     const a=raw.action,profile=f.profiles.find(p=>p.profileId===f.active);
     const reply=data=>emit({...data,profileId:raw.profileId});
-    if(['catalog','metadata','item-options','all-stream-options','install','remove','move','set-enabled','import-apply'].includes(a.kind)){f.mediaReview=null;f.streamReviews=[];}
+    if(['catalog','metadata','item-options','all-stream-options','install','remove','move','set-enabled','import-apply'].includes(a.kind)){f.mediaReview=null;f.streamReviews=[];f.streamQuery=null;}
     switch(a.kind){
       case 'list':return reply({sources:profile.sources});
       case 'mal-anime-list':return reply({entries:profile.malAnime??[],matches:profile.malMatches??[]});
@@ -204,12 +204,20 @@ export function installStremioFixture(initializeStartup=true){
         return reply({sourceId:a.sourceId,mediaType:a.mediaType,itemId:a.itemId,metadata:{id:a.itemId,name:a.mediaType==='series'?'Fixture anime series':'Fixture cinema film',mediaType:a.mediaType,description:'Metadata from the separate metadata addon.',poster:'https://image.tmdb.org/t/p/w500/detail.jpg',background:'https://images.metahub.space/background/medium/tt90001/img',imdbRating:8.6,releaseInfo:'2024',runtime:'57 min',genres:['Drama'],cast:['Fixture Actor'],directors:['Fixture Director'],videos}});
       }
       case 'all-stream-options':{
+        f.streamQuery={mediaType:a.mediaType,videoId:a.videoId,sourceIds:profile.sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(s=>s.sourceId)};
         const groups=profile.sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(source=>{
           if(f.boardFixture&&source.sourceId===104)return {sourceId:source.sourceId,reviewId:null,options:[],error:'request'};
-          const id=++f.sequence;f.streamReviews.push({id,subtitles:false});
+          const id=++f.sequence;f.streamReviews.push({id,sourceId:source.sourceId,subtitles:false});
           return {sourceId:source.sourceId,reviewId:id,error:null,options:[{name:'HD fixture',supported:true,reason:'direct-https',language:null},...(f.boardFixture&&source.sourceId===102?[{name:'Alternate HD fixture',detail:'1080p HEVC',supported:true,reason:'direct-https',language:null}]:[]),{name:'Unsupported fixture',supported:false,reason:'unsupported-transport',language:null}]};
         });
         return reply({mediaType:a.mediaType,videoId:a.videoId,groups});
+      }
+      case 'retry-stream-options':{
+        if(!f.streamQuery||f.streamQuery.mediaType!==a.mediaType||f.streamQuery.videoId!==a.videoId)return emit(null,'expired-review');
+        if(!f.streamQuery.sourceIds.includes(a.sourceId))return emit(null,'unsupported-resource');
+        f.streamReviews=f.streamReviews.filter(r=>r.sourceId!==a.sourceId);
+        const id=++f.sequence;f.streamReviews.push({id,sourceId:a.sourceId,subtitles:false});
+        return reply({mediaType:a.mediaType,videoId:a.videoId,group:{sourceId:a.sourceId,reviewId:id,error:null,options:[{name:'Recovered fixture',detail:'720p',supported:true,reason:'direct-https',language:null}]}});
       }
       case 'item-options':{
         if(!profile.sources.some(s=>s.sourceId===a.sourceId&&s.enabled)||a.videoId!=='tt123')return emit(null,'unsupported-resource');
@@ -220,7 +228,7 @@ export function installStremioFixture(initializeStartup=true){
           [{name:'HD fixture',supported:true,reason:'direct-https',language:null},{name:'Unsupported fixture',supported:false,reason:'unsupported-transport',language:null}]});
       }
       case 'prepare-media':{
-        const review=f.mediaReview?.id===a.reviewId?f.mediaReview:f.streamReviews.find(r=>r.id===a.reviewId);f.mediaReview=null;f.streamReviews=[];
+        const review=f.mediaReview?.id===a.reviewId?f.mediaReview:f.streamReviews.find(r=>r.id===a.reviewId);f.mediaReview=null;f.streamReviews=[];f.streamQuery=null;
         if(review?.id!==a.reviewId||(a.optionIndex!==0&&!(f.boardFixture&&a.optionIndex===1&&!review.subtitles)))return emit(null,'expired-review');
         f.mediaCalls.push({type:'prepare-media',optionIndex:a.optionIndex,startMs:a.startMs});
         f.mediaGrant={id:++f.sequence,subtitles:review.subtitles,startMs:a.startMs};
@@ -332,6 +340,11 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await groups.getByText('Streaming only',{exact:true}).waitFor();
     assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='metadata'&&a.action.sourceId===103)));
     assert.equal(await page.evaluate(()=>window.__stremioFixture.mediaCalls.some(a=>a.type==='stremio-consume-grant')),false);
+    const originalReview=await page.evaluate(()=>window.__stremioFixture.streamReviews.find(r=>r.sourceId===102).id);
+    await groups.locator('[data-stream-source="104"]').getByRole('button',{name:'Retry provider',exact:true}).click();
+    await groups.getByText('Recovered fixture',{exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>window.__stremioFixture.streamReviews.find(r=>r.sourceId===102).id),originalReview);
+    assert.equal(await groups.getByRole('button',{name:'Play',exact:true}).count(),3);
     await groups.getByRole('button',{name:'Play',exact:true}).first().click();
     const player=watch.locator('[data-ui="direct-watch-player"]');
     await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
@@ -352,6 +365,8 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.hover();
     await player.getByRole('button',{name:'Versions',exact:true}).click();
     const versions=page.locator('[data-ui="watch-player-versions"]');
+    await versions.locator('[data-stream-source="104"]').getByRole('button',{name:'Retry provider',exact:true}).click();
+    await versions.getByText('Recovered fixture',{exact:true}).waitFor();
     await versions.getByRole('combobox',{name:'Quality filter',exact:true}).selectOption('1080p');
     assert.equal(await versions.getByRole('button',{name:'Switch stream',exact:true}).count(),1);
     await versions.getByText('1080p HEVC',{exact:true}).waitFor();
