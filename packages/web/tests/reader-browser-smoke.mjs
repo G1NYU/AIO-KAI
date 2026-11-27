@@ -30,6 +30,7 @@ import { verifyReaderRepositoriesBrowser } from './reader-repositories-browser.m
 import { verifySupportSummaryBrowser } from './support-summary-browser.mjs';
 import { verifyReaderDownloadsBrowser } from './reader-downloads-browser.mjs';
 import { verifyLocalComicImportBrowser } from './local-comic-import-browser.mjs';
+import { verifyStremioAddonsBrowser } from './stremio-addons-browser.mjs';
 import { verifyVaultAudioImportsBrowser } from './vault-audio-import-browser.mjs';
 import { verifyVaultBookImportsBrowser } from './vault-book-import-browser.mjs';
 import { verifyLandscapeDecorationBrowser } from './landscape-decoration-browser.mjs';
@@ -1611,5 +1612,6 @@ try {
   await verifyVaultAudioImportsBrowser({ browser, origin, installDesktopFixture });
   await verifySupportSummaryBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyReaderDownloadsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  await verifyStremioAddonsBrowser({ browser, origin, installDesktopFixture });
   await verifyLocalComicImportBrowser({ browser, origin, installDesktopFixture, screenshotDir });
 } finally { await browser.close(); }
