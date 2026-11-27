@@ -194,14 +194,14 @@ export function installStremioFixture(initializeStartup=true){
         if(a.sourceId===0&&f.boardFixture&&a.itemId==='kitsu:90004'&&a.mediaType==='series')return reply({sourceId:0,metadata:{id:a.itemId,mediaType:'series',name:'Public anime discovery fixture',description:'Public mapped anime metadata.',videos:[{id:'kitsu:90004:1',name:'Episode one',season:1,episode:1},{id:'kitsu:90004:2',name:'Episode two',season:1,episode:2}]}});
         if(!f.boardFixture||!source||source.sourceId!==103)return emit(null,'unsupported-resource');
         if(f.failMetadata)return emit(null,'request');
-        const videos=!f.emptyMetadata&&a.mediaType==='series'?[{id:'tt90002:1:1',name:'Episode one',season:1,episode:1},{id:'tt90002:1:2',name:'Episode two',season:1,episode:2},{id:'tt90002:0:1',name:'Special',season:0,episode:1},{id:'tt90002:2:1',name:'Second season',season:2,episode:1},{id:'tt90002:extra',name:'Unnumbered episode',season:null,episode:null}]:[];
-        return reply({sourceId:a.sourceId,mediaType:a.mediaType,itemId:a.itemId,metadata:{id:a.itemId,name:a.mediaType==='series'?'Fixture anime series':'Fixture cinema film',mediaType:a.mediaType,description:'Metadata from the separate metadata addon.',videos}});
+        const videos=!f.emptyMetadata&&a.mediaType==='series'?[{id:'tt90002:1:1',name:'Episode one',season:1,episode:1,thumbnail:'https://image.tmdb.org/t/p/w300/episode.jpg',description:'Episode overview from the provider.'},{id:'tt90002:1:2',name:'Episode two',season:1,episode:2},{id:'tt90002:0:1',name:'Special',season:0,episode:1},{id:'tt90002:2:1',name:'Second season',season:2,episode:1},{id:'tt90002:extra',name:'Unnumbered episode',season:null,episode:null}]:[];
+        return reply({sourceId:a.sourceId,mediaType:a.mediaType,itemId:a.itemId,metadata:{id:a.itemId,name:a.mediaType==='series'?'Fixture anime series':'Fixture cinema film',mediaType:a.mediaType,description:'Metadata from the separate metadata addon.',poster:'https://image.tmdb.org/t/p/w500/detail.jpg',background:'https://images.metahub.space/background/medium/tt90001/img',imdbRating:8.6,releaseInfo:'2024',runtime:'57 min',genres:['Drama'],cast:['Fixture Actor'],directors:['Fixture Director'],videos}});
       }
       case 'all-stream-options':{
         const groups=profile.sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(source=>{
           if(f.boardFixture&&source.sourceId===104)return {sourceId:source.sourceId,reviewId:null,options:[],error:'request'};
           const id=++f.sequence;f.streamReviews.push({id,subtitles:false});
-          return {sourceId:source.sourceId,reviewId:id,error:null,options:[{name:'HD fixture',supported:true,reason:'direct-https',language:null},...(f.boardFixture&&source.sourceId===102?[{name:'Alternate HD fixture',supported:true,reason:'direct-https',language:null}]:[]),{name:'Unsupported fixture',supported:false,reason:'unsupported-transport',language:null}]};
+          return {sourceId:source.sourceId,reviewId:id,error:null,options:[{name:'HD fixture',supported:true,reason:'direct-https',language:null},...(f.boardFixture&&source.sourceId===102?[{name:'Alternate HD fixture',detail:'1080p HEVC',supported:true,reason:'direct-https',language:null}]:[]),{name:'Unsupported fixture',supported:false,reason:'unsupported-transport',language:null}]};
         });
         return reply({mediaType:a.mediaType,videoId:a.videoId,groups});
       }
@@ -288,6 +288,10 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const item=watch.locator('[data-ui="watch-item-details"]');
     const groups=page.locator('[data-ui="watch-stream-groups"]');
     await item.locator('[data-ui="watch-play-title"]').waitFor();
+    await item.getByText('IMDb 8.6/10',{exact:true}).waitFor();
+    await item.getByText('Fixture Director',{exact:true}).waitFor();
+    await item.getByText('Fixture Actor',{exact:true}).waitFor();
+    assert.equal(await item.locator('.tsugi-watch-title-backdrop').count(),1);
     assert.equal(await groups.count(),0);
     assert.equal(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='all-stream-options')),false);
     await item.locator('[data-ui="watch-play-title"]').click();
@@ -326,6 +330,9 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.hover();
     await player.getByRole('button',{name:'Versions',exact:true}).click();
     const versions=page.locator('[data-ui="watch-player-versions"]');
+    await versions.getByRole('combobox',{name:'Quality filter',exact:true}).selectOption('1080p');
+    assert.equal(await versions.getByRole('button',{name:'Switch stream',exact:true}).count(),1);
+    await versions.getByText('1080p HEVC',{exact:true}).waitFor();
     await versions.locator('[data-ui="version"]').filter({hasText:'Alternate HD fixture'}).getByRole('button',{name:'Switch stream',exact:true}).click();
     await page.waitForFunction(()=>window.__stremioFixture.mediaCalls.filter(m=>m.type==='stremio-consume-grant').length===2);
     await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
@@ -348,6 +355,8 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await season.selectOption('other');
     await item.locator('[data-video-id="tt90002:extra"]').waitFor();
     await season.selectOption('1');
+    await item.getByText('Episode overview from the provider.',{exact:true}).waitFor();
+    assert.equal(await item.locator('.tsugi-watch-episode-art').count(),1);
     const episode=item.locator('[data-video-id="tt90002:1:2"]');
     await episode.click();
     await groups.getByRole('button',{name:'Play',exact:true}).first().waitFor();

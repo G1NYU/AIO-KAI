@@ -480,7 +480,7 @@ mod tests {
         let id=stage(&mut registry,"media");
         registry.execute(Action::Install{review_id:id}).unwrap();
         let review=MediaReview{id:100,source_id:id,media_type:"movie".into(),video_id:"tt123".into(),subtitles:false,
-            rows:vec![OptionSummary{name:"HD".into(),supported:true,reason:"direct-https",language:None,url:Some("https://cdn.example.org/video?token=private-fixture".into())}],created:Instant::now()};
+            rows:vec![OptionSummary{name:"HD".into(),detail:None,supported:true,reason:"direct-https",language:None,url:Some("https://cdn.example.org/video?token=private-fixture".into())}],created:Instant::now()};
         registry.media_review=Some(review.clone());
         let data=registry.execute(Action::PrepareMedia{review_id:100,option_index:0,start_ms:12000}).unwrap();
         assert!(!data.to_string().contains("private-fixture"));
@@ -528,7 +528,7 @@ mod tests {
         registry.execute(Action::SetEnabled{source_id:ids[3],enabled:false}).unwrap();
         let response=registry.review_all_streams("movie","tt123",|source,_,_|{
             if source.id==ids[1]{return Err("network");}
-            Ok(vec![OptionSummary{name:"HD".into(),supported:true,reason:"direct-https",language:None,url:Some(format!("https://cdn.example.org/{}?token=private-fixture",source.id))}])
+            Ok(vec![OptionSummary{name:"HD".into(),detail:None,supported:true,reason:"direct-https",language:None,url:Some(format!("https://cdn.example.org/{}?token=private-fixture",source.id))}])
         }).unwrap();
         let groups=response["groups"].as_array().unwrap();
         assert_eq!(groups.iter().map(|g|g["sourceId"].as_u64().unwrap() as u32).collect::<Vec<_>>(),ids[..3]);

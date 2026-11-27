@@ -123,3 +123,14 @@
 .tsugi-watch-episode-list{display:grid;gap:8px;}
 .tsugi-watch-episode{display:flex;align-items:center;gap:14px;min-height:48px;width:100%;text-align:start;white-space:normal;}
 .tsugi-watch-episode[aria-current='true']{border-color:var(--tsugi-accent);}
+
+/* Cinematic details use only reviewed public backdrop art and existing theme tokens. */
+.tsugi-watch-title-hero[data-has-backdrop]{position:relative;isolation:isolate;overflow:hidden;align-items:end;min-height:300px;padding:clamp(12px,2vw,28px);background:var(--tsugi-canvas);}
+.tsugi-watch-title-backdrop{position:absolute;inset:0 0 0 12%;z-index:-1;pointer-events:none;}
+.tsugi-watch-title-backdrop::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,var(--tsugi-canvas),transparent 100%),linear-gradient(0deg,var(--tsugi-canvas),transparent 85%);}
+.tsugi-watch-title-meta{display:flex;flex-wrap:wrap;gap:8px 16px;color:var(--tsugi-muted);font-variant-numeric:tabular-nums;}
+.tsugi-watch-credits{display:grid;gap:10px;padding-block:12px;border-block:1px solid var(--tsugi-line);}
+.tsugi-watch-credits h5{font-weight:650;}
+.tsugi-watch-credits p{overflow-wrap:anywhere;color:var(--tsugi-muted);}
+.tsugi-watch-episode-art{position:relative;flex:none;width:clamp(68px,12vw,144px);aspect-ratio:16/9;overflow:hidden;background:var(--tsugi-surface);}
+@media(max-width:760px){.tsugi-watch-title-hero[data-has-backdrop]{min-height:240px;}.tsugi-watch-title-backdrop{inset:0;}.tsugi-watch-episode{gap:8px;}}

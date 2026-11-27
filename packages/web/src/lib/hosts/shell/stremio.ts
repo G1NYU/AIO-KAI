@@ -174,7 +174,7 @@ export function publicAddonPoster(value:unknown):string|undefined{
     const path=url.pathname;
     const file='[A-Za-z0-9_-]{1,80}\\.(?:jpg|jpeg|png|webp)';
     const valid=url.hostname==='image.tmdb.org'&&new RegExp('^/t/p/(?:w45|w92|w154|w185|w300|w342|w500|w780|w1280|w600_and_h900_bestv2|original)/'+file+'$').test(path)||
-      url.hostname==='images.metahub.space'&&/^\/poster\/(?:small|medium|large)\/tt[0-9]{1,12}\/img$/.test(path)||
+      url.hostname==='images.metahub.space'&&/^\/(?:poster|background)\/(?:small|medium|large)\/tt[0-9]{1,12}\/img$/.test(path)||
       url.hostname==='cdn.myanimelist.net'&&new RegExp('^/images/anime/[0-9]{1,12}/'+file+'$').test(path)||
       url.hostname==='media.kitsu.io'&&new RegExp('^/anime/poster_images/[0-9]{1,12}/'+file+'$').test(path);
     return valid?url.href:undefined;
@@ -254,19 +254,32 @@ export async function reviewAddonImport(profileId:number,importId:number,provide
 export async function applyAddonImport(profileId:number,importId:number){return sources(await scoped(profileId,{kind:'import-apply',importId}));}
 export async function cancelAddonImport(profileId:number,importId:number){await scoped(profileId,{kind:'import-cancel',importId});}
 
-export type AddonVideo={id:string;name:string;season:number|null;episode:number|null};
-export type AddonMetadata={id:string;mediaType:string;name:string;description:string|null;videos:AddonVideo[]};
-export type AddonOption={name:string;supported:boolean;reason:'direct-https'|'unsupported-transport'|'invalid-media-url'|'proxy-headers';language:string|null};
+export type AddonVideo={id:string;name:string;season:number|null;episode:number|null;thumbnail?:string;description?:string};
+export type AddonMetadata={id:string;mediaType:string;name:string;description:string|null;videos:AddonVideo[];
+  poster?:string;background?:string;releaseInfo?:string;imdbRating?:number;runtime?:string;genres?:string[];cast?:string[];directors?:string[]};
+export type AddonOption={name:string;detail?:string;supported:boolean;reason:'direct-https'|'unsupported-transport'|'invalid-media-url'|'proxy-headers';language:string|null};
+function optionalDisplay(v:unknown,max:number):string|undefined{
+  return typeof v==='string'&&v.trim()&&v.length<=max&&!/[\u0000-\u001f\u007f]/u.test(v)&&!v.includes('://')&&!/token=|password=/i.test(v)?v:undefined;
+}
+function optionalDisplayList(v:unknown,limit:number,max:number):string[]|undefined{
+  if(!Array.isArray(v))return undefined;
+  const entries=v.slice(0,limit).flatMap(value=>{const text=optionalDisplay(value,max);return text?[text]:[];});
+  return entries.length?entries:undefined;
+}
 export async function loadAddonMetadata(profileId:number,sourceId:number,mediaType:string,itemId:string):Promise<AddonMetadata>{
   const v=await scoped(profileId,{kind:'metadata',sourceId,mediaType,itemId});
   if(v.sourceId!==sourceId)return fail();
   const m=obj(v.metadata);
   if(m.id!==itemId||m.mediaType!==mediaType)return fail();
   const videos=array(m.videos,2048,value=>{
-    const row=obj(value);return {id:str(row.id,512),name:str(row.name,512),season:row.season===null?null:integer(row.season,0,0xffffffff),episode:row.episode===null?null:integer(row.episode,0,0xffffffff)};
+    const row=obj(value);return {id:str(row.id,512),name:str(row.name,512),season:row.season===null?null:integer(row.season,0,0xffffffff),episode:row.episode===null?null:integer(row.episode,0,0xffffffff),thumbnail:publicAddonPoster(row.thumbnail),description:optionalDisplay(row.description,2048)};
   });
   if(new Set(videos.map(video=>video.id)).size!==videos.length)return fail();
-  return {id:itemId,mediaType,name:str(m.name,512),description:m.description===null?null:str(m.description,4096),videos};
+  return {id:itemId,mediaType,name:str(m.name,512),description:m.description===null?null:str(m.description,4096),videos,
+    poster:publicAddonPoster(m.poster),background:publicAddonPoster(m.background),
+    releaseInfo:optionalDisplay(m.releaseInfo,64),runtime:optionalDisplay(m.runtime,64),
+    imdbRating:typeof m.imdbRating==='number'&&Number.isFinite(m.imdbRating)&&m.imdbRating>=0&&m.imdbRating<=10?m.imdbRating:undefined,
+    genres:optionalDisplayList(m.genres,16,80),cast:optionalDisplayList(m.cast,32,128),directors:optionalDisplayList(m.directors,16,128)};
 }
 export type AddonOptions={reviewId:number;rows:AddonOption[]};
 export async function loadAddonOptions(profileId:number,sourceId:number,mediaType:string,videoId:string,subtitles:boolean):Promise<AddonOptions>{
@@ -281,11 +294,11 @@ function parseOptions(options:unknown):AddonOption[]{
     if(reason!=='direct-https'&&reason!=='unsupported-transport'&&reason!=='invalid-media-url'&&reason!=='proxy-headers')return fail();
     const supported=bool(row.supported);
     if(supported!==(reason==='direct-https'))return fail();
-    return {name:str(row.name,256),supported,reason,language:row.language===null?null:str(row.language,32)};
+    return {name:str(row.name,256),detail:optionalDisplay(row.detail,512),supported,reason,language:row.language===null?null:str(row.language,32)};
   });
 }
 
-export type AddonStreamGroup={sourceId:number;options:AddonOptions|null};
+export type AddonStreamGroup={sourceId:number;options:AddonOptions|null;error?:string};
 export async function loadAllAddonStreams(profileId:number,mediaType:string,videoId:string):Promise<AddonStreamGroup[]>{
   const v=await scoped(profileId,{kind:'all-stream-options',mediaType,videoId});
   if(v.mediaType!==mediaType||v.videoId!==videoId)return fail();
@@ -294,7 +307,7 @@ export async function loadAllAddonStreams(profileId:number,mediaType:string,vide
     const rows=parseOptions(row.options);
     if(row.error!==null){
       if(typeof row.error!=='string'||row.reviewId!==null||rows.length)return fail();
-      return {sourceId,options:null};
+      return {sourceId,options:null,error:codes.has(row.error)?row.error:'request'};
     }
     return {sourceId,options:{reviewId:integer(row.reviewId,1,0xffffffff),rows}};
   });
