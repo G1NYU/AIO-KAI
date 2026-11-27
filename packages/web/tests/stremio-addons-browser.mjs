@@ -157,7 +157,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     const profileName=profiles.getByLabel('Profile name',{exact:true});
     await profileName.fill('Second');
     await profiles.getByRole('button',{name:'Create profile',exact:true}).click();
-    const active=profiles.getByLabel('Active addon profile',{exact:true});
+    const active=profiles.getByRole('combobox',{name:'Active addon profile',exact:true});
     await active.locator('option').filter({hasText:'Second'}).waitFor({state:'attached'});
     await active.selectOption({label:'Second'});
     await panel.getByText('No addons installed for this profile.').waitFor();
@@ -176,7 +176,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     const scoped=await page.evaluate(()=>window.__stremioFixture.calls.filter(a=>a.kind==='profile-request'&&a.action.kind==='install'));
     assert.deepEqual(scoped.map(a=>[a.profileId,a.action.reviewId]),[[1,3],[4,5]]);
     await profiles.getByText('Delete an inactive profile',{exact:true}).click();
-    await profiles.getByLabel('Profile to delete',{exact:true}).selectOption({label:'Renamed'});
+    await profiles.getByRole('combobox',{name:'Profile to delete',exact:true}).selectOption({label:'Renamed'});
     const deletion=profiles.getByRole('button',{name:'Delete profile',exact:true});
     assert.equal(await deletion.isEnabled(),false);
     await profiles.getByLabel('Confirm profile name',{exact:true}).fill('Renamed');
@@ -189,7 +189,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await panel.getByText('No addons installed for this profile.').waitFor();
     const account=panel.locator('[data-ui="stremio-account-import"]');
     async function signIn(provider){
-      await account.getByLabel('Import provider',{exact:true}).selectOption(provider);
+      await account.getByRole('combobox',{name:'Import provider',exact:true}).selectOption(provider);
       await account.getByLabel('Account email',{exact:true}).fill('fixture@example.org');
       await account.getByLabel('Account password',{exact:true}).fill('synthetic-password');
       await account.getByRole('button',{name:'Connect and read addons',exact:true}).click();
@@ -214,10 +214,10 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await account.getByRole('button',{name:'Import reviewed addons',exact:true}).click();
     await panel.locator('[data-stremio-source-id]').filter({hasText:'Account film addon'}).waitFor();
     await signIn('nuvio');
-    const remote=account.getByLabel('Nuvio profile',{exact:true});
+    const remote=account.getByRole('combobox',{name:'Nuvio profile',exact:true});
     await remote.waitFor();
-    assert.equal(await remote.locator('option[value="1"]').isDisabled(),true);
-    assert.equal(await remote.locator('option[value="2"]').isDisabled(),true);
+    assert.equal(await remote.locator('option[value="1"]').evaluate(option=>option.disabled),true);
+    assert.equal(await remote.locator('option[value="2"]').evaluate(option=>option.disabled),true);
     await remote.selectOption('3');
     await account.getByRole('button',{name:'Read selected profile',exact:true}).click();
     await reviewAccount();
