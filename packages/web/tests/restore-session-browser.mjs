@@ -44,7 +44,7 @@ export async function verifyRestoreSessionBrowser({browser,origin,installDesktop
     await page.addInitScript({content:`(${installDesktopFixture.toString()})();(${installRecoveryFixture.toString()})();`});
     await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
     await page.goto(origin,{waitUntil:'domcontentloaded'});
-    const openSettings=()=>page.getByRole('button',{name:'App settings',exact:true}).click();
+    const openSettings=()=>page.locator('[data-page="desktop-landing"] .tsugi-world-toolbar').getByRole('button',{name:'App settings',exact:true}).click();
     await openSettings();
     const settings=page.getByRole('dialog');
     const portable=settings.getByRole('region',{name:'Portable backup',exact:true});

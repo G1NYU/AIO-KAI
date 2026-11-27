@@ -61,7 +61,7 @@ export async function verifyLandscapeDecorationBrowser({ browser, origin, instal
     };
     const show = async () => {
       if (mode === 'inactive') {
-        await page.locator('[data-page="desktop-landing"]').getByRole('button', { name: 'Read', exact: true }).click();
+        await page.locator('[data-page="desktop-landing"] .tsugi-world-card[data-world="read"]').click();
       } else {
         await read.locator('.tsugi-reading-content').evaluate(node => node.scrollTo(0, 0));
       }

@@ -40,7 +40,7 @@ export async function verifyUpNextBrowser({browser,origin,installDesktopFixture}
     },Array.from(pdfFixture()));
     const landing=page.locator('[data-page="desktop-landing"]');
     const dialog=page.getByRole('dialog',{name:'Up next',exact:true});
-    const open=()=>landing.getByRole('button',{name:'Up next',exact:true}).click();
+    const open=()=>landing.locator('.tsugi-world-toolbar').getByRole('button',{name:'Up next',exact:true}).click();
     const row=title=>dialog.locator('article').filter({has:page.getByRole('heading',{name:title,exact:true})});
     assert.equal(await page.evaluate(()=>window.__readerFixture.requests.filter(item=>item.kind==='history').length),0,'no history request before opening Up next');
     await open();

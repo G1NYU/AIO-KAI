@@ -117,7 +117,7 @@ export async function verifyMihonImportBrowser({ browser, origin, installDesktop
     await page.addInitScript({ content: `(${installDesktopFixture.toString()})();(${installMihonFixture.toString()})(${JSON.stringify(model)});` });
     await page.route('**/*', route => route.request().url().startsWith(origin + '/') ? route.continue() : route.abort());
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
-    await page.getByRole('button', { name: 'App settings', exact: true }).click();
+    await page.locator('[data-page="desktop-landing"] .tsugi-world-toolbar').getByRole('button', { name: 'App settings', exact: true }).click();
     const settings = page.getByRole('dialog');
     const portable = settings.getByRole('region', { name: 'Portable backup', exact: true });
     const mihon = settings.getByRole('region', { name: 'Mihon backup import', exact: true });

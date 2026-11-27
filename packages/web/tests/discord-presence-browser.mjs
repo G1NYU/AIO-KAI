@@ -46,7 +46,7 @@ export async function verifyDiscordPresenceBrowser({ browser, origin, installDes
     await page.route('**/__tsugi_read/page/*', route => route.fulfill({ contentType: 'image/png', body: png }));
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
     const landing = page.locator('[data-page="desktop-landing"]');
-    await openSettings(landing); await frames();
+    await openSettings(landing.locator('.tsugi-world-toolbar')); await frames();
     assert.equal((await latest('discord-configure')).config.enabled, false);
     assert.equal((await messages()).some(message => message.type === 'discord-check'), false);
     assert.equal((await latest('discord-configure')).config.applicationId, '1575822403211362365');
@@ -67,7 +67,7 @@ export async function verifyDiscordPresenceBrowser({ browser, origin, installDes
     assert.equal((await latest('presence')).presence, null);
     await settings.getByRole('checkbox', { name: 'Private mode', exact: true }).uncheck();
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
-    await landing.getByRole('button', { name: /Music/ }).first().click();
+    await landing.locator('.tsugi-world-card[data-world="music"]').click();
     const music = page.locator('[data-page="music"]');
     await music.waitFor({ state: 'visible' });
     const sources = music.getByRole('dialog', { name: 'Music sources' });
@@ -111,7 +111,7 @@ export async function verifyDiscordPresenceBrowser({ browser, origin, installDes
     assert.equal((await latest('presence')).presence, null);
     await page.evaluate(() => { window.__presenceFixture.rejectSave = false; });
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await openSettings(page.locator('[data-page="desktop-landing"]'));
+    await openSettings(page.locator('[data-page="desktop-landing"] .tsugi-world-toolbar'));
     assert.equal(await settings.getByRole('checkbox', { name: 'Private mode', exact: true }).isChecked(), true);
     assert.equal((await latest('presence')).presence, null);
     assert.deepEqual(errors, []);

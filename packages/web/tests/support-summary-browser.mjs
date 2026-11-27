@@ -74,10 +74,10 @@ export async function verifySupportSummaryBrowser({ browser, origin, installDesk
     await page.route('**/*', route => route.request().url().startsWith(origin + '/') ? route.continue() : route.abort());
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
     const landing = page.locator('[data-page="desktop-landing"]');
-    await landing.getByRole('button', { name: 'App settings', exact: true }).waitFor(); await frames();
+    await landing.locator('.tsugi-world-toolbar').getByRole('button', { name: 'App settings', exact: true }).waitFor(); await frames();
     const beforeOpen = (await infoCalls()).length;
     assert.equal(beforeOpen, 0, 'startup never requests native version details for the support summary');
-    await landing.getByRole('button', { name: 'App settings', exact: true }).click();
+    await landing.locator('.tsugi-world-toolbar').getByRole('button', { name: 'App settings', exact: true }).click();
     await summary.getByRole('button', { name: 'Create support summary', exact: true }).waitFor(); await frames();
     assert.equal((await infoCalls()).length, beforeOpen, 'opening App settings never creates a support summary');
     assert.equal(await preview().count(), 0);

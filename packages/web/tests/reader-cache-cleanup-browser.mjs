@@ -64,7 +64,7 @@ export async function verifyReaderCacheCleanupBrowser({ browser, origin, install
     await page.addInitScript({ content: `(${installDesktopFixture.toString()})();(${installImageCacheFixture.toString()})();` });
     await page.route('**/*', route => route.request().url().startsWith(origin + '/') ? route.continue() : route.abort());
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
-    await page.getByRole('button', { name: 'App settings', exact: true }).click();
+    await page.locator('[data-page="desktop-landing"] .tsugi-world-toolbar').getByRole('button', { name: 'App settings', exact: true }).click();
     const storage = page.getByRole('region', { name: 'Storage management', exact: true });
     const cleanup = storage.getByRole('region', { name: 'Temporary Reader images', exact: true });
     const review = cleanup.getByRole('region', { name: 'Temporary image removal review', exact: true });

@@ -148,7 +148,7 @@ export async function verifySharedLayoutBrowser({ browser, origin, installDeskto
     await page.route('**/*', route => route.request().url().startsWith(origin + '/') ? route.continue() : route.abort());
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
     const landing = page.locator('[data-page="desktop-landing"]');
-    await landing.getByRole('button', { name: 'Read', exact: true }).click();
+    await landing.locator('.tsugi-world-card[data-world="read"]').click();
     const read = page.locator('[data-page="read"]');
     let rail = await assertRailGeometry(page, read, 'Read');
     await assertWindowStrip(page, 'Wide rail');
@@ -222,7 +222,7 @@ export async function verifySharedLayoutBrowser({ browser, origin, installDeskto
     await assertBrushHeadingSpacing(page, '.tsugi-library-intro h2');
     await rail.getByRole('button', { name: 'All media', exact: true }).click();
     await landing.waitFor({ state: 'visible' });
-    await landing.getByRole('button', { name: 'Movies & TV', exact: true }).click();
+    await landing.locator('.tsugi-world-card[data-world="video"]').click();
     await page.locator('.tsugi-video-entry').getByRole('textbox', { name: /Server address/ }).waitFor();
     const entryNavigation = page.locator('.tsugi-entry-media-nav');
     await assertMasthead(page, entryNavigation, 'Narrow Movies entry');
@@ -233,7 +233,7 @@ export async function verifySharedLayoutBrowser({ browser, origin, installDeskto
 
     // The same masthead also serves Read before its optional native setup.
     await page.goto(`${origin}/?readerSetup=1`, { waitUntil: 'domcontentloaded' });
-    await landing.getByRole('button', { name: 'Read', exact: true }).click();
+    await landing.locator('.tsugi-world-card[data-world="read"]').click();
     const setup = page.locator('[data-page="read-setup"]');
     const setupNavigation = setup.getByRole('navigation', { name: 'Media sections', exact: true });
     await assertMasthead(page, setupNavigation, 'Read setup');
