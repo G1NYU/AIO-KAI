@@ -203,7 +203,7 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
           }
           await new Promise(resolve=>setTimeout(resolve,250));
           if(request.cancelled||!mounted.current)return;
-          snapshot=await pollAddonStreams(playback.profileId,snapshot.queryId);
+          snapshot=await pollAddonStreams(playback.profileId,snapshot.queryId,playback.mediaType,video?.id??playback.videoId);
         }
       }catch{if(mounted.current&&!request.cancelled&&streamRequest.current===request){setError(true);setStreamPending(null);}}
     })();

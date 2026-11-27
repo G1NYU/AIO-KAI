@@ -231,7 +231,12 @@ export function installStremioFixture(initializeStartup=true){
         const videos=!f.emptyMetadata&&a.mediaType==='series'?[{id:'tt90002:1:1',name:'Episode one',season:1,episode:1,thumbnail:'https://image.tmdb.org/t/p/w300/episode.jpg',description:'Episode overview from the provider.'},{id:'tt90002:1:2',name:'Episode two',season:1,episode:2},{id:'tt90002:0:1',name:'Special',season:0,episode:1},{id:'tt90002:2:1',name:'Second season',season:2,episode:1},{id:'tt90002:extra',name:'Unnumbered episode',season:null,episode:null}]:[];
         return reply({sourceId:a.sourceId,mediaType:a.mediaType,itemId:a.itemId,metadata:{id:a.itemId,name:a.mediaType==='series'?'Fixture anime series':'Fixture cinema film',mediaType:a.mediaType,description:'Metadata from the separate metadata addon.',poster:'https://image.tmdb.org/t/p/w500/detail.jpg',background:'https://images.metahub.space/background/medium/tt90001/img',imdbRating:8.6,releaseInfo:'2024',runtime:'57 min',genres:['Drama'],cast:['Fixture Actor'],directors:['Fixture Director'],videos}});
       }
-      case 'tmdb-search':return reply({items:[]});
+      case 'tmdb-search':return reply({items:f.boardFixture&&a.query.toLowerCase()==='family guy'?[
+        {id:'tmdb:movie:90022',mediaType:'movie',name:'Family Guy Presents: Blue Harvest',poster:'https://image.tmdb.org/t/p/w500/film-fixture.jpg',description:'Synthetic movie result.',releaseInfo:'2007'},
+        {id:'tmdb:tv:90021',mediaType:'series',name:'Family Guy',poster:'https://image.tmdb.org/t/p/w500/series-fixture.jpg',background:'https://image.tmdb.org/t/p/w1280/series-fixture.jpg',description:'Synthetic series result.',releaseInfo:'1999'},
+        {id:'tmdb:movie:90023',mediaType:'movie',name:'Family Guy Presents: Something, Something, Something, Dark Side',poster:'https://image.tmdb.org/t/p/w500/second-film-fixture.jpg',releaseInfo:'2009'},
+        {id:'tmdb:tv:90024',mediaType:'series',name:'Unrelated series',poster:'https://image.tmdb.org/t/p/w500/unrelated.jpg'}
+      ]:[]});
       case 'tmdb-title':return emit(null,'tmdb-not-found');
       case 'tmdb-season':return reply({tmdbId:a.tmdbId,season:a.season,episodes:[]});
       case 'begin-stream-options':
@@ -449,7 +454,18 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.equal(await results.locator('[data-ui="poster-card"]').first().getAttribute('aria-label'),'Fixture cinema film');
     assert.equal(await results.getByRole('button',{name:'Fixture alias movie',exact:true}).count(),0);
     await results.locator('[data-ui="watch-top-match"]').waitFor();
+    await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('family guy');
+    const seriesResults=results.locator('[data-search-kind="series"]');
+    const movieResults=results.locator('[data-search-kind="movie"]');
+    await seriesResults.getByRole('button',{name:'Family Guy',exact:true}).waitFor();
+    await movieResults.getByRole('button',{name:'Family Guy Presents: Blue Harvest',exact:true}).waitFor();
+    assert.deepEqual(await results.locator('[data-search-kind]').evaluateAll(rows=>rows.map(row=>row.getAttribute('data-search-kind'))),['series','movie']);
+    assert.equal(await movieResults.locator('[data-ui="poster-card"]').count(),2);
+    assert.equal(await results.getByRole('button',{name:'Unrelated series',exact:true}).count(),0);
+    assert.equal(await results.locator('[data-ui="watch-top-match"] h4').innerText(),'Family Guy');
+    await seriesResults.getByRole('button',{name:'Family Guy',exact:true}).locator('img').evaluate(image=>image.decode());
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-search-overlay.png'),animations:'disabled'});
+    console.log('PASS: TMDB title search places the exact series match first and separates related movies below it.');
     await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Fixture alias movie');
     await results.getByRole('button',{name:'Fixture alias movie',exact:true}).click();
     await item.locator('[data-ui="watch-play-title"]').click();

@@ -141,7 +141,7 @@ fn parse_options(bytes:&[u8],resource:ItemResource)->Result<Vec<OptionSummary>>{
         let name=display(row.get("name"),256).or_else(||display(row.get("title"),256))
             .or_else(||language.clone()).unwrap_or_else(||format!("Option {}",i+1));
         let detail=stream_detail(row.get("title")).filter(|text|text!=&name)
-            .or_else(||display(row.get("description"),512).filter(|text|text!=&name));
+            .or_else(||stream_detail(row.get("description")).filter(|text|text!=&name));
         let valid=safe_url(row.get("url"));
         let proxy=row.pointer("/behaviorHints/proxyHeaders").is_some_and(|v|!v.is_null());
         let unsupported=["infoHash","ytId","externalUrl","nzbUrl","rarUrls","zipUrls","7zipUrls","tgzUrls","tarUrls"].iter()
