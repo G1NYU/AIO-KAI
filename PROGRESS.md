@@ -1317,3 +1317,9 @@ Connected read-only account import to the existing profile-scoped settings/onboa
 
 Native pending import sessions expire on each worker message as well as idle ticks, and Nuvio PIN lock markers fail closed. Added a browser fixture for first-launch optional addon setup, no implicit provider contact and skipping. Combined native/web CI and live account acceptance remain pending.
 
+
+
+## 2026-11-27 — Watch profile-first entrance and menu workspace
+
+User supplied TSUGI-Watch-Interactive-Fixed.html and annotated welcome screenshot. Reworked the bundled Windows introduction into a profile-first illustrated picker, including creation and switching, then a themed Watch workspace with real installed addon, Stremio import, Nuvio import, manual add, source-order and profile settings menus. The first-run appearance step remains available; Movies & TV on the desktop hub opens the picker, with an explicit continuation to the existing video route. Import review remains within each provider's actual review flow. All actions reuse the native profile-scoped registry, no sample addon data or placeholder sign-in. Avatar art is selected deterministically from existing bundled artwork, not custom uploaded portraits. Existing App settings entry remains intact. Direct independent playback, per-profile watch state and D5 integrations remain open; no package/release triggered. Prior CI 45937634647: Windows native gate passed; browser failed Movies Settings selection because active tab value was deferred, fixed controlled selected state and added waits for actual selected panel. New browser fixture covers profile creation, selection, menu switching, no implicit network import, appearance, skip and hub reentry. Combined CI and visual verification pending. No separate design reviewer available in this environment.
+

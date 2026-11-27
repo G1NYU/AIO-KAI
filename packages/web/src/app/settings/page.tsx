@@ -506,7 +506,7 @@ function WideSettings({
       </h1>
       <Tabs
         data-ui="settings-layout"
-        value={searching ? '' : shown}
+        value={searching ? '' : active.id}
         onValueChange={open}
         activationMode="manual"
         animated={false}

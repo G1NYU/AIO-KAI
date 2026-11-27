@@ -166,6 +166,8 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
     await aboutTab.scrollIntoViewIfNeeded();
     await aboutTab.click();
     assert.equal(await settingsPage().locator('[data-ui="settings-tab"] > span').count(), 0, 'settings scroll does not leave a sliding rounded marker over other categories');
+    await settingsPage().locator('[data-ui="settings-tab"][data-name="about"][data-state="active"]').waitFor();
+    await settingsPage().locator('[data-ui="settings-panel"][data-name="about"]:visible').waitFor();
     assert.equal(await aboutTab.getAttribute('data-state'), 'active', 'selected category stays attached to its own row');
     await settingsPage().locator('[data-ui="settings-tab"][data-name="theme"]').click();
     assert.equal(await settingsPage().locator('[data-ui="settings-tab"] > span').count(), 0, 'selection remains static after scrolling between categories');

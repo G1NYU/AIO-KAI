@@ -1,5 +1,8 @@
 import React from 'react';
 import { StremioAccountImport } from './stremio-account-import';
+import { TsugiBrand } from '@/components/tsugi-brand';
+import { TsugiIcon } from '@/components/tsugi-icons';
+import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation } from '@/lib/hosts/shell/stremio';
@@ -28,7 +31,13 @@ function feedback(reason: unknown) {
     default: return t`The request could not be confirmed. Refresh the installed list before retrying an installation or change.`;
   }
 }
-export function StremioAddonSettings(){
+type WatchPane = 'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile';
+const profileArt=['/design/oto/hero-yuna.webp','/design/yomi/hero-torii.webp','/design/shared/hero-neon.webp','/design/shared/hero-train.webp'];
+export function StremioAddonSettings({workspace=false}:{workspace?:boolean}={}){
+  const [entered,setEntered]=React.useState(false);
+  const [pane,setPane]=React.useState<WatchPane>('addons');
+  const [creating,setCreating]=React.useState(false);
+  const titleId=React.useId();
   const [profileState,setProfileState]=React.useState<ProfileState|null>(null);
   const [profileReady,setProfileReady]=React.useState(false);
   const [profileName,setProfileName]=React.useState('');
@@ -86,16 +95,25 @@ export function StremioAddonSettings(){
       await reloadProfiles();
     });
   }
-  async function changeProfile(action:ProfileMutation){
+  async function changeProfile(action:ProfileMutation,enter=false){
     if(flight.current||!profileState)return;
     await run(async()=>{
       const previous=clearReview();
       if(previous)await cancelAddonReview(previous.profileId,previous.reviewId).catch(()=>{});
       setProfileReady(false);setSources([]);choose(null);
-      const result=await mutateAddonProfile(action);
+      let result=await mutateAddonProfile(action);
       if(!mounted.current)return;
+      if(enter&&action.kind==='profile-create'){
+        const created=result.profiles.find(p=>!profileState.profiles.some(old=>old.profileId===p.profileId));
+        if(!created)throw new AddonError('invalid-response');
+        setProfileState(result);
+        result=await mutateAddonProfile({kind:'profile-switch',profileId:created.profileId});
+        if(!mounted.current)return;
+      }
       setProfileName('');setDeleteId(0);setDeleteName('');
       await reloadProfiles(result);
+      if(mounted.current&&enter){setCreating(false);setPane('addons');setEntered(true);}
+
     });
   }
   function updateSources(next:AddonSource[],id:number){setSources(next);setProfileState(old=>old?{...old,profiles:old.profiles.map(p=>p.profileId===id?{...p,sourceCount:next.length}:p)}:null);choose(null);}
@@ -133,8 +151,65 @@ export function StremioAddonSettings(){
       else{seen.current.add(fingerprint);setPage(next);}
     });
   }
-  return <section className="tsugi-app-general" data-ui="stremio-addon-settings" aria-labelledby="tsugi-stremio-heading">
-    <h3 id="tsugi-stremio-heading"><Trans>Stremio addons</Trans></h3>
+  async function selectPane(next:WatchPane){
+    if(flight.current||pane===next)return;
+    const previous=clearReview();
+    setImportActive(false);choose(null);setPane(next);
+    if(previous)await run(async()=>{await cancelAddonReview(previous.profileId,previous.reviewId);});
+  }
+  async function backToProfiles(){
+    if(flight.current)return;
+    const previous=clearReview();
+    setImportActive(false);choose(null);setEntered(false);setCreating(false);
+    if(previous)await run(async()=>{await cancelAddonReview(previous.profileId,previous.reviewId);});
+  }
+  if(workspace&&!entered)return <section className="tsugi-watch-picker" data-ui="watch-profile-picker" aria-labelledby={titleId}>
+    <div className="tsugi-watch-picker-art" aria-hidden="true"/>
+    <div className="tsugi-watch-picker-content">
+      <TsugiBrand />
+      <h3 id={titleId}><Trans>Who’s watching?</Trans></h3>
+      <p><Trans>Choose your Watch profile. Your addons and source order are yours.</Trans></p>
+      {profileState&&<div className="tsugi-watch-profiles">
+        {profileState.profiles.map(p=><button key={p.profileId} type="button" className="tsugi-watch-profile" data-profile-id={p.profileId} disabled={blocked} onClick={()=>void changeProfile({kind:'profile-switch',profileId:p.profileId},true)}>
+          <span className="tsugi-watch-avatar"><img src={profileArt[(p.profileId-1)%profileArt.length]} alt="" decoding="async"/></span>
+          <strong>{p.name}</strong><small>{p.sourceCount} <Trans>addons</Trans></small>
+        </button>)}
+        {profileState.profiles.length<6&&<button type="button" className="tsugi-watch-profile" disabled={blocked} onClick={()=>{setCreating(true);setProfileName('');}}>
+          <span className="tsugi-watch-avatar tsugi-watch-create"><TsugiIcon name="plus"/></span>
+          <strong><Trans>Create profile</Trans></strong>
+        </button>}
+      </div>}
+      {creating&&<form className="tsugi-watch-create-form" onSubmit={e=>{e.preventDefault();void changeProfile({kind:'profile-create',name:profileName},true);}}>
+        <label><Trans>Profile name</Trans><input className="tsugi-read-input w-full" autoComplete="off" required maxLength={64} value={profileName} disabled={blocked} onChange={e=>setProfileName(e.target.value)}/></label>
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" className="tsugi-read-action tsugi-series-primary" disabled={blocked||!profileName.trim()}><Trans>Create and continue</Trans></button>
+          <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>setCreating(false)}><Trans>Cancel</Trans></button>
+        </div>
+      </form>}
+      {busy&&<p role="status"><Trans>Loading profiles…</Trans></p>}
+      {error&&<p role="alert">{error}</p>}
+      {!profileReady&&!busy&&<button type="button" className="tsugi-read-action" onClick={()=>void refreshProfiles()}><Trans>Refresh profiles</Trans></button>}
+    </div>
+  </section>;
+  const show=(...panes:WatchPane[])=>!workspace||panes.includes(pane);
+  return <section className={workspace?'tsugi-app-general tsugi-watch-workspace':'tsugi-app-general'} data-ui="stremio-addon-settings" aria-labelledby={titleId}>
+    {workspace&&<header className="tsugi-watch-workspace-banner">
+      <div><TsugiBrand/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}><Trans>Your addon stack.</Trans></h3><p><Trans>Bring your sources home.</Trans></p></div>
+      <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void backToProfiles()}><TsugiIcon name="people" aria-hidden/> <Trans>Switch profile</Trans></button>
+    </header>}
+    {workspace&&<nav className="tsugi-watch-nav" aria-label={t`Watch setup`}>
+      {([
+        ['addons',t`Your addons`,'grid'],
+        ['stremio',t`Stremio import`,'migrate'],
+        ['nuvio',t`Nuvio import`,'migrate'],
+        ['manual',t`Add addon`,'plus'],
+        ['order',t`Source order`,'list'],
+        ['profile',t`Profile settings`,'settings']
+      ] as const).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><TsugiIcon name={icon}/><span>{label}</span></button>)}
+    </nav>}
+    <div className={workspace?'tsugi-watch-content':'contents'}>
+    {!workspace&&<h3 id={titleId}><Trans>Stremio addons</Trans></h3>}
+    {show('profile')&&<>
     <p><Trans>Each local profile has its own addons, without an AIOStreams connection. Catalogue browsing is available here; direct playback is not available yet.</Trans></p>
     <p><Trans>Configured links are protected by your Windows account and excluded from portable backups. Local profiles are not password-protected from other people using this Windows account. Only contact addon hosts you trust.</Trans></p>
     <div className="space-y-3" data-ui="stremio-profile-management">
@@ -162,7 +237,9 @@ export function StremioAddonSettings(){
       </>}
       <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void refreshProfiles()}><Trans>Refresh profiles</Trans></button>
     </div>
-    {profileReady&&profileId!==undefined&&<StremioAccountImport key={profileId} profileId={profileId} busy={busy} run={run} onActive={setImportActive} onConnect={()=>{clearReview();}} onSources={rows=>updateSources(rows,profileId)}/>}
+    </>}
+    {show('stremio','nuvio')&&profileReady&&profileId!==undefined&&<StremioAccountImport key={workspace?profileId+':'+pane:profileId} fixedProvider={workspace?(pane==='nuvio'?'nuvio':'stremio'):undefined} profileId={profileId} busy={busy} run={run} onActive={setImportActive} onConnect={()=>{clearReview();}} onSources={rows=>updateSources(rows,profileId)}/>}
+    {show('manual')&&<><h4><Trans>Add a manifest</Trans></h4>
     <form className="space-y-2" onSubmit={e=>{e.preventDefault();void inspect();}}>
       <label><Trans>Configured manifest URL</Trans><input className="tsugi-read-input w-full min-w-0" type="password" autoComplete="off" spellCheck={false} maxLength={16384} value={url} required disabled={manualBlocked} onChange={e=>{setUrl(e.target.value);setConsent(false);}}/></label>
       <label className="flex items-start gap-2"><input type="checkbox" checked={consent} disabled={manualBlocked} onChange={e=>setConsent(e.target.checked)}/><Trans>I trust this addon host and want Tsugi to contact it.</Trans></label>
@@ -180,7 +257,15 @@ export function StremioAddonSettings(){
         <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void cancel()}><Trans>Cancel review</Trans></button>
       </div>
     </div>}
-    <h4><Trans>Installed addons</Trans></h4>
+    </>}
+    {show('addons','order')&&<>
+    <h4>{workspace&&pane==='order'?<Trans>Source order</Trans>:<Trans>Installed addons</Trans>}</h4>
+    {workspace&&pane==='addons'&&<div className="flex flex-wrap gap-2">
+      <button type="button" className="tsugi-read-action tsugi-series-primary" disabled={busy} onClick={()=>void selectPane('manual')}><Trans>Add addon</Trans></button>
+      <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('stremio')}><Trans>Import from Stremio</Trans></button>
+      <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('nuvio')}><Trans>Import from Nuvio</Trans></button>
+    </div>}
+    {workspace&&pane==='order'&&<p><Trans>Sources are tried in this order. Use the arrows to change their priority.</Trans></p>}
     <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void refreshProfiles()}><Trans>Refresh installed addons</Trans></button>
     {profileReady&&!sources.length&&<p><Trans>No addons installed for this profile.</Trans></p>}
     {sources.map((s,index)=><div key={s.sourceId} data-stremio-source-id={s.sourceId} className="tsugi-read-row flex-wrap">
@@ -209,7 +294,9 @@ export function StremioAddonSettings(){
       {page&&<><p>{page.items.length} <Trans>titles on this page</Trans></p><ul className="max-h-64 overflow-auto">{page.items.map(item=><li className="tsugi-read-row break-words" key={item.id}>{item.name}</li>)}</ul>
         {page.nextSkip!==null&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(page.nextSkip!)}><Trans>Next page</Trans></button>}</>}
     </form>}
+    </>}
     {busy&&<p role="status"><Trans>Contacting addon registry…</Trans></p>}
     {notice&&<p role="status">{notice}</p>}{error&&<p role="alert">{error}</p>}
+    </div>
   </section>;
 }

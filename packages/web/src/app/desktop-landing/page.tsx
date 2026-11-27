@@ -6,6 +6,7 @@ import { FiClock, FiPlay, FiSettings } from 'react-icons/fi';
 import { TsugiBrand, TsugiMediaIcon } from '@/components/tsugi-brand';
 import { useDesktopArea } from '@/lib/desktop-area';
 import { FirstBootAppearance } from './first-boot-appearance';
+import { appBridge } from '@/lib/hosts/shell/bridge';
 
 /** Direct media destinations, independent of server configuration. */
 export function DesktopLandingPage({ openVideo, openMusic, openRead, openVault }: {
@@ -14,14 +15,16 @@ export function DesktopLandingPage({ openVideo, openMusic, openRead, openVault }
   const desktopArea = useDesktopArea();
   const [upNextOpen, setUpNextOpen] = React.useState(false);
   const [introRevisit,setIntroRevisit]=React.useState(0);
+  const [watchRevisit,setWatchRevisit]=React.useState(0);
+  const enterWatch=()=>{if(openVault&&appBridge()?.stremioAddons)setWatchRevisit(n=>n+1);else openVideo();};
   const sections = [
-    { id: 'video' as const, label: t({ id: "Movies & TV", message: "Movies & TV" }), open: openVideo },
+    { id: 'video' as const, label: t({ id: "Movies & TV", message: "Movies & TV" }), open: enterWatch },
     { id: 'music' as const, label: t({ id: "Music", message: "Music" }), open: openMusic },
     ...(openRead ? [{ id: 'read' as const, label: t({ id: 'Read', message: 'Read' }), open: openRead }] : []),
     ...(openVault ? [{ id: 'vault' as const, label: t({ id: 'Vault', message: 'Vault' }), open: openVault }] : []),
   ];
   return <main data-page="desktop-landing" className="tsugi-landing tsugi-index">
-    {openVault && <FirstBootAppearance revisit={introRevisit} />}
+    {openVault && <FirstBootAppearance revisit={introRevisit} watchRevisit={watchRevisit} onWatchContinue={openVideo} />}
     {desktopArea?.openResume && <UpNext open={upNextOpen} onClose={()=>setUpNextOpen(false)}/>}
     <header className="tsugi-index-header">
       {openVault && <button type="button" className="tsugi-category-link" onClick={()=>setIntroRevisit(value=>value+1)}><FiPlay aria-hidden/><Trans id="Introduction">Introduction</Trans></button>}

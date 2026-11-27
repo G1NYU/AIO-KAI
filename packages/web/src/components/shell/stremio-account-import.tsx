@@ -3,11 +3,11 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { connectAddonImport,chooseNuvioImportProfile,reviewAddonImport,applyAddonImport,cancelAddonImport,type AccountImport,type AddonSource,type ImportProvider } from '@/lib/hosts/shell/stremio';
 
-export function StremioAccountImport({profileId,busy,run,onConnect,onSources,onActive}:{
-  profileId:number;busy:boolean;run(work:()=>Promise<void>):Promise<void>;
+export function StremioAccountImport({profileId,busy,run,onConnect,onSources,onActive,fixedProvider}:{
+  profileId:number;busy:boolean;fixedProvider?:ImportProvider;run(work:()=>Promise<void>):Promise<void>;
   onConnect():void;onSources(sources:AddonSource[]):void;onActive(active:boolean):void;
 }){
-  const [provider,setProvider]=React.useState<ImportProvider>('stremio');
+  const [provider,setProvider]=React.useState<ImportProvider>(fixedProvider??'stremio');
   const [email,setEmail]=React.useState('');
   const [password,setPassword]=React.useState('');
   const [flow,setFlow]=React.useState<AccountImport|null>(null);
@@ -61,12 +61,12 @@ export function StremioAccountImport({profileId,busy,run,onConnect,onSources,onA
     const id=reset();if(id!==null)await run(async()=>{await cancelAddonImport(profileId,id);});
   }
   return <div className="space-y-3" data-ui="stremio-account-import">
-    <h4><Trans>Import from an account</Trans></h4>
+    <h4>{fixedProvider==='stremio'?<Trans>Connect Stremio</Trans>:fixedProvider==='nuvio'?<Trans>Connect Nuvio</Trans>:<Trans>Import from an account</Trans>}</h4>
     <p><Trans>Connect once to read your Stremio or Nuvio addon list. Tsugi does not save your account password or token, and never changes your external account. Review selected addons before adding them to this local profile.</Trans></p>
     {!flow&&<form className="space-y-2" onSubmit={e=>{e.preventDefault();void connect();}}>
-      <label><Trans>Import provider</Trans><select className="tsugi-menu-select w-full" value={provider} disabled={busy} onChange={e=>{setProvider(e.target.value as ImportProvider);setEmail('');setPassword('');}}>
+      {!fixedProvider&&<label><Trans>Import provider</Trans><select className="tsugi-menu-select w-full" value={provider} disabled={busy} onChange={e=>{setProvider(e.target.value as ImportProvider);setEmail('');setPassword('');}}>
         <option value="stremio"><Trans>Stremio</Trans></option><option value="nuvio"><Trans>Nuvio</Trans></option>
-      </select></label>
+      </select></label>}
       <label><Trans>Account email</Trans><input className="tsugi-read-input w-full min-w-0" type="email" autoComplete="off" maxLength={320} required disabled={busy} value={email} onChange={e=>setEmail(e.target.value)}/></label>
       <label><Trans>Account password</Trans><input className="tsugi-read-input w-full min-w-0" type="password" autoComplete="off" maxLength={4096} required disabled={busy} value={password} onChange={e=>setPassword(e.target.value)}/></label>
       <button type="submit" className="tsugi-read-action" disabled={busy||!email.trim()||!password}><Trans>Connect and read addons</Trans></button>
