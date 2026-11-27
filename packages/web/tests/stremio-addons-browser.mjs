@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
-import { mkdir } from 'node:fs/promises';
+import { mkdir,readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export function installStremioFixture(initializeStartup=true){
@@ -237,8 +237,10 @@ export function installStremioFixture(initializeStartup=true){
         {id:'tmdb:movie:90023',mediaType:'movie',name:'Family Guy Presents: Something, Something, Something, Dark Side',poster:'https://image.tmdb.org/t/p/w500/second-film-fixture.jpg',releaseInfo:'2009'},
         {id:'tmdb:tv:90024',mediaType:'series',name:'Unrelated series',poster:'https://image.tmdb.org/t/p/w500/unrelated.jpg'}
       ]:[]});
-      case 'tmdb-title':return emit(null,'tmdb-not-found');
-      case 'tmdb-season':return reply({tmdbId:a.tmdbId,season:a.season,episodes:[]});
+      case 'tmdb-title':
+        if(f.boardFixture&&a.itemId==='tt90002')return reply({item:{id:'tmdb:tv:90002',tmdbId:90002,mediaType:'series',name:'Fixture anime series',imdbId:'tt90002',poster:'https://image.tmdb.org/t/p/w500/anime.jpg',background:'https://image.tmdb.org/t/p/w1280/anime.jpg',description:'A synthetic series used for layout verification.',releaseInfo:'2024',tmdbRating:8.4}});
+        return emit(null,'tmdb-not-found');
+      case 'tmdb-season':return reply({tmdbId:a.tmdbId,season:a.season,episodes:a.tmdbId===90002&&a.season===1?[{episode:1,thumbnail:'https://image.tmdb.org/t/p/w500/episode-one.jpg',runtime:24,tmdbRating:8.5},{episode:2,thumbnail:'https://image.tmdb.org/t/p/w500/episode-two.jpg',description:'A synopsis supplied by TMDB.',runtime:25,tmdbRating:8.2}]:[]});
       case 'begin-stream-options':
       case 'all-stream-options':{
         f.streamQuery={mediaType:a.mediaType,videoId:a.videoId,sourceIds:profile.sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(s=>s.sourceId)};
@@ -322,7 +324,10 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
   try{
     await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
     await page.route('https://relations.yuna.moe/api/ids?**',route=>route.fulfill({json:{kitsu:90004},headers:{'access-control-allow-origin':'*'}}));
-    const posterImage='<svg xmlns="http://www.w3.org/2000/svg" width="120" height="180"><rect width="120" height="180" fill="#40516d"/></svg>';
+    const posterImage=await readFile(new URL('../public/design/anime/art-torii.webp',import.meta.url));
+    const heroImage=await readFile(new URL('../public/design/shared/hero-neon.webp',import.meta.url));
+    const episodeImage=await readFile(new URL('../public/design/anime/art-train.webp',import.meta.url));
+    const movieImage=await readFile(new URL('../public/design/shared/hero-train.webp',import.meta.url));
     async function assertArtwork(card){
       await card.scrollIntoViewIfNeeded();
       const image=card.locator('img[src]:not([src=""])');
@@ -331,8 +336,13 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     }
     const discoveryPoster='https://cdn.myanimelist.net/images/anime/1/90004.jpg';
     let discoveryArtRequests=0;
-    await page.route(discoveryPoster,route=>{discoveryArtRequests++;return route.fulfill({contentType:'image/svg+xml',body:posterImage,headers:{'access-control-allow-origin':'*'}});});
-    await page.route('https://image.tmdb.org/t/p/**',route=>route.fulfill({contentType:'image/svg+xml',body:posterImage,headers:{'access-control-allow-origin':'*'}}));
+    await page.route(discoveryPoster,route=>{discoveryArtRequests++;return route.fulfill({contentType:'image/webp',body:posterImage,headers:{'access-control-allow-origin':'*'}});});
+    await page.route('https://image.tmdb.org/t/p/**',route=>{
+      const url=route.request().url();
+      const body=url.includes('episode')?episodeImage:url.includes('/w1280/')||url.includes('/w780/')?heroImage:url.includes('film')||url.includes('cinema')?movieImage:posterImage;
+      return route.fulfill({contentType:'image/webp',body,headers:{'access-control-allow-origin':'*'}});
+    });
+    await page.route('https://images.metahub.space/background/**',route=>route.fulfill({contentType:'image/webp',body:heroImage,headers:{'access-control-allow-origin':'*'}}));
     await page.route('https://api.tenrai.org/v1/**',route=>{
       const films=new URL(route.request().url()).searchParams.get('type')==='movie';
       return route.fulfill({json:{data:[{mal_id:90004,title:films?'Public anime film fixture':'Public anime discovery fixture',type:films?'Movie':'TV',rating:'PG-13 - Teens 13 or older',images:{jpg:{image_url:discoveryPoster}},synopsis:'Independent discovery without addon installation.'}]},headers:{'access-control-allow-origin':'*'}});
@@ -377,7 +387,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='browse-catalog')));
     assert.equal(await board.getByText('Disabled films',{exact:true}).count(),0);
     assert.equal(await watch.getByRole('heading',{name:'Installed addons',exact:true}).count(),0);
-    if(screenshotDir){await mkdir(screenshotDir,{recursive:true});await page.screenshot({path:join(screenshotDir,'watch-content-board.png'),animations:'disabled'});}
+    if(screenshotDir){await mkdir(screenshotDir,{recursive:true});await board.locator('[data-ui="hero"]').scrollIntoViewIfNeeded();await page.screenshot({path:join(screenshotDir,'watch-content-board.png'),animations:'disabled'});}
     await film.click();
     const item=watch.locator('[data-ui="watch-item-details"]');
     const groups=page.locator('[data-ui="watch-stream-groups"]');
@@ -386,6 +396,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await item.getByText('Fixture Director',{exact:true}).waitFor();
     await item.getByText('Fixture Actor',{exact:true}).waitFor();
     assert.equal(await item.locator('.tsugi-watch-title-backdrop').count(),1);
+    if(screenshotDir){await item.locator('.tsugi-watch-title-hero').scrollIntoViewIfNeeded();await page.screenshot({path:join(screenshotDir,'watch-movie-details.png'),animations:'disabled'});}
     assert.equal(await groups.count(),0);
     await item.getByRole('button',{name:'Add to favorites',exact:true}).click();
     await item.getByRole('button',{name:'Favorited',exact:true}).waitFor();
@@ -496,6 +507,9 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await item.getByText('Episode overview from the provider.',{exact:true}).waitFor();
     assert.equal(await item.locator('.tsugi-watch-episode-art').count(),2);
     const episode=item.locator('[data-video-id="tt90002:1:2"]');
+    await episode.getByText('A synopsis supplied by TMDB.',{exact:true}).waitFor();
+    await assertArtwork(episode);
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-episode-list.png'),animations:'disabled'});
     await episode.click();
     await groups.getByRole('button',{name:'Play',exact:true}).first().waitFor();
     await page.keyboard.press('Escape');

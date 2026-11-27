@@ -474,7 +474,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     return ()=>{current=false;};
   },[profileId,titleKey,historyActive,sourceOpen,returnedPlayback]);
   function episodeProgress(video:AddonVideo){
-    if(!title||episodeHistory?.profileId!==profileId)return undefined;
+    if(!title||!episodeHistory||episodeHistory.profileId!==profileId)return undefined;
     return episodeHistory.entries.find(({progress})=>progress.itemId===title.id&&progress.mediaType===title.mediaType&&progress.videoId===video.id)?.progress;
   }
   if(workspace&&!entered)return <section className="tsugi-watch-picker" data-ui="watch-profile-picker" aria-labelledby={titleId}>
