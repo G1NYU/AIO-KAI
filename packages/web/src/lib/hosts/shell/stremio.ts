@@ -16,6 +16,11 @@ export type Mutation = { kind: 'install'; reviewId: number } | { kind: 'set-enab
   | { kind: 'move'; sourceId: number; position: number } | { kind: 'remove'; sourceId: number };
 export type CatalogAction = { kind: 'catalog'; sourceId: number; mediaType: string; catalogId: string; extras: Record<string,string> };
 type Action = Mutation | CatalogAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
+export type AddonProfile = { profileId:number; name:string; sourceCount:number };
+export type ProfileState = { activeProfileId:number; profiles:AddonProfile[] };
+export type ProfileMutation = {kind:'profile-create';name:string} | {kind:'profile-rename';profileId:number;name:string}
+  | {kind:'profile-switch';profileId:number} | {kind:'profile-remove';profileId:number;confirmedName:string};
+type NativeAction = ProfileMutation | {kind:'profile-list'} | {kind:'profile-request';profileId:number;action:Action};
 
 export class AddonError extends Error {
   constructor(readonly code: string) { super('addon-request'); }
@@ -62,8 +67,8 @@ function sources(v: unknown): AddonSource[] {
   if(new Set(rows.map(s=>s.sourceId)).size!==rows.length)return fail();
   return rows;
 }
-const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response']);
-async function request(action: Action): Promise<unknown> {
+const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit']);
+async function request(action: NativeAction): Promise<unknown> {
   if(!appBridge()?.stremioAddons)throw new AddonError('unsupported');
   const id=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
   const reply=await ask({type:'stremio-request',request:id,action},'stremio-result',{timeoutMs:85_000,matches:m=>m.request===id})
@@ -71,14 +76,30 @@ async function request(action: Action): Promise<unknown> {
   if(reply.error!==null)throw new AddonError(codes.has(reply.error)?reply.error:'request');
   return reply.data;
 }
-export async function listAddons(){return sources(await request({kind:'list'}));}
-export async function reviewAddon(url:string):Promise<AddonReview>{
-  const v=obj(await request({kind:'review',url}));return {reviewId:integer(v.reviewId,1,0xffffffff),manifest:manifest(v.manifest)};
+function profileState(v:unknown):ProfileState{
+  const data=obj(v);
+  const activeProfileId=integer(data.activeProfileId,1,0xffffffff);
+  const profiles=array(data.profiles,6,p=>{
+    const row=obj(p);return {profileId:integer(row.profileId,1,0xffffffff),name:str(row.name,256),sourceCount:integer(row.sourceCount,0,16)};
+  });
+  if(!profiles.some(p=>p.profileId===activeProfileId)||new Set(profiles.map(p=>p.profileId)).size!==profiles.length)return fail();
+  return {activeProfileId,profiles};
 }
-export async function mutateAddon(action:Mutation){return sources(await request(action));}
-export async function cancelAddonReview(reviewId:number){await request({kind:'cancel-review',reviewId});}
-export async function loadAddonCatalog(action:CatalogAction):Promise<CatalogPage>{
-  const v=obj(await request(action));
+export async function listAddonProfiles(){return profileState(await request({kind:'profile-list'}));}
+export async function mutateAddonProfile(action:ProfileMutation){return profileState(await request(action));}
+async function scoped(profileId:number,action:Action){
+  const v=obj(await request({kind:'profile-request',profileId,action}));
+  if(v.profileId!==profileId)return fail();
+  return v;
+}
+export async function listAddons(profileId:number){return sources(await scoped(profileId,{kind:'list'}));}
+export async function reviewAddon(profileId:number,url:string):Promise<AddonReview>{
+  const v=await scoped(profileId,{kind:'review',url});return {reviewId:integer(v.reviewId,1,0xffffffff),manifest:manifest(v.manifest)};
+}
+export async function mutateAddon(profileId:number,action:Mutation){return sources(await scoped(profileId,action));}
+export async function cancelAddonReview(profileId:number,reviewId:number){await scoped(profileId,{kind:'cancel-review',reviewId});}
+export async function loadAddonCatalog(profileId:number,action:CatalogAction):Promise<CatalogPage>{
+  const v=await scoped(profileId,action);
   if(v.sourceId!==action.sourceId||v.catalogId!==action.catalogId||v.mediaType!==action.mediaType)return fail();
   const items=array(v.items,500,i=>{
     const row=obj(i);if(row.mediaType!==action.mediaType)return fail();
