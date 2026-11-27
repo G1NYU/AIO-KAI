@@ -74,7 +74,7 @@ export function FirstBootAppearance({onProfileSelected,revisit=0,watchRevisit=0,
     <header>
       <div className="tsugi-onboarding-title">
         <TsugiBrand markOnly />
-        <div><h2 id="tsugi-onboarding-title">{step==='addons'?<Trans>Set up your addon profile</Trans>:<Trans>Make Tsugi yours</Trans>}</h2><p>{step==='addons'?<Trans>Choose a profile and arrange your sources. You can also set this up later.</Trans>:<Trans>Movies, anime, music, stories and downloads — one space for what you love.</Trans>}</p></div>
+        <div><h2 id="tsugi-onboarding-title">{step==='addons'?<Trans>Set up your addon profile</Trans>:<Trans>Make Tsugi yours</Trans>}</h2><p>{step==='addons'?<Trans>Choose a profile and arrange your sources.</Trans>:<Trans>Movies, anime, music, stories and downloads — one space for what you love.</Trans>}</p></div>
       </div>
     </header>
     {step==='addons'&&open?<StremioAddonSettings workspace setupConnections onProfileSelected={onProfileSelected} initialPane={animeEntry?'anime':'addons'} />:step==='appearance'&&open?<>
@@ -82,7 +82,7 @@ export function FirstBootAppearance({onProfileSelected,revisit=0,watchRevisit=0,
       <GlobalAppearanceSettings />
       <section className="tsugi-app-general" data-ui="first-launch-connections">
         <h3><Trans>Collections and connections</Trans></h3>
-        {supportsAddons&&<><p><Trans>Anime Hub is part of Movies &amp; TV. In addon setup, choose a Watch profile to import your MyAnimeList anime list, connect Refract with a personal key, or configure Stremio, Nuvio and MDBList. No account is required to finish setup.</Trans></p>
+        {supportsAddons&&<><p><Trans>Anime Hub is part of Movies &amp; TV. In addon setup, choose a Watch profile to import your MyAnimeList anime list, connect Refract with a personal key, or configure Stremio, Nuvio and MDBList. TMDB and a streaming account import are required. The other connections are optional.</Trans></p>
         <button type="button" className="tsugi-read-action" disabled={mangaBusy} onClick={()=>{setAnimeEntry(true);setStep('addons');}}><Trans>Set up Anime and Watch connections</Trans></button></>}
         {supportsReader&&<><p><Trans>Bring your MyAnimeList manga collection into Reader now, and choose Mihon or Tachiyomi sources and tracker accounts later.</Trans></p>
         <button type="button" className="tsugi-read-action" aria-expanded={mangaOpen} disabled={mangaBusy} onClick={()=>{setMangaOpen(value=>!value);setMangaError('');}}><Trans>Import manga list</Trans></button>

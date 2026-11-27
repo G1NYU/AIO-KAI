@@ -56,6 +56,8 @@ import { DesktopAreaContext, initialDesktopArea, moviesEntryArea, readStartupAre
 import type { ResumeRow, ResumeTarget } from './lib/up-next';
 import { DesktopLandingPage } from './app/desktop-landing/page';
 import { DirectWatchPage } from './app/watch/page';
+import { WatchSetupGate } from './components/shell/watch-setup-gate';
+import { hasCompletedIntroduction } from './app/desktop-landing/first-boot-appearance';
 import { MusicPage } from './app/music/page';
 import { VaultPage } from './app/vault/page';
 import { ReadPage, ReadSetupPage } from './app/read/page';
@@ -144,7 +146,15 @@ function Served() {
 }
 
 /** Picks a server first; changing server comes back here without a reload. */
-function Standalone() {
+function Standalone(){
+  const requiresSetup=currentHost().name==='desktop'&&appBridge()?.stremioAddons===true;
+  const [ready,setReady]=React.useState(!requiresSetup);
+  if(requiresSetup&&!ready)return <ServerInfoProvider value={NO_SERVER_INFO}>
+    <GlobalAppearance/><WatchSetupGate onReady={()=>setReady(true)}/><SplashEnd/>
+  </ServerInfoProvider>;
+  return <StandaloneContent/>;
+}
+function StandaloneContent() {
   const queryClient = useQueryClient();
   const [base, setBase] = React.useState(currentServer);
   const desktop = currentHost().name === 'desktop';
@@ -153,7 +163,8 @@ function Standalone() {
   const books = desktop && appBridge()?.platform === 'windows';
   const [readerReady, setReaderReady] = React.useState(supportsReading);
   const [area, setArea] = React.useState<DesktopArea>(() =>
-    initialDesktopArea(desktop, !!currentServer(), reading || books, desktop ? readStartupArea() : 'auto')
+    desktop&&appBridge()?.stremioAddons&&!hasCompletedIntroduction()?'welcome':
+      initialDesktopArea(desktop, !!currentServer(), reading || books, desktop ? readStartupArea() : 'auto')
   );
   const [resumeTarget, setResumeTarget] = React.useState<ResumeTarget | null>(null);
   const [vaultComicTarget, setVaultComicTarget] = React.useState<{jobId:string} | null>(null);

@@ -43,7 +43,8 @@ export type WatchHistoryEntry={progress:WatchProgress;updatedAt:number};
 type WatchHistoryAction={kind:'watch-history'}|{kind:'watch-record';progress:WatchProgress;viewingId?:string}|({kind:'watch-remove'}&Pick<WatchProgress,'mediaType'|'itemId'|'videoId'>);
 type RefractAction={kind:'refract-threshold';percent:number|null}|{kind:'watch-complete';mediaType:string;itemId:string;videoId:string;updatedAt:number}|{kind:'refract-status'}|{kind:'refract-connect';key:string}|{kind:'refract-enable';enabled:boolean}|{kind:'refract-disconnect';discardPending:boolean}|{kind:'refract-sync'}|{kind:'refract-watchlist';mediaType:string;itemId:string;add:boolean};
 type MalAnimeAction={kind:'mal-anime-list'}|{kind:'mal-anime-import';entries:MalEntry[]}|{kind:'mal-anime-remove';malId:number}|{kind:'mal-anime-match';malId:number;sourceId:number;mediaType:string;itemId:string}|{kind:'mal-anime-unmatch';malId:number};
-type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | WatchHistoryAction | RefractAction | MalAnimeAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
+type SetupAction={kind:'watch-setup-status'}|{kind:'tmdb-connect';key:string}|{kind:'tmdb-disconnect'};
+type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | SetupAction | WatchHistoryAction | RefractAction | MalAnimeAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
 export type RemoteAddonProfile={profileIndex:number;name:string;usesPrimaryAddons:boolean;locked:boolean};
 export type ImportCandidate={candidateId:number;name:string;host:string;enabled:boolean;alreadyInstalled:boolean};
 type ImportBase={importId:number;provider:ImportProvider};
@@ -102,7 +103,7 @@ function sources(v: unknown): AddonSource[] {
   if(new Set(rows.map(s=>s.sourceId)).size!==rows.length)return fail();
   return rows;
 }
-const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-identity','manifest-types','manifest-resources','manifest-catalogs','manifest-catalog-limit','manifest-extras','manifest-behavior','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit','account-auth','account-request','account-response','import-limit','import-selection','unknown-remote-profile','locked-remote-profile','unsupported-resource','invalid-item','item-limit','invalid-media-selection','mdblist-response','mdblist-auth','mdblist-network','mdblist-request','mdblist-not-found','mdblist-rate','mdblist-disconnected','invalid-watch-progress','refract-auth','refract-scope','refract-rate','refract-network','refract-request','refract-response','refract-rejected','refract-conflict','refract-unmatched','refract-queue-full','refract-clock','refract-protected','refract-account-changed','refract-disconnected','refract-paused','refract-pending','mal-invalid','mal-limit']);
+const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-identity','manifest-types','manifest-resources','manifest-catalogs','manifest-catalog-limit','manifest-extras','manifest-behavior','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit','account-auth','account-request','account-response','import-limit','import-selection','unknown-remote-profile','locked-remote-profile','unsupported-resource','invalid-item','item-limit','invalid-media-selection','tmdb-auth','tmdb-network','tmdb-rate','tmdb-request','tmdb-response','tmdb-not-found','mdblist-response','mdblist-auth','mdblist-network','mdblist-request','mdblist-not-found','mdblist-rate','mdblist-disconnected','invalid-watch-progress','refract-auth','refract-scope','refract-rate','refract-network','refract-request','refract-response','refract-rejected','refract-conflict','refract-unmatched','refract-queue-full','refract-clock','refract-protected','refract-account-changed','refract-disconnected','refract-paused','refract-pending','mal-invalid','mal-limit']);
 async function request(action: NativeAction): Promise<unknown> {
   if(!appBridge()?.stremioAddons)throw new AddonError('unsupported');
   const id=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
@@ -128,6 +129,14 @@ async function scoped(profileId:number,action:Action){
   return v;
 }
 export async function listAddons(profileId:number){return sources(await scoped(profileId,{kind:'list'}));}
+export type WatchSetupStatus={tmdbConnected:boolean;accountProvider:ImportProvider|null};
+function setupStatus(value:unknown):WatchSetupStatus{
+  const row=obj(value),provider=row.accountProvider;
+  if(provider!==null&&provider!=='stremio'&&provider!=='nuvio')return fail();
+  return {tmdbConnected:bool(row.tmdbConnected),accountProvider:provider};
+}
+export async function loadWatchSetup(profileId:number){return setupStatus(await scoped(profileId,{kind:'watch-setup-status'}));}
+export async function connectTmdb(profileId:number,key:string){return setupStatus(await scoped(profileId,{kind:'tmdb-connect',key}));}
 export type MalAnimeMatch={malId:number;sourceId:number;mediaType:string;itemId:string;name:string};
 export type MalAnimeCollection={entries:MalEntry[];matches:MalAnimeMatch[]};
 function malAnimeCollection(value:unknown):MalAnimeCollection{

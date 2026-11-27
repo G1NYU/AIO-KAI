@@ -9,6 +9,7 @@ use std::{collections::{BTreeMap, BTreeSet}, fmt, sync::{mpsc, Arc, Mutex}, thre
 mod accounts;
 mod browse;
 mod mdblist;
+mod tmdb;
 mod history;
 mod refract;
 mod mal_anime;
@@ -94,6 +95,9 @@ pub enum Action {
     RefractDisconnect { discard_pending: bool },
     RefractSync,
     RefractWatchlist { media_type: String, item_id: String, add: bool },
+    WatchSetupStatus,
+    TmdbConnect { key: String },
+    TmdbDisconnect,
     MdblistStatus,
     MdblistConnect { key: String },
     MdblistDisconnect,
@@ -164,6 +168,8 @@ struct Registry {
     stream_query: Option<StreamQuery>,
     grant: Option<MediaGrant>,
     mdblist: mdblist::Connection,
+    tmdb: tmdb::Connection,
+    account_provider: Option<accounts::Provider>,
     history: history::History,
     refract: refract::Connection,
     mal_anime: mal_anime::Collection,
@@ -337,6 +343,9 @@ impl Registry {
         };
         Ok(json!({"mediaType":kind,"videoId":video,"group":group}))
     }
+    fn setup_status(&self)->Value{
+        json!({"tmdbConnected":self.tmdb.connected(),"accountProvider":self.account_provider})
+    }
     fn execute(&mut self, action: Action) -> Result<Value> {
         self.expire();
         self.grant=None;
@@ -370,6 +379,9 @@ impl Registry {
             Action::RefractDisconnect{discard_pending}=>self.refract.disconnect(discard_pending),
             Action::RefractSync=>self.refract.sync(),
             Action::RefractWatchlist{media_type,item_id,add}=>self.refract.watchlist(&media_type,&item_id,add),
+            Action::WatchSetupStatus=>Ok(self.setup_status()),
+            Action::TmdbConnect{key}=>{self.tmdb.connect(key)?;Ok(self.setup_status())},
+            Action::TmdbDisconnect=>{self.tmdb.disconnect();Ok(self.setup_status())},
             Action::MdblistStatus=>Ok(self.mdblist.status()),
             Action::MdblistConnect{key}=>self.mdblist.connect(key),
             Action::MdblistDisconnect=>Ok(self.mdblist.disconnect()),

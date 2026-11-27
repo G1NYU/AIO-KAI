@@ -1,3 +1,7 @@
+## 2026-11-27 — Required streaming setup
+
+Native protected profile now records validated TMDB v3 credential and authenticated account import provider; old snapshots default to unconfigured. Startup and entered Watch profiles gate on native status rather than intro flags; existing appearance steps remain optional after mandatory setup. TMDB key replacement available in Watch settings. Added fixture startup gate and native validation/persistence tests. TMDB metadata search/enrichment still open. CI pending; no EXE/package marker.
+
 ## 2026-11-27 — Recovery implementation: baseline and account-import latency
 
 Restored configured-server Movies entry without removing standalone hubs. Reuse validated Stremio account descriptors; fetch missing/invalid manifests with a bounded work-conserving pool rather than eight-at-a-time barriers. Preserve original order and failure categories. Added route, cached-manifest and 35-addon slow-first regressions. Source changes reviewed; native/browser CI pending. No package marker. Next: mandatory TMDB gate and independent progressive stream reviews, then Harbor search/detail/selector presentation. See [P0–P5](docs/tsugi-recovery-roadmap.md).

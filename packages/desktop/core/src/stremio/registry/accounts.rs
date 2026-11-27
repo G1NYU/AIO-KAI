@@ -18,7 +18,7 @@ const NUVIO_PUBLIC_CLIENT:&str="sb_publishable_1Clq8rlTVACkdcZuqr6_AD__xUUC_EN";
 const RESPONSE_LIMIT:usize=4*1024*1024;
 const MAX_REMOTE_ADDONS:usize=128;
 
-#[derive(Clone,Copy,Deserialize,PartialEq,Eq)]
+#[derive(Clone,Copy,Deserialize,serde::Serialize,PartialEq,Eq)]
 #[serde(rename_all="lowercase")]
 pub enum Provider { Stremio,Nuvio }
 impl Provider {
@@ -314,6 +314,11 @@ impl Registry{
         // Stable sorting keeps local-only sources in their previous relative order.
         self.sources.sort_by_key(|source| account_order.iter()
             .position(|url| url == &source.endpoint.0).unwrap_or(usize::MAX));
+        // A successful authenticated import (including an order-only restore)
+        // must match an installed account endpoint. No auth token is persisted.
+        if self.sources.iter().any(|source|account_order.iter().any(|url|url==&source.endpoint.0)){
+            self.account_provider=Some(flow.provider);
+        }
         debug_assert_eq!(self.sequence,end);
         self.pending=None;
         let mut data=self.list();
@@ -382,6 +387,7 @@ mod tests{
         assert_eq!(review["ready"][0]["manifest"]["id"],"fixture.cached");
         let applied=registry.import_apply(1).unwrap();
         assert_eq!(applied["sources"][0]["manifest"]["id"],"fixture.cached");
+        assert_eq!(registry.setup_status()["accountProvider"],"stremio");
     }
     #[test]
     fn import_pool_does_not_wait_for_a_slow_first_batch(){

@@ -1,6 +1,7 @@
 import React from 'react';
 import { StremioAccountImport, importFailureText, manifestFailureText } from './stremio-account-import';
 import { MdblistSettings } from './mdblist-settings';
+import { WatchSetupGate,TmdbSettings } from './watch-setup-gate';
 import { MalAnimeLibrary } from './mal-anime-library';
 import { WatchCatalogueBoard } from './watch-catalogue-board';
 import { RefractSettings, RefractWatchlist } from './refract-settings';
@@ -50,7 +51,7 @@ function feedback(reason: unknown) {
     default: return t`The request could not be confirmed. Refresh the installed list before retrying an installation or change.`;
   }
 }
-type WatchPane = 'hubs'|'home'|'discover'|'playback'|'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history'|'refract'|'anime'|'anime-import';
+type WatchPane = 'hubs'|'home'|'discover'|'playback'|'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'tmdb'|'history'|'refract'|'anime'|'anime-import';
 const profileArt=['/design/oto/hero-yuna.webp','/design/yomi/hero-torii.webp','/design/shared/hero-neon.webp','/design/shared/hero-train.webp'];
 export function StremioAddonSettings({workspace=false,initialProfileId,onProfileSelected,onPlay,returnedPlayback,historyActive=false,setupConnections=false,initialPane='addons',openServer}:{initialProfileId?:number;onProfileSelected?:(id:number|undefined)=>void;workspace?:boolean;openServer?:()=>void;onPlay?:(playback:WatchPlayback)=>void;returnedPlayback?:WatchPlayback|null;historyActive?:boolean;setupConnections?:boolean;initialPane?:WatchEntryPane}={}){
   const desktopArea=useDesktopArea();
@@ -62,6 +63,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const titleId=React.useId();
   const [profileState,setProfileState]=React.useState<ProfileState|null>(null);
   const [profileReady,setProfileReady]=React.useState(false);
+  const [setupVerified,setSetupVerified]=React.useState<number>();
   const [profileName,setProfileName]=React.useState('');
   const [deleteId,setDeleteId]=React.useState(0);
   const [deleteName,setDeleteName]=React.useState('');
@@ -147,7 +149,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   function choose(next:typeof selection){setSelection(next);setFilters(new Map());clearPage();}
   function clearReview(){const previous=pending.current;pending.current=null;setReview(null);setUrl('');setConsent(false);return previous;}
   async function reloadProfiles(next?:ProfileState){
-    setProfileReady(false);setSources([]);choose(null);
+    setSetupVerified(undefined);setProfileReady(false);setSources([]);choose(null);
     const result=next??await listAddonProfiles();
     if(!mounted.current)return;
     setProfileState(result);
@@ -166,7 +168,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     await run(async()=>{
       const previous=clearReview();
       if(previous)await cancelAddonReview(previous.profileId,previous.reviewId).catch(()=>{});
-      setProfileReady(false);setSources([]);choose(null);
+      setSetupVerified(undefined);setProfileReady(false);setSources([]);choose(null);
       let result=await mutateAddonProfile(action);
       if(!mounted.current)return;
       if(enter&&action.kind==='profile-create'){
@@ -418,7 +420,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       <TsugiBrand />
       <h3 id={titleId}><Trans>Who’s watching?</Trans></h3>
       <p><Trans>Choose your Watch profile. Your addons and source order are yours.</Trans></p>
-      {setupConnections&&<p><Trans>Anime, MyAnimeList imports and Refract tracking are also configured per profile. All connections are optional.</Trans></p>}
+      {setupConnections&&<p><Trans>TMDB and a streaming account import are required. MyAnimeList, Refract and MDBList are optional.</Trans></p>}
       {profileState&&<div className="tsugi-watch-profiles">
         {profileState.profiles.map(p=><button key={p.profileId} type="button" className="tsugi-watch-profile" data-profile-id={p.profileId} disabled={blocked} onClick={()=>void changeProfile({kind:'profile-switch',profileId:p.profileId},true)}>
           <span className="tsugi-watch-avatar"><img src={profileArt[(p.profileId-1)%profileArt.length]} alt="" decoding="async"/></span>
@@ -441,6 +443,16 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       {!profileReady&&!busy&&<button type="button" className="tsugi-read-action" onClick={()=>void refreshProfiles()}><Trans>Refresh profiles</Trans></button>}
     </div>
   </section>;
+  if(workspace&&(onPlay||setupConnections)&&(!profileReady||profileId===undefined||setupVerified!==profileId)){
+    if(!profileReady||profileId===undefined)return <section className="tsugi-watch-picker">
+      {error?<p role="alert">{error}</p>:<p role="status"><Trans>Loading profile…</Trans></p>}
+      {!busy&&<button type="button" className="tsugi-read-action" onClick={()=>void refreshProfiles()}><Trans>Refresh profiles</Trans></button>}
+    </section>;
+    return <WatchSetupGate key={profileId} profileId={profileId} onBack={()=>void backToProfiles()} onReady={async id=>{
+      const next=await listAddons(id);
+      if(mounted.current){updateSources(next,id);setSetupVerified(id);}
+    }}/>;
+  }
   const show=(...panes:WatchPane[])=>!workspace||panes.includes(pane);
   const hubPanes:WatchPane[]=['hubs','home','discover','anime','history'];
   const inSettings=!hubPanes.includes(pane);
@@ -451,6 +463,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     ['nuvio',t`Nuvio import`,'nuvio'],
     ['manual',t`Add addon`,'add'],
     ['order',t`Source order`,'order'],
+    ['tmdb',t`TMDB`,'mdblist'],
     ['mdblist',t`MDBList`,'mdblist'],
     ['anime-import',t`MyAnimeList XML`,'anime'],
     ['refract',t`Refract`,'refract'],
@@ -596,6 +609,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     </>}
     {workspace&&pane==='history'&&historyActive&&profileReady&&profileId!==undefined&&<WatchHistory key={profileId} profileId={profileId} busy={busy} run={run} open={openHistory} removed={clearTitle}/>}
     {workspace&&(pane==='anime'||pane==='anime-import')&&profileReady&&profileId!==undefined&&<MalAnimeLibrary key={profileId+':'+pane} profileId={profileId} sources={sources} busy={busy} historyActive={pane==='anime'&&historyActive} setupOnly={!onPlay||pane==='anime-import'} detailOpen={!!title} run={run} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} clearTitle={clearTitle} openAddons={()=>void selectPane('addons')}/>}
+    {workspace&&pane==='tmdb'&&profileReady&&profileId!==undefined&&<TmdbSettings key={profileId} profileId={profileId}/>}
     {workspace&&pane==='mdblist'&&profileReady&&profileId!==undefined&&<MdblistSettings key={profileId} profileId={profileId} openTitle={item=>void openTitle(item)}/>}
     {workspace&&pane==='refract'&&(historyActive||setupConnections)&&profileReady&&profileId!==undefined&&<RefractSettings key={profileId} profileId={profileId} busy={busy} run={run}/>}
     {workspace&&title&&<section ref={detailRef} tabIndex={-1} className={automatic?'space-y-3 tsugi-watch-detail':'space-y-3'} data-ui="watch-item-details">

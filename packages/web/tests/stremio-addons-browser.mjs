@@ -99,6 +99,12 @@ export function installStremioFixture(initializeStartup=true){
         return reply({entries:profile.malAnime,matches:profile.malMatches});
       }
       case 'mal-anime-unmatch':profile.malMatches=(profile.malMatches??[]).filter(row=>row.malId!==a.malId);return reply({entries:profile.malAnime??[],matches:profile.malMatches});
+      case 'watch-setup-status':return reply(profile.watchSetup??{tmdbConnected:true,accountProvider:'stremio'});
+      case 'tmdb-connect':{
+        if(a.key!=='00000000000000000000000000000000')return emit(null,'tmdb-auth');
+        profile.watchSetup={...(profile.watchSetup??{accountProvider:null}),tmdbConnected:true};
+        return reply(profile.watchSetup);
+      }
       case 'mdblist-status':return reply({connected:profile.mdblistConnected});
       case 'mdblist-connect':{
         if(a.key!=='fixture-mdblist-key')return emit(null,'mdblist-auth');
@@ -183,6 +189,7 @@ export function installStremioFixture(initializeStartup=true){
       case 'import-apply':{
         if(f.import?.id!==a.importId||f.import.phase!=='review')return emit(null,'expired-review');
         profile.sources.unshift(...f.import.ready.map(ready=>({sourceId:++f.sequence,enabled:ready.enabled,manifest:ready.manifest})));
+        if(profile.watchSetup&&f.import.ready.length)profile.watchSetup.accountProvider=f.import.provider;
         const rejected=f.import.provider==='nuvio'?[]:[{candidateId:2,name:'Unavailable fixture',reason:'network'}];
         const retryImportId=rejected.length?f.import.id:null;
         if(retryImportId!==null)f.import.phase='retry';else f.import=null;
@@ -707,6 +714,32 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal(await panel.locator('[data-stremio-source-id]').first().getAttribute('data-stremio-source-id'),'1000');
     console.log('Stremio/Nuvio account import, profile isolation, single-action import, manifest diagnostics and large source/catalogue limits passed');
   }finally{await page.close();}
+  // Do not trust an existing introduction flag or preferred startup area.
+  const requiredSetup=await browser.newPage({viewport:{width:1440,height:900}});
+  try{
+    await requiredSetup.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
+    await requiredSetup.addInitScript({content:'('+installDesktopFixture.toString()+')();('+installStremioFixture.toString()+')();window.__stremioFixture.profiles[0].watchSetup={tmdbConnected:false,accountProvider:null};'});
+    await requiredSetup.goto(origin);
+    const gate=requiredSetup.locator('[data-ui="watch-required-setup"]');
+    await gate.getByLabel('TMDB v3 API key',{exact:true}).waitFor();
+    assert.equal(await requiredSetup.locator('[data-page="desktop-landing"]').count(),0);
+    assert.equal(await requiredSetup.locator('[data-page="direct-watch"]').count(),0);
+    await requiredSetup.keyboard.press('Escape');
+    await gate.getByLabel('TMDB v3 API key',{exact:true}).fill('invalid');
+    await gate.getByRole('button',{name:'Validate and save key',exact:true}).click();
+    await gate.getByRole('alert').waitFor();
+    await gate.getByLabel('TMDB v3 API key',{exact:true}).fill('00000000000000000000000000000000');
+    await gate.getByRole('button',{name:'Validate and save key',exact:true}).click();
+    await gate.getByLabel('Account email',{exact:true}).fill('fixture@example.org');
+    await gate.getByLabel('Account password',{exact:true}).fill('synthetic-password');
+    await gate.getByRole('button',{name:'Connect and read addons',exact:true}).click();
+    await gate.getByRole('button',{name:'Select available addons',exact:true}).click();
+    await gate.getByRole('button',{name:'Import selected addons',exact:true}).click();
+    await gate.getByRole('button',{name:'Retry failed addons',exact:true}).click();
+    await requiredSetup.locator('[data-page="desktop-landing"]').waitFor();
+    assert.equal(await requiredSetup.evaluate(()=>JSON.stringify(localStorage).includes('00000000000000000000000000000000')),false);
+    assert.equal(await requiredSetup.evaluate(()=>JSON.stringify(localStorage).includes('synthetic-password')),false);
+  }finally{await requiredSetup.close();}
   const firstLaunch=await browser.newPage({viewport:{width:1440,height:900}});
   try{
     await firstLaunch.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
@@ -738,7 +771,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await picker.getByRole('button',{name:'Default 0 addons',exact:true}).click();
     await manager.getByRole('heading',{name:'Your addon stack.',exact:true}).waitFor();
     const requests=await firstLaunch.evaluate(()=>window.__stremioFixture.calls);
-    assert.ok(requests.every(a=>['profile-list','profile-create','profile-switch'].includes(a.kind)||(a.kind==='profile-request'&&a.action.kind==='list')));
+    assert.ok(requests.every(a=>['profile-list','profile-create','profile-switch'].includes(a.kind)||(a.kind==='profile-request'&&['list','watch-setup-status'].includes(a.action.kind))));
     await manager.locator('.tsugi-watch-settings-nav').getByRole('button',{name:'Anime',exact:true}).click();
     const setupAnime=manager.locator('[data-ui="mal-anime-library"]');
     const setupAnimePanel=setupAnime.locator('[data-ui="mal-collection"]');

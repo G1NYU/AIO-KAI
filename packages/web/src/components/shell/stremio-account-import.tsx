@@ -38,7 +38,7 @@ export function importFailureText(row:ImportReview['rejected'][number]){
 
 export function StremioAccountImport({profileId,busy,run,onConnect,onSources,onActive,fixedProvider}:{
   profileId:number;busy:boolean;fixedProvider?:ImportProvider;run(work:()=>Promise<void>):Promise<void>;
-  onConnect():void;onSources(result:ImportResult):void;onActive(active:boolean):void;
+  onConnect():void;onSources(result:ImportResult):void|Promise<void>;onActive(active:boolean):void;
 }){
   const [provider,setProvider]=React.useState<ImportProvider>(fixedProvider??'stremio');
   const [email,setEmail]=React.useState('');
@@ -92,7 +92,7 @@ export function StremioAccountImport({profileId,busy,run,onConnect,onSources,onA
     const result=await applyAddonImport(profileId,reviewed.importId);
     if(!mounted.current)return;
     reset();
-    onSources(result);
+    await onSources(result);
   }
   async function cancel(){
     if(busy)return;

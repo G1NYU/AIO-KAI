@@ -70,7 +70,7 @@ export function DesktopLandingPage({ openVideo, openWatch, openMusic, openRead, 
       {sections.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
     </select>
     <label className="tsugi-world-motion"><input type="checkbox" checked={preferences.stillArtwork} onChange={event => update({ ...preferences, stillArtwork: event.target.checked })}/><Trans>Keep welcome artwork still</Trans></label>
-    <p><Trans>Connect services and organize your files whenever you are ready. Nothing is required to explore.</Trans></p>
+    <p><Trans>Your streaming connections are required before entering Tsugi. Other services can be configured whenever you are ready.</Trans></p>
   </section>;
   return <main data-page="desktop-landing" data-view={welcome ? 'welcome' : 'home'} data-motion={preferences.stillArtwork ? 'still' : undefined} className="tsugi-landing tsugi-worlds">
     {openVault && <FirstBootAppearance manual revisit={introRevisit} onProfileSelected={setIntroProfile} onFinished={() => setWelcome(false)} appearanceExtra={personalization} stillArtwork={preferences.stillArtwork}/>}
