@@ -330,7 +330,8 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       assert.ok(await image.evaluate(async el=>{await el.decode();return el.naturalWidth>0&&el.naturalHeight>0;}),'actual artwork decodes');
     }
     const discoveryPoster='https://cdn.myanimelist.net/images/anime/1/90004.jpg';
-    await page.route('https://cdn.myanimelist.net/images/anime/1/90004.jpg',route=>route.fulfill({contentType:'image/svg+xml',body:posterImage,headers:{'access-control-allow-origin':'*'}}));
+    let discoveryArtRequests=0;
+    await page.route(discoveryPoster,route=>{discoveryArtRequests++;return route.fulfill({contentType:'image/svg+xml',body:posterImage,headers:{'access-control-allow-origin':'*'}});});
     await page.route('https://image.tmdb.org/t/p/**',route=>route.fulfill({contentType:'image/svg+xml',body:posterImage,headers:{'access-control-allow-origin':'*'}}));
     await page.route('https://api.tenrai.org/v1/**',route=>{
       const films=new URL(route.request().url()).searchParams.get('type')==='movie';
@@ -392,7 +393,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await item.getByRole('button',{name:'In queue',exact:true}).waitFor();
     assert.equal(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&['all-stream-options','begin-stream-options'].includes(a.action.kind))),false);
     await item.locator('[data-ui="watch-play-title"]').click();
-    await groups.getByText('Streaming only',{exact:true}).waitFor();
+    await groups.getByRole('heading',{name:'Streaming only',exact:true}).waitFor();
     await groups.getByRole('button',{name:'Play',exact:true}).first().waitFor();
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-stream-selector.png'),animations:'disabled'});
     await groups.getByText('This addon could not return streams. Other sources remain available.',{exact:true}).waitFor();
@@ -406,7 +407,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await page.keyboard.press('Escape');
     await groups.waitFor({state:'detached'});
     await item.locator('[data-ui="watch-play-title"]').click();
-    await groups.getByText('Streaming only',{exact:true}).waitFor();
+    await groups.getByRole('heading',{name:'Streaming only',exact:true}).waitFor();
     assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='metadata'&&a.action.sourceId===103)));
     assert.equal(await page.evaluate(()=>window.__stremioFixture.mediaCalls.some(a=>a.type==='stremio-consume-grant')),false);
     const originalReview=await page.evaluate(()=>window.__stremioFixture.streamReviews.find(r=>r.sourceId===102).id);
@@ -526,7 +527,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await watch.locator('[data-ui="watch-hub-picker"] [data-watch-destination="standalone"]').click();
     await board.getByRole('button',{name:'Public movie fixture',exact:true}).click();
     await item.locator('[data-ui="watch-play-title"]').click();
-    await groups.getByText('Independent stream',{exact:true}).waitFor();
+    await groups.getByRole('heading',{name:'Independent stream',exact:true}).waitFor();
     await groups.getByRole('button',{name:'Play',exact:true}).first().click();
     await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
     await player.hover();
@@ -611,7 +612,8 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const publicPoster=publicAnime.getByRole('button',{name:'Public anime discovery fixture',exact:true}).first();
     await publicPoster.waitFor();
     await publicPoster.locator('img').waitFor({state:'attached'});
-    assert.ok(await publicPoster.locator('img').evaluate(async image=>{await image.decode();return image.naturalWidth>0&&image.naturalHeight>0&&image.src==='https://cdn.myanimelist.net/images/anime/1/90004.jpg';}),'Tenrai title-specific MAL poster decodes');
+    await assertArtwork(publicPoster);
+    assert.ok(discoveryArtRequests>0,'Tenrai title-specific MAL poster was requested');
     const animeFonts=await watch.locator('.tsugi-anime-hub').locator('.tsugi-anime-heading,[data-ui="media-row-title"],[data-ui="poster-card-title"]').evaluateAll(nodes=>nodes.map(el=>({family:getComputedStyle(el).fontFamily,weight:Number(getComputedStyle(el).fontWeight)})));
     assert.ok(animeFonts.length>=3);
     assert.ok(animeFonts.every(font=>/^Interface(?:,|$)/.test(font.family)&&font.weight>=600&&font.weight<=750),'Anime Hub uses the same Interface font as Movies & TV: '+JSON.stringify(animeFonts));
