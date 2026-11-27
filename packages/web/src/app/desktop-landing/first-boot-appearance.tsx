@@ -11,10 +11,10 @@ import { storage } from '@/lib/storage';
 const key = 'tsugi-onboarding-complete-v1';
 let completedInSession = false;
 
-export function FirstBootAppearance({revisit=0,watchRevisit=0,onWatchContinue}:{revisit?:number;watchRevisit?:number;onWatchContinue?:()=>void}) {
-  const [open, setOpen] = React.useState(() => !completedInSession && storage.get<boolean>(key) !== true);
-  const dialog = React.useRef<HTMLDialogElement>(null);
+export function FirstBootAppearance({onProfileSelected,revisit=0,watchRevisit=0,onWatchContinue}:{onProfileSelected:(id:number|undefined)=>void;revisit?:number;watchRevisit?:number;onWatchContinue?:()=>void}) {
   const supportsAddons=appBridge()?.stremioAddons===true;
+  const [open, setOpen] = React.useState(() => !supportsAddons && !completedInSession && storage.get<boolean>(key) !== true);
+  const dialog = React.useRef<HTMLDialogElement>(null);
   const supportsReader=appBridge()?.reading===true||appBridge()?.readingSetup===true;
   const [mangaOpen,setMangaOpen]=React.useState(false);
   const [mangaBusy,setMangaBusy]=React.useState(false);
@@ -63,7 +63,7 @@ export function FirstBootAppearance({revisit=0,watchRevisit=0,onWatchContinue}:{
         <div><h2 id="tsugi-onboarding-title">{step==='addons'?<Trans>Set up your addon profile</Trans>:<Trans>Make Tsugi yours</Trans>}</h2><p>{step==='addons'?<Trans>Choose a profile and arrange your sources. You can also set this up later.</Trans>:<Trans>Movies, anime, music, stories and downloads — one space for what you love.</Trans>}</p></div>
       </div>
     </header>
-    {step==='addons'&&open?<StremioAddonSettings workspace setupConnections initialPane={animeEntry?'anime':'addons'} />:step==='appearance'&&open?<>
+    {step==='addons'&&open?<StremioAddonSettings workspace setupConnections onProfileSelected={onProfileSelected} initialPane={animeEntry?'anime':'addons'} />:step==='appearance'&&open?<>
       <GlobalAppearanceSettings />
       <section className="tsugi-app-general" data-ui="first-launch-connections">
         <h3><Trans>Collections and connections</Trans></h3>

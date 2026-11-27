@@ -34,7 +34,7 @@ struct Prepared {candidate:Candidate,manifest:Manifest}
 enum Stage {
     Nuvio { token:String, profiles:Vec<RemoteProfile> },
     Candidates { rows:Vec<Candidate>, skipped:usize },
-    Reviewed { rows:Vec<Prepared> },
+    Reviewed { rows:Vec<Prepared>, account_order: Vec<Url> },
 }
 #[derive(Clone)]
 pub(super) struct Flow {id:u32,provider:Provider,created:Instant,stage:Stage}
@@ -234,6 +234,7 @@ impl Registry{
             selected.iter().any(|id|!rows.iter().any(|c|c.id==*id)){
             return Err("import-selection");
         }
+        let account_order = rows.iter().map(|row| row.endpoint.0.clone()).collect();
         let chosen:Vec<_>=rows.into_iter().filter(|c|selected.contains(&c.id)).collect();
         let mut ready=Vec::new();let mut rejected=Vec::new();
         // Bounded parallel reads; at most eight HTTPS requests at once.
@@ -259,21 +260,24 @@ impl Registry{
         }
         let preview:Vec<_>=ready.iter().map(|row|json!({"candidateId":row.candidate.id,"name":row.candidate.name,
             "host":host(&row.candidate.endpoint),"enabled":row.candidate.enabled,"manifest":summary(&row.manifest)})).collect();
-        self.import=Some(Flow{id,provider:flow.provider,created:Instant::now(),stage:Stage::Reviewed{rows:ready}});
+        self.import=Some(Flow{id,provider:flow.provider,created:Instant::now(),stage:Stage::Reviewed{rows:ready,account_order}});
         Ok(json!({"importId":id,"provider":flow.provider.name(),"phase":"review","ready":preview,"rejected":rejected}))
     }
     pub(super) fn import_apply(&mut self,id:u32)->Result<Value>{
         let Some(flow)=self.import.as_ref().filter(|f|f.id==id&&!f.expired()) else{return Err("expired-review");};
-        let Stage::Reviewed{rows}= &flow.stage else{return Err("expired-review");};
+        let Stage::Reviewed{rows,..}= &flow.stage else{return Err("expired-review");};
         if rows.is_empty()||rows.len()>MAX_SOURCES-self.sources.len(){return Err("import-selection");}
         if rows.iter().any(|r|self.sources.iter().any(|s|s.endpoint.0==r.candidate.endpoint.0)){return Err("duplicate");}
         let end=self.sequence.checked_add(rows.len() as u32).ok_or("import-limit")?;
         let flow=self.take_import(id)?;
-        let Stage::Reviewed{rows}=flow.stage else{return Err("expired-review");};
+        let Stage::Reviewed{rows,account_order}=flow.stage else{return Err("expired-review");};
         for row in rows {
             self.sequence+=1;
             self.sources.push(Source{id:self.sequence,endpoint:row.candidate.endpoint,manifest:row.manifest,enabled:row.candidate.enabled});
         }
+        // Stable sorting keeps local-only sources in their previous relative order.
+        self.sources.sort_by_key(|source| account_order.iter()
+            .position(|url| url == &source.endpoint.0).unwrap_or(usize::MAX));
         debug_assert_eq!(self.sequence,end);
         self.pending=None;
         Ok(self.list())
@@ -333,11 +337,15 @@ mod tests{
         let two=candidate(2,Endpoint::parse("https://example.org/two/manifest.json").unwrap(),Some("Two"),true);
         registry.import=Some(Flow{id:10,provider:Provider::Nuvio,created:Instant::now(),stage:Stage::Candidates{rows:vec![one.clone(),two.clone()],skipped:0}});
         assert_eq!(registry.import_apply(10),Err("expired-review"));
-        registry.import=Some(Flow{id:10,provider:Provider::Nuvio,created:Instant::now(),stage:Stage::Reviewed{rows:vec![Prepared{candidate:one,manifest:manifest.clone()},Prepared{candidate:two,manifest}]}});
+        let existing=Endpoint::parse("https://example.org/existing/manifest.json").unwrap();
+        registry.sources.push(Source{id:9,endpoint:existing.clone(),manifest:manifest.clone(),enabled:false});
+        let account_order=vec![one.endpoint.0.clone(),existing.0,two.endpoint.0.clone()];
+        registry.import=Some(Flow{id:10,provider:Provider::Nuvio,created:Instant::now(),stage:Stage::Reviewed{account_order,rows:vec![Prepared{candidate:one,manifest:manifest.clone()},Prepared{candidate:two,manifest}]}});
         assert_eq!(registry.import_apply(9),Err("expired-review"));
         let result=registry.import_apply(10).unwrap();
         assert_eq!(result["sources"][0]["sourceId"],11);assert_eq!(result["sources"][0]["enabled"],false);
-        assert_eq!(result["sources"][1]["sourceId"],12);assert_eq!(result["sources"][1]["enabled"],true);
+        assert_eq!(result["sources"][1]["sourceId"],9);assert_eq!(result["sources"][1]["enabled"],false);
+        assert_eq!(result["sources"][2]["sourceId"],12);assert_eq!(result["sources"][2]["enabled"],true);
         assert_eq!(registry.import_apply(10),Err("expired-review"));
     }
     #[test]

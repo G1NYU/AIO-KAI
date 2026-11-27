@@ -178,9 +178,10 @@ function Standalone() {
   const openVault = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(null); setArea('vault'); }, []);
   const openVaultMusic = React.useCallback((track: {id:string;title:string}) => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(track); setArea('vault'); }, []);
   const openVideo = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setReadVisited(false); setArea('video'); }, []);
+  const [initialWatchProfile,setInitialWatchProfile]=React.useState<number>();
   const [watchPane,setWatchPane]=React.useState<WatchEntryPane>('hubs');
-  const openWatchPane=React.useCallback((pane:WatchEntryPane)=>{setResumeTarget(null);setVaultComicTarget(null);setReadVisited(false);setWatchPane(pane);setArea('watch');},[]);
-  const openMovies=React.useCallback(()=>{if(!appBridge()?.stremioAddons)openVideo();else openWatchPane('hubs');},[openVideo,openWatchPane]);
+  const openWatchPane=React.useCallback((pane:WatchEntryPane,profileId?:number)=>{setInitialWatchProfile(profileId);setResumeTarget(null);setVaultComicTarget(null);setReadVisited(false);setWatchPane(pane);setArea('watch');},[]);
+  const openMovies=React.useCallback((profileId?:number)=>{if(!appBridge()?.stremioAddons)openVideo();else openWatchPane('hubs',profileId);},[openVideo,openWatchPane]);
   const openServerSearch=React.useCallback((title:string)=>{openVideo();navigate(to.search(title));},[openVideo]);
   const openWelcome = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setArea('welcome'); }, []);
   const openVideoDownloads = React.useCallback(() => { openVideo(); navigate(to.downloads); }, [openVideo]);
@@ -304,7 +305,7 @@ function Standalone() {
               <SplashEnd />
             </ServerInfoProvider>
           ) : desktop && area === 'watch' ? (
-            <ServerInfoProvider value={NO_SERVER_INFO}><DirectWatchPage openWelcome={openWelcome} openVideo={openVideo} initialPane={watchPane} settingsOpen={globalSettings} /><SplashEnd /></ServerInfoProvider>
+            <ServerInfoProvider value={NO_SERVER_INFO}><DirectWatchPage openWelcome={openWelcome} openVideo={openVideo} initialPane={watchPane} initialProfileId={initialWatchProfile} settingsOpen={globalSettings} /><SplashEnd /></ServerInfoProvider>
           ) : desktop && area === 'read' && (reading || books) ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
               {readMode === 'books' ? <BooksPage /> : !readerReady && <ReadSetupPage openBooks={books ? openBooks : undefined} openWelcome={openWelcome} onReady={() => { setReaderReady(true); setReadVisited(true); }} />}

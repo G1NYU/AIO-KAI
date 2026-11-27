@@ -34,7 +34,7 @@ function newViewingId(){
   return [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-');
 }
 type Viewing={playback:WatchPlayback;viewingId:string};
-export function DirectWatchPage({openWelcome,openVideo,initialPane='hubs',settingsOpen=false}:{openWelcome:()=>void;openVideo:()=>void;initialPane?:WatchEntryPane;settingsOpen?:boolean}){
+export function DirectWatchPage({openWelcome,openVideo,initialProfileId,initialPane='hubs',settingsOpen=false}:{openWelcome:()=>void;openVideo:()=>void;initialProfileId?:number;initialPane?:WatchEntryPane;settingsOpen?:boolean}){
   const [viewing,setViewing]=React.useState<Viewing|null>(null);
   const [historyError,setHistoryError]=React.useState(false);
   const playing=viewing?.playback;
@@ -42,7 +42,7 @@ export function DirectWatchPage({openWelcome,openVideo,initialPane='hubs',settin
     <div hidden={!!playing} inert={!!playing}>
       <header className="flex flex-wrap gap-3 justify-between"><button type="button" className="tsugi-read-action" onClick={openWelcome}><Trans id="All media">All media</Trans></button></header>
       {historyError&&<p role="alert"><Trans>Watch progress could not be confirmed saved. Check your history before resuming.</Trans></p>}
-      <StremioAddonSettings workspace initialPane={initialPane} openServer={openVideo} onPlay={playback=>setViewing({playback,viewingId:newViewingId()})} historyActive={!playing&&!settingsOpen}/>
+      <StremioAddonSettings workspace initialProfileId={initialProfileId} initialPane={initialPane} openServer={openVideo} onPlay={playback=>setViewing({playback,viewingId:newViewingId()})} historyActive={!playing&&!settingsOpen}/>
     </div>
     {playing&&viewing&&<DirectPlayer key={playing.grantId??'review:'+playing.selection?.reviewId} playback={playing} viewingId={viewing.viewingId}
       close={()=>setViewing(null)} switchPlayback={playback=>setViewing({playback,viewingId:playback.videoId===playing.videoId?viewing.viewingId:newViewingId()})}

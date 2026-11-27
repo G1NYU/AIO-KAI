@@ -1,11 +1,11 @@
 import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { connectAddonImport,chooseNuvioImportProfile,reviewAddonImport,applyAddonImport,cancelAddonImport,type AccountImport,type AddonSource,type ImportProvider } from '@/lib/hosts/shell/stremio';
+import { connectAddonImport,chooseNuvioImportProfile,reviewAddonImport,applyAddonImport,cancelAddonImport,type AccountImport,type ImportReview,type AddonSource,type ImportProvider } from '@/lib/hosts/shell/stremio';
 
 export function StremioAccountImport({profileId,busy,run,onConnect,onSources,onActive,fixedProvider}:{
   profileId:number;busy:boolean;fixedProvider?:ImportProvider;run(work:()=>Promise<void>):Promise<void>;
-  onConnect():void;onSources(sources:AddonSource[]):void;onActive(active:boolean):void;
+  onConnect():void;onSources(sources:AddonSource[],rejections:string[]):void;onActive(active:boolean):void;
 }){
   const [provider,setProvider]=React.useState<ImportProvider>(fixedProvider??'stremio');
   const [email,setEmail]=React.useState('');
@@ -13,7 +13,6 @@ export function StremioAccountImport({profileId,busy,run,onConnect,onSources,onA
   const [flow,setFlow]=React.useState<AccountImport|null>(null);
   const [remoteIndex,setRemoteIndex]=React.useState(0);
   const [selected,setSelected]=React.useState<Set<number>>(()=>new Set());
-  const [consent,setConsent]=React.useState(false);
   const mounted=React.useRef(false);
   const pending=React.useRef<number|null>(null);
   React.useEffect(()=>{
@@ -26,7 +25,7 @@ export function StremioAccountImport({profileId,busy,run,onConnect,onSources,onA
   },[profileId,onActive]);
   function reset(){
     const id=pending.current;pending.current=null;
-    setFlow(null);setEmail('');setPassword('');setRemoteIndex(0);setSelected(new Set());setConsent(false);onActive(false);
+    setFlow(null);setEmail('');setPassword('');setRemoteIndex(0);setSelected(new Set());onActive(false);
     return id;
   }
   function receive(next:AccountImport){
@@ -44,17 +43,27 @@ export function StremioAccountImport({profileId,busy,run,onConnect,onSources,onA
     const id=flow.importId,index=remoteIndex;reset();
     await run(async()=>{receive(await chooseNuvioImportProfile(profileId,id,index));});
   }
-  async function review(){
-    if(busy||flow?.phase!=='candidates'||!consent||!selected.size)return;
+  async function importSelected(){
+    if(busy||flow?.phase!=='candidates'||!selected.size)return;
     const id=flow.importId,sourceProvider=flow.provider;
     const ids=flow.candidates.filter(c=>selected.has(c.candidateId)&&!c.alreadyInstalled).map(c=>c.candidateId);
     if(!ids.length||ids.length>flow.availableSlots)return;
-    reset();await run(async()=>{receive(await reviewAddonImport(profileId,id,sourceProvider,ids));});
+    reset();
+    await run(async()=>{
+      const reviewed=await reviewAddonImport(profileId,id,sourceProvider,ids);
+      receive(reviewed);
+      if(mounted.current&&reviewed.ready.length)await apply(reviewed);
+    });
   }
-  async function apply(){
-    if(busy||flow?.phase!=='review'||!flow.ready.length)return;
-    const id=flow.importId;reset();
-    await run(async()=>{const sources=await applyAddonImport(profileId,id);if(mounted.current)onSources(sources);});
+  function rejectionText(row:ImportReview['rejected'][number]){
+    const reason=row.reason==='configuration-required'?t`Needs configuration`:row.reason==='duplicate'?t`Already installed`:t`Manifest unavailable or unsupported`;
+    return row.name+' · '+reason;
+  }
+  async function apply(reviewed:ImportReview){
+    const sources=await applyAddonImport(profileId,reviewed.importId);
+    if(!mounted.current)return;
+    reset();
+    onSources(sources,reviewed.rejected.map(rejectionText));
   }
   async function cancel(){
     if(busy)return;
@@ -62,7 +71,7 @@ export function StremioAccountImport({profileId,busy,run,onConnect,onSources,onA
   }
   return <div className="space-y-3" data-ui="stremio-account-import">
     <h4>{fixedProvider==='stremio'?<Trans>Connect Stremio</Trans>:fixedProvider==='nuvio'?<Trans>Connect Nuvio</Trans>:<Trans>Import from an account</Trans>}</h4>
-    <p><Trans>Connect once to read your Stremio or Nuvio addon list. Tsugi does not save your account password or token, and never changes your external account. Review selected addons before adding them to this local profile.</Trans></p>
+    <p><Trans>Connect once to read your Stremio or Nuvio addon list. Tsugi does not save your account password or token, and never changes your external account. Select the addons to import into this local profile.</Trans></p>
     {!flow&&<form className="space-y-2" onSubmit={e=>{e.preventDefault();void connect();}}>
       {!fixedProvider&&<label><Trans>Import provider</Trans><select className="tsugi-menu-select w-full" value={provider} disabled={busy} onChange={e=>{setProvider(e.target.value as ImportProvider);setEmail('');setPassword('');}}>
         <option value="stremio"><Trans>Stremio</Trans></option><option value="nuvio"><Trans>Nuvio</Trans></option>
@@ -84,17 +93,18 @@ export function StremioAccountImport({profileId,busy,run,onConnect,onSources,onA
       <p>{flow.candidates.length} <Trans>compatible configured links found</Trans> · {flow.availableSlots} <Trans>available slots</Trans></p>
       {flow.skipped>0&&<p>{flow.skipped} <Trans>duplicate or unsupported links skipped</Trans></p>}
       {flow.remoteProfile!==undefined&&flow.remoteProfile!==flow.effectiveProfile&&<p><Trans>This profile shares its primary profile's addons.</Trans></p>}
-      <button type="button" className="tsugi-read-action" disabled={busy||!flow.availableSlots||!flow.candidates.some(c=>!c.alreadyInstalled)} onClick={()=>{setSelected(new Set(flow.candidates.filter(c=>!c.alreadyInstalled).slice(0,flow.availableSlots).map(c=>c.candidateId)));setConsent(false);}}><Trans>Select available addons</Trans></button>
+      <button type="button" className="tsugi-read-action" disabled={busy||!flow.availableSlots||!flow.candidates.some(c=>!c.alreadyInstalled)} onClick={()=>{setSelected(new Set(flow.candidates.filter(c=>!c.alreadyInstalled).slice(0,flow.availableSlots).map(c=>c.candidateId)));}}><Trans>Select available addons</Trans></button>
       <div className="max-h-64 overflow-auto">
         {flow.candidates.map(c=><label className="!flex !flex-row items-center gap-3 tsugi-read-row" key={c.candidateId}>
           <input type="checkbox" checked={selected.has(c.candidateId)} disabled={busy||c.alreadyInstalled||(!selected.has(c.candidateId)&&selected.size>=flow.availableSlots)} onChange={e=>{
-            const checked=e.target.checked;setSelected(old=>{const next=new Set(old);if(checked)next.add(c.candidateId);else next.delete(c.candidateId);return next;});setConsent(false);
+            const checked=e.target.checked;setSelected(old=>{const next=new Set(old);if(checked)next.add(c.candidateId);else next.delete(c.candidateId);return next;});
           }}/>
           <span className="min-w-0 flex-1 break-words">{c.name}<small className="block">{c.host} · {c.enabled?t`Enabled`:t`Disabled`}{c.alreadyInstalled?<> · <Trans>Already installed</Trans></>:null}</small></span>
         </label>)}
       </div>
-      <label className="!flex !flex-row items-center gap-3"><input type="checkbox" checked={consent} disabled={busy||!selected.size} onChange={e=>setConsent(e.target.checked)}/><Trans>I trust the selected addon hosts and want Tsugi to fetch their manifests.</Trans></label>
-      <button type="button" className="tsugi-read-action" disabled={busy||!consent||!selected.size} onClick={()=>void review()}><Trans>Review selected addons</Trans></button>
+      <p><Trans>Importing fetches the selected manifests and adds compatible sources to this profile.</Trans></p>
+      <p><Trans>Matching addons follow account order. Local-only addons follow them in their current order.</Trans></p>
+      <button type="button" className="tsugi-read-action" disabled={busy||!selected.size} onClick={()=>void importSelected()}><Trans>Import selected addons</Trans></button>
     </div>}
     {flow?.phase==='review'&&<div className="space-y-3" data-import-phase="review">
       <h4><Trans>Reviewed addon import</Trans></h4>
@@ -104,8 +114,8 @@ export function StremioAccountImport({profileId,busy,run,onConnect,onSources,onA
           {c.manifest.p2p&&<small className="block"><Trans>Declares peer-to-peer capability</Trans></small>}{c.manifest.adult&&<small className="block"><Trans>Declares adult content</Trans></small>}</div>
       </div>)}
       {flow.rejected.map(c=><p className="break-words" key={c.candidateId}>{c.name} · {c.reason==='configuration-required'?t`Needs configuration`:c.reason==='duplicate'?t`Already installed`:t`Manifest unavailable or unsupported`}</p>)}
-      <p><Trans>Only the reviewed compatible addons will be added in their original order. Existing addons and the external account remain unchanged.</Trans></p>
-      <button type="button" className="tsugi-read-action tsugi-series-primary" disabled={busy||!flow.ready.length} onClick={()=>void apply()}><Trans>Import reviewed addons</Trans></button>
+      <p><Trans>Matching addons follow account order. Local-only addons follow them in their current order.</Trans></p>
+      <button type="button" className="tsugi-read-action tsugi-series-primary" disabled={busy||!flow.ready.length} onClick={()=>void run(()=>apply(flow))}><Trans>Import reviewed addons</Trans></button>
     </div>}
     {flow&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void cancel()}><Trans>Cancel account import</Trans></button>}
   </div>;

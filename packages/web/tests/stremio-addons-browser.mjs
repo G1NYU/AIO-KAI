@@ -155,7 +155,7 @@ export function installStremioFixture(initializeStartup=true){
           {profileIndex:2,name:'Shared protected',usesPrimaryAddons:true,locked:true},
           {profileIndex:3,name:'Independent',usesPrimaryAddons:false,locked:false}
         ]});
-        return reply({importId:id,provider:'stremio',phase:'candidates',availableSlots:16-profile.sources.length,skipped:1,candidates:[
+        return reply({importId:id,provider:'stremio',phase:'candidates',availableSlots:128-profile.sources.length,skipped:1,candidates:[
           {candidateId:1,name:'Account film addon',host:'films.example.invalid',enabled:true,alreadyInstalled:false},
           {candidateId:2,name:'Unavailable fixture',host:'offline.example.invalid',enabled:true,alreadyInstalled:false}
         ]});
@@ -163,7 +163,7 @@ export function installStremioFixture(initializeStartup=true){
       case 'import-nuvio-profile':{
         if(f.import?.id!==a.importId||f.import.phase!=='profiles'||a.remoteProfile!==3)return emit(null,'locked-remote-profile');
         f.import.phase='candidates';
-        return reply({importId:a.importId,provider:'nuvio',phase:'candidates',availableSlots:16-profile.sources.length,skipped:0,remoteProfile:3,effectiveProfile:3,candidates:[
+        return reply({importId:a.importId,provider:'nuvio',phase:'candidates',availableSlots:128-profile.sources.length,skipped:0,remoteProfile:3,effectiveProfile:3,candidates:[
           {candidateId:1,name:'Nuvio audio fixture',host:'nuvio-addon.example.invalid',enabled:false,alreadyInstalled:false}
         ]});
       }
@@ -176,7 +176,7 @@ export function installStremioFixture(initializeStartup=true){
       }
       case 'import-apply':{
         if(f.import?.id!==a.importId||f.import.phase!=='review')return emit(null,'expired-review');
-        for(const ready of f.import.ready)profile.sources.push({sourceId:++f.sequence,enabled:ready.enabled,manifest:ready.manifest});
+        profile.sources.unshift(...f.import.ready.map(ready=>({sourceId:++f.sequence,enabled:ready.enabled,manifest:ready.manifest})));
         f.import=null;return reply({sources:profile.sources});
       }
       case 'import-cancel':f.import=null;return reply({cancelled:true});
@@ -409,9 +409,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       }
       const candidates=account.locator('[data-import-phase="candidates"]');
       await candidates.getByRole('button',{name:'Select available addons',exact:true}).click();
-      await candidates.getByRole('checkbox',{name:'I trust the selected addon hosts and want Tsugi to fetch their manifests.',exact:true}).check();
-      await candidates.getByRole('button',{name:'Review selected addons',exact:true}).click();
-      await account.getByRole('button',{name:'Import reviewed addons',exact:true}).click();
+      await candidates.getByRole('button',{name:'Import selected addons',exact:true}).click();
       await watch.locator('[data-watch-pane="home"]').waitFor();
       assert.equal(await watch.locator('[data-ui="watch-settings-navigation"]').count(),0);
     }
@@ -536,11 +534,9 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     async function reviewAccount(){
       const candidates=account.locator('[data-import-phase="candidates"]');
       await candidates.waitFor();
-      assert.equal(await candidates.getByRole('button',{name:'Review selected addons',exact:true}).isEnabled(),false);
+      assert.equal(await candidates.getByRole('button',{name:'Import selected addons',exact:true}).isEnabled(),false);
       await candidates.getByRole('button',{name:'Select available addons',exact:true}).click();
-      await candidates.getByRole('checkbox',{name:'I trust the selected addon hosts and want Tsugi to fetch their manifests.',exact:true}).check();
-      await candidates.getByRole('button',{name:'Review selected addons',exact:true}).click();
-      await account.locator('[data-import-phase="review"]').waitFor();
+      await candidates.getByRole('button',{name:'Import selected addons',exact:true}).click();
     }
     await signIn('stremio');
     await account.locator('[data-import-phase="candidates"]').waitFor();
@@ -548,9 +544,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal(await page.evaluate(()=>JSON.stringify(localStorage).includes('synthetic-password')),false);
     assert.equal((await calls()).some(a=>a.kind==='import-review'||a.kind==='import-apply'),false);
     await reviewAccount();
-    assert.equal((await calls()).some(a=>a.kind==='import-apply'),false);
-    await account.getByText('Unavailable fixture · Manifest unavailable or unsupported',{exact:true}).waitFor();
-    await account.getByRole('button',{name:'Import reviewed addons',exact:true}).click();
+    await panel.getByText('Unavailable fixture · Manifest unavailable or unsupported',{exact:true}).waitFor();
     await panel.locator('[data-stremio-source-id]').filter({hasText:'Account film addon'}).waitFor();
     await signIn('nuvio');
     const remote=account.getByRole('combobox',{name:'Nuvio profile',exact:true});
@@ -560,24 +554,26 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await remote.selectOption('3');
     await account.getByRole('button',{name:'Read selected profile',exact:true}).click();
     await reviewAccount();
-    await account.getByRole('button',{name:'Import reviewed addons',exact:true}).click();
     const imported=panel.locator('[data-stremio-source-id]').filter({hasText:'Nuvio audio fixture'});
     await imported.waitFor();
     assert.ok((await imported.innerText()).includes('Disabled'));
-    await imported.getByRole('button',{name:'Move up',exact:true}).click();
     await panel.locator('[data-stremio-source-id]').first().filter({hasText:'Nuvio audio fixture'}).waitFor();
     const accountFilm=panel.locator('[data-stremio-source-id]').filter({hasText:'Account film addon'});
     await accountFilm.getByRole('button',{name:'Move up',exact:true}).click();
     await panel.locator('[data-stremio-source-id]').first().filter({hasText:'Account film addon'}).waitFor();
     const providerCalls=(await calls()).filter(a=>a.kind.startsWith('import-')).map(a=>a.kind);
     assert.deepEqual(providerCalls,['import-connect','import-review','import-apply','import-connect','import-nuvio-profile','import-review','import-apply']);
-    console.log('Stremio/Nuvio account import, profile isolation, explicit review and local-only apply passed');
+    console.log('Stremio/Nuvio account import, profile isolation and single-action local import passed');
   }finally{await page.close();}
   const firstLaunch=await browser.newPage({viewport:{width:1440,height:900}});
   try{
     await firstLaunch.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
     await firstLaunch.addInitScript({content:'('+installDesktopFixture.toString()+')();('+installStremioFixture.toString()+')();localStorage.removeItem("tsugi-onboarding-complete-v1");localStorage.setItem("tsugi.landscape.local-only","true");localStorage.setItem("tsugi-discord-presence-v1",JSON.stringify({enabled:true,applicationId:"123456789012345678",privateMode:false,media:{video:true,music:true,manga:true,books:true}}));'});
     await firstLaunch.goto(origin,{waitUntil:'domcontentloaded'});
+    await firstLaunch.getByRole('navigation',{name:'Media sections'}).waitFor();
+    assert.equal(await firstLaunch.getByRole('dialog').count(),0);
+    await firstLaunch.getByRole('button',{name:'Introduction',exact:true}).click();
+    await firstLaunch.getByRole('button',{name:'Set up addons',exact:true}).click();
     const setup=firstLaunch.getByRole('dialog',{name:'Set up your addon profile',exact:true});
     const picker=setup.locator('[data-ui="watch-profile-picker"]');
     await picker.getByRole('button',{name:'Default 0 addons',exact:true}).waitFor();
@@ -646,7 +642,8 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal(await firstLaunch.evaluate(()=>JSON.parse(localStorage.getItem('tsugi-onboarding-complete-v1'))),true);
     await firstLaunch.getByRole('button',{name:'Movies & TV',exact:true}).first().click();
     const watch=firstLaunch.locator('[data-page="direct-watch"]');
-    await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 0 addons',exact:true}).click();
+    await watch.locator('[data-ui="watch-hub-picker"]').waitFor();
+    assert.equal(await watch.locator('[data-ui="watch-profile-picker"]').count(),0);
     await watch.locator('[data-ui="watch-hub-picker"] [data-watch-destination="standalone"]').click();
     await watch.getByRole('heading',{name:'Movies & TV',exact:true}).waitFor();
     const watchGlyphs=await watch.locator('.tsugi-watch-nav [data-movie-glyph]').evaluateAll(nodes=>nodes.map(node=>({name:node.getAttribute('data-movie-glyph'),fill:node.getAttribute('fill'),stroke:node.getAttribute('stroke')})));

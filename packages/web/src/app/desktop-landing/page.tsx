@@ -9,12 +9,13 @@ import { FirstBootAppearance } from './first-boot-appearance';
 
 /** Direct media destinations, independent of server configuration. */
 export function DesktopLandingPage({ openVideo, openWatch, openMusic, openRead, openVault }: {
-  openVideo(): void; openWatch?: () => void; openMusic(): void; openRead?: () => void; openVault?: () => void;
+  openVideo(): void; openWatch?: (profileId?:number) => void; openMusic(): void; openRead?: () => void; openVault?: () => void;
 }) {
   const desktopArea = useDesktopArea();
   const [upNextOpen, setUpNextOpen] = React.useState(false);
   const [introRevisit,setIntroRevisit]=React.useState(0);
-  const enterWatch=openWatch??openVideo;
+  const [introProfile,setIntroProfile]=React.useState<number>();
+  const enterWatch=()=>openWatch?openWatch(introProfile):openVideo();
   const sections = [
     { id: 'video' as const, label: t({ id: "Movies & TV", message: "Movies & TV" }), open: enterWatch },
     { id: 'music' as const, label: t({ id: "Music", message: "Music" }), open: openMusic },
@@ -22,7 +23,7 @@ export function DesktopLandingPage({ openVideo, openWatch, openMusic, openRead, 
     ...(openVault ? [{ id: 'vault' as const, label: t({ id: 'Vault', message: 'Vault' }), open: openVault }] : []),
   ];
   return <main data-page="desktop-landing" className="tsugi-landing tsugi-index">
-    {openVault && <FirstBootAppearance revisit={introRevisit} />}
+    {openVault && <FirstBootAppearance revisit={introRevisit} onProfileSelected={setIntroProfile} />}
     {desktopArea?.openResume && <UpNext open={upNextOpen} onClose={()=>setUpNextOpen(false)}/>}
     <header className="tsugi-index-header">
       {openVault && <button type="button" className="tsugi-category-link" onClick={()=>setIntroRevisit(value=>value+1)}><FiPlay aria-hidden/><Trans id="Introduction">Introduction</Trans></button>}

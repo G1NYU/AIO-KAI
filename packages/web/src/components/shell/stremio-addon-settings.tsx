@@ -47,7 +47,7 @@ function feedback(reason: unknown) {
 }
 type WatchPane = 'hubs'|'home'|'discover'|'playback'|'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history'|'refract'|'anime';
 const profileArt=['/design/oto/hero-yuna.webp','/design/yomi/hero-torii.webp','/design/shared/hero-neon.webp','/design/shared/hero-train.webp'];
-export function StremioAddonSettings({workspace=false,onPlay,historyActive=false,setupConnections=false,initialPane='addons',openServer}:{workspace?:boolean;openServer?:()=>void;onPlay?:(playback:WatchPlayback)=>void;historyActive?:boolean;setupConnections?:boolean;initialPane?:WatchEntryPane}={}){
+export function StremioAddonSettings({workspace=false,initialProfileId,onProfileSelected,onPlay,historyActive=false,setupConnections=false,initialPane='addons',openServer}:{initialProfileId?:number;onProfileSelected?:(id:number|undefined)=>void;workspace?:boolean;openServer?:()=>void;onPlay?:(playback:WatchPlayback)=>void;historyActive?:boolean;setupConnections?:boolean;initialPane?:WatchEntryPane}={}){
   const desktopArea=useDesktopArea();
   const [autoPlayFirst]=useSetting(settings.playback.autoPlayFirst);
   const [boardSearch,setBoardSearch]=React.useState('');
@@ -70,6 +70,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
   const [sources,setSources]=React.useState<AddonSource[]>([]);
   const [busy,setBusy]=React.useState(false);
   const [error,setError]=React.useState('');
+  const [importReport,setImportReport]=React.useState<{profileId:number;messages:string[]}|null>(null);
   const [notice,setNotice]=React.useState('');
   const [selection,setSelection]=React.useState<{sourceId:number;catalogIndex:number}|null>(null);
   const [filters,setFilters]=React.useState<Map<string,string>>(()=>new Map());
@@ -102,7 +103,12 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
   }
   React.useEffect(()=>{
     mounted.current=true;
-    void run(async()=>{await reloadProfiles();});
+    void run(async()=>{
+      const state=await listAddonProfiles();
+      if(!mounted.current)return;
+      await reloadProfiles(state);
+      if(mounted.current&&initialProfileId===state.activeProfileId)setEntered(true);
+    });
     return ()=>{mounted.current=false;const current=pending.current;pending.current=null;if(current)void cancelAddonReview(current.profileId,current.reviewId).catch(()=>{});};
   },[]);
   function clearTitle(){setTitle(null);setDetails(null);setVideoId('');setOptions(null);setResumeEntry(null);setStreamGroups(null);setAutomatic(false);}
@@ -141,7 +147,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
       }
       setProfileName('');setDeleteId(0);setDeleteName('');
       await reloadProfiles(result);
-      if(mounted.current&&enter){setCreating(false);setPane(initialPane);setEntered(true);}
+      if(mounted.current&&enter){setCreating(false);setPane(initialPane);setEntered(true);onProfileSelected?.(result.activeProfileId);}
 
     });
   }
@@ -321,7 +327,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
   async function backToProfiles(){
     if(flight.current)return;
     const previous=clearReview();
-    setImportActive(false);choose(null);setEntered(false);setCreating(false);
+    onProfileSelected?.(undefined);setImportActive(false);choose(null);setEntered(false);setCreating(false);
     if(previous)await run(async()=>{await cancelAddonReview(previous.profileId,previous.reviewId);});
   }
   if(workspace&&!entered)return <section className="tsugi-watch-picker" data-ui="watch-profile-picker" aria-labelledby={titleId}>
@@ -448,7 +454,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
       <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void refreshProfiles()}><Trans>Refresh profiles</Trans></button>
     </div>
     </>}
-    {show('stremio','nuvio')&&profileReady&&profileId!==undefined&&<StremioAccountImport key={workspace?profileId+':'+pane:profileId} fixedProvider={workspace?(pane==='nuvio'?'nuvio':'stremio'):undefined} profileId={profileId} busy={busy} run={run} onActive={setImportActive} onConnect={()=>{clearReview();}} onSources={rows=>{updateSources(rows,profileId);if(workspace&&onPlay)setPane('home');}}/>}
+    {show('stremio','nuvio')&&profileReady&&profileId!==undefined&&<StremioAccountImport key={workspace?profileId+':'+pane:profileId} fixedProvider={workspace?(pane==='nuvio'?'nuvio':'stremio'):undefined} profileId={profileId} busy={busy} run={run} onActive={setImportActive} onConnect={()=>{clearReview();setImportReport(null);}} onSources={(rows,messages)=>{updateSources(rows,profileId);setImportReport({profileId,messages});if(workspace&&onPlay)setPane('home');}}/>}
     {show('manual')&&<><h4><Trans>Add a manifest</Trans></h4>
     <form className="space-y-2" onSubmit={e=>{e.preventDefault();void inspect();}}>
       <label><Trans>Configured manifest URL</Trans><input className="tsugi-read-input w-full min-w-0" type="password" autoComplete="off" spellCheck={false} maxLength={16384} value={url} required disabled={manualBlocked} onChange={e=>{setUrl(e.target.value);setConsent(false);}}/></label>
@@ -545,6 +551,10 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
       </div>}
     </section>}
     {busy&&<p role="status"><Trans>Loading sources…</Trans></p>}
+    {importReport&&importReport.profileId===profileId&&importReport.messages.length>0&&<div role="status">
+      {importReport.messages.map((message,index)=><p key={index}>{message}</p>)}
+      <button type="button" className="tsugi-read-action" onClick={()=>setImportReport(null)}><Trans>Dismiss</Trans></button>
+    </div>}
     {notice&&<p role="status">{notice}</p>}{error&&<p role="alert">{error}</p>}
     </div>
   </section>;
