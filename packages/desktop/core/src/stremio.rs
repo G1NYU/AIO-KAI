@@ -158,8 +158,8 @@ impl<'de> Deserialize<'de> for Catalog {
         // The SDK's legacy short notation is still encountered in installed
         // manifests. Normalize it once into the canonical extra declarations.
         // A required legacy extra must never become optional in mixed notation.
-        let supported:BTreeSet<_>=raw.extra_supported.iter().collect();
-        let required:BTreeSet<_>=raw.extra_required.iter().collect();
+        let supported:BTreeSet<&str>=raw.extra_supported.iter().map(String::as_str).collect();
+        let required:BTreeSet<&str>=raw.extra_required.iter().map(String::as_str).collect();
         if supported.len()!=raw.extra_supported.len()||required.len()!=raw.extra_required.len()||
             supported.len()>16||!required.is_subset(&supported)||
             supported.iter().any(|name|!type_valid(name)){
@@ -167,7 +167,7 @@ impl<'de> Deserialize<'de> for Catalog {
         }
         let mut extra=raw.extra;
         for name in &raw.extra_supported{
-            let is_required=required.contains(name);
+            let is_required=required.contains(name.as_str());
             if let Some(existing)=extra.iter_mut().find(|entry|entry.name==*name){
                 existing.is_required|=is_required;
             }else{
