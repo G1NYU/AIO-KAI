@@ -59,7 +59,8 @@ export async function verifyUpNextBrowser({browser,origin,installDesktopFixture}
     await row('Resume music fixture').getByRole('button',{name:'Play again',exact:true}).click();
     await page.waitForFunction(()=>window.__readerFixture.nativeMessages.some(message=>message.type==='music-audio-load'&&message.url.includes('abcdefghijk')));
     const loadCount=await page.evaluate(()=>window.__readerFixture.nativeMessages.filter(message=>message.type==='music-audio-load').length);
-    await page.getByRole('button',{name:'All media',exact:true}).click();
+    const music=page.locator('[data-page="music"]');
+    await music.getByRole('button',{name:'All media',exact:true}).click();
     await open();
     await row('Resume music fixture').getByRole('button',{name:'Open player',exact:true}).click();
     await page.locator('[data-page="music"]').waitFor();

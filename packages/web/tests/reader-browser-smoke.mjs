@@ -1650,36 +1650,48 @@ try {
   assert.ok(Math.abs(bannerWidth - cardWidth) < 2, `Reader setup card and artwork banner must share a width: ${bannerWidth} vs ${cardWidth}`);
   await capture('13-reader-setup-compatibility');
   assert.deepEqual(errors, []);
-  await verifyLandscapeDecorationBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyAppSeparatorsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyMoviesLayoutBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyMusicAudioBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyMusicReactivityBrowser({ browser, origin, installDesktopFixture });
-  await verifyUpNextBrowser({ browser, origin, installDesktopFixture });
-  await verifyMusicArtworkBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyMusicPlayerLayoutBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyMusicLyricsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyBrushHeadingsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyYouTubeSessionBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifySoundCloudBrowser({ browser, origin, installDesktopFixture });
-  await verifyRestoreSessionBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyExtensionUpdatesBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyMihonImportBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyMalMangaBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyMihonReconstructionBrowser({ browser, origin, installDesktopFixture });
-  await verifyDiscordPresenceBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyDownloadCleanupBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyReaderCacheCleanupBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyReaderReleaseBrowser({ browser, origin, installDesktopFixture });
-  await verifySourceFeedBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifySourceMetadataBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifySourceSettingsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifySourceIconsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyReaderSettingsSearchBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyReaderRepositoriesBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyVaultBookImportsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyVaultAudioImportsBrowser({ browser, origin, installDesktopFixture });
-  await verifySupportSummaryBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyReaderDownloadsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyLocalComicImportBrowser({ browser, origin, installDesktopFixture, screenshotDir });
+  // Each verifier creates its own browser page and owns its cleanup. Preserve
+  // every assertion, but report all independent regression failures in one run.
+  const independentFailures = [];
+  for (const [name, verify] of [
+    ['verifyLandscapeDecorationBrowser', () => verifyLandscapeDecorationBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyAppSeparatorsBrowser', () => verifyAppSeparatorsBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyMoviesLayoutBrowser', () => verifyMoviesLayoutBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyMusicAudioBrowser', () => verifyMusicAudioBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyMusicReactivityBrowser', () => verifyMusicReactivityBrowser({ browser, origin, installDesktopFixture })],
+    ['verifyUpNextBrowser', () => verifyUpNextBrowser({ browser, origin, installDesktopFixture })],
+    ['verifyMusicArtworkBrowser', () => verifyMusicArtworkBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyMusicPlayerLayoutBrowser', () => verifyMusicPlayerLayoutBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyMusicLyricsBrowser', () => verifyMusicLyricsBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyBrushHeadingsBrowser', () => verifyBrushHeadingsBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyYouTubeSessionBrowser', () => verifyYouTubeSessionBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifySoundCloudBrowser', () => verifySoundCloudBrowser({ browser, origin, installDesktopFixture })],
+    ['verifyRestoreSessionBrowser', () => verifyRestoreSessionBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyExtensionUpdatesBrowser', () => verifyExtensionUpdatesBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyMihonImportBrowser', () => verifyMihonImportBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyMalMangaBrowser', () => verifyMalMangaBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyMihonReconstructionBrowser', () => verifyMihonReconstructionBrowser({ browser, origin, installDesktopFixture })],
+    ['verifyDiscordPresenceBrowser', () => verifyDiscordPresenceBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyDownloadCleanupBrowser', () => verifyDownloadCleanupBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyReaderCacheCleanupBrowser', () => verifyReaderCacheCleanupBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyReaderReleaseBrowser', () => verifyReaderReleaseBrowser({ browser, origin, installDesktopFixture })],
+    ['verifySourceFeedBrowser', () => verifySourceFeedBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifySourceMetadataBrowser', () => verifySourceMetadataBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifySourceSettingsBrowser', () => verifySourceSettingsBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifySourceIconsBrowser', () => verifySourceIconsBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyReaderSettingsSearchBrowser', () => verifyReaderSettingsSearchBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyReaderRepositoriesBrowser', () => verifyReaderRepositoriesBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyVaultBookImportsBrowser', () => verifyVaultBookImportsBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyVaultAudioImportsBrowser', () => verifyVaultAudioImportsBrowser({ browser, origin, installDesktopFixture })],
+    ['verifySupportSummaryBrowser', () => verifySupportSummaryBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyReaderDownloadsBrowser', () => verifyReaderDownloadsBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+    ['verifyLocalComicImportBrowser', () => verifyLocalComicImportBrowser({ browser, origin, installDesktopFixture, screenshotDir })],
+  ]) {
+    try { await verify(); }
+    catch (error) {
+      console.error(`FAIL: ${name}`, error);
+      independentFailures.push(new Error(name, { cause: error }));
+    }
+  }
+  if (independentFailures.length) throw new AggregateError(independentFailures, `${independentFailures.length} independent browser regression(s) failed`);
 } finally { await browser.close(); }
