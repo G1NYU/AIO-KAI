@@ -5,7 +5,6 @@ import { MalCollectionPanel } from './mal-collection-panel';
 import { AnimeDiscovery } from './anime-discovery';
 import { WatchCatalogueBoard } from './watch-catalogue-board';
 import { PublicAnimeDiscovery } from './anime-public-discovery';
-import { BrushHeading } from '@/components/brush-heading';
 import { Artwork, WideCard } from '@/components/media/cards';
 import { MediaRow } from '@/components/media/media-row';
 import { Button } from '@aiostreams/ui/button';
@@ -128,7 +127,7 @@ export function MalAnimeLibrary({profileId,sources,busy,historyActive,setupOnly=
       <section className="tsugi-anime-hero">
         <LandscapeDecoration key={hero} fallback={artwork[hero]} className="tsugi-anime-backdrop" active={historyActive}/>
         <div className="tsugi-anime-hero-copy"><span className="tsugi-anime-eyebrow"><Trans id="Your next world">Your next world</Trans></span>
-          <BrushHeading as="h2" className="tsugi-anime-brush">{feature?feature.name:<Trans id="Anime Hub">Anime Hub</Trans>}</BrushHeading>
+          <h2 className="tsugi-anime-heading">{feature?feature.name:<Trans id="Anime Hub">Anime Hub</Trans>}</h2>
           {feature?.description?<p className="line-clamp-3">{feature.description}</p>:<p><Trans id="Anime Hub description">One home for anime series, films and the stories you want to return to. Discover through your addons, or bring your MyAnimeList collection.</Trans></p>}
           <div className="flex flex-wrap gap-2">{feature&&<Button intent="white" className="rounded-full" disabled={busy} onClick={()=>openTitle(feature)}><Trans>Watch</Trans></Button>}<button className="tsugi-anime-primary" disabled={busy} onClick={()=>navigate('discover')}><Trans id="Discover anime">Discover anime</Trans></button><button className="tsugi-read-action" disabled={busy} onClick={()=>navigate('list')}><Trans id="My List">My List</Trans></button></div>
         </div>

@@ -65,7 +65,7 @@ export function FirstBootAppearance({onProfileSelected,revisit=0,watchRevisit=0,
   }
   return <dialog ref={dialog} data-motion={stillArtwork?'still':undefined} className={'tsugi-global-settings tsugi-onboarding'+(step==='addons'?' tsugi-watch-setup':'')+(manual?' tsugi-world-setup':'')} data-ui="tsugi-onboarding" aria-labelledby="tsugi-onboarding-title" onCancel={event => { event.preventDefault(); finish(); }}>
     {step==='appearance'&&<div className="tsugi-intro-art" aria-hidden="true">
-      <img src={manual?"/design/anime/art-torii.webp":"/design/shared/hero-train.webp"} alt="" decoding="async"/>
+      <img src={manual?"/design/launch/personalization-room.webp":"/design/shared/hero-train.webp"} alt="" decoding="async"/>
       <div className="tsugi-intro-art-shade"/>
       {manual&&<div className="tsugi-world-setup-copy"><span lang="ja">あなたの世界。</span><h2><Trans>A little more you.</Trans></h2><p><Trans>The stories you return to. The sounds you carry with you.</Trans></p></div>}
       <div className="tsugi-intro-art-signature"><TsugiBrand /></div>

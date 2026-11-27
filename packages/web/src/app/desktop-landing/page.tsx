@@ -57,7 +57,7 @@ export function DesktopLandingPage({ openVideo, openWatch, openMusic, openRead, 
     <div className="tsugi-world-choices">{sections.map(({ id, label }) => {
       const selected = preferences.favorites.includes(id);
       return <button key={id} type="button" aria-label={label} aria-pressed={selected} onClick={() => update({ ...preferences, favorites: selected ? preferences.favorites.filter(value => value !== id) : [...preferences.favorites, id] })}>
-        <img src={art[id].image} alt="" decoding="async"/><span>{label}</span>{selected && <FiCheck aria-hidden/>}
+        <TsugiMediaIcon area={id}/><span>{label}</span>{selected && <FiCheck aria-hidden/>}
       </button>;
     })}</div>
     <p><Trans>Favorites appear first in your home. Every available world stays accessible.</Trans></p>
@@ -95,7 +95,7 @@ export function DesktopLandingPage({ openVideo, openWatch, openMusic, openRead, 
       </header>
       {!welcome && <div className="tsugi-world-greeting"><h1>{displayName ? <Trans>Welcome, {displayName}.</Trans> : <Trans>Welcome to Tsugi.</Trans>}</h1><span><Trans>Make yourself at home.</Trans></span></div>}
       <section className="tsugi-world-hero" data-ui="tsugi-world-hero">
-        <img src={welcome ? '/design/shared/hero-train.webp' : '/design/anime/hero-kagezora.webp'} alt="" decoding="async"/>
+        <img src={welcome ? '/design/launch/welcome-city.webp' : '/design/shared/hero-train.webp'} alt="" decoding="async"/>
         <div className="tsugi-world-hero-copy">
           <span className="tsugi-world-eyebrow">{welcome ? <Trans>Welcome to your next world</Trans> : <Trans>This is the beginning of something good</Trans>}</span>
           {welcome ? <h1><Trans>Your next world starts here.</Trans></h1> : <h2><Trans>One home. A thousand worlds.</Trans></h2>}

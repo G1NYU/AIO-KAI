@@ -71,7 +71,7 @@
 .tsugi-world-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .tsugi-world-choices button{display:flex;align-items:center;text-align:left;gap:9px;min-width:0;min-height:48px;padding:6px;border:1px solid var(--tsugi-line);border-radius:var(--tsugi-radius-control);background:var(--tsugi-surface);color:var(--tsugi-ink)}
 .tsugi-world-choices button[aria-pressed='true']{border-color:var(--tsugi-accent)}
-.tsugi-world-choices button img{width:45px;height:38px;flex:none;object-fit:cover;object-position:75% center;border-radius:4px}
+ .tsugi-world-choices button .tsugi-media-icon{width:24px;height:24px;flex:none;color:var(--tsugi-ink)}
 .tsugi-world-choices button span{flex:1;min-width:0;overflow-wrap:anywhere;font-size:12px}
 .tsugi-world-choices button svg{flex:none;width:16px;height:16px;color:var(--tsugi-accent)}
 .tsugi-world-motion{display:flex;align-items:center;gap:9px;min-height:34px}
@@ -83,3 +83,5 @@
 @media(max-width:760px){.tsugi-world-setup-copy{display:none}}
 @media(max-width:420px){.tsugi-world-hero{padding:22px}.tsugi-world-grid,.tsugi-world-choices{grid-template-columns:minmax(0,1fr)}.tsugi-world-toolbar{justify-content:flex-start;margin-left:0}}
 @media(prefers-reduced-motion:reduce){.tsugi-world-card>img{transition:none}}
+
+.tsugi-world-setup .tsugi-intro-art>img{object-position:center 48%}

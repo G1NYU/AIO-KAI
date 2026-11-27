@@ -285,9 +285,13 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
   try{
     await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
     await page.route('https://relations.yuna.moe/api/ids?**',route=>route.fulfill({json:{kitsu:90004},headers:{'access-control-allow-origin':'*'}}));
+    const posterImage='<svg xmlns="http://www.w3.org/2000/svg" width="120" height="180"><rect width="120" height="180" fill="#40516d"/></svg>';
+    const discoveryPoster='https://cdn.myanimelist.net/images/anime/1/90004.jpg';
+    await page.route('https://cdn.myanimelist.net/images/anime/1/90004.jpg',route=>route.fulfill({contentType:'image/svg+xml',body:posterImage}));
+    await page.route('https://image.tmdb.org/t/p/**',route=>route.fulfill({contentType:'image/svg+xml',body:posterImage}));
     await page.route('https://api.tenrai.org/v1/**',route=>{
       const films=new URL(route.request().url()).searchParams.get('type')==='movie';
-      return route.fulfill({json:{data:[{mal_id:90004,title:films?'Public anime film fixture':'Public anime discovery fixture',type:films?'Movie':'TV',rating:'PG-13 - Teens 13 or older',synopsis:'Independent discovery without addon installation.'}]},headers:{'access-control-allow-origin':'*'}});
+      return route.fulfill({json:{data:[{mal_id:90004,title:films?'Public anime film fixture':'Public anime discovery fixture',type:films?'Movie':'TV',rating:'PG-13 - Teens 13 or older',images:{jpg:{image_url:discoveryPoster}},synopsis:'Independent discovery without addon installation.'}]},headers:{'access-control-allow-origin':'*'}});
     });
     await page.addInitScript({content:'('+installDesktopFixture.toString()+')();('+installStremioFixture.toString()+')();('+function(){
       const f=window.__stremioFixture;f.boardFixture=true;f.sequence=110;
@@ -315,6 +319,8 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await film.waitFor();
     assert.equal(await board.locator('[data-ui="media-row"]').count()>0,true);
     assert.equal(await film.getAttribute('data-ui'),'poster-card');
+    await film.locator('img').waitFor({state:'attached'});
+    assert.ok(await film.locator('img').evaluate(async image=>{await image.decode();return image.naturalWidth>0&&image.naturalHeight>0;}),'standalone movie poster decodes');
     const shelfFont=await board.locator('[data-ui="media-row-title"]').first().evaluate(el=>({family:getComputedStyle(el).fontFamily,weight:Number(getComputedStyle(el).fontWeight)}));
     assert.match(shelfFont.family,/^Interface(?:,|$)/);
     assert.ok(await page.evaluate(async()=>{const faces=await document.fonts.load('600 18px Interface','Popular films');return faces.some(face=>face.family==='Interface'&&face.status==='loaded');}));
@@ -537,7 +543,14 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await watch.getByRole('button',{name:'Streaming hubs',exact:true}).click();
     await destinations.locator('[data-watch-destination="anime"]').click();
     const publicAnime=watch.locator('[data-ui="anime-public-discovery"]');
-    await publicAnime.getByRole('button',{name:'Public anime discovery fixture',exact:true}).first().click();
+    const publicPoster=publicAnime.getByRole('button',{name:'Public anime discovery fixture',exact:true}).first();
+    await publicPoster.waitFor();
+    await publicPoster.locator('img').waitFor({state:'attached'});
+    assert.ok(await publicPoster.locator('img').evaluate(async image=>{await image.decode();return image.naturalWidth>0&&image.naturalHeight>0&&image.src==='https://cdn.myanimelist.net/images/anime/1/90004.jpg';}),'Tenrai title-specific MAL poster decodes');
+    const animeFonts=await watch.locator('.tsugi-anime-hub').locator('.tsugi-anime-heading,[data-ui="media-row-title"],[data-ui="poster-card-title"]').evaluateAll(nodes=>nodes.map(el=>({family:getComputedStyle(el).fontFamily,weight:Number(getComputedStyle(el).fontWeight)})));
+    assert.ok(animeFonts.length>=3);
+    assert.ok(animeFonts.every(font=>/^Interface(?:,|$)/.test(font.family)&&font.weight>=600&&font.weight<=750),'Anime Hub uses the same Interface font as Movies & TV: '+JSON.stringify(animeFonts));
+    await publicPoster.click();
     await item.getByRole('heading',{name:'Public anime discovery fixture',exact:true}).waitFor();
     await item.getByText('Independent discovery without addon installation.',{exact:true}).waitFor();
     assert.equal(await item.getByRole('button',{name:'Play',exact:true}).count(),0);

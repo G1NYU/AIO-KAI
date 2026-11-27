@@ -337,8 +337,12 @@ try {
   const onboarding = page.locator('[data-ui="tsugi-onboarding"]');
   assert.equal(await landing.getAttribute('data-view'), 'welcome');
   assert.equal(await onboarding.isVisible(), false, 'first launch does not force setup');
-  await landing.locator('[data-ui="tsugi-world-hero"] img').evaluate(image => image.decode());
+  const welcomeHero=landing.locator('[data-ui="tsugi-world-hero"] img');
+  await welcomeHero.evaluate(image => image.decode());
+  assert.equal(await welcomeHero.getAttribute('src'),'/design/launch/welcome-city.webp');
   assert.equal(await landing.locator('.tsugi-world-card').count(), 4);
+  const welcomeArt=await landing.locator('.tsugi-world-hero img,.tsugi-world-card img').evaluateAll(images=>Promise.all(images.map(async image=>{await image.decode();return image.getAttribute('src');})));
+  assert.equal(welcomeArt.length,5);assert.equal(new Set(welcomeArt).size,5);
   await capture('00-illustrated-welcome');
   await landing.getByRole('button', { name: 'Make it yours', exact: true }).click();
   await onboarding.waitFor({ state: 'visible' });
@@ -349,6 +353,8 @@ try {
   await favoriteMusic.click();
   assert.equal(await favoriteMusic.getAttribute('aria-pressed'), 'true');
   await onboarding.locator('.tsugi-intro-art img').evaluate(image=>image.decode());
+  assert.equal(await onboarding.locator('.tsugi-intro-art img').getAttribute('src'),'/design/launch/personalization-room.webp');
+  assert.equal(await onboarding.locator('.tsugi-world-choices img').count(),0,'no repeated card artwork during personalization');
   assert.ok(await onboarding.locator('.tsugi-intro-art img').evaluate(image=>image.naturalWidth>0));
   await page.emulateMedia({reducedMotion:'reduce'});
   assert.equal(await onboarding.locator('.tsugi-intro-art img').evaluate(image=>getComputedStyle(image).animationName),'none');
@@ -366,6 +372,8 @@ try {
   await page.waitForFunction(() => document.documentElement.dataset.tsugiTheme === 'mocha' && document.documentElement.dataset.tsugiAccent === 'blue');
   assert.equal(await onboarding.isVisible(), false, 'onboarding does not reopen after completion');
   assert.equal(await landing.getAttribute('data-view'), 'home');
+  assert.equal(await landing.locator('.tsugi-world-hero img').getAttribute('src'),'/design/shared/hero-train.webp');
+  assert.ok(!welcomeArt.includes(await landing.locator('.tsugi-world-hero img').getAttribute('src')),'distinct returning-home hero');
   await landing.getByRole('heading', { name: 'Welcome, Fixture.', exact: true }).waitFor();
   await landing.getByRole('button', { name: 'Introduction', exact: true }).click();
   await onboarding.waitFor({ state: 'visible' });
