@@ -33,15 +33,47 @@ fn validate(rows:&[Entry])->Result<()>{
     Ok(())
 }
 
+#[derive(Clone,PartialEq,Eq,Serialize,Deserialize)]
+#[serde(rename_all="camelCase",deny_unknown_fields)]
+pub(super) struct SourceMatch{
+    pub(super) mal_id:u32,pub(super) source_id:u32,media_type:String,item_id:String,name:String,
+}
+fn validate_matches(entries:&[Entry],matches:&[SourceMatch])->Result<()>{
+    let mut ids=BTreeSet::new();let mut identities=BTreeSet::new();
+    for row in matches{
+        let entry=entries.iter().find(|entry|entry.mal_id==row.mal_id).ok_or("mal-invalid")?;
+        let movie=entry.format.eq_ignore_ascii_case("movie");
+        if row.source_id==0||!ids.insert(row.mal_id)||!identities.insert((&row.media_type,&row.item_id))||
+            !(row.media_type=="anime"||row.media_type==if movie{"movie"}else{"series"})||
+            !super::super::id_valid(&row.item_id)||!label(&row.name,512){return Err("mal-invalid");}
+    }
+    let size=serde_json::to_vec(entries).map_err(|_|"mal-invalid")?.len()+if matches.is_empty(){0}else{serde_json::to_vec(matches).map_err(|_|"mal-invalid")?.len()};
+    if size>MAX_BYTES{return Err("mal-limit");}
+    Ok(())
+}
+
 #[derive(Clone,Default)]
-pub(super) struct Collection{entries:Vec<Entry>}
+pub(super) struct Collection{entries:Vec<Entry>,matches:Vec<SourceMatch>}
 impl Collection{
-    pub(super) fn restored(entries:Vec<Entry>)->Result<Self>{
+    pub(super) fn restored(entries:Vec<Entry>,matches:Vec<SourceMatch>)->Result<Self>{
         validate(&entries).map_err(|_|"profile-store")?;
-        Ok(Self{entries})
+        validate_matches(&entries,&matches).map_err(|_|"profile-store")?;
+        Ok(Self{entries,matches})
     }
     pub(super) fn saved(&self)->Vec<Entry>{self.entries.clone()}
-    pub(super) fn list(&self)->Value{json!({"entries":self.entries})}
+    pub(super) fn saved_matches(&self)->Vec<SourceMatch>{self.matches.clone()}
+    pub(super) fn list(&self)->Value{json!({"entries":self.entries,"matches":self.matches})}
+    pub(super) fn assign(&mut self,mal_id:u32,source_id:u32,media_type:String,item_id:String,name:String)->Result<Value>{
+        let mut next=self.matches.clone();next.retain(|row|row.mal_id!=mal_id);
+        next.push(SourceMatch{mal_id,source_id,media_type,item_id,name});
+        validate_matches(&self.entries,&next)?;
+        self.matches=next;Ok(self.list())
+    }
+    pub(super) fn unassign(&mut self,mal_id:u32)->Result<Value>{
+        if !self.entries.iter().any(|row|row.mal_id==mal_id){return Err("mal-invalid");}
+        self.matches.retain(|row|row.mal_id!=mal_id);Ok(self.list())
+    }
+    pub(super) fn remove_source(&mut self,source_id:u32){self.matches.retain(|row|row.source_id!=source_id);}
     pub(super) fn import(&mut self,incoming:Vec<Entry>)->Result<Value>{
         validate(&incoming)?;
         let mut next=self.entries.clone();
@@ -50,12 +82,14 @@ impl Collection{
         // synchronization request or permission to overwrite local history.
         next.extend(incoming.into_iter().filter(|row|ids.insert(row.mal_id)));
         validate(&next)?;
+        validate_matches(&next,&self.matches)?;
         self.entries=next;
         Ok(self.list())
     }
     pub(super) fn remove(&mut self,mal_id:u32)->Result<Value>{
         if mal_id==0||mal_id>2147483647{return Err("mal-invalid");}
         self.entries.retain(|row|row.mal_id!=mal_id);
+        self.matches.retain(|row|row.mal_id!=mal_id);
         Ok(self.list())
     }
 }
@@ -81,15 +115,31 @@ mod tests{
         let mut invalid=entry(7,"TV");invalid.volumes_read=3;
         assert_eq!(c.import(vec![invalid]),Err("mal-invalid"));
         assert_eq!(c.list(),before);
-        assert_eq!(Collection::restored(c.saved()).unwrap().list(),before);
+        assert_eq!(Collection::restored(c.saved(),c.saved_matches()).unwrap().list(),before);
         c.remove(456).unwrap();assert_eq!(c.list()["entries"].as_array().unwrap().len(),1);
         assert_eq!(c.remove(0),Err("mal-invalid"));
     }
     #[test]
+    fn saved_matches_are_validated_and_removed_with_owner(){
+        let mut c=Collection::default();c.import(vec![entry(7,"TV"),entry(8,"Movie"),entry(9,"Movie")]).unwrap();
+        assert!(c.assign(7,1,"movie".into(),"tt123".into(),"Wrong format".into()).is_err());
+        assert!(c.assign(1,1,"movie".into(),"tt123".into(),"Unknown MAL entry".into()).is_err());
+        assert!(c.assign(8,1,"movie".into(),"https://example.test/secret".into(),"Invalid identity".into()).is_err());
+        c.assign(8,1,"movie".into(),"tt123".into(),"Film".into()).unwrap();
+        assert!(c.assign(9,2,"movie".into(),"tt123".into(),"Duplicate film".into()).is_err());
+        c.assign(7,2,"anime".into(),"kitsu:7".into(),"Series".into()).unwrap();
+        let mut restored=Collection::restored(c.saved(),c.saved_matches()).unwrap();
+        assert_eq!(restored.list(),c.list());
+        restored.remove_source(1);assert_eq!(restored.list()["matches"].as_array().unwrap().len(),1);
+        restored.remove(7).unwrap();assert_eq!(restored.list()["matches"],json!([]));
+        c.unassign(8).unwrap();assert_eq!(c.list()["matches"].as_array().unwrap().len(),1);
+        assert!(Collection::restored(vec![entry(8,"Movie")],c.saved_matches()).is_err());
+    }
+    #[test]
     fn invalid_saved_data_is_never_replaced_with_an_empty_collection(){
         let duplicate=entry(1,"TV");
-        assert!(Collection::restored(vec![duplicate.clone(),duplicate]).is_err());
+        assert!(Collection::restored(vec![duplicate.clone(),duplicate],vec![]).is_err());
         let oversized=(1..=MAX_ENTRIES as u32+1).map(|id|entry(id,"TV")).collect();
-        assert!(Collection::restored(oversized).is_err());
+        assert!(Collection::restored(oversized,vec![]).is_err());
     }
 }

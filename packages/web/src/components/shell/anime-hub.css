@@ -1,0 +1,80 @@
+/* Anime Hub adaptation of the supplied TSUGI design pack. The illustrations
+ * are decorative, never assigned as invented covers for imported titles.
+ * Preserve the user's selected global appearance and reduced-motion policy. */
+.tsugi-watch-workspace[data-watch-pane='anime']>.tsugi-watch-workspace-banner {
+  min-height:0;padding:12px 16px;background:transparent;align-items:center;justify-content:space-between;
+}
+.tsugi-watch-workspace[data-watch-pane='anime']>.tsugi-watch-workspace-banner h3 { margin:2px 0 0; }
+.tsugi-anime-hub { min-width:0; color:var(--tsugi-ink); }
+.tsugi-anime-nav {
+  display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px;
+  border-bottom:1px solid var(--tsugi-line);padding:0 0 8px;
+}
+.tsugi-anime-nav button {
+  background:transparent;color:var(--tsugi-muted);padding:9px 3px;min-height:40px;border-bottom:2px solid transparent;
+}
+.tsugi-anime-nav button[aria-current='page'] {color:var(--tsugi-ink);border-bottom-color:var(--tsugi-accent);}
+.tsugi-anime-hero {
+  position:relative;isolation:isolate;overflow:hidden;display:flex;align-items:center;
+  min-height:clamp(270px,26vw,395px);border-radius:var(--tsugi-radius-panel,18px);
+  background:#111016;color:#f3ebe0;
+}
+.tsugi-anime-hero>.tsugi-anime-backdrop {object-position:center right;}
+.tsugi-anime-hero>.tsugi-landscape-credit {position:absolute;inset-inline-start:20px;inset-inline-end:auto;bottom:12px;max-width:calc(100% - 150px);z-index:2;display:flex;flex-wrap:wrap;gap:6px;align-items:center;color:#f3ebe0;font-size:.75rem;}
+.tsugi-anime-hero>.tsugi-landscape-credit button {background:#141015dd;color:#f3ebe0;padding:5px 8px;border-radius:6px;}
+.tsugi-anime-hero::before {
+  content:'';position:absolute;inset:0;z-index:-1;
+  background:linear-gradient(90deg,#110d13f5 0%,#110d13de 27%,#110d135c 62%,#110d131a),linear-gradient(0deg,#110d1399,transparent 40%);
+}
+.tsugi-anime-hero-copy { padding:clamp(20px,3vw,36px);width:min(560px,67%);padding-bottom:56px; }
+.tsugi-anime-eyebrow { color:#ffae97;font-size:.76rem;letter-spacing:.16em;text-transform:uppercase;font-weight:600; }
+.tsugi-anime-hero .tsugi-anime-brush {font-size:clamp(2.1rem,4.6vw,4rem);line-height:1.35;margin:10px 0;overflow-wrap:anywhere;}
+.tsugi-anime-hero p {color:#f3ebe0;max-width:47ch;margin:10px 0;}
+.tsugi-anime-hero .tsugi-anime-stats { color:#ffd0bc;font-size:.9rem; }
+.tsugi-anime-primary {
+  padding:10px 18px;border-radius:var(--tsugi-radius-art,12px);background:#d95540;color:#fff9f4;min-height:44px;font-weight:600;
+}
+.tsugi-anime-hero .tsugi-read-action { background:#151119b8;color:#f3ebe0;border-color:#ffffff38; }
+.tsugi-anime-hero-controls {position:absolute;right:16px;bottom:14px;display:flex;align-items:center;gap:10px;font-size:.78rem;}
+.tsugi-anime-hero-controls button {width:34px;height:34px;border:1px solid #f3ebe044;border-radius:50%;background:#141015bc;color:#f3ebe0;font-size:1.3rem;}
+.tsugi-anime-shelf {display:grid;gap:10px;min-width:0;}
+.tsugi-anime-shelf h3,.tsugi-anime-discovery h2,.tsugi-anime-hub [data-mal-kind='anime'] h2 {
+  font-family:Georgia,'Times New Roman',serif;font-weight:600;font-size:clamp(1.25rem,2vw,1.65rem);line-height:1.4;
+}
+.tsugi-anime-shelf h3::before {content:'';display:inline-block;background:var(--tsugi-accent);width:21px;height:4px;transform:rotate(-27deg);margin-inline-end:9px;vertical-align:middle;}
+.tsugi-anime-shelf>p {color:var(--tsugi-muted);}
+.tsugi-anime-track {display:flex;gap:12px;overflow:auto;scroll-snap-type:x proximity;padding:4px 3px 12px;}
+.tsugi-anime-title {
+  display:flex;flex-direction:column;gap:6px;justify-content:flex-end;min-height:100px;padding:14px;text-align:start;
+  min-width:0;border:1px solid var(--tsugi-line);border-radius:var(--tsugi-radius-art,12px);
+  color:var(--tsugi-ink);background:linear-gradient(155deg,color-mix(in srgb,var(--tsugi-accent) 11%,var(--tsugi-surface)),var(--tsugi-surface) 70%);
+  overflow-wrap:anywhere;
+}
+.tsugi-anime-track .tsugi-anime-title {flex:0 0 clamp(180px,23vw,255px);scroll-snap-align:start;}
+.tsugi-anime-cover {display:block;width:100%;aspect-ratio:3/4;max-height:230px;overflow:hidden;border-radius:var(--tsugi-radius-art,12px);background:var(--tsugi-surface);}
+.tsugi-anime-cover img {display:block;width:100%;height:100%;object-fit:cover;}
+.tsugi-anime-title strong {font-weight:600;}
+.tsugi-anime-connections {display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;padding:8px 0;border-bottom:1px solid var(--tsugi-line);}
+.tsugi-anime-connections button {background:transparent;display:flex;flex-direction:column;align-items:flex-start;gap:2px;color:var(--tsugi-ink);padding:6px 0;text-align:start;min-height:44px;}
+.tsugi-anime-connections small {color:var(--tsugi-muted);}
+.tsugi-anime-connections button:hover strong {text-decoration:underline;text-underline-offset:3px;}
+.tsugi-anime-title small {color:var(--tsugi-muted);}
+.tsugi-anime-title progress {height:5px;width:100%;accent-color:var(--tsugi-accent);}
+.tsugi-anime-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr));gap:10px;min-width:0;}
+.tsugi-anime-grid>.tsugi-read-row {align-items:flex-start;align-content:space-between;min-height:100px;padding:12px;min-width:0;border:1px solid var(--tsugi-line);border-radius:var(--tsugi-radius-art,12px);background:var(--tsugi-surface);}
+.tsugi-anime-grid>.tsugi-read-row>:first-child {min-width:0;flex-basis:100%;}
+.tsugi-anime-grid>.tsugi-read-row .tsugi-read-action {min-height:36px;}
+.tsugi-anime-source {border-top:1px solid var(--tsugi-line);padding:18px 0 0;}
+.tsugi-anime-discovery form,.tsugi-anime-source form {max-width:760px;}
+.tsugi-anime-hub button:focus-visible,.tsugi-anime-hub input:focus-visible,.tsugi-anime-hub select:focus-visible {outline:2px solid var(--tsugi-focus);outline-offset:2px;}
+.tsugi-anime-hero button:focus-visible {outline-color:#ffb29d;}
+.tsugi-anime-hub button:disabled {opacity:.55;}
+@media(max-width:760px) {
+  .tsugi-anime-hero {min-height:310px;align-items:flex-end;}
+  .tsugi-anime-hero::before {background:linear-gradient(0deg,#110d13fa 10%,#110d13c9 65%,#110d1333),linear-gradient(90deg,#110d13aa,transparent);}
+  .tsugi-anime-hero-copy {width:100%;padding:20px 18px 96px;}
+  .tsugi-anime-hero>.tsugi-landscape-credit {bottom:50px;max-width:calc(100% - 40px);}
+  .tsugi-anime-nav {gap:4px 12px;}
+  .tsugi-anime-grid {grid-template-columns:repeat(auto-fill,minmax(min(100%,180px),1fr));}
+}
+@media(prefers-reduced-motion:reduce) {.tsugi-anime-track {scroll-behavior:auto;}}

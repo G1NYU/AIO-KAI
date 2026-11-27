@@ -51,6 +51,8 @@ pub enum Action {
     MalAnimeList,
     MalAnimeImport { entries: Vec<MalAnimeEntry> },
     MalAnimeRemove { mal_id: u32 },
+    MalAnimeMatch { mal_id:u32,source_id:u32,media_type:String,item_id:String },
+    MalAnimeUnmatch { mal_id:u32 },
     WatchHistory,
     WatchRecord { progress: WatchProgress, #[serde(default)] viewing_id: Option<String> },
     WatchRemove { media_type: String, item_id: String, video_id: String },
@@ -112,6 +114,9 @@ impl MediaGrant {
 }
 #[derive(Default)]
 struct GrantSlot { generation:u64, grant:Option<MediaGrant> }
+#[derive(Clone)]
+struct MalCatalogReview { source_id:u32, items:Vec<(String,String,String)>, created:Instant }
+
 #[derive(Clone, Default)]
 struct Registry {
     sequence: u32,
@@ -124,6 +129,7 @@ struct Registry {
     history: history::History,
     refract: refract::Connection,
     mal_anime: mal_anime::Collection,
+    mal_review: Option<MalCatalogReview>,
 }
 
 /// Only bounded display fields and declared capabilities cross the bridge.
@@ -157,6 +163,7 @@ impl Registry {
         if self.pending.as_ref().is_some_and(|p| p.created.elapsed() >= REVIEW_TTL) { self.pending = None; }
         if self.import.as_ref().is_some_and(|p| p.expired()) { self.import = None; }
         if self.media_review.as_ref().is_some_and(|p|p.created.elapsed()>=REVIEW_TTL){self.media_review=None;}
+        if self.mal_review.as_ref().is_some_and(|p|p.created.elapsed()>=REVIEW_TTL){self.mal_review=None;}
         if self.grant.as_ref().is_some_and(|p|p.created.elapsed()>=Duration::from_secs(15)){self.grant=None;}
     }
     fn check_endpoint(&self, endpoint: &Endpoint) -> Result<()> {
@@ -179,11 +186,20 @@ impl Registry {
         self.expire();
         self.grant=None;
         if matches!(&action,Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::ItemOptions{..}|Action::Metadata{..}|Action::Catalog{..}) {self.media_review=None;}
+        if matches!(&action,Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::Catalog{..}){self.mal_review=None;}
         match action {
             Action::List => Ok(self.list()),
             Action::MalAnimeList => Ok(self.mal_anime.list()),
             Action::MalAnimeImport{entries} => self.mal_anime.import(entries),
             Action::MalAnimeRemove{mal_id} => self.mal_anime.remove(mal_id),
+            Action::MalAnimeUnmatch{mal_id} => self.mal_anime.unassign(mal_id),
+            Action::MalAnimeMatch{mal_id,source_id,media_type,item_id} => {
+                let source=&self.sources[self.source_index(source_id)?];
+                if !source.enabled{return Err("disabled-source");}
+                let reviewed=self.mal_review.take().filter(|review|review.source_id==source_id).ok_or("expired-review")?;
+                let (_,_,name)=reviewed.items.into_iter().find(|(kind,id,_)|kind==&media_type&&id==&item_id).ok_or("expired-review")?;
+                self.mal_anime.assign(mal_id,source_id,media_type,item_id,name)
+            },
             Action::WatchHistory => Ok(self.history.list()),
             Action::WatchRecord { progress,viewing_id } => {
                 let already_completed=self.history.completed_at(&progress,viewing_id.as_deref()).is_some();
@@ -249,6 +265,7 @@ impl Registry {
             Action::Remove { source_id } => {
                 let index = self.source_index(source_id)?;
                 self.sources.remove(index);
+                self.mal_anime.remove_source(source_id);
                 Ok(self.list())
             }
             Action::Catalog { source_id, media_type, catalog_id, extras } => {
@@ -258,6 +275,7 @@ impl Registry {
                 let items: Vec<_> = page.items.iter().map(|item| json!({
                     "id":item.id,"mediaType":item.kind,"name":item.name
                 })).collect();
+                self.mal_review=Some(MalCatalogReview{source_id,items:page.items.into_iter().map(|item|(item.kind,item.id,item.name)).collect(),created:Instant::now()});
                 Ok(json!({"sourceId":source_id,"mediaType":media_type,"catalogId":catalog_id,
                     "items":items,"sourceCount":page.source_count,"nextSkip":page.next_skip}))
             }

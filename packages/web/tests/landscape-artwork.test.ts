@@ -102,3 +102,32 @@ describe('Landscape diversity', () => {
     expect(localLandscapes('/design/shared/hero-train.webp')).toHaveLength(3);
   });
 });
+
+import { selectAnimeCover } from '../src/components/shell/anime-cover';
+
+describe('Anime Hub exact MAL cover lookup',()=>{
+  const image='https://cdn.myanimelist.net/images/anime/1/601.jpg';
+  const data={mal_id:601,rating:'PG-13 - Teens 13 or older',images:{jpg:{image_url:image}}};
+  it('uses a safe-rated exact MAL identity and the existing image CDN',()=>{
+    expect(selectAnimeCover({data},601)).toBe(image);
+    expect(selectAnimeCover({data},602)).toBeUndefined();
+    expect(selectAnimeCover({data:{...data,mal_id:'601'}},601)).toBeUndefined();
+    expect(selectAnimeCover({data:{...data,rating:'Rx - Hentai'}},601)).toBeUndefined();
+    expect(selectAnimeCover({data:{...data,rating:null}},601)).toBeUndefined();
+  });
+  it('rejects unexpected origins, credentialed URLs, query strings and non-anime paths',()=>{
+    for(const url of ['http://cdn.myanimelist.net/images/anime/1/601.jpg',
+      'https://cdn.myanimelist.net.evil.test/images/anime/1/601.jpg',
+      'https://user:secret@cdn.myanimelist.net/images/anime/1/601.jpg',
+      'https://cdn.myanimelist.net/images/anime/1/601.jpg?token=fixture',
+      'https://cdn.myanimelist.net/images/manga/1/601.jpg',
+      'https://cdn.myanimelist.net/images/anime/1/601.svg']){
+      expect(selectAnimeCover({data:{...data,images:{jpg:{image_url:url}}}},601)).toBeUndefined();
+    }
+  });
+  it('prefers the first valid image, not an invalid high-resolution candidate',()=>{
+    expect(selectAnimeCover({data:{...data,images:{jpg:{large_image_url:'https://example.test/cover.jpg',image_url:image}}}},601)).toBe(image);
+    expect(selectAnimeCover(null,601)).toBeUndefined();
+    expect(selectAnimeCover({data:[]},601)).toBeUndefined();
+  });
+});

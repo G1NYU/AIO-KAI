@@ -1,5 +1,7 @@
 # AIO-KAI development handoff
 
+- 2026-11-27: MAL manga and anime import passed [CI 45951375568](https://github.com/G1NYU/TSUGI/actions/runs/45951375568) at d238787 (218 native tests, 18 ignored, 40 web suites and both import browser acceptance fixtures). Anime Hub design integration with exact supplied illustrations, shared Kitsu/Nekos hero artwork, optional exact-ID Jikan anime covers, catalogue discovery, actual matched history/resume and persistent profile-owned reviewed source matches is authored. MAL/Refract connection shortcuts, first-launch anime and manga import, and optional Refract setup are included; its own CI remains required. See HANDOFF.md and docs/mal-import.md. No release/package.
+
 - MAL import follow-up (2026-11-27): the exact parser from e58bf05 passed strict standalone TypeScript and 17 Chromium assertions. Unified 45951114091 passed typecheck/lint/native tests but failed the Reader explicit translation-ID guard (436 web tests passed, one failed). The repair applies explicit IDs and expands the existing guard; cumulative CI remains required.
 
 ## 2026-11-27 — MAL collections and D5 verification

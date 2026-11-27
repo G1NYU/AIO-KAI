@@ -49,6 +49,8 @@ struct SavedProfile {
     refract: Option<super::refract::Saved>,
     #[serde(default,skip_serializing_if="Vec::is_empty")]
     mal_anime: Vec<super::mal_anime::Entry>,
+    #[serde(default,skip_serializing_if="Vec::is_empty")]
+    mal_anime_matches: Vec<super::mal_anime::SourceMatch>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -65,13 +67,13 @@ fn name_valid(name: &str) -> bool {
 }
 fn source_action(action: &Action) -> bool {
     matches!(action,Action::List|Action::Review{..}|Action::Install{..}|Action::CancelReview{..}|
-        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::PrepareMedia{..}|Action::MalAnimeList|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::WatchHistory|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::RefractStatus|Action::RefractConnect{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractSync|Action::RefractWatchlist{..}|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
+        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::PrepareMedia{..}|Action::MalAnimeList|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::MalAnimeMatch{..}|Action::MalAnimeUnmatch{..}|Action::WatchHistory|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::RefractStatus|Action::RefractConnect{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractSync|Action::RefractWatchlist{..}|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
         Action::ImportConnect{..}|Action::ImportNuvioProfile{..}|Action::ImportReview{..}|Action::ImportApply{..}|Action::ImportCancel{..})
 }
 pub(super) fn is_mutation(action: &Action) -> bool {
     match action {
         Action::ProfileCreate{..}|Action::ProfileRename{..}|Action::ProfileSwitch{..}|Action::ProfileRemove{..} => true,
-        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::RefractConnect{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractWatchlist{..}),
+        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::MalAnimeMatch{..}|Action::MalAnimeUnmatch{..}|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::RefractConnect{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractWatchlist{..}),
         _ => false,
     }
 }
@@ -135,7 +137,7 @@ impl Profiles {
                 if self.active!=profile_id {
                     // Reviews cannot survive a profile switch. Source ids
                     // are globally unique and never reused by another profile.
-                    for profile in &mut self.profiles {profile.registry.pending=None;profile.registry.import=None;profile.registry.media_review=None;profile.registry.grant=None;}
+                    for profile in &mut self.profiles {profile.registry.pending=None;profile.registry.import=None;profile.registry.media_review=None;profile.registry.mal_review=None;profile.registry.grant=None;}
                     self.active=profile_id;
                 }
                 Ok(self.list())
@@ -172,6 +174,7 @@ impl Profiles {
                 history:p.registry.history.saved(),
                 refract:p.registry.refract.saved(),
                 mal_anime:p.registry.mal_anime.saved(),
+                mal_anime_matches:p.registry.mal_anime.saved_matches(),
                 sources:p.registry.sources.iter().map(|s|SavedSource{
                     id:s.id,endpoint:s.endpoint.0.as_str().to_owned(),enabled:s.enabled,manifest:s.manifest.clone()
                 }).collect()
@@ -206,7 +209,8 @@ impl Profiles {
                 if manifest.behavior_hints.configuration_required{return Err("profile-store");}
                 sources.push(Source{id:source.id,endpoint,manifest,enabled:source.enabled});
             }
-            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,mdblist:super::mdblist::Connection::restored(profile.mdblist_key)?,history:super::history::History::restore(profile.history)?,refract:super::refract::Connection::restored(profile.refract)?,mal_anime:super::mal_anime::Collection::restored(profile.mal_anime)?,..Registry::default()}});
+            if profile.mal_anime_matches.iter().any(|row|!sources.iter().any(|source|source.id==row.source_id)){return Err("profile-store");}
+            profiles.push(Profile{id:profile.id,name:profile.name,registry:Registry{sequence:saved.sequence,sources,mdblist:super::mdblist::Connection::restored(profile.mdblist_key)?,history:super::history::History::restore(profile.history)?,refract:super::refract::Connection::restored(profile.refract)?,mal_anime:super::mal_anime::Collection::restored(profile.mal_anime,profile.mal_anime_matches)?,..Registry::default()}});
         }
         if !profiles.iter().any(|p|p.id==saved.active){return Err("profile-store");}
         Ok(Self{active:saved.active,sequence:saved.sequence,profiles})
@@ -253,6 +257,30 @@ mod tests {
         let row=profiles.profiles[i].registry.stage(Endpoint::parse("https://example.org/configured/manifest.json?key=private-fixture").unwrap(),manifest).unwrap();
         profiles.sequence=profiles.profiles[i].registry.sequence;
         row["reviewId"].as_u64().unwrap() as u32
+    }
+    #[test]
+    fn anime_source_match_requires_current_review_and_persists_in_profile(){
+        let mut p=Profiles::default();
+        let source_id=stage(&mut p,1);
+        p.execute(scoped(1,Action::Install{review_id:source_id})).unwrap();
+        let import=serde_json::from_value::<Action>(json!({"kind":"mal-anime-import","entries":[{
+            "malId":7,"title":"Fixture","status":"planned","progress":0,"total":1,"score":0,"format":"Movie","volumesRead":0,"volumesTotal":0
+        }]})).unwrap();
+        p.execute(scoped(1,import)).unwrap();
+        let action=||Action::MalAnimeMatch{mal_id:7,source_id,media_type:"movie".into(),item_id:"tt123".into()};
+        assert!(is_mutation(&scoped(1,action())));
+        assert_eq!(p.execute(scoped(1,action())),Err("expired-review"));
+        p.profiles[0].registry.mal_review=Some(super::super::MalCatalogReview{
+            source_id,items:vec![("movie".into(),"tt123".into(),"Reviewed film".into())],created:std::time::Instant::now()
+        });
+        assert_eq!(p.execute(scoped(1,action())).unwrap()["matches"][0]["name"],"Reviewed film");
+        let mut restored=Profiles::decode(&p.encode().unwrap()).unwrap();
+        assert_eq!(restored.execute(scoped(1,Action::MalAnimeList)).unwrap()["matches"][0]["itemId"],"tt123");
+        restored.execute(scoped(1,Action::SetEnabled{source_id,enabled:false})).unwrap();
+        assert_eq!(restored.execute(scoped(1,Action::MalAnimeList)).unwrap()["matches"][0]["sourceId"],source_id);
+        restored.execute(scoped(1,Action::Remove{source_id})).unwrap();
+        let collection=restored.execute(scoped(1,Action::MalAnimeList)).unwrap();
+        assert_eq!(collection["matches"],json!([]));assert_eq!(collection["entries"][0]["malId"],7);
     }
     #[test]
     fn profile_scopes_are_explicit_and_review_cannot_cross_switch(){

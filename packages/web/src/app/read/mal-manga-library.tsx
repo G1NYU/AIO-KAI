@@ -11,7 +11,7 @@ type Manga = { id:number|string; sourceId?:string; readerIdentity?:string; title
 type Details = { manga:Manga; chapters:{id:number}[] };
 type Link = { malId:number; mangaId:number; sourceId:string; identity:string };
 type Collection = { raw:string|null; entries:MalEntry[]; links:Link[] };
-type Props = { busy:boolean; run(work:()=>Promise<void>):Promise<void>; onOpen(manga:Manga):Promise<void>; openExtensions():void };
+type Props = { busy:boolean; run(work:()=>Promise<void>):Promise<void> } & ({importOnly:true;onOpen?:never;openExtensions?:never}|{importOnly?:false;onOpen(manga:Manga):Promise<void>;openExtensions():void});
 
 const KEY='tsugi-mal-manga-v1';
 function sourceId(value:unknown):value is string{
@@ -58,7 +58,7 @@ function identify(manga:Manga,malId:number,selectedSource:string):Link{
 }
 function same(a:Link,b:Link){return a.malId===b.malId&&a.mangaId===b.mangaId&&a.sourceId===b.sourceId&&a.identity===b.identity;}
 
-export function MalMangaLibrary({busy,run,onOpen,openExtensions}:Props){
+export function MalMangaLibrary({busy,run,onOpen,openExtensions,importOnly=false}:Props){
   const [collection,setCollection]=React.useState(safeLoad);
   const [selected,setSelected]=React.useState<number|null>(null);
   const [sources,setSources]=React.useState<Source[]|null>(null);
@@ -107,7 +107,7 @@ export function MalMangaLibrary({busy,run,onOpen,openExtensions}:Props){
     const data=await readRequest<Details>({kind:'cached-manga',id:link.mangaId});
     if(!data.manga.inLibrary||!same(identify(data.manga,entry.malId,link.sourceId),link))
       throw Error(t({ id:'MAL source match unavailable',message: 'The saved source is no longer available. Choose a source again.'}));
-    await onOpen(data.manga);
+    await onOpen?.(data.manga);
   }
   async function apply(){
     if(!entry||!review||!collection)return;
@@ -127,15 +127,16 @@ export function MalMangaLibrary({busy,run,onOpen,openExtensions}:Props){
       throw Error(t({ id:'MAL source verification failed',message: 'The Reader could not verify the saved source. Review it again.'}));
     try{update(collection.entries,[...collection.links.filter(row=>row.malId!==entry.malId),match]);}
     catch{throw Error(t({ id:'MAL source saved assignment unconfirmed',message: 'The title was saved in Reader, but the MAL assignment could not be confirmed. Reload the collection and review it again.'}));}
-    await onOpen(verified.manga);
+    await onOpen?.(verified.manga);
   }
   if(!collection)return <section className="space-y-3"><p role="alert"><Trans id="MAL collection read failed">The imported manga collection could not be read. It has not been reset.</Trans></p><button className="tsugi-read-action" disabled={busy} onClick={()=>setCollection(safeLoad())}><Trans id="Reload imported collection">Reload imported collection</Trans></button></section>;
   return <div className="space-y-5" data-ui="mal-manga-library">
     <MalCollectionPanel kind="manga" entries={collection.entries} busy={busy} selectedId={selected} run={run}
-      onSelect={choose} isAssigned={row=>collection.links.some(link=>link.malId===row.malId)}
+      onSelect={importOnly?undefined:choose} isAssigned={row=>collection.links.some(link=>link.malId===row.malId)}
       onImport={async entries=>{update(mergeMalEntries(collection.entries,entries,'manga'),collection.links);}}
       onRemove={async id=>{update(collection.entries.filter(row=>row.malId!==id),collection.links.filter(row=>row.malId!==id));if(selected===id){setSelected(null);setReview(null);setResults(null);}}}/>
-    {entry&&<section ref={selectionRef} className="space-y-3" data-ui="mal-manga-source">
+    {importOnly&&<p><Trans id="MAL manga onboarding note">Choose reading sources in Reader after setup. Imported titles do not require a running reading engine.</Trans></p>}
+    {!importOnly&&entry&&<section ref={selectionRef} className="space-y-3" data-ui="mal-manga-source">
       <div className="flex flex-wrap gap-2 items-center justify-between"><h3 className="font-semibold break-words"><Trans id="Choose a reading source">Choose a reading source</Trans> · {entry.title}</h3><button className="tsugi-read-action" disabled={busy} onClick={()=>setSelected(null)}><Trans id="Close">Close</Trans></button></div>
       <p><Trans id="MAL chapter counts are kept separately. Choosing a source does not mark chapters read or change your MAL account.">MAL chapter counts are kept separately. Choosing a source does not mark chapters read or change your MAL account.</Trans></p>
       {link&&<button className="tsugi-read-action" disabled={busy} onClick={()=>void run(openSaved)}><Trans id="Open saved source">Open saved source</Trans></button>}

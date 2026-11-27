@@ -40,9 +40,9 @@ function feedback(reason: unknown) {
 }
 type WatchPane = 'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history'|'refract'|'anime';
 const profileArt=['/design/oto/hero-yuna.webp','/design/yomi/hero-torii.webp','/design/shared/hero-neon.webp','/design/shared/hero-train.webp'];
-export function StremioAddonSettings({workspace=false,onPlay,historyActive=false}:{workspace?:boolean;onPlay?:(playback:WatchPlayback)=>void;historyActive?:boolean}={}){
+export function StremioAddonSettings({workspace=false,onPlay,historyActive=false,setupConnections=false,initialPane='addons'}:{workspace?:boolean;onPlay?:(playback:WatchPlayback)=>void;historyActive?:boolean;setupConnections?:boolean;initialPane?:'addons'|'anime'}={}){
   const [entered,setEntered]=React.useState(false);
-  const [pane,setPane]=React.useState<WatchPane>('addons');
+  const [pane,setPane]=React.useState<WatchPane>(initialPane);
   const [creating,setCreating]=React.useState(false);
   const titleId=React.useId();
   const [profileState,setProfileState]=React.useState<ProfileState|null>(null);
@@ -125,7 +125,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
       }
       setProfileName('');setDeleteId(0);setDeleteName('');
       await reloadProfiles(result);
-      if(mounted.current&&enter){setCreating(false);setPane('addons');setEntered(true);}
+      if(mounted.current&&enter){setCreating(false);setPane(initialPane);setEntered(true);}
 
     });
   }
@@ -164,11 +164,12 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
       else{seen.current.add(fingerprint);setPage(next);}
     });
   }
-  async function openTitle(item:CatalogPage['items'][number]){
+  async function openTitle(item:CatalogPage['items'][number],preferredSourceId?:number){
     if(flight.current||profileId===undefined)return;
     clearTitle();setTitle(item);
     if(item.mediaType==='movie')setVideoId(item.id);
-    const metadataSource=sources.find(s=>s.enabled&&s.manifest.resources.includes('meta'));
+    const supportsMetadata=(s:AddonSource)=>s.enabled&&s.manifest.resources.includes('meta');
+    const metadataSource=sources.find(s=>s.sourceId===preferredSourceId&&supportsMetadata(s))??sources.find(supportsMetadata);
     if(metadataSource)await readMetadata(item,metadataSource.sourceId);
   }
   function openHistory(entry:WatchProgress){
@@ -222,6 +223,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
       <TsugiBrand />
       <h3 id={titleId}><Trans>Who’s watching?</Trans></h3>
       <p><Trans>Choose your Watch profile. Your addons and source order are yours.</Trans></p>
+      {setupConnections&&<p><Trans>Anime, MyAnimeList imports and Refract tracking are also configured per profile. All connections are optional.</Trans></p>}
       {profileState&&<div className="tsugi-watch-profiles">
         {profileState.profiles.map(p=><button key={p.profileId} type="button" className="tsugi-watch-profile" data-profile-id={p.profileId} disabled={blocked} onClick={()=>void changeProfile({kind:'profile-switch',profileId:p.profileId},true)}>
           <span className="tsugi-watch-avatar"><img src={profileArt[(p.profileId-1)%profileArt.length]} alt="" decoding="async"/></span>
@@ -245,9 +247,9 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     </div>
   </section>;
   const show=(...panes:WatchPane[])=>!workspace||panes.includes(pane);
-  return <section className={workspace?'tsugi-app-general tsugi-watch-workspace':'tsugi-app-general'} data-ui="stremio-addon-settings" aria-labelledby={titleId}>
+  return <section className={workspace?'tsugi-app-general tsugi-watch-workspace':'tsugi-app-general'} data-ui="stremio-addon-settings" data-watch-pane={pane} aria-labelledby={titleId}>
     {workspace&&<header className="tsugi-watch-workspace-banner" style={{'--tsugi-watch-art':"url('/design/shared/hero-train.webp')"} as React.CSSProperties}>
-      <div><TsugiBrand/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}><Trans>Your addon stack.</Trans></h3><p><Trans>Bring your sources home.</Trans></p></div>
+      <div><TsugiBrand/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}>{pane==='anime'?<Trans>Anime</Trans>:<Trans>Your addon stack.</Trans>}</h3>{pane!=='anime'&&<p><Trans>Bring your sources home.</Trans></p>}</div>
       <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void backToProfiles()}><TsugiIcon name="people" aria-hidden/> <Trans>Switch profile</Trans></button>
     </header>}
     {workspace&&<nav className="tsugi-watch-nav" aria-label={t`Watch setup`}>
@@ -262,7 +264,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
         ['refract',t`Refract`,'bookmark'],
         ['history',t`Watch history`,'list'],
         ['profile',t`Profile settings`,'settings']
-      ] as const).filter(([id])=>(id!=='history'&&id!=='refract'&&id!=='anime')||!!onPlay).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><TsugiIcon name={icon}/><span>{label}</span></button>)}
+      ] as const).filter(([id])=>id==='history'?!!onPlay:id==='anime'||id==='refract'?!!onPlay||setupConnections:true).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" aria-pressed={pane===id} disabled={busy} onClick={()=>void selectPane(id)}><TsugiIcon name={icon}/><span>{label}</span></button>)}
     </nav>}
     <div className={workspace?'tsugi-watch-content':'contents'}>
     {!workspace&&<h3 id={titleId}><Trans>Stremio addons</Trans></h3>}
@@ -283,7 +285,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
         {profileState.profiles.length>1&&<details>
           <summary><Trans>Delete an inactive profile</Trans></summary>
           <div className="space-y-2">
-            <p><Trans>Deleting a profile removes its saved addon configurations, connected account credentials, imported anime collection and local Watch history. Switch away from it first. This cannot be undone.</Trans></p>
+            <p><Trans>Deleting a profile removes its saved addon configurations, connected account credentials, imported anime collection and source assignments, and local Watch history. Switch away from it first. This cannot be undone.</Trans></p>
             <label><Trans>Profile to delete</Trans><select className="tsugi-menu-select w-full" disabled={busy} value={deleteId} onChange={e=>{setDeleteId(Number(e.target.value));setDeleteName('');}}>
               <option value={0}>{t`Select`}</option>{profileState.profiles.filter(p=>p.profileId!==profileId).map(p=><option key={p.profileId} value={p.profileId}>{p.name}</option>)}
             </select></label>
@@ -353,9 +355,9 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     </form>}
     </>}
     {workspace&&pane==='history'&&historyActive&&profileReady&&profileId!==undefined&&<WatchHistory key={profileId} profileId={profileId} busy={busy} run={run} open={openHistory} removed={clearTitle}/>}
-    {workspace&&pane==='anime'&&profileReady&&profileId!==undefined&&<MalAnimeLibrary key={profileId} profileId={profileId} sources={sources} busy={busy} run={run} openTitle={item=>void openTitle(item)} clearTitle={clearTitle} openAddons={()=>void selectPane('addons')}/>}
+    {workspace&&pane==='anime'&&profileReady&&profileId!==undefined&&<MalAnimeLibrary key={profileId} profileId={profileId} sources={sources} busy={busy} historyActive={historyActive} setupOnly={!onPlay} run={run} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} clearTitle={clearTitle} openAddons={()=>void selectPane('addons')}/>}
     {workspace&&pane==='mdblist'&&profileReady&&profileId!==undefined&&<MdblistSettings key={profileId} profileId={profileId} openTitle={item=>void openTitle(item)}/>}
-    {workspace&&pane==='refract'&&historyActive&&profileReady&&profileId!==undefined&&<RefractSettings key={profileId} profileId={profileId} busy={busy} run={run}/>}
+    {workspace&&pane==='refract'&&(historyActive||setupConnections)&&profileReady&&profileId!==undefined&&<RefractSettings key={profileId} profileId={profileId} busy={busy} run={run}/>}
     {workspace&&title&&<section className="space-y-3" data-ui="watch-item-details">
       <div className="flex items-center justify-between gap-3"><h4>{details?.name??title.name}</h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={clearTitle}><Trans>Close title</Trans></button></div>
       {resumeMatch?.episodeTitle&&<p>{resumeMatch.episodeTitle}</p>}

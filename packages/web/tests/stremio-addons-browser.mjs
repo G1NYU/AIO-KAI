@@ -59,13 +59,25 @@ function installStremioFixture(){
     const reply=data=>emit({...data,profileId:raw.profileId});
     switch(a.kind){
       case 'list':return reply({sources:profile.sources});
-      case 'mal-anime-list':return reply({entries:profile.malAnime??[]});
+      case 'mal-anime-list':return reply({entries:profile.malAnime??[],matches:profile.malMatches??[]});
       case 'mal-anime-import':{
         const entries=new Map((profile.malAnime??[]).map(row=>[row.malId,row]));
         for(const row of a.entries)if(!entries.has(row.malId))entries.set(row.malId,row);
-        profile.malAnime=[...entries.values()];return reply({entries:profile.malAnime});
+        profile.malAnime=[...entries.values()];return reply({entries:profile.malAnime,matches:profile.malMatches??[]});
       }
-      case 'mal-anime-remove':profile.malAnime=(profile.malAnime??[]).filter(row=>row.malId!==a.malId);return reply({entries:profile.malAnime});
+      case 'mal-anime-remove':
+        profile.malAnime=(profile.malAnime??[]).filter(row=>row.malId!==a.malId);
+        profile.malMatches=(profile.malMatches??[]).filter(row=>row.malId!==a.malId);
+        return reply({entries:profile.malAnime,matches:profile.malMatches});
+      case 'mal-anime-match':{
+        const reviewed=profile.malReview;profile.malReview=null;
+        if(!reviewed||reviewed.sourceId!==a.sourceId||!profile.sources.some(s=>s.sourceId===a.sourceId&&s.enabled))return emit(null,'expired-review');
+        const item=reviewed.items.find(i=>i.mediaType===a.mediaType&&i.id===a.itemId);
+        if(!item||!profile.malAnime?.some(row=>row.malId===a.malId))return emit(null,'mal-invalid');
+        profile.malMatches=[...(profile.malMatches??[]).filter(row=>row.malId!==a.malId),{malId:a.malId,sourceId:a.sourceId,mediaType:a.mediaType,itemId:a.itemId,name:item.name}];
+        return reply({entries:profile.malAnime,matches:profile.malMatches});
+      }
+      case 'mal-anime-unmatch':profile.malMatches=(profile.malMatches??[]).filter(row=>row.malId!==a.malId);return reply({entries:profile.malAnime??[],matches:profile.malMatches});
       case 'mdblist-status':return reply({connected:profile.mdblistConnected});
       case 'mdblist-connect':{
         if(a.key!=='fixture-mdblist-key')return emit(null,'mdblist-auth');
@@ -177,7 +189,9 @@ function installStremioFixture(){
       case 'catalog':{
         if(!profile.sources.some(s=>s.sourceId===a.sourceId&&s.enabled)||a.catalogId!=='search'||a.mediaType!=='movie'||a.extras.search!=='original')return emit(null,'invalid-extras');
         const skip=Number(a.extras.skip??0);
-        return reply({sourceId:a.sourceId,mediaType:'movie',catalogId:'search',items:[{id:skip===0?'tt123':'tt456',name:skip===0?'First original film':'Second original film',mediaType:'movie'}],sourceCount:1,nextSkip:skip+1});
+        const items=[{id:skip===0?'tt123':'tt456',name:skip===0?'First original film':'Second original film',mediaType:'movie'}];
+        profile.malReview={sourceId:a.sourceId,items};
+        return reply({sourceId:a.sourceId,mediaType:'movie',catalogId:'search',items,sourceCount:1,nextSkip:skip+1});
       }
       default:return emit(null,'request');
     }
@@ -316,7 +330,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
   const firstLaunch=await browser.newPage({viewport:{width:1440,height:900}});
   try{
     await firstLaunch.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
-    await firstLaunch.addInitScript({content:'('+installDesktopFixture.toString()+')();('+installStremioFixture.toString()+')();localStorage.removeItem("tsugi-onboarding-complete-v1");localStorage.setItem("tsugi-discord-presence-v1",JSON.stringify({enabled:true,applicationId:"123456789012345678",privateMode:false,media:{video:true,music:true,manga:true,books:true}}));'});
+    await firstLaunch.addInitScript({content:'('+installDesktopFixture.toString()+')();('+installStremioFixture.toString()+')();localStorage.removeItem("tsugi-onboarding-complete-v1");localStorage.setItem("tsugi.landscape.local-only","true");localStorage.setItem("tsugi-discord-presence-v1",JSON.stringify({enabled:true,applicationId:"123456789012345678",privateMode:false,media:{video:true,music:true,manga:true,books:true}}));'});
     await firstLaunch.goto(origin,{waitUntil:'domcontentloaded'});
     const setup=firstLaunch.getByRole('dialog',{name:'Set up your addon profile',exact:true});
     const picker=setup.locator('[data-ui="watch-profile-picker"]');
@@ -341,9 +355,46 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await manager.getByRole('heading',{name:'Your addon stack.',exact:true}).waitFor();
     const requests=await firstLaunch.evaluate(()=>window.__stremioFixture.calls);
     assert.ok(requests.every(a=>['profile-list','profile-create','profile-switch'].includes(a.kind)||(a.kind==='profile-request'&&a.action.kind==='list')));
+    await manager.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime',exact:true}).click();
+    const setupAnime=manager.locator('[data-ui="mal-anime-library"]');
+    const setupAnimePanel=setupAnime.locator('[data-ui="mal-collection"]');
+    const setupXml='<myanimelist><anime><series_animedb_id>700</series_animedb_id><series_title>Onboarding anime</series_title><series_type>Movie</series_type><series_episodes>1</series_episodes><my_status>Plan to Watch</my_status><my_watched_episodes>0</my_watched_episodes><my_score>0</my_score></anime></myanimelist>';
+    await setupAnimePanel.getByLabel('Choose MyAnimeList export',{exact:true}).setInputFiles({name:'animelist.xml',mimeType:'application/xml',buffer:Buffer.from(setupXml)});
+    const setupPreview=setupAnimePanel.locator('[data-ui="mal-import-preview"]');
+    await setupPreview.getByRole('button',{name:'Import reviewed list',exact:true}).click();
+    const setupRow=setupAnimePanel.locator('[data-mal-id="700"]');
+    await setupRow.waitFor();assert.equal(await setupRow.evaluate(node=>node.tagName),'DIV');
+    await setupRow.locator('xpath=..').getByRole('button',{name:'Remove',exact:true}).click();
+    await setupAnimePanel.getByRole('button',{name:'Confirm removal',exact:true}).click();
+    await setupRow.waitFor({state:'detached'});
+    await setupAnime.locator('[data-ui="anime-connection-shortcuts"]').getByRole('button',{name:/Refract/}).click();
+    const setupRefract=setupAnime.locator('[data-ui="watch-refract"]');
+    await setupRefract.getByLabel('Refract API key',{exact:true}).fill('rfk_fixture-only');
+    await setupRefract.getByRole('button',{name:'Verify and connect',exact:true}).click();
+    await setupRefract.getByText('Fixture member',{exact:true}).waitFor();
+    await setupRefract.getByRole('button',{name:'Disconnect',exact:true}).click();
+    await setupRefract.getByRole('button',{name:'Confirm disconnect',exact:true}).click();
+    await setupRefract.getByRole('button',{name:'Verify and connect',exact:true}).waitFor();
+    assert.equal(await firstLaunch.evaluate(()=>JSON.stringify(localStorage).includes('rfk_fixture-only')),false);
     await setup.getByRole('button',{name:'Appearance',exact:true}).click();
     const intro=firstLaunch.getByRole('dialog',{name:'Make Tsugi yours',exact:true});
     await intro.getByRole('button',{name:'Set up addons',exact:true}).waitFor();
+    await intro.locator('[data-ui="first-launch-connections"]').getByRole('button',{name:'Set up Anime and Watch connections',exact:true}).waitFor();
+    const mangaIntro=intro.getByRole('button',{name:'Import manga list',exact:true});
+    if(await mangaIntro.count()){
+      await mangaIntro.click();
+      const mangaPanel=intro.locator('[data-ui="mal-manga-library"] [data-ui="mal-collection"]');
+      const mangaXml='<myanimelist><manga><manga_mangadb_id>701</manga_mangadb_id><manga_title>Onboarding manga</manga_title><my_status>Reading</my_status><my_read_chapters>2</my_read_chapters></manga></myanimelist>';
+      await mangaPanel.getByLabel('Choose MyAnimeList export',{exact:true}).setInputFiles({name:'mangalist.xml',mimeType:'application/xml',buffer:Buffer.from(mangaXml)});
+      await mangaPanel.getByRole('button',{name:'Import reviewed list',exact:true}).click();
+      const mangaRow=mangaPanel.locator('[data-mal-id="701"]');await mangaRow.waitFor();
+      assert.equal(await mangaRow.evaluate(node=>node.tagName),'DIV');
+      assert.equal(await firstLaunch.evaluate(()=>JSON.parse(localStorage.getItem('tsugi-mal-manga-v1')).entries[0].malId),701);
+      await mangaRow.locator('xpath=..').getByRole('button',{name:'Remove',exact:true}).click();
+      await mangaPanel.getByRole('button',{name:'Confirm removal',exact:true}).click();
+      await mangaRow.waitFor({state:'detached'});
+    }
+    console.log('PASS: First-launch optional MAL anime import and Refract connection; appearance introduces Anime Hub and Reader collections.');
     await intro.getByRole('button',{name:'Skip for now',exact:true}).click();
     await intro.waitFor({state:'hidden'});
     assert.equal(await firstLaunch.evaluate(()=>JSON.parse(localStorage.getItem('tsugi-onboarding-complete-v1'))),true);
@@ -359,6 +410,16 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime',exact:true}).click();
     const anime=watch.locator('[data-ui="mal-anime-library"]');
     const animePanel=anime.locator('[data-ui="mal-collection"]');
+    const hubNav=anime.getByRole('navigation',{name:'Anime Hub sections',exact:true});
+    const hero=anime.locator('.tsugi-anime-hero');
+    await hero.waitFor();
+    const fallback=hero.locator('img.tsugi-design-illustration');
+    assert.equal(await fallback.getAttribute('src'),'/design/anime/hero-kagezora.webp');
+    await hero.getByRole('button',{name:'Enable external illustration',exact:true}).waitFor();
+    await hero.getByRole('button',{name:'Next bundled illustration',exact:true}).click();
+    assert.equal(await fallback.getAttribute('src'),'/design/anime/art-neon.webp');
+    await hero.getByRole('button',{name:'Previous bundled illustration',exact:true}).click();
+    await anime.locator('[data-ui="anime-connection-shortcuts"]').getByRole('button',{name:/MyAnimeList/}).waitFor();
     const malFile=animePanel.getByLabel('Choose MyAnimeList export',{exact:true});
     const malPreview=animePanel.locator('[data-ui="mal-import-preview"]');
     await malFile.setInputFiles({name:'mangalist.xml',mimeType:'application/xml',buffer:Buffer.from('<myanimelist><manga/></myanimelist>')});
@@ -367,9 +428,10 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     const animeXml='<myanimelist><myinfo><user_name>private-anime-fixture</user_name></myinfo>'+
       '<anime><series_animedb_id>601</series_animedb_id><series_title>Imported anime film</series_title><series_type>Movie</series_type><series_episodes>1</series_episodes><my_status>Completed</my_status><my_watched_episodes>1</my_watched_episodes><my_score>9</my_score></anime>'+
       '<anime><series_animedb_id>602</series_animedb_id><series_title>Imported anime series</series_title><series_type>TV</series_type><series_episodes>12</series_episodes><my_status>Watching</my_status><my_watched_episodes>4</my_watched_episodes><my_score>8</my_score></anime></myanimelist>';
+    const beforeAnimeImport=await firstLaunch.evaluate(()=>window.__stremioFixture.calls.filter(a=>a.kind==='profile-request'&&a.action.kind==='mal-anime-import').length);
     await malFile.setInputFiles({name:'animelist.xml.gz',mimeType:'application/gzip',buffer:gzipSync(Buffer.from(animeXml))});
     await malPreview.getByRole('heading',{name:'Review MAL import',exact:true}).waitFor();
-    assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='mal-anime-import')),false);
+    assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.calls.filter(a=>a.kind==='profile-request'&&a.action.kind==='mal-anime-import').length),beforeAnimeImport);
     await malPreview.getByRole('button',{name:'Import reviewed list',exact:true}).click();
     const animeFilm=animePanel.locator('button[data-mal-id="601"]'), animeSeries=animePanel.locator('button[data-mal-id="602"]');
     await animeFilm.waitFor();await animeSeries.waitFor();
@@ -386,15 +448,51 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.deepEqual(storedAnime.map(row=>[row.malId,row.format,row.progress,row.score]),[[601,'Movie',1,9],[602,'TV',4,8]]);
     assert.equal(JSON.stringify(storedAnime).includes('private-anime-fixture'),false);
     assert.equal(await firstLaunch.evaluate(()=>JSON.stringify(localStorage).includes('Imported anime film')),false);
+    let coverRequests=0;
+    const coverUrl='https://cdn.myanimelist.net/images/anime/1/601.jpg';
+    await firstLaunch.route('https://api.jikan.moe/v4/anime/**',route=>{
+      coverRequests++;
+      const id=Number(new URL(route.request().url()).pathname.split('/').at(-1));
+      assert.ok([601,602].includes(id));
+      assert.equal(route.request().url(),'https://api.jikan.moe/v4/anime/'+id);
+      return route.fulfill({json:{data:{mal_id:id,rating:'PG-13 - Teens 13 or older',images:{jpg:{image_url:'https://cdn.myanimelist.net/images/anime/1/'+id+'.jpg'}}}},headers:{'access-control-allow-origin':'*'}});
+    });
+    await firstLaunch.route('https://cdn.myanimelist.net/images/anime/1/*.jpg',route=>route.fulfill({contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a4uUAAAAASUVORK5CYII=','base64')}));
+    await anime.locator('[data-ui="anime-connection-shortcuts"]').getByRole('button',{name:/Refract/}).click();
+    const connections=anime.locator('[data-ui="anime-connections"]');
+    await connections.getByLabel('Refract API key',{exact:true}).waitFor();
+    assert.equal(coverRequests,0);
+    await connections.getByRole('checkbox',{name:'Fetch anime covers',exact:true}).check();
+    await hubNav.getByRole('button',{name:'My List',exact:true}).click();
+    await animeFilm.scrollIntoViewIfNeeded();
+    await animeFilm.locator('img[src="'+coverUrl+'"]').waitFor({state:'attached'});
+    assert.ok(coverRequests>0);
+    await hubNav.getByRole('button',{name:'Connections',exact:true}).click();
+    await connections.getByRole('checkbox',{name:'Fetch anime covers',exact:true}).uncheck();
+    await hubNav.getByRole('button',{name:'Anime Hub',exact:true}).click();
+    assert.equal(await animePanel.locator('[data-ui="anime-cover"]').count(),0);
+    console.log('PASS: Anime Hub shared artwork fallback, exact opt-in MAL covers, and direct MAL/Refract shortcuts.');
     if(screenshotDir)await firstLaunch.screenshot({path:join(screenshotDir,'watch-mal-anime.png'),animations:'disabled'});
+    await hubNav.getByRole('button',{name:'Anime films',exact:true}).click();
+    await animeFilm.waitFor();await animeSeries.waitFor({state:'detached'});
+    await hubNav.getByRole('button',{name:'Discover',exact:true}).click();
+    const discovery=anime.locator('[data-ui="anime-discover"]');
+    await discovery.getByRole('combobox',{name:'Anime discovery catalogue',exact:true}).selectOption({index:1});
+    await discovery.getByRole('textbox',{name:'Search',exact:true}).fill('original');
+    await discovery.getByRole('button',{name:'Load catalogue',exact:true}).click();
+    await discovery.getByRole('button',{name:/First original film/}).click();
+    await watch.locator('[data-ui="watch-item-details"]').getByRole('heading',{name:'First original film',exact:true}).waitFor();
+    await hubNav.getByRole('button',{name:'My List',exact:true}).click();
     await animeFilm.click();
     const animeSource=anime.locator('[data-ui="mal-anime-source"]');
     await animeSource.getByRole('combobox',{name:'Anime source catalogue',exact:true}).selectOption({index:1});
     await animeSource.getByRole('textbox',{name:'Search imported anime',exact:true}).fill('original');
     await animeSource.getByRole('button',{name:'Search anime',exact:true}).click();
     await animeSource.getByRole('button',{name:/First original film/}).click();
-    await animeSource.locator('[data-ui="mal-anime-match"]').getByRole('button',{name:'Open matched anime',exact:true}).click();
+    await animeSource.locator('[data-ui="mal-anime-match"]').getByRole('button',{name:'Save and open matched anime',exact:true}).click();
     await watch.locator('[data-ui="watch-item-details"]').getByRole('heading',{name:'First original film',exact:true}).waitFor();
+    assert.match(await animeFilm.innerText(),/Source selected/);
+    assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.profiles.find(p=>p.profileId===1).malMatches[0].itemId),'tt123');
     assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='watch-record')),false);
     assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='refract-watchlist')),false);
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Refract',exact:true}).click();
@@ -537,10 +635,23 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 1 addons',exact:true}).click();
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime',exact:true}).click();
     await animeFilm.waitFor();await animeSeries.waitFor();
+    assert.match(await animeFilm.innerText(),/Source selected/);
+    await animeFilm.click();
+    await animeSource.getByRole('button',{name:'Open saved anime source',exact:true}).click();
+    await watch.locator('[data-ui="watch-item-details"]').getByRole('heading',{name:'First original film',exact:true}).waitFor();
+    await hubNav.getByRole('button',{name:'History',exact:true}).click();
+    await anime.locator('[data-ui="anime-history"]').getByRole('button',{name:/First original film/}).waitFor();
+    await hubNav.getByRole('button',{name:'My List',exact:true}).click();
     await animeSeries.locator('xpath=..').getByRole('button',{name:'Remove',exact:true}).click();
     await animePanel.getByRole('button',{name:'Confirm removal',exact:true}).click();
     await animeSeries.waitFor({state:'detached'});await animeFilm.waitFor();
-    console.log('PASS: MAL anime movies and series import, reviewed addon search, reimport, native profile isolation and removal.');
+    await animeFilm.click();
+    await animeSource.getByRole('button',{name:'Forget anime source',exact:true}).click();
+    await animeSource.getByRole('button',{name:'Confirm forget source',exact:true}).click();
+    await animeSource.locator('[data-ui="mal-anime-saved-match"]').waitFor({state:'detached'});
+    assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.profiles.find(p=>p.profileId===1).malMatches.length),0);
+    assert.equal(await firstLaunch.evaluate(()=>window.__stremioFixture.profiles.find(p=>p.profileId===1).history.length),1);
+    console.log('PASS: Anime Hub illustration navigation, real catalogue discovery, MAL movie/series filters, reviewed source persistence, history, profile isolation and removal.');
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Watch history',exact:true}).click();
     await history.getByRole('button',{name:'Load history',exact:true}).click();
     await history.getByText('Completed',{exact:true}).waitFor();

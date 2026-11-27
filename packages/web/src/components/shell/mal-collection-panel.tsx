@@ -6,8 +6,8 @@ import { readMalFile, type MalEntry, type MalKind, type MalStatus } from '@/lib/
 type Props = {
   kind: MalKind; entries: MalEntry[]; busy: boolean; selectedId: number | null;
   run(work:()=>Promise<void>):Promise<void>;
-  onImport(entries:MalEntry[]):Promise<void>; onSelect(entry:MalEntry):void;
-  onRemove(id:number):Promise<void>; isAssigned?:(entry:MalEntry)=>boolean;
+  onImport(entries:MalEntry[]):Promise<void>; onSelect?(entry:MalEntry):void; renderArtwork?:(entry:MalEntry)=>React.ReactNode;
+  onRemove(id:number):Promise<void>; isAssigned?:(entry:MalEntry)=>boolean; formatScope?:'movie';
 };
 
 function statusLabel(kind:MalKind,status:MalStatus){
@@ -20,7 +20,7 @@ function statusLabel(kind:MalKind,status:MalStatus){
   }
 }
 
-export function MalCollectionPanel({kind,entries,busy,selectedId,run,onImport,onSelect,onRemove,isAssigned}:Props){
+export function MalCollectionPanel({kind,entries,busy,selectedId,run,onImport,onSelect,onRemove,isAssigned,formatScope,renderArtwork}:Props){
   const [preview,setPreview]=React.useState<MalEntry[]|null>(null);
   const [reading,setReading]=React.useState(false);
   const [fileError,setFileError]=React.useState('');
@@ -34,8 +34,9 @@ export function MalCollectionPanel({kind,entries,busy,selectedId,run,onImport,on
   const fileInput=React.useRef<HTMLInputElement>(null);
   React.useEffect(()=>()=>{request.current++;},[]);
   const locked=busy||reading;
-  const filtered=entries.filter(row=>(!status||row.status===status)&&(!format||
-    (format==='movie'?row.format.toLowerCase()==='movie':row.format.toLowerCase()!=='movie'))&&
+  const effectiveFormat=formatScope??format;
+  const filtered=entries.filter(row=>(!status||row.status===status)&&(!effectiveFormat||
+    (effectiveFormat==='movie'?row.format.toLowerCase()==='movie':row.format.toLowerCase()!=='movie'))&&
     row.title.toLowerCase().includes(filter.trim().toLowerCase())).sort((a,b)=>a.title.localeCompare(b.title)||a.malId-b.malId);
   const pages=Math.max(1,Math.ceil(filtered.length/60)), current=Math.min(page,pages-1);
   const existing=new Set(entries.map(row=>row.malId));
@@ -54,6 +55,10 @@ export function MalCollectionPanel({kind,entries,busy,selectedId,run,onImport,on
       if(id===request.current)setReading(false);
     }
   }
+  function titleContent(row:MalEntry){return <>{renderArtwork?.(row)}<strong className="block break-words">{row.title}</strong>
+      <small className="block text-[--tsugi-muted]">{statusLabel(kind,row.status)} · {row.progress}{row.total>0?' / '+row.total:''} {kind==='manga'?<Trans id="chapters">chapters</Trans>:<Trans id="episodes">episodes</Trans>}
+      {row.format&&<> · {row.format}</>}{row.score>0&&<> · {row.score}/10</>}{isAssigned?.(row)&&<> · <Trans id="Source selected">Source selected</Trans></>}</small>
+      {kind==='manga'&&(row.volumesRead>0||row.volumesTotal>0)&&<small className="block text-[--tsugi-muted]">{row.volumesRead}{row.volumesTotal>0?' / '+row.volumesTotal:''} <Trans id="volumes">volumes</Trans></small>}</>;}
   return <section className="space-y-4 min-w-0" data-ui="mal-collection" data-mal-kind={kind}>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0"><h2 className="text-xl font-semibold">{kind==='manga'?<Trans id="MyAnimeList manga">MyAnimeList manga</Trans>:<Trans id="Anime collection">Anime collection</Trans>}</h2>
@@ -85,21 +90,20 @@ export function MalCollectionPanel({kind,entries,busy,selectedId,run,onImport,on
         <select className="tsugi-read-input min-w-0" value={status} aria-label={t({ id: "Imported status", message: "Imported status" })} onChange={event=>{setStatus(event.target.value as MalStatus|'');setPage(0);}}>
           <option value=""><Trans id="All statuses">All statuses</Trans></option>{(['active','completed','on-hold','dropped','planned'] as const).map(value=><option key={value} value={value}>{statusLabel(kind,value)}</option>)}
         </select>
-        {kind==='anime'&&<select className="tsugi-read-input min-w-0" value={format} aria-label={t({ id: "Anime format", message: "Anime format" })} onChange={event=>{setFormat(event.target.value);setPage(0);}}>
+        {kind==='anime'&&!formatScope&&<select className="tsugi-read-input min-w-0" value={format} aria-label={t({ id: "Anime format", message: "Anime format" })} onChange={event=>{setFormat(event.target.value);setPage(0);}}>
           <option value=""><Trans id="All anime">All anime</Trans></option><option value="series"><Trans id="Series and specials">Series and specials</Trans></option><option value="movie"><Trans id="Movies">Movies</Trans></option>
         </select>}
       </div>
       <p className="text-sm text-[--tsugi-muted]">{filtered.length} / {entries.length} <Trans id="imported titles">imported titles</Trans></p>
+      <div className={kind==='anime'?'tsugi-anime-grid':'contents'}>
       {filtered.slice(current*60,current*60+60).map(row=><div className="tsugi-read-row flex-wrap gap-2" key={row.malId}>
-        <button type="button" className="flex-1 min-w-0 text-left" data-mal-id={row.malId} aria-pressed={selectedId===row.malId} disabled={locked} onClick={()=>{setRemoveId(null);onSelect(row);}}>
-          <strong className="block break-words">{row.title}</strong>
-          <small className="block text-[--tsugi-muted]">{statusLabel(kind,row.status)} · {row.progress}{row.total>0?' / '+row.total:''} {kind==='manga'?<Trans id="chapters">chapters</Trans>:<Trans id="episodes">episodes</Trans>}
-            {row.format&&<> · {row.format}</>}{row.score>0&&<> · {row.score}/10</>}{isAssigned?.(row)&&<> · <Trans id="Source selected">Source selected</Trans></>}</small>
-          {kind==='manga'&&(row.volumesRead>0||row.volumesTotal>0)&&<small className="block text-[--tsugi-muted]">{row.volumesRead}{row.volumesTotal>0?' / '+row.volumesTotal:''} <Trans id="volumes">volumes</Trans></small>}
-        </button>
+        {onSelect?<button type="button" className="flex-1 min-w-0 text-left" data-mal-id={row.malId} aria-pressed={selectedId===row.malId} disabled={locked} onClick={()=>{setRemoveId(null);onSelect(row);}}>{titleContent(row)}</button>:
+          <div className="flex-1 min-w-0 text-left" data-mal-id={row.malId}>{titleContent(row)}</div>}
         {removeId===row.malId?<div className="flex flex-wrap items-center gap-2"><small><Trans id="Remove this imported entry only?">Remove this imported entry only?</Trans></small><button type="button" className="tsugi-read-action" disabled={locked} onClick={()=>void run(async()=>{await onRemove(row.malId);setRemoveId(null);})}><Trans id="Confirm removal">Confirm removal</Trans></button><button type="button" className="tsugi-read-action" disabled={locked} onClick={()=>setRemoveId(null)}><Trans id="Cancel">Cancel</Trans></button></div>:
           <button type="button" className="tsugi-read-action" disabled={locked} onClick={()=>setRemoveId(row.malId)}><Trans id="Remove">Remove</Trans></button>}
       </div>)}
+      </div>
+      {!filtered.length&&<p><Trans id="No imported titles match these filters.">No imported titles match these filters.</Trans></p>}
       {pages>1&&<div className="flex flex-wrap items-center gap-2">
         <button type="button" className="tsugi-read-action" disabled={locked||current===0} onClick={()=>setPage(current-1)}><Trans id="Previous">Previous</Trans></button>
         <span>{current+1} / {pages}</span><button type="button" className="tsugi-read-action" disabled={locked||current+1>=pages} onClick={()=>setPage(current+1)}><Trans id="Next">Next</Trans></button>

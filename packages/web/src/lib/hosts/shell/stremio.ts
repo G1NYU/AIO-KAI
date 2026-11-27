@@ -27,7 +27,7 @@ export type WatchProgress={mediaType:string;itemId:string;videoId:string;title:s
 export type WatchHistoryEntry={progress:WatchProgress;updatedAt:number};
 type WatchHistoryAction={kind:'watch-history'}|{kind:'watch-record';progress:WatchProgress;viewingId?:string}|({kind:'watch-remove'}&Pick<WatchProgress,'mediaType'|'itemId'|'videoId'>);
 type RefractAction={kind:'refract-status'}|{kind:'refract-connect';key:string}|{kind:'refract-enable';enabled:boolean}|{kind:'refract-disconnect';discardPending:boolean}|{kind:'refract-sync'}|{kind:'refract-watchlist';mediaType:string;itemId:string;add:boolean};
-type MalAnimeAction={kind:'mal-anime-list'}|{kind:'mal-anime-import';entries:MalEntry[]}|{kind:'mal-anime-remove';malId:number};
+type MalAnimeAction={kind:'mal-anime-list'}|{kind:'mal-anime-import';entries:MalEntry[]}|{kind:'mal-anime-remove';malId:number}|{kind:'mal-anime-match';malId:number;sourceId:number;mediaType:string;itemId:string}|{kind:'mal-anime-unmatch';malId:number};
 type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | WatchHistoryAction | RefractAction | MalAnimeAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
 export type RemoteAddonProfile={profileIndex:number;name:string;usesPrimaryAddons:boolean;locked:boolean};
 export type ImportCandidate={candidateId:number;name:string;host:string;enabled:boolean;alreadyInstalled:boolean};
@@ -113,10 +113,38 @@ async function scoped(profileId:number,action:Action){
   return v;
 }
 export async function listAddons(profileId:number){return sources(await scoped(profileId,{kind:'list'}));}
-function malAnimeEntries(value:unknown){try{return validateMalEntries(obj(value).entries,'anime');}catch{return fail();}}
-export async function listMalAnime(profileId:number){return malAnimeEntries(await scoped(profileId,{kind:'mal-anime-list'}));}
-export async function importMalAnime(profileId:number,entries:MalEntry[]){return malAnimeEntries(await scoped(profileId,{kind:'mal-anime-import',entries:validateMalEntries(entries,'anime')}));}
-export async function removeMalAnime(profileId:number,malId:number){return malAnimeEntries(await scoped(profileId,{kind:'mal-anime-remove',malId:integer(malId,1,2147483647)}));}
+export type MalAnimeMatch={malId:number;sourceId:number;mediaType:string;itemId:string;name:string};
+export type MalAnimeCollection={entries:MalEntry[];matches:MalAnimeMatch[]};
+function malAnimeCollection(value:unknown):MalAnimeCollection{
+  try{
+    const raw=obj(value),entries=validateMalEntries(raw.entries,'anime');
+    const byId=new Map(entries.map(entry=>[entry.malId,entry]));
+    const matches=array(raw.matches,entries.length,row=>{
+      const m=obj(row),malId=integer(m.malId,1,2147483647),entry=byId.get(malId);
+      const mediaType=str(m.mediaType,32),itemId=str(m.itemId,512);
+      if(!entry||!['anime',entry.format.toLowerCase()==='movie'?'movie':'series'].includes(mediaType)||
+        itemId==='.'||itemId==='..'||/[/\\]/.test(itemId))return fail();
+      return {malId,sourceId:integer(m.sourceId,1,0xffffffff),mediaType,itemId,name:str(m.name,512)};
+    });
+    if(new Set(matches.map(m=>m.malId)).size!==matches.length||
+        new Set(matches.map(m=>JSON.stringify([m.mediaType,m.itemId]))).size!==matches.length)return fail();
+    return {entries,matches};
+  }catch{return fail();}
+}
+export async function listMalAnime(profileId:number){return malAnimeCollection(await scoped(profileId,{kind:'mal-anime-list'}));}
+export async function importMalAnime(profileId:number,entries:MalEntry[]){return malAnimeCollection(await scoped(profileId,{kind:'mal-anime-import',entries:validateMalEntries(entries,'anime')}));}
+export async function removeMalAnime(profileId:number,malId:number){return malAnimeCollection(await scoped(profileId,{kind:'mal-anime-remove',malId:integer(malId,1,2147483647)}));}
+export async function matchMalAnime(profileId:number,malId:number,sourceId:number,item:CatalogPage['items'][number]){
+  const collection=malAnimeCollection(await scoped(profileId,{kind:'mal-anime-match',malId:integer(malId,1,2147483647),sourceId:integer(sourceId,1,0xffffffff),mediaType:item.mediaType,itemId:item.id}));
+  const saved=collection.matches.find(row=>row.malId===malId);
+  if(!saved||saved.sourceId!==sourceId||saved.mediaType!==item.mediaType||saved.itemId!==item.id||saved.name!==item.name)return fail();
+  return collection;
+}
+export async function unmatchMalAnime(profileId:number,malId:number){
+  const collection=malAnimeCollection(await scoped(profileId,{kind:'mal-anime-unmatch',malId:integer(malId,1,2147483647)}));
+  if(collection.matches.some(row=>row.malId===malId))return fail();
+  return collection;
+}
 export async function reviewAddon(profileId:number,url:string):Promise<AddonReview>{
   const v=await scoped(profileId,{kind:'review',url});return {reviewId:integer(v.reviewId,1,0xffffffff),manifest:manifest(v.manifest)};
 }
