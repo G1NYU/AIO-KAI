@@ -50,10 +50,10 @@ import {
   type PlayerEngine,
   type PipWindow,
 } from '@/lib/settings';
-import { useSession } from '@/lib/jellyfin/session';
+import { useOptionalSession } from '@/lib/jellyfin/session';
 import { mayConvert, qualityOptions } from '@/lib/playback/quality';
 import { canMinimise } from '@/lib/playback/session';
-import { SettingsCard, SettingsRow } from './_components/settings-card';
+import { LocalWatchSettings, SettingsCard, SettingsRow } from './_components/settings-card';
 import { GestureSettings } from './_components/gesture-settings';
 import { seconds, ShaderFilesRow } from './_components/common';
 
@@ -159,11 +159,12 @@ function PlayerCard() {
     settings.player.pictureInPicture
   );
   const [quality, setQuality] = useSetting(settings.player.quality);
-  const { user } = useSession();
+  const localWatch=React.useContext(LocalWatchSettings);
+  const user = useOptionalSession()?.user;
   const found = useExternalPlayers();
   const launched = LAUNCHED_PLAYERS.find((p) => p.id === player);
   const preset = linkPreset(player);
-  const own = builtIn(player);
+  const own = localWatch || builtIn(player);
   const program = found?.find((p) => p.id === player)?.path;
   const name = launched?.name ?? '';
   const target = preset ? (preset.target ?? preset.name) : '';
@@ -214,6 +215,7 @@ function PlayerCard() {
   } = LINK_TOKENS;
   return (
     <SettingsCard name="player" title={t`Player`} holds="device">
+      {localWatch?<p className="text-sm"><Trans>Standalone playback uses the built-in native player.</Trans></p>:<>
       <Select
         label={t`Play versions in`}
         help={help}
@@ -270,7 +272,7 @@ function PlayerCard() {
           onValueChange={(v) => setEngine(v as PlayerEngine)}
         />
       )}
-      {mayConvert(user) && own && (
+      {user && mayConvert(user) && own && (
         <Select
           label={t`Quality`}
           help={t`The most a version may stream at. Above it, the server converts it down, which helps on a slow connection. Original plays every version as it is. The player's own quality menu changes this too.`}
@@ -282,6 +284,7 @@ function PlayerCard() {
           onValueChange={(v) => setQuality(Number(v))}
         />
       )}
+      </>}
       {shellHost() && own && (
         <Select
           label={t`Cache size`}
@@ -291,7 +294,7 @@ function PlayerCard() {
           onValueChange={(v) => setCacheSize(v as CacheSize)}
         />
       )}
-      {canMinimise() && own && (
+      {!localWatch && canMinimise() && own && (
         <Select
           label={t`Back in the player`}
           help={t`The mini player keeps the video going over the pages while you look around. Tap it to open the player again, or close it with its cross.`}
@@ -351,6 +354,7 @@ function LeavingCard() {
 }
 
 function ControlsCard() {
+  const localWatch=React.useContext(LocalWatchSettings);
   const [seekStep, setSeekStep] = useSetting(settings.controls.seekStep);
   const [volumeStep, setVolumeStep] = useSetting(settings.controls.volumeStep);
   const [holdRate, setHoldRate] = useSetting(settings.controls.holdRate);
@@ -398,13 +402,13 @@ function ControlsCard() {
         value={clock}
         onValueChange={setClock}
       />
-      <Switch
+      {!localWatch&&<Switch
         side="right"
         label={t`Seek bar previews`}
         help={t`Shows a picture of the video where you point, drag or skip to on the seek bar. Each one loads a little data, so turn them off to save it.`}
         value={thumbnails}
         onValueChange={setThumbnails}
-      />
+      />}
     </SettingsCard>
   );
 }

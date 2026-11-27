@@ -52,6 +52,7 @@ import {
   searchWords,
   SettingsPageHeader,
   SettingsSearch,
+  LocalWatchSettings,
   type Holds,
 } from './_components/settings-card';
 import { PlaybackSection } from './playback';
@@ -391,6 +392,7 @@ interface SettingsProps {
   whoseField: React.ReactNode;
   onQuery(query: string): void;
   onDonate(): void;
+  onPick?(id: string): void;
 }
 
 function NarrowSettings({
@@ -402,6 +404,7 @@ function NarrowSettings({
   whoseField,
   onQuery,
   onDonate,
+  onPick,
 }: SettingsProps & { picked: Section | undefined }) {
   // Latched, or a class added on a later render plays the entrance then.
   const [slidIn] = React.useState(pageOpening);
@@ -421,7 +424,7 @@ function NarrowSettings({
             title={picked.label}
             description={picked.description}
             icon={picked.icon}
-            leading={<BackButton fallback={to.settings(undefined, who)} />}
+            leading={onPick ? <Button intent="gray-outline" onClick={()=>onPick('')}><Trans>Back</Trans></Button> : <BackButton fallback={to.settings(undefined, who)} />}
           />
           <SectionContent section={picked} />
         </div>
@@ -456,7 +459,7 @@ function NarrowSettings({
                     data-name={s.id}
                     className="flex w-full items-center gap-3 p-3 text-start transition-colors active:bg-gray-900 focus-visible:!-outline-offset-2 [@media(hover:hover)]:hover:bg-gray-900"
                     onClick={() =>
-                      navigate(to.settings(s.id, who), { over: true })
+                      onPick ? onPick(s.id) : navigate(to.settings(s.id, who), { over: true })
                     }
                   >
                     <s.icon className="flex-none text-xl text-[--muted]" />
@@ -488,6 +491,7 @@ function WideSettings({
   whoseField,
   onQuery,
   onDonate,
+  onPick,
 }: SettingsProps & { active: Section }) {
   // The settings index scrolls independently, so its selected state stays static.
   const still = useReducedMotion();
@@ -496,7 +500,8 @@ function WideSettings({
   const searching = words.length > 0;
   const open = (id: string) => {
     onQuery('');
-    navigate(to.settings(id, who), { replace: true });
+    if(onPick) onPick(id);
+    else navigate(to.settings(id, who), { replace: true });
   };
 
   return (
@@ -711,4 +716,20 @@ export function SettingsPage({ tab, who }: { tab: string; who: string }) {
       <DonationModal open={donation.isOpen} onOpenChange={donation.toggle} />
     </SettingsLayer>
   );
+}
+
+/** Reuse the complete settings navigator without pretending a Jellyfin account exists. */
+export function WatchPlaybackSettings(){
+  const all=React.useMemo(()=>sections().filter(s=>['playback','player','audio','subtitles','interface','theme','shortcuts'].includes(s.id)),[]);
+  const [tab,setTab]=React.useState('playback');
+  const [query,setQuery]=React.useState('');
+  const words=React.useDeferredValue(React.useMemo(()=>searchWords(query),[query]));
+  const wide=useMediaQuery('(min-width: 1350px)');
+  const donation=useDisclosure(false);
+  const picked=all.find(s=>s.id===tab);
+  const shared={all,query,words,who:undefined,whoseField:null,onQuery:setQuery,onDonate:donation.open,onPick:setTab};
+  return <LocalWatchSettings.Provider value={true}>
+    {wide?<WideSettings {...shared} active={picked??all[0]}/>:<NarrowSettings {...shared} picked={picked}/>}
+    <DonationModal open={donation.isOpen} onOpenChange={donation.toggle}/>
+  </LocalWatchSettings.Provider>;
 }

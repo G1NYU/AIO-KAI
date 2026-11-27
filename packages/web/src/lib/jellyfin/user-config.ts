@@ -58,12 +58,14 @@ export function usePlaybackPrefs() {
   const queryKey = client
     ? ['jf', client.base, target ?? user?.Id, 'configuration']
     : ['tsugi', WATCH_PREFS_KEY];
+  const localPrefs=()=>({AudioLanguages:[],SubtitleLanguages:[],ListPreferredSubtitlesOnly:false,...storage.get<Configuration>(WATCH_PREFS_KEY)} as Configuration);
   const query = useQuery({
     queryKey,
+    initialData:client?undefined:localPrefs,
     meta: client && !target ? { cache: 'account' } : undefined,
     queryFn: async (): Promise<Configuration> =>
       !client
-        ? (storage.get<Configuration>(WATCH_PREFS_KEY) ?? {})
+        ? localPrefs()
         : target
           ? await client.get<Configuration>(`/Users/${target}/Configuration`)
           : ((await client.get<UserDto>('/Users/Me')).Configuration ?? {}),

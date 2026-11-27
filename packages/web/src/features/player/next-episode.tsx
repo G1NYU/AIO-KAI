@@ -3,7 +3,7 @@ import { Trans } from '@lingui/react/macro';
 import React from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
-import { useSession } from '@/lib/jellyfin/session';
+import { useOptionalSession, useSession } from '@/lib/jellyfin/session';
 import { currentHost } from '@/lib/hosts';
 import { usePlaybackInfoOptions } from '@/lib/jellyfin/playback-info';
 import { usePlaylistName, useUpNext, type UpNext } from '@/lib/playlists';
@@ -69,7 +69,7 @@ const OPEN_LEAD_MS = 30_000;
 export const endsEpisode = (durationMs: number, endMs: number) =>
   endMs >= durationMs * 0.9 && durationMs - endMs <= CREDITS_TAIL_MS;
 
-function promptAt(
+export function promptAt(
   durationMs: number,
   outro: MediaSegmentDto | undefined,
   prompt: NextPrompt,
@@ -126,7 +126,7 @@ export function countPlayedOn(): void {
 }
 
 /** Whether playing on now would make `limit` titles in a row with nobody there. */
-function asksFirst(limit: number): boolean {
+export function asksFirst(limit: number): boolean {
   return limit > 0 && unattendedTitles() + 1 >= limit;
 }
 
@@ -471,68 +471,7 @@ export function useUpNextPrompt({
         onBack={onBack}
       />
     ) : shown && next ? (
-      <div
-        ref={card}
-        data-ui="next-episode-card"
-        data-playlist={listed ? '' : undefined}
-        className="fixed bottom-[calc(2rem+env(safe-area-inset-bottom))] end-4 z-20 transition-[bottom] peer-data-[visible]:bottom-24 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-white/10 bg-gray-950 shadow-2xl duration-300 animate-in fade-in-0 slide-in-from-right-4 rtl:slide-in-from-left-4"
-      >
-        {image && (
-          <CachedImage
-            data-ui="next-episode-image"
-            src={image}
-            alt=""
-            className="aspect-video w-full object-cover [@media(max-height:640px)]:hidden"
-          />
-        )}
-        <div className="space-y-3 p-4">
-          <div>
-            <p className="truncate text-xs font-semibold uppercase tracking-wider text-[--muted]">
-              {heading}
-            </p>
-            {listed ? (
-              <>
-                <p className="line-clamp-2 font-semibold">{itemTitle(next)}</p>
-                {next.Type === 'Episode' && (
-                  <p className="line-clamp-1 text-sm text-gray-300">
-                    {itemSubtitle(next)}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="line-clamp-2 font-semibold">{itemSubtitle(next)}</p>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <PlayerAction
-              primary
-              data-ui="next-episode-action"
-              data-name="play"
-              className="flex-1"
-              onClick={() => void playNext()}
-            >
-              {counting && leftMs > 0 ? t`Play in ${seconds}s` : t`Play now`}
-            </PlayerAction>
-            <PlayerAction
-              data-ui="next-episode-action"
-              data-name="hide"
-              onClick={() => setDismissed(true)}
-            >
-              <Trans>Hide</Trans>
-            </PlayerAction>
-          </div>
-        </div>
-        {autoplay && (
-          <div data-ui="next-episode-countdown" className="h-1 bg-white/10">
-            <div
-              className="h-full bg-white transition-[width] duration-200 ease-linear"
-              style={{
-                width: `${Math.max(0, Math.min(100, (leftMs / (countdown * 1000)) * 100))}%`,
-              }}
-            />
-          </div>
-        )}
-      </div>
+      <NextEpisodeCard card={card} next={next} listed={listed} image={image} heading={heading} counting={counting} leftMs={leftMs} seconds={seconds} countdown={countdown} autoplay={autoplay} onPlay={()=>void playNext()} onHide={()=>setDismissed(true)}/>
     ) : null;
 
   return {
@@ -554,7 +493,7 @@ export function useUpNextPrompt({
   };
 }
 
-function StillWatching({
+export function StillWatching({
   next,
   title: upNext,
   loading,
@@ -567,8 +506,8 @@ function StillWatching({
   onContinue: () => void;
   onBack: () => void;
 }) {
-  const { client } = useSession();
-  const image = landscapeUrl(client, next, { maxWidth: 480 });
+  const client=useOptionalSession()?.client;
+  const image = client?landscapeUrl(client, next, { maxWidth: 480 }):null;
   useAction('back', onBack);
   return (
     <div
@@ -613,5 +552,73 @@ function StillWatching({
         </div>
       </div>
     </div>
+  );
+}
+
+/** Same next-episode presentation for server and native addon playback. */
+export function NextEpisodeCard({card,next,listed,image,heading,counting,leftMs,seconds,countdown,autoplay,onPlay,onHide}:{card?:React.Ref<HTMLDivElement>;next:BaseItemDto;listed:boolean;image:string|null;heading:string;counting:boolean;leftMs:number;seconds:number;countdown:number;autoplay:boolean;onPlay:()=>void;onHide:()=>void}){
+  return (
+      <div
+        ref={card}
+        data-ui="next-episode-card"
+        data-playlist={listed ? '' : undefined}
+        className="fixed bottom-[calc(2rem+env(safe-area-inset-bottom))] end-4 z-20 transition-[bottom] peer-data-[visible]:bottom-24 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-white/10 bg-gray-950 shadow-2xl duration-300 animate-in fade-in-0 slide-in-from-right-4 rtl:slide-in-from-left-4"
+      >
+        {image && (
+          <CachedImage
+            data-ui="next-episode-image"
+            src={image}
+            alt=""
+            className="aspect-video w-full object-cover [@media(max-height:640px)]:hidden"
+          />
+        )}
+        <div className="space-y-3 p-4">
+          <div>
+            <p className="truncate text-xs font-semibold uppercase tracking-wider text-[--muted]">
+              {heading}
+            </p>
+            {listed ? (
+              <>
+                <p className="line-clamp-2 font-semibold">{itemTitle(next)}</p>
+                {next.Type === 'Episode' && (
+                  <p className="line-clamp-1 text-sm text-gray-300">
+                    {itemSubtitle(next)}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="line-clamp-2 font-semibold">{itemSubtitle(next)}</p>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <PlayerAction
+              primary
+              data-ui="next-episode-action"
+              data-name="play"
+              className="flex-1"
+              onClick={onPlay}
+            >
+              {counting && leftMs > 0 ? t`Play in ${seconds}s` : t`Play now`}
+            </PlayerAction>
+            <PlayerAction
+              data-ui="next-episode-action"
+              data-name="hide"
+              onClick={onHide}
+            >
+              <Trans>Hide</Trans>
+            </PlayerAction>
+          </div>
+        </div>
+        {autoplay && (
+          <div data-ui="next-episode-countdown" className="h-1 bg-white/10">
+            <div
+              className="h-full bg-white transition-[width] duration-200 ease-linear"
+              style={{
+                width: `${Math.max(0, Math.min(100, (leftMs / (countdown * 1000)) * 100))}%`,
+              }}
+            />
+          </div>
+        )}
+      </div>
   );
 }

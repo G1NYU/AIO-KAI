@@ -1,3 +1,4 @@
+import React from 'react';
 import { t } from '@lingui/core/macro';
 import { Select } from '@aiostreams/ui/select';
 import { dateFormat } from '@/lib/format';
@@ -16,7 +17,7 @@ import {
   type TouchNavigation,
   type TvNavigation,
 } from '@/lib/settings';
-import { SettingsCard } from './_components/settings-card';
+import { LocalWatchSettings, SettingsCard } from './_components/settings-card';
 import { startPages } from '@/lib/start-page';
 
 function startPageName(page: StartPage): string {
@@ -232,10 +233,11 @@ function LanguageCard() {
 }
 
 export function InterfaceSection() {
+  const localWatch=React.useContext(LocalWatchSettings);
   return (
     <>
       <LanguageCard />
-      <NavigationCard />
+      {!localWatch&&<NavigationCard />}
     </>
   );
 }

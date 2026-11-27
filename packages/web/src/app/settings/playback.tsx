@@ -1,3 +1,4 @@
+import React from 'react';
 import { plural, t } from '@lingui/core/macro';
 import { Select } from '@aiostreams/ui/select';
 import { Switch } from '@aiostreams/ui/switch';
@@ -16,7 +17,7 @@ import {
   type SegmentType,
 } from '@/lib/settings';
 import { useFeature } from '@/lib/jellyfin/server-info';
-import { SettingsCard } from './_components/settings-card';
+import { LocalWatchSettings, SettingsCard } from './_components/settings-card';
 import { FirstVersionSwitch, useDeviceFirstVersion } from './_components/first-version-switch';
 import { BadgesRow, QuickFiltersRow } from './_components/version-settings';
 import { seconds } from './_components/common';
@@ -72,6 +73,7 @@ function SegmentActionSelect({ type }: { type: SegmentType }) {
 }
 
 export function PlaybackSection() {
+  const localWatch=React.useContext(LocalWatchSettings);
   const { prefs, update, locked } = usePlaybackPrefs();
   const deviceFirstVersion = useDeviceFirstVersion();
   const [preload, setPreload] = useSetting(settings.playback.preloadVersions);
@@ -103,8 +105,9 @@ export function PlaybackSection() {
 
   return (
     <>
-      <SettingsCard name="versions" title={t`Versions`} holds="profile" plain={deviceFirstVersion} description={deviceFirstVersion ? t`Auto-play is shared on this device. Other version preferences follow your account.` : undefined}>
+      <SettingsCard name="versions" title={t`Versions`} holds="profile" plain={deviceFirstVersion} description={deviceFirstVersion ? (localWatch?t`Auto-play is shared on this device.`:t`Auto-play is shared on this device. Other version preferences follow your account.`) : undefined}>
         <FirstVersionSwitch />
+        {!localWatch&&<>
         <Switch
           side="right"
           label={t`Find versions when a title opens`}
@@ -114,6 +117,7 @@ export function PlaybackSection() {
         />
         <QuickFiltersRow />
         <BadgesRow />
+        </>}
       </SettingsCard>
       <SettingsCard name="next-episode" title={t`Next episode`} holds="profile">
         <Switch
@@ -231,7 +235,7 @@ export function PlaybackSection() {
           />
         )}
       </SettingsCard>
-      <SettingsCard
+      {!localWatch&&<SettingsCard
         name="watch-parties"
         title={t`Watch parties`}
         holds="profile"
@@ -257,7 +261,7 @@ export function PlaybackSection() {
           value={partySpeedSync}
           onValueChange={setPartySpeedSync}
         />
-      </SettingsCard>
+      </SettingsCard>}
     </>
   );
 }

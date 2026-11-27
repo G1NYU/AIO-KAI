@@ -27,7 +27,7 @@ import { useServerInfo } from '@/lib/jellyfin/server-info';
 import { currentHost } from '@/lib/hosts';
 import { GlobalAppearanceSettings } from '@/components/shell/global-settings';
 import { focusOn, keyboardFocus } from '@/lib/input';
-import { SettingsCard } from './_components/settings-card';
+import { SettingsCard, LocalWatchSettings } from './_components/settings-card';
 import { Anchor } from '@/components/anchor';
 import { DOCS_URL } from './_components/common';
 
@@ -50,6 +50,7 @@ const presetName = (name: string) =>
   })[name] ?? name;
 
 export function ThemeSection() {
+  const localWatch = React.useContext(LocalWatchSettings);
   const [colors, setColors] = useSetting(settings.theme.colors);
   const [css, setCss] = useSetting(settings.theme.customCss);
   const [serverCss, setServerCss] = useSetting(settings.theme.serverCss);
@@ -107,6 +108,7 @@ export function ThemeSection() {
     });
     pending.current = { id, previous };
   };
+  if (localWatch) return <GlobalAppearanceSettings />;
   return (
     <>
       <SettingsCard name="colours" title={t`Colours`} holds="profile">

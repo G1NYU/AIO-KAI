@@ -191,6 +191,7 @@ export function installStremioFixture(initializeStartup=true){
       case 'metadata':{
         const source=profile.sources.find(s=>s.sourceId===a.sourceId&&s.enabled&&s.manifest.resources.includes('meta'));
         if(a.sourceId===0&&f.boardFixture&&a.itemId==='tt90003')return reply({sourceId:0,metadata:{id:a.itemId,mediaType:'movie',name:'Public movie fixture',description:'Public metadata without a catalogue addon.',videos:[]}});
+        if(a.sourceId===0&&f.boardFixture&&a.itemId==='kitsu:90004'&&a.mediaType==='series')return reply({sourceId:0,metadata:{id:a.itemId,mediaType:'series',name:'Public anime discovery fixture',description:'Public mapped anime metadata.',videos:[{id:'kitsu:90004:1',name:'Episode one',season:1,episode:1},{id:'kitsu:90004:2',name:'Episode two',season:1,episode:2}]}});
         if(!f.boardFixture||!source||source.sourceId!==103)return emit(null,'unsupported-resource');
         const videos=a.mediaType==='series'?[{id:'tt90002:1:1',name:'Episode one',season:1,episode:1},{id:'tt90002:1:2',name:'Episode two',season:1,episode:2}]:[];
         return reply({sourceId:a.sourceId,mediaType:a.mediaType,itemId:a.itemId,metadata:{id:a.itemId,name:a.mediaType==='series'?'Fixture anime series':'Fixture cinema film',mediaType:a.mediaType,description:'Metadata from the separate metadata addon.',videos}});
@@ -247,6 +248,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
   const page=await browser.newPage({viewport:{width:1600,height:900}});
   try{
     await page.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
+    await page.route('https://relations.yuna.moe/api/ids?**',route=>route.fulfill({json:{kitsu:90004},headers:{'access-control-allow-origin':'*'}}));
     await page.route('https://api.jikan.moe/v4/**',route=>{
       const films=new URL(route.request().url()).searchParams.get('type')==='movie';
       return route.fulfill({json:{data:[{mal_id:90004,title:films?'Public anime film fixture':'Public anime discovery fixture',type:films?'Movie':'TV',rating:'PG-13 - Teens 13 or older',synopsis:'Independent discovery without addon installation.'}]},headers:{'access-control-allow-origin':'*'}});
@@ -294,11 +296,11 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.hover();
     assert.equal(await player.locator('[data-ui="player-top-bar"]').count(),1);
     await player.getByRole('button',{name:'Audio',exact:true}).click();
-    await page.locator('[data-ui="player-menu"][data-name="audio"]').getByText('Japanese',{exact:true}).click();
+    await page.locator('[data-ui="player-menu"][data-name="audio"] [data-ui="player-menu-item"]').filter({hasText:'Japanese audio'}).click();
     await page.waitForFunction(()=>window.__stremioFixture.mediaCalls.some(m=>m.type==='player-set'&&m.audio==='2'));
     await player.hover();
     await player.getByRole('button',{name:'Subtitles',exact:true}).click();
-    await page.locator('[data-ui="player-menu"][data-name="subtitles"]').getByText('English',{exact:true}).click();
+    await page.locator('[data-ui="player-menu"][data-name="subtitles"] [data-ui="player-menu-item"]').filter({hasText:'English subtitles'}).click();
     await page.waitForFunction(()=>window.__stremioFixture.mediaCalls.some(m=>m.type==='player-set'&&m.subtitle==='3'));
     await player.hover();
     await player.getByRole('button',{name:'Subtitles',exact:true}).click();
@@ -343,6 +345,21 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.hover();
     await player.getByRole('button',{name:'Back',exact:true}).click();
     await player.waitFor({state:'detached'});
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
+    await watch.locator('[data-ui="anime-public-discovery"]').getByRole('button',{name:'Public anime discovery fixture',exact:true}).first().click();
+    await item.getByRole('combobox',{name:'Video',exact:true}).selectOption('kitsu:90004:1');
+    await groups.getByRole('button',{name:'Play',exact:true}).first().click();
+    await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
+    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='all-stream-options'&&a.action.videoId==='kitsu:90004:1')));
+    const beforeNext=await page.evaluate(()=>window.__stremioFixture.mediaCalls.filter(m=>m.type==='stremio-consume-grant').length);
+    await page.evaluate(()=>{window.__stremioFixture.emitPlayer({type:'player-state',positionMs:119000,durationMs:120000});window.__stremioFixture.emitPlayer({type:'player-ended',reason:'eof',error:null});});
+    await page.waitForFunction(n=>window.__stremioFixture.mediaCalls.filter(m=>m.type==='stremio-consume-grant').length===n+1,beforeNext);
+    await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
+    assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='all-stream-options'&&a.action.videoId==='kitsu:90004:2')));
+    await player.hover();
+    await player.getByRole('button',{name:'Back',exact:true}).click();
+    await player.waitFor({state:'detached'});
+    console.log('PASS: public MAL discovery maps to verified Kitsu metadata and advances to the exact next episode using a stream-only addon profile.');
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Settings',exact:true}).click();
     const config=watch.locator('[data-ui="watch-settings-navigation"]');
     await config.getByRole('button',{name:'Playback',exact:true}).click();

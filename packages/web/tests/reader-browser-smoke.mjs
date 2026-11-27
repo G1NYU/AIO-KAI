@@ -286,6 +286,7 @@ try {
       },
     };
   }
+  await verifyStremioAddonsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await page.addInitScript(installDesktopFixture);
   const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAYCAIAAAB8wupbAAAAHUlEQVR4nGOsqF3FQApgIkn1qIZRDaMaRjWQrAEA4jkBz8UryC4AAAAASUVORK5CYII=', 'base64');
   await page.route('**/__tsugi_read/page/*', async (route) => {
@@ -1656,6 +1657,5 @@ try {
   await verifyVaultAudioImportsBrowser({ browser, origin, installDesktopFixture });
   await verifySupportSummaryBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyReaderDownloadsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
-  await verifyStremioAddonsBrowser({ browser, origin, installDesktopFixture, screenshotDir });
   await verifyLocalComicImportBrowser({ browser, origin, installDesktopFixture, screenshotDir });
 } finally { await browser.close(); }

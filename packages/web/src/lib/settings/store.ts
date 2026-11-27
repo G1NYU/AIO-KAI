@@ -104,7 +104,8 @@ const PREFS_ID = 'aiostreams-web';
 const SAVED_MARK = 'saved';
 const cacheKey = (userId: string) => `aiostreams-web-prefs:${userId}`;
 const movedKey = (userId: string) => `aiostreams-web-prefs-moved:${userId}`;
-let current: Synced = {};
+const WATCH_PREFS_KEY = 'tsugi-watch-display-prefs-v1';
+let current: Synced = storage.get<Synced>(WATCH_PREFS_KEY) ?? {};
 let everyoneDoc: Synced = {};
 let session: {
   client: JellyfinClient;
@@ -158,6 +159,7 @@ function fromDevice(): Synced {
 function publish(next: Synced) {
   current = next;
   if (session) storage.set(cacheKey(session.userId), next);
+  else storage.set(WATCH_PREFS_KEY, next);
   announce();
 }
 
@@ -233,7 +235,7 @@ export function syncPreferences(
     if (mine === generation) {
       session = null;
       everyoneDoc = {};
-      publish({});
+      publish(known(storage.get<Synced>(WATCH_PREFS_KEY)));
     }
   };
 }

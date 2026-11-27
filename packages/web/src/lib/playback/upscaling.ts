@@ -42,10 +42,15 @@ export function usePlayingAnime(item: BaseItemDto): void {
   const season = useItem(item.SeasonId ?? '');
   const show = useItem(item.SeriesId ?? '');
   const value = isAnime(item) || isAnime(season.data) || isAnime(show.data);
+  usePlayingAnimeFlag(value,item.Id);
+}
+
+/** Set the native player's anime classification from a provider's exact metadata. */
+export function usePlayingAnimeFlag(value:boolean,id:string|undefined){
   React.useLayoutEffect(() => {
     picked = null;
     changed();
-  }, [item.Id]);
+  }, [id]);
   React.useLayoutEffect(() => {
     anime = value;
     changed();

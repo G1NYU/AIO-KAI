@@ -10,6 +10,11 @@ import { appEngine } from '@/lib/hosts/shell/player';
 import { consumeAddonMedia, loadAllAddonStreams, loadAddonOptions, prepareAddonMedia, saveWatchProgress, type AddonOptions, type AddonStreamGroup, type AddonVideo, type WatchPlayback, type WatchProgress } from '@/lib/hosts/shell/stremio';
 import { useMediaPresence } from '@/lib/rich-presence';
 import { usePlayerPage, PageSubtitle, PlayerStats } from '@/app/player/page';
+import { chapterSegments } from '@/lib/playback/chapters';
+import { useSegmentSkip } from '@/features/player/segments';
+import { asksFirst, countPlayedOn, NextEpisodeCard, promptAt, StillWatching } from '@/features/player/next-episode';
+import { useShowPicks, useShowTrackPicks, withShowPick } from '@/lib/playback/show-tracks';
+import { usePlayingAnimeFlag } from '@/lib/playback/upscaling';
 import { PlayerControls } from '@/features/player/controls';
 import { AddonVersionList } from '@/features/versions/addon-versions';
 import { leaveFullscreen } from '@/lib/playback/fullscreen';
@@ -64,13 +69,26 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
   const [subtitleApplied,setSubtitleApplied]=React.useState(false);
   const [subtitleStyle]=useSetting(settings.subtitle.style);
   const {prefs}=usePlaybackPrefs();
+  const picks=useShowPicks();
+  const [nextPrompt]=useSetting(settings.next.prompt);
+  const [lead]=useSetting(settings.next.lead);
+  const [countdown]=useSetting(settings.next.countdown);
+  const [fallbackFirst]=useSetting(settings.next.fallbackFirst);
+  const [stillWatching]=useSetting(settings.next.stillWatching);
+  const [chapterSkips]=useSetting(settings.playback.chapterSkips);
+  const autoplay=prefs.EnableNextEpisodeAutoPlay!==false;
+  const [dismissed,setDismissed]=React.useState(false),[asking,setAsking]=React.useState(false);
+  const [leftMs,setLeftMs]=React.useState(countdown*1000);
+  const autoTried=React.useRef(false);
   const item=React.useMemo<BaseItemDto>(()=>({
-    Id:playback.videoId,Type:playback.episodeTitle?'Episode':'Movie',
+    Id:playback.videoId,Type:playback.mediaType==='movie'?'Movie':'Episode',
+    ...(playback.mediaType!=='movie'&&{SeriesId:'tsugi-watch:'+playback.profileId+':'+playback.itemId}),
     Name:playback.episodeTitle??playback.title,
     ...(playback.episodeTitle&&{SeriesName:playback.title}),
     ...(playback.videos.find(v=>v.id===playback.videoId)?.season!=null&&{ParentIndexNumber:playback.videos.find(v=>v.id===playback.videoId)!.season!}),
     ...(playback.videos.find(v=>v.id===playback.videoId)?.episode!=null&&{IndexNumber:playback.videos.find(v=>v.id===playback.videoId)!.episode!})
   }),[playback]);
+  usePlayingAnimeFlag(!!playback.anime||playback.mediaType==='anime',playback.videoId);
   const source=React.useMemo<SourceInfo>(()=>({Id:'addon:'+playback.profileId+':'+playback.videoId}),[playback.profileId,playback.videoId]);
   async function openNative(active:()=>boolean){
     // Source switching prepares after the previous engine's stop invalidates
@@ -102,10 +120,11 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
     if(closing.current)return;
     completed.current=true;setEnded(true);void checkpoint(true);
   }
-  const player=usePlayer([appEngine],{
+  const rawPlayer=usePlayer([appEngine],{
     item,source,url:'tsugi-addon-grant:'+String(playback.grantId??playback.selection?.reviewId),
-    startMs:playback.startMs,openNative,thumbnails:false,prefs,subtitleStyle,onEnded:finish
+    startMs:playback.startMs,openNative,thumbnails:false,prefs:withShowPick(prefs,picks.data,item),subtitleStyle,onEnded:finish
   });
+  const player=useShowTrackPicks(rawPlayer,item,source);
   current.current=player;
   const position=usePlayhead(player.playhead,h=>h.positionMs);
   const {state}=player;
@@ -153,34 +172,41 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
     catch{if(mounted.current)setError(true);}
     finally{flight.current=false;if(mounted.current)setBusy(false);}
   }
-  function openVersions(video:AddonVideo|null=null){
+  function openVersions(video:AddonVideo|null=null,auto=false){
     if(flight.current||closing.current)return;
     showDialog('versions');setTarget(video);setGroups(null);
     void run(async()=>{
       const response=await loadAllAddonStreams(playback.profileId,playback.mediaType,video?.id??playback.videoId);
-      if(mounted.current)setGroups(playback.streamSources.flatMap(s=>response.filter(g=>g.sourceId===s.sourceId)));
+      if(!mounted.current)return;
+      const sorted=playback.streamSources.flatMap(s=>response.filter(g=>g.sourceId===s.sourceId));
+      setGroups(sorted);
+      const choices=sorted.flatMap(g=>g.options?g.options.rows.flatMap((r,i)=>r.supported?[{result:g.options!,index:i}]:[]):[]);
+      if(auto&&video&&choices.length&&(choices.length===1||fallbackFirst))await switchTo(choices[0].result,choices[0].index,video,true);
     });
   }
   async function pickStream(result:AddonOptions,index:number){
     if(!result.rows[index]?.supported)return;
-    await run(async()=>{
-      const same=!target||target.id===playback.videoId;
+    await run(()=>switchTo(result,index,target));
+  }
+  async function switchTo(result:AddonOptions,index:number,video:AddonVideo|null,auto=false){
+      const same=!video||video.id===playback.videoId;
       const p=current.current;
       if(p?.state.started&&!ended)p.setPaused(true);
+      if(!same&&auto)completed.current=true;
       const startMs=same&&!completed.current?Math.floor(Math.min(p?.state.durationMs||604800000,p?.playhead.positionMs??0)):0;
       await checkpoint(true);
       if(!mounted.current)return;
       closing.current=true;
+      if(!same&&auto)countPlayedOn();
       // The reviewed option is renewed to a one-shot native grant only
       // after React has cleaned up the previous shared engine.
       switchPlayback({
         profileId:playback.profileId,mediaType:playback.mediaType,itemId:playback.itemId,
-        videoId:target?.id??playback.videoId,title:playback.title,
-        episodeTitle:target?.name??playback.episodeTitle,startMs,
+        videoId:video?.id??playback.videoId,title:playback.title,
+        episodeTitle:video?.name??playback.episodeTitle,startMs,anime:playback.anime,
         videos:playback.videos,streamSources:playback.streamSources,subtitleSources:playback.subtitleSources,
         selection:{reviewId:result.reviewId,optionIndex:index}
       });
-    });
   }
   function openSubtitles(){
     if(flight.current||closing.current)return;
@@ -206,10 +232,26 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
   const next=episodeAt>=0?playback.videos[episodeAt+1]:undefined;
   const previous=episodeAt>0?playback.videos[episodeAt-1]:undefined;
   const failure=state.error||(!state.started&&loadTimedOut);
+  const segments=React.useMemo(()=>chapterSkips?chapterSegments(player.chapters??[],state.durationMs):[],[chapterSkips,player.chapters,state.durationMs]);
+  const at=promptAt(state.durationMs,segments.find(s=>String(s.Type)==='Outro'),nextPrompt,lead);
+  const due=!!next&&state.started&&at!==null&&position>=at&&!ended;
+  const shown=due&&!dismissed&&!asking&&!dialog&&!failure&&!leaving;
+  const counting=shown&&autoplay&&!state.paused;
+  const skipping=useSegmentSkip({items:segments,player,offeringNext:shown||asking});
+  const advance=useLatest(()=>{
+    if(!next||autoTried.current||flight.current||closing.current)return;
+    autoTried.current=true;
+    if(asksFirst(stillWatching)){player.setPaused(true);setAsking(true);return;}
+    openVersions(next,true);
+  });
+  React.useEffect(()=>{if(!due){setDismissed(false);setLeftMs(countdown*1000);}},[due,countdown]);
+  React.useEffect(()=>{if(!counting)return;const timer=setInterval(()=>setLeftMs(v=>Math.max(0,v-250)),250);return()=>clearInterval(timer);},[counting]);
+  React.useEffect(()=>{if((counting&&leftMs===0)||(ended&&autoplay&&!dismissed&&!dialog&&!busy&&!failure))advance.current();},[counting,leftMs,ended,autoplay,dismissed,dialog,busy,failure,advance]);
+  const nextItem:BaseItemDto|null=next?{Id:next.id,Name:next.name,Type:'Episode',SeriesName:playback.title,ParentIndexNumber:next.season??undefined,IndexNumber:next.episode??undefined}:null;
   return <section className="fixed inset-0 text-white" data-page="player" data-ui="direct-watch-player" aria-label={playback.title}>
     <PageSubtitle text={player.subtitleText} lift={player.subtitleLift} style={subtitleStyle}/>
     {player.stats&&<PlayerStats rows={player.stats.rows}/>}
-    {leaving||ended||failure?<div className="fixed inset-0 z-20 grid place-items-center bg-black/70 p-6">
+    {asking&&nextItem?<StillWatching next={nextItem} title={nextItem.Name??''} loading={busy} onContinue={()=>{setAsking(false);openVersions(next!,true);}} onBack={()=>void leave()}/>:leaving||ended||failure?<div className="fixed inset-0 z-20 grid place-items-center bg-black/70 p-6">
       <div className="max-w-md space-y-4 text-center">
         <p role={failure?'alert':'status'}>{leaving?<Trans>Saving Watch progress…</Trans>:ended?<Trans>Playback ended.</Trans>:state.error??<Trans>Playback did not start. Choose another version.</Trans>}</p>
         {!leaving&&<div className="flex flex-wrap justify-center gap-2">
@@ -219,10 +261,11 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
         </div>}
       </div>
     </div>:<PlayerControls item={item} player={player} caption={playback.episodeTitle??undefined} onBack={()=>void leave()}
-      showAtOpen dialogOpen={!!dialog} onVersions={()=>openVersions()}
+      showAtOpen skipping={skipping} offeringNext={shown} dialogOpen={!!dialog} onVersions={()=>openVersions()}
       onAddonSubtitles={playback.subtitleSources.length?openSubtitles:undefined}
       onOpenEpisodes={playback.videos.length>1?()=>showDialog('episodes'):undefined}
       onPrevious={previous?()=>openVersions(previous):undefined} onNext={next?()=>openVersions(next):undefined}/>}
+    {shown&&nextItem&&<NextEpisodeCard next={nextItem} listed={false} image={null} heading={t`Next episode`} counting={counting} leftMs={leftMs} seconds={Math.max(1,Math.ceil(leftMs/1000))} countdown={countdown} autoplay={autoplay} onPlay={()=>{setDismissed(true);openVersions(next!,true);}} onHide={()=>setDismissed(true)}/>}
     {historyBusy&&<span className="sr-only" role="status"><Trans>Saving Watch progress…</Trans></span>}
     <Drawer data-ui="dialog" data-name={dialog??'versions'} title={dialog==='subtitles'?t`Addon subtitles`:dialog==='episodes'?t`Episodes`:t`Versions`}
       open={dialog!==null} onOpenChange={open=>{if(!open&&!flight.current)showDialog(null);}}

@@ -20,6 +20,7 @@ export const hasWords = (
 };
 
 export const SettingsSearch = React.createContext<readonly string[]>([]);
+export const LocalWatchSettings = React.createContext(false);
 
 /**
  * Where a card's settings are kept: with the profile, on the device with a
@@ -76,6 +77,7 @@ export function SettingsCard({
 }) {
   const words = React.useContext(SettingsSearch);
   const layer = useSettingsLayer();
+  const localWatch = React.useContext(LocalWatchSettings);
   const root = React.useRef<HTMLDivElement>(null);
   // By the text each line shows, so a search covers whatever this device lists.
   React.useLayoutEffect(() => {
@@ -94,7 +96,7 @@ export function SettingsCard({
     };
   });
   if (!holdsIn(layer, holds)) return null;
-  const where = holds && !plain && holdsText(layer, holds, locked);
+  const where = holds && !plain && (localWatch ? t`Kept on this device.` : holdsText(layer, holds, locked));
   if (where)
     description = description ? (
       <>

@@ -28,6 +28,18 @@ fn public_catalog_source()->Result<Source>{
     let manifest=Manifest::parse(br#"{"id":"com.linvo.cinemeta","name":"Cinemeta","version":"3.0.14","types":["movie","series"],"idPrefixes":["tt"],"resources":["catalog","meta"],"catalogs":[{"type":"movie","id":"top","name":"Popular movies","extra":[{"name":"search"},{"name":"skip"}]},{"type":"series","id":"top","name":"Popular series","extra":[{"name":"search"},{"name":"skip"}]},{"type":"movie","id":"imdbRating","name":"Featured movies","extra":[{"name":"skip"}]},{"type":"series","id":"imdbRating","name":"Featured series","extra":[{"name":"skip"}]}]}"#)?;
     Ok(Source{id:0,endpoint:Endpoint::parse("https://v3-cinemeta.strem.io/manifest.json")?,manifest,enabled:true})
 }
+// Fixed public metadata only: no installed addon, catalog or stream capabilities.
+fn public_anime_source()->Result<Source>{
+    let manifest=Manifest::parse(br#"{"id":"community.anime.kitsu","name":"Anime Kitsu","version":"0.0.10","types":["anime","movie","series"],"idPrefixes":["kitsu:"],"resources":["meta"],"catalogs":[]}"#)?;
+    Ok(Source{id:0,endpoint:Endpoint::parse("https://anime-kitsu.strem.fun/manifest.json")?,manifest,enabled:true})
+}
+fn public_metadata_source(id:&str)->Result<Source>{
+    if id.strip_prefix("tt").is_some_and(|n|!n.is_empty()&&n.len()<=12&&n.bytes().all(|b|b.is_ascii_digit())){
+        public_catalog_source()
+    }else if id.strip_prefix("kitsu:").is_some_and(|n|!n.is_empty()&&n.len()<=10&&n.bytes().all(|b|b.is_ascii_digit())&&!n.starts_with('0')){
+        public_anime_source()
+    }else{Err("unsupported-resource")}
+}
 const REVIEW_TTL: Duration = Duration::from_secs(300);
 
 #[derive(Deserialize)]
@@ -333,8 +345,7 @@ impl Registry {
             Action::Metadata { source_id,media_type,item_id } => {
                 let public;
                 let source=if source_id==0{
-                    if !item_id.strip_prefix("tt").is_some_and(|id|!id.is_empty()&&id.len()<=12&&id.bytes().all(|b|b.is_ascii_digit())){return Err("unsupported-resource");}
-                    public=public_catalog_source()?;&public
+                    public=public_metadata_source(&item_id)?;&public
                 }else{&self.sources[self.source_index(source_id)?]};
                 if !source.enabled{return Err("disabled-source");}
                 let meta=source.endpoint.metadata(&source.manifest,&media_type,&item_id)?;
@@ -496,6 +507,12 @@ mod tests {
         assert!(!source.manifest.supports(ItemResource::Stream,"movie","tt123"));
         assert!(!source.manifest.supports(ItemResource::Meta,"anime","mal:123"));
         assert_eq!(source.manifest.declared_catalogs().count(),4);
+        let anime=public_metadata_source("kitsu:123").unwrap();
+        assert!(anime.manifest.supports(ItemResource::Meta,"anime","kitsu:123"));
+        assert!(!anime.manifest.supports(ItemResource::Stream,"anime","kitsu:123"));
+        assert_eq!(anime.manifest.declared_catalogs().count(),0);
+        assert!(public_metadata_source("kitsu:123:1").is_err());
+        assert!(public_metadata_source("kitsu:0").is_err());
         let mut registry=Registry::default();
         assert_eq!(registry.list()["sources"],json!([]));
         assert!(registry.execute(Action::Metadata{source_id:0,media_type:"series".into(),item_id:"mal:123".into()}).is_err());

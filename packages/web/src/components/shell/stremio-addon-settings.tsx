@@ -10,12 +10,12 @@ import { MovieGlyph } from '@/components/movie-icons';
 import { Artwork, WideCard } from '@/components/media/cards';
 import { useDesktopArea, type WatchEntryPane } from '@/lib/desktop-area';
 import { settings, useSetting } from '@/lib/settings';
-import { FirstVersionSwitch } from '@/app/settings/_components/first-version-switch';
+import { WatchPlaybackSettings } from '@/app/settings/page';
 import { AddonVersionList } from '@/features/versions/addon-versions';
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { publicCinemeta, AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, loadAllAddonStreams, type AddonStreamGroup, type AddonMetadata, type AddonOptions, prepareAddonMedia, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry } from '@/lib/hosts/shell/stremio';
+import { AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, loadAllAddonStreams, type AddonStreamGroup, type AddonMetadata, type AddonOptions, prepareAddonMedia, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry } from '@/lib/hosts/shell/stremio';
 
 function feedback(reason: unknown) {
   switch(reason instanceof AddonError ? reason.code : 'request'){
@@ -189,7 +189,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     clearTitle();
     onPlay({profileId,grantId,mediaType:item.mediaType,itemId:item.id,videoId:video,title:metadata?.name??item.name,
       episodeTitle:item.mediaType==='movie'?null:metadata?.videos.find(v=>v.id===video)?.name??episodeTitle,
-      startMs,videos:metadata?.videos??[],streamSources:sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(s=>({sourceId:s.sourceId,name:s.manifest.name})),
+      startMs,anime:pane==='anime'||item.mediaType==='anime'||item.id.startsWith('kitsu:'),videos:metadata?.videos??[],streamSources:sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(s=>({sourceId:s.sourceId,name:s.manifest.name})),
       subtitleSources:sources.filter(s=>s.enabled&&s.manifest.resources.includes('subtitles')).map(s=>({sourceId:s.sourceId,name:s.manifest.name}))});
   }
   async function fetchStreams(item:Title,video:string,autoStart=false,metadata:AddonMetadata|null=null,entry:WatchProgress|null=null){
@@ -208,29 +208,57 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     try{await launchStream(item,video,metadata,first,index,startMs,entry?.episodeTitle??null);}
     catch{if(mounted.current)setNotice(t`Automatic playback could not start. Choose a stream below.`);}
   }
+  async function resolveMetadata(item:Title,preferredSourceId?:number,allowMapping=true):Promise<{item:Title;metadata:AddonMetadata|null}>{
+    if(profileId===undefined)return {item,metadata:null};
+    const candidates=sources.filter(source=>source.enabled&&source.manifest.resources.includes('meta'));
+    candidates.sort((a,b)=>Number(b.sourceId===preferredSourceId)-Number(a.sourceId===preferredSourceId));
+    async function lookup(target:Title,publicSource:boolean){
+      let metadata:AddonMetadata|null=null;
+      for(const sourceId of [...candidates.map(source=>source.sourceId),...(publicSource?[0]:[])]){
+        try{
+          const next=await loadAddonMetadata(profileId!,sourceId,target.mediaType,target.id);
+          if(!metadata||next.videos.length)metadata=next;
+          if(target.mediaType==='movie'||next.videos.length)break;
+        }catch{/* A provider may not support this exact identity. */}
+        if(!mounted.current)return null;
+      }
+      return metadata;
+    }
+    const exact=await lookup(item,/^tt[0-9]{1,12}$/.test(item.id)||/^kitsu:[1-9][0-9]{0,9}$/.test(item.id));
+    if(exact?.videos.length||exact&&item.mediaType==='movie')return {item,metadata:exact};
+    const mal=/^mal:([1-9][0-9]{0,9})$/.exec(item.id);
+    if(!allowMapping||!mal||!sources.some(source=>source.enabled&&source.manifest.resources.includes('stream')))return {item,metadata:exact};
+    // Resolve a public identity, never construct a video/episode ID ourselves.
+    try{
+      const response=await fetch('https://relations.yuna.moe/api/ids?source=myanimelist&id='+mal[1],{signal:AbortSignal.timeout(6000),credentials:'omit',referrerPolicy:'no-referrer'});
+      if(!response.ok)return {item,metadata:exact};
+      const raw=await response.text();
+      if(raw.length>16384)return {item,metadata:exact};
+      const mapped=JSON.parse(raw);
+      const kitsu=Number(mapped?.kitsu);
+      if(!Number.isSafeInteger(kitsu)||kitsu<=0||kitsu>9999999999||!mounted.current)return {item,metadata:exact};
+      for(const mediaType of [item.mediaType,'anime']){
+        const target={...item,id:'kitsu:'+kitsu,mediaType};
+        const metadata=await lookup(target,true);
+        if(metadata?.videos.length||metadata&&mediaType==='movie')return {item:target,metadata};
+        if(!mounted.current)break;
+      }
+    }catch{/* Offline or unmapped: keep the original public detail and search fallback. */}
+    return {item,metadata:exact};
+  }
   async function openTitle(item:Title,preferredSourceId?:number){
     if(flight.current||profileId===undefined)return;
     const auto=contentPane();
     clearTitle();setTitle(item);setAutomatic(auto);
     if(item.mediaType==='movie')setVideoId(item.id);
-    const candidates=sources.filter(source=>source.enabled&&source.manifest.resources.includes('meta'));
-    if(/^tt[0-9]{1,12}$/.test(item.id)&&['movie','series'].includes(item.mediaType)&&!candidates.some(source=>source.manifest.id===publicCinemeta.manifest.id))candidates.push(publicCinemeta);
-    candidates.sort((a,b)=>Number(b.sourceId===preferredSourceId)-Number(a.sourceId===preferredSourceId));
     await run(async()=>{
-      let metadata:AddonMetadata|null=null;
-      for(const candidate of candidates){
-        try{
-          const next=await loadAddonMetadata(profileId,candidate.sourceId,item.mediaType,item.id);
-          if(!metadata||next.videos.length)metadata=next;
-          if(item.mediaType==='movie'||next.videos.length)break;
-        }catch{/* A catalog provider need not supply metadata; try other declared providers. */}
-        if(!mounted.current)return;
-      }
+      const resolved=await resolveMetadata(item,preferredSourceId);
       if(!mounted.current)return;
-      setDetails(metadata);
-      const chosen=metadata?.videos.length===1?metadata.videos[0].id:(!metadata?.videos.length&&item.mediaType==='movie'?item.id:'');
+      const target=resolved.item,metadata=resolved.metadata;
+      setTitle(target);setDetails(metadata);
+      const chosen=metadata?.videos.length===1?metadata.videos[0].id:(!metadata?.videos.length&&target.mediaType==='movie'?target.id:'');
       setVideoId(chosen);
-      if(auto&&chosen)await fetchStreams(item,chosen,true,metadata);
+      if(auto&&chosen)await fetchStreams(target,chosen,true,metadata);
     });
   }
   function openHistory(entry:WatchProgress){
@@ -238,7 +266,12 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     const item={id:entry.itemId,name:entry.title,mediaType:entry.mediaType};
     const auto=contentPane();
     clearTitle();setTitle(item);setAutomatic(auto);setVideoId(entry.videoId);setResumeEntry(entry);
-    if(auto)void run(()=>fetchStreams(item,entry.videoId,true,null,entry));
+    if(auto)void run(async()=>{
+      const {metadata}=await resolveMetadata(item,undefined,false);
+      if(!mounted.current)return;
+      setDetails(metadata);
+      await fetchStreams(item,entry.videoId,true,metadata,entry);
+    });
   }
   async function readMetadata(item:Title,sourceId:number){
     if(flight.current||profileId===undefined)return;
@@ -380,7 +413,7 @@ export function StremioAddonSettings({workspace=false,onPlay,historyActive=false
     </nav>}
     {!workspace&&<h3 id={titleId}><Trans>Stremio addons</Trans></h3>}
     {workspace&&onPlay&&profileReady&&profileId!==undefined&&(pane==='home'||pane==='discover')&&<WatchCatalogueBoard key={JSON.stringify([profileId,pane,boardSearch])} initialQuery={boardSearch} profileId={profileId} sources={sources} busy={busy} run={run} active={historyActive} paused={!!title} includeHistory={pane==='home'} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} openAddons={()=>void selectPane('addons')}/>}
-    {workspace&&onPlay&&pane==='playback'&&<section className="space-y-3" data-ui="watch-playback-settings"><h4><Trans>Playback</Trans></h4><FirstVersionSwitch disabled={busy}/></section>}
+    {workspace&&onPlay&&pane==='playback'&&<section className="min-w-0" data-ui="watch-playback-settings"><WatchPlaybackSettings/></section>}
     {show('profile')&&<>
     <p><Trans>Each local profile has its own addons, without an AIOStreams connection. Browse catalogues and select supported direct HTTPS streams in Watch.</Trans></p>
     <p><Trans>Configured links are protected by your Windows account and excluded from portable backups. Local profiles are not password-protected from other people using this Windows account. Only contact addon hosts you trust.</Trans></p>

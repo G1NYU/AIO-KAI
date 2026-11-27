@@ -321,7 +321,7 @@ export async function removeWatchHistory(profileId:number,progress:Pick<WatchPro
 
 export type WatchPlayback={
   profileId:number;mediaType:string;itemId:string;videoId:string;title:string;episodeTitle:string|null;
-  startMs:number;videos:AddonVideo[];streamSources:{sourceId:number;name:string}[];
+  startMs:number;anime?:boolean;videos:AddonVideo[];streamSources:{sourceId:number;name:string}[];
   subtitleSources:{sourceId:number;name:string}[];
 } & ({grantId:number;selection?:never}|{grantId?:never;selection:{reviewId:number;optionIndex:number}});
 export async function prepareAddonMedia(profileId:number,reviewId:number,optionIndex:number,subtitles:boolean,startMs=0){

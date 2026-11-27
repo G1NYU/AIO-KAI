@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSession } from '@/lib/jellyfin/session';
+import { useOptionalSession } from '@/lib/jellyfin/session';
+import { storage } from '@/lib/storage';
 import { firstInLanguages, languageCode, sameLanguage } from '@/lib/languages';
 import {
   audioLanguages,
@@ -55,22 +56,26 @@ function langOf(track: Track | undefined): string | undefined {
     : undefined;
 }
 
+const LOCAL_PICKS_KEY='tsugi-watch-show-tracks-v1';
 function usePicksKey() {
-  const { client, user } = useSession();
-  return ['jf', client.base, user.Id, 'show-tracks'] as const;
+  const session=useOptionalSession();
+  return session?['jf',session.client.base,session.user.Id,'show-tracks'] as const:['tsugi',LOCAL_PICKS_KEY] as const;
 }
 
 export function useShowPicks() {
-  const { client, user } = useSession();
+  const session=useOptionalSession();
+  const client=session?.client,user=session?.user;
   return useQuery({
     queryKey: usePicksKey(),
-    meta: { cache: 'account' },
+    meta: client?{ cache: 'account' }:undefined,
+    initialData:client?undefined:()=>storage.get<Picks>(LOCAL_PICKS_KEY)??{},
     queryFn: async () => {
+      if(!client)return storage.get<Picks>(LOCAL_PICKS_KEY)??{};
       const prefs = await client.get<{
         CustomPrefs?: Record<string, string | null>;
       }>(`/DisplayPreferences/${PREFS_ID}`, {
         client: PREFS_ID,
-        userId: user.Id,
+        userId: user?.Id,
       });
       // Servers add defaults of their own; a pick always has a `|`.
       return Object.fromEntries(
@@ -136,11 +141,12 @@ function settingsAudio(prefs: PlaybackPrefs, source: SourceInfo) {
 }
 
 function useSavePick() {
-  const { client, user } = useSession();
+  const session=useOptionalSession();
+  const client=session?.client,user=session?.user;
   const queryClient = useQueryClient();
   const queryKey = usePicksKey();
   return (showId: string, change: ShowPick) => {
-    const picks = queryClient.getQueryData<Picks>(queryKey) ?? {};
+    const picks = queryClient.getQueryData<Picks>(queryKey) ?? (!client?storage.get<Picks>(LOCAL_PICKS_KEY):null) ?? {};
     const pick = { ...pickOf(picks, showId), ...change };
     const entry =
       pick.audio || pick.subtitle
@@ -150,6 +156,7 @@ function useSavePick() {
     const { [showId]: _, ...rest } = picks;
     const next = entry ? { ...rest, [showId]: entry } : rest;
     queryClient.setQueryData(queryKey, next);
+    if(!client){storage.set(LOCAL_PICKS_KEY,next);return;}
     // A server may keep a key it is not sent, so a forgotten pick is sent empty.
     void client
       .post(
@@ -159,7 +166,7 @@ function useSavePick() {
           Client: PREFS_ID,
           CustomPrefs: { ...next, ...(entry ? {} : { [showId]: '' }) },
         },
-        { client: PREFS_ID, userId: user.Id }
+        { client: PREFS_ID, userId: user?.Id }
       )
       .catch(() => undefined);
   };

@@ -277,6 +277,9 @@ jobs:
           include-hidden-files: true
 
   package:
+    permissions:
+      contents: read
+      actions: read
     needs: [web, windows-x64]
     if: github.ref == 'refs/heads/feature/tsugi-read-runtime' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[package tsugi]')))
     runs-on: windows-latest
@@ -450,6 +453,7 @@ jobs:
             if ($names -like 'current/read-tools/*') { throw 'Upstream reading runtime must be fetched directly on first launch' }
           } finally { $archive.Dispose() }
       - uses: actions/upload-artifact@v7
+        id: upload-portable
         with:
           name: Tsugi-Windows-x64-test
           retention-days: 7
@@ -457,7 +461,9 @@ jobs:
           if-no-files-found: error
       - uses: actions/download-artifact@v5
         with:
-          name: Tsugi-Windows-x64-test
+          artifact-ids: ${{ steps.upload-portable.outputs.artifact-id }}
+          github-token: ${{ github.token }}
+          run-id: ${{ github.run_id }}
           path: roundtrip
       - name: Verify downloadable portable ZIP and build identity
         run: |
