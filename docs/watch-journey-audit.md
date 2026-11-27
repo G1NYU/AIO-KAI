@@ -36,7 +36,7 @@ Baseline `f21bf13`: [cumulative web and Windows CI 46022564530](https://github.c
 | 26 | Returning | 🟩 Verified | Browser title/episode restoration and browsing continuity; physical WebView2 acceptance remains release gate. |
 | 27 | Anime discovery | 🟩 Verified | Tenrai v1 replaced Jikan; prior live feed/MAL artwork checks and browser fixture. |
 | 28 | Anime playback | 🟨 Partial | Verified MAL/Kitsu routes and episode progression; live multi-namespace specials and regular episodes open. |
-| 29 | Connections | 🟨 Partial | MAL XML and Refract shortcuts verified; consolidated profile service placement and labeling open. |
+| 29 | Connections | 🟨 Partial | MAL XML and Refract shortcuts verified; MyAnimeList XML entry added alongside profile services in Watch Settings, with cross-hub collection test pending CI. No OAuth implied. |
 | 30 | Release testing | ⬜ Outstanding | Prior beta cfa9aa6 is superseded by corrections; refresh package and verify artifact; physical Windows acceptance open. |
 
 Additional design acceptance: shared Interface sans-serif (Inter fallback), semibold catalogue headings, no standalone serif hero override. Font-load and computed-weight browser tests passed at `f21bf13`.

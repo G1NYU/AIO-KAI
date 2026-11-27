@@ -782,6 +782,20 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
       if(!await nav.isVisible())await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Settings',exact:true}).click();
       await nav.getByRole('button',{name,exact:true}).click();
     }
+    await watchSetting('MyAnimeList XML');
+    const settingsAnime=watch.locator('[data-ui="mal-anime-library"] [data-ui="mal-collection"]');
+    await settingsAnime.getByLabel('Choose MyAnimeList export',{exact:true}).setInputFiles({name:'animelist.xml',mimeType:'application/xml',buffer:Buffer.from(setupXml)});
+    await settingsAnime.getByRole('button',{name:'Import reviewed list',exact:true}).click();
+    await settingsAnime.locator('div[data-mal-id="700"]').waitFor();
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
+    await watch.locator('[data-ui="mal-anime-library"] button[data-mal-id="700"]').waitFor();
+    await watchSetting('MyAnimeList XML');
+    const importedSettingsRow=settingsAnime.locator('div[data-mal-id="700"]');
+    await importedSettingsRow.waitFor();
+    await importedSettingsRow.locator('xpath=..').getByRole('button',{name:'Remove',exact:true}).click();
+    await settingsAnime.getByRole('button',{name:'Confirm removal',exact:true}).click();
+    await importedSettingsRow.waitFor({state:'detached'});
+    console.log('PASS: Watch Settings exposes profile-local MyAnimeList XML import and shares the Anime Hub collection.');
     await watchSetting('Add addon');
     await watch.getByLabel('Configured manifest URL').fill('https://example.invalid/private-fixture/manifest.json?token=fixture');
     await watch.getByRole('checkbox').check();

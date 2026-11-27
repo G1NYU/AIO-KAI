@@ -1,3 +1,7 @@
+## 2026-11-27 — Profile service placement
+
+Watch Settings now offers a clearly labeled MyAnimeList XML entry alongside MDBList and Refract, reusing the existing setup-only anime collection for the active profile. Anime Hub remains a browsing destination with its existing shortcuts. The browser fixture imports from settings, sees the same collection in Anime Hub, then removes the entry in settings. No account login or OAuth behavior changed. Requires cumulative CI.
+
 ## 2026-11-27 — Bounded compatible-route fallback
 
 A stream provider may accept several exact public title/episode routes but return an empty response to the first one. Native grouped lookup now tries at most three manifest-compatible exact routes, only after a successful empty response. Nonempty results and authorization/network/rate failures stop fallback. All attempts share the existing 20-second per-provider deadline, preserve installed source order and the original logical playback identity. The selected route is preferred on targeted retry. Added native tests for fallback, bounded attempts, authorization stop, preferred retry and one-shot grant identity; CI pending. No new transport, invented episode IDs, authentication changes or stable release.

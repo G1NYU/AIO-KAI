@@ -50,7 +50,7 @@ function feedback(reason: unknown) {
     default: return t`The request could not be confirmed. Refresh the installed list before retrying an installation or change.`;
   }
 }
-type WatchPane = 'hubs'|'home'|'discover'|'playback'|'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history'|'refract'|'anime';
+type WatchPane = 'hubs'|'home'|'discover'|'playback'|'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'history'|'refract'|'anime'|'anime-import';
 const profileArt=['/design/oto/hero-yuna.webp','/design/yomi/hero-torii.webp','/design/shared/hero-neon.webp','/design/shared/hero-train.webp'];
 export function StremioAddonSettings({workspace=false,initialProfileId,onProfileSelected,onPlay,returnedPlayback,historyActive=false,setupConnections=false,initialPane='addons',openServer}:{initialProfileId?:number;onProfileSelected?:(id:number|undefined)=>void;workspace?:boolean;openServer?:()=>void;onPlay?:(playback:WatchPlayback)=>void;returnedPlayback?:WatchPlayback|null;historyActive?:boolean;setupConnections?:boolean;initialPane?:WatchEntryPane}={}){
   const desktopArea=useDesktopArea();
@@ -452,10 +452,11 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     ['manual',t`Add addon`,'add'],
     ['order',t`Source order`,'order'],
     ['mdblist',t`MDBList`,'mdblist'],
+    ['anime-import',t`MyAnimeList XML`,'anime'],
     ['refract',t`Refract`,'refract'],
     ['playback',t`Playback`,'tv'],
     ['profile',t`Profile settings`,'settings']
-  ] as const).filter(([id])=>(id!=='refract'||!!onPlay||setupConnections)&&(id!=='playback'||!!onPlay));
+  ] as const).filter(([id])=>(id!=='refract'||!!onPlay||setupConnections)&&(id!=='playback'||!!onPlay)&&(id!=='anime-import'||!!onPlay));
   function searchTitleInAddons(){
     if(!title||flight.current)return;
     const name=title.name;
@@ -594,7 +595,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     </form>}
     </>}
     {workspace&&pane==='history'&&historyActive&&profileReady&&profileId!==undefined&&<WatchHistory key={profileId} profileId={profileId} busy={busy} run={run} open={openHistory} removed={clearTitle}/>}
-    {workspace&&pane==='anime'&&profileReady&&profileId!==undefined&&<MalAnimeLibrary key={profileId} profileId={profileId} sources={sources} busy={busy} historyActive={historyActive} setupOnly={!onPlay} detailOpen={!!title} run={run} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} clearTitle={clearTitle} openAddons={()=>void selectPane('addons')}/>}
+    {workspace&&(pane==='anime'||pane==='anime-import')&&profileReady&&profileId!==undefined&&<MalAnimeLibrary key={profileId+':'+pane} profileId={profileId} sources={sources} busy={busy} historyActive={pane==='anime'&&historyActive} setupOnly={!onPlay||pane==='anime-import'} detailOpen={!!title} run={run} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} clearTitle={clearTitle} openAddons={()=>void selectPane('addons')}/>}
     {workspace&&pane==='mdblist'&&profileReady&&profileId!==undefined&&<MdblistSettings key={profileId} profileId={profileId} openTitle={item=>void openTitle(item)}/>}
     {workspace&&pane==='refract'&&(historyActive||setupConnections)&&profileReady&&profileId!==undefined&&<RefractSettings key={profileId} profileId={profileId} busy={busy} run={run}/>}
     {workspace&&title&&<section ref={detailRef} tabIndex={-1} className={automatic?'space-y-3 tsugi-watch-detail':'space-y-3'} data-ui="watch-item-details">
