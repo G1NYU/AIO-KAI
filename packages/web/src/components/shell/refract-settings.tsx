@@ -2,7 +2,7 @@ import React from 'react';
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
 import {
-  AddonError, refractStatus, refractConnect, refractEnable, refractDisconnect,
+  AddonError, setRefractThreshold, refractStatus, refractConnect, refractEnable, refractDisconnect,
   refractSync, refractWatchlist, refractState, type RefractStatus,
 } from '@/lib/hosts/shell/stremio';
 import { appBridge } from '@/lib/hosts/shell/bridge';
@@ -15,7 +15,7 @@ function feedback(code:string){
     case 'refract-rate': return t`Refract is rate limiting requests. Try again after the retry time.`;
     case 'refract-rejected': return t`Refract rejected this request. Permanently rejected queued watches are skipped so later watches can still be sent.`;
     case 'refract-unmatched': return t`Refract could not uniquely match the external title or episode identity.`;
-    case 'refract-queue-full': return t`The local Refract queue is full. Sync pending watches before recording more.`;
+    case 'refract-queue-full': return t`The local Refract queue is full. Wait for pending changes to sync.`;
     case 'refract-disconnected': return t`Connect your Refract key for this Watch profile first.`;
     case 'refract-paused': return t`Enable completed-watch tracking before syncing queued watches.`;
     case 'refract-pending': return t`Confirm that you want to discard unsent Refract watches before disconnecting.`;
@@ -72,6 +72,10 @@ export function RefractSettings({profileId,busy,run}:CommonProps){
     {status?.connected&&<>
       <p><Trans>Connected to Refract:</Trans> <strong className="break-words">{status.username}</strong></p>
       <label className="flex items-start gap-2"><input type="checkbox" checked={status.enabled} disabled={busy} onChange={e=>void perform(()=>refractEnable(profileId,e.target.checked))}/><span><Trans>Track completed movies and episodes</Trans></span></label>
+      <label className="flex items-center gap-2"><Trans>Log a watch at</Trans><select className="tsugi-read-input" disabled={busy||!status.enabled} value={status.threshold??''}
+        onChange={event=>{const value=event.target.value;void perform(()=>setRefractThreshold(profileId,value?Number(value):null));}}>
+        <option value=""><Trans>Playback completion</Trans></option>{[50,70,80,90].map(n=><option key={n} value={n}>{n}%</option>)}</select></label>
+      <p><Trans>Early logging keeps your local resume position.</Trans></p>
       <p><Trans>Completed movies and individual episodes are queued with their original time. Completing one episode does not mark the entire series as watched. While TSUGI is open, queued watches for the active Watch profile sync automatically and retry after temporary failures. Older local history is not uploaded automatically; episode rewatches are not appended. Avoid enabling another tracker that sends the same watches.</Trans></p>
       <div className="flex flex-wrap gap-4" aria-live="polite">
         <span><Trans>Pending:</Trans> {status.pending}</span><span><Trans>Sent:</Trans> {status.sent}</span><span><Trans>Skipped:</Trans> {status.skipped}</span>
@@ -103,7 +107,7 @@ export function RefractWatchlist({profileId,mediaType,itemId,busy,run}:CommonPro
       setError('');setNotice('');
       try{
         const result=await refractWatchlist(profileId,mediaType,itemId,add);
-        if(mounted.current)setNotice(result==='protected'?t`Refract kept existing tracked library data unchanged.`:t`Refract watchlist updated.`);
+        if(mounted.current)setNotice(result==='queued'?t`Watchlist change queued for this profile.`:result==='protected'?t`Refract kept existing tracked library data unchanged.`:t`Refract watchlist updated.`);
       }catch(reason){if(mounted.current)setError(feedback(reason instanceof AddonError?reason.code:'request'));}
     });
   }

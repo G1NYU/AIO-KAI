@@ -67,13 +67,13 @@ fn name_valid(name: &str) -> bool {
 }
 fn source_action(action: &Action) -> bool {
     matches!(action,Action::List|Action::Review{..}|Action::Install{..}|Action::CancelReview{..}|
-        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::PrepareMedia{..}|Action::MalAnimeList|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::MalAnimeMatch{..}|Action::MalAnimeUnmatch{..}|Action::WatchHistory|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::RefractStatus|Action::RefractConnect{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractSync|Action::RefractWatchlist{..}|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
+        Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::Catalog{..}|Action::Metadata{..}|Action::ItemOptions{..}|Action::PrepareMedia{..}|Action::MalAnimeList|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::MalAnimeMatch{..}|Action::MalAnimeUnmatch{..}|Action::WatchHistory|Action::WatchRecord{..}|Action::WatchComplete{..}|Action::WatchRemove{..}|Action::RefractStatus|Action::RefractConnect{..}|Action::RefractThreshold{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractSync|Action::RefractWatchlist{..}|Action::MdblistStatus|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MdblistLists|Action::MdblistPage{..}|
         Action::ImportConnect{..}|Action::ImportNuvioProfile{..}|Action::ImportReview{..}|Action::ImportApply{..}|Action::ImportCancel{..})
 }
 pub(super) fn is_mutation(action: &Action) -> bool {
     match action {
         Action::ProfileCreate{..}|Action::ProfileRename{..}|Action::ProfileSwitch{..}|Action::ProfileRemove{..} => true,
-        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::MalAnimeMatch{..}|Action::MalAnimeUnmatch{..}|Action::WatchRecord{..}|Action::WatchRemove{..}|Action::RefractConnect{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractWatchlist{..}),
+        Action::ProfileRequest{action,..} => matches!(action.as_ref(),Action::Install{..}|Action::SetEnabled{..}|Action::Move{..}|Action::Remove{..}|Action::ImportApply{..}|Action::MdblistConnect{..}|Action::MdblistDisconnect|Action::MalAnimeImport{..}|Action::MalAnimeRemove{..}|Action::MalAnimeMatch{..}|Action::MalAnimeUnmatch{..}|Action::WatchRecord{..}|Action::WatchComplete{..}|Action::WatchRemove{..}|Action::RefractConnect{..}|Action::RefractThreshold{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}|Action::RefractWatchlist{..}),
         _ => false,
     }
 }
@@ -370,6 +370,20 @@ mod tests {
         p.execute(scoped(1,Action::RefractEnable{enabled:true})).unwrap();
         let first="00000000-0000-4000-8000-000000000001";
         let rewatch="00000000-0000-4000-8000-000000000002";
+        p.execute(scoped(1,Action::RefractThreshold{percent:Some(70)})).unwrap();
+        let partial=|pos|serde_json::from_value::<Action>(json!({"kind":"watch-record","viewingId":first,"progress":{
+            "mediaType":"movie","itemId":"tt123","videoId":"tt123","title":"Fixture","episodeTitle":null,
+            "positionMs":pos,"durationMs":100000,"completed":false}})).unwrap();
+        p.execute(scoped(1,partial(69000))).unwrap();
+        assert_eq!(p.execute(scoped(1,Action::RefractStatus)).unwrap()["pending"],0);
+        p.execute(scoped(1,partial(70000))).unwrap();
+        let current=p.execute(scoped(1,Action::WatchHistory)).unwrap();
+        assert_eq!(current["history"][0]["progress"]["completed"],false);
+        assert_eq!(p.execute(scoped(1,Action::RefractStatus)).unwrap()["pending"],1);
+        let at=current["history"][0]["updatedAt"].as_u64().unwrap();
+        let manual=|at|Action::WatchComplete{media_type:"movie".into(),item_id:"tt123".into(),video_id:"tt123".into(),updated_at:at};
+        assert!(p.execute(scoped(1,manual(at-1))).is_err());
+        assert_eq!(p.execute(scoped(1,manual(at))).unwrap()["history"][0]["progress"]["completed"],true);
         p.execute(scoped(1,complete(first))).unwrap();
         p.execute(scoped(1,complete(first))).unwrap();
         p.execute(scoped(1,complete(rewatch))).unwrap();

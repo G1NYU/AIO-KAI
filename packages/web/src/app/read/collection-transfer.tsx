@@ -12,6 +12,7 @@ import { isReaderIdentity } from './reader-preferences';
 type Title = { id: number | string; sourceId?: string; readerIdentity?: string; title: string; author?: string | null; inLibrary: boolean; categories?: { nodes: { id: number }[] } };
 type Source = { id: string; name: string; displayName?: string; lang: string };
 type Details = { manga: Title; chapters: ReadingChapter[] };
+type Binding = {id:number; trackerId:number; remoteId:string; title:string};
 type Props = { library: Title[]; sources: Source[]; busy: boolean; run: (work: () => Promise<void>) => Promise<void>; reload: () => Promise<void> };
 type BatchRow = { title: string; options: Title[]; selected: string; status: string; finished?: boolean };
 const idOf = (item: Title) => Number(item.id);
@@ -41,11 +42,13 @@ export function MigrationWorkspace({ library, sources, busy, run, reload }: Prop
   const [term, setTerm] = React.useState('');
   const [results, setResults] = React.useState<Title[] | null>(null);
   const [preview, setPreview] = React.useState<{ original: Details; replacement: Details } | null>(null);
+  const [bindings,setBindings]=React.useState<Binding[]|null>(null);
+  const [copyBindings,setCopyBindings]=React.useState(false);
   const [copyPages, setCopyPages] = React.useState(false);
   const [message, setMessage] = React.useState('');
   const original = library.find(item => String(item.id) === originalId);
   const plan = preview && migrationPlan(preview.original.chapters, preview.replacement.chapters);
-  const reset = () => { setResults(null); setPreview(null); setCopyPages(false); setMessage(''); };
+  const reset = () => { setResults(null); setPreview(null); setCopyPages(false); setBindings(null); setCopyBindings(false); setMessage(''); };
   async function prepare(item: Title) {
     if (!original || idOf(original) === idOf(item)) throw new Error(t({ id: "Choose a different edition.", message: "Choose a different edition." }));
     const from = await cached(idOf(original));
@@ -55,7 +58,18 @@ export function MigrationWorkspace({ library, sources, busy, run, reload }: Prop
         !isReaderIdentity(from.manga.readerIdentity) || !isReaderIdentity(to.manga.readerIdentity))
       throw new Error(t({ id: "Choose a saved title and a different source.", message: "Choose a saved title and a different source." }));
     if (!to.chapters.length) throw new Error(t({ id: "Replacement has no chapters.", message: "Replacement has no chapters." }));
-    setPreview({ original: from, replacement: to }); setCopyPages(false); setMessage('');
+    setPreview({ original: from, replacement: to }); setCopyPages(false); setBindings(null); setCopyBindings(false); setMessage('');
+  }
+  async function reviewBindings(){
+    if(!preview)return;
+    const records=async (title:Title)=>{
+      const result=await readRequest<{nodes:Binding[];totalCount:number}>({kind:'track-records',mangaId:idOf(title)});
+      if(!Array.isArray(result.nodes)||result.nodes.length!==result.totalCount)throw Error(t({id:'Incomplete tracker list',message:'Could not verify all tracker bindings.'}));
+      return result.nodes;
+    };
+    const from=await records(preview.original.manga), to=await records(preview.replacement.manga);
+    setBindings(from.filter(row=>(row.trackerId===1||row.trackerId===2)&&!to.some(other=>other.trackerId===row.trackerId)));
+    setCopyBindings(false);
   }
   async function apply() {
     if (!preview || !plan) return;
@@ -63,7 +77,7 @@ export function MigrationWorkspace({ library, sources, busy, run, reload }: Prop
     if (!from.manga.inLibrary || !sameTitle(from.manga, preview.original.manga) ||
         !sameTitle(to.manga, preview.replacement.manga) || !to.chapters.length ||
         idOf(from.manga) === idOf(to.manga) || from.manga.sourceId === to.manga.sourceId) {
-      setPreview(null); setCopyPages(false);
+      setPreview(null); setCopyPages(false); setBindings(null); setCopyBindings(false);
       throw new Error(t({ id: "The original or replacement changed. Create a new preview.", message: "The original or replacement changed. Create a new preview." }));
     }
     const next = migrationPlan(from.chapters, to.chapters);
@@ -71,7 +85,7 @@ export function MigrationWorkspace({ library, sources, busy, run, reload }: Prop
         JSON.stringify(categoryIds(from.manga)) !== JSON.stringify(categoryIds(preview.original.manga)) ||
         JSON.stringify(categoryIds(to.manga)) !== JSON.stringify(categoryIds(preview.replacement.manga)) ||
         to.manga.inLibrary !== preview.replacement.manga.inLibrary) {
-      setPreview({ original: from, replacement: to }); setCopyPages(false);
+      setPreview({ original: from, replacement: to }); setCopyPages(false); setBindings(null); setCopyBindings(false);
       throw new Error(t({ id: "Chapter state changed. Review the updated preview before applying.", message: "Chapter state changed. Review the updated preview before applying." }));
     }
     try {
@@ -96,6 +110,11 @@ export function MigrationWorkspace({ library, sources, busy, run, reload }: Prop
       for (const ids of chunks(next.bookmarked)) await readRequest({ kind: 'chapter-flags', ids, bookmarked: true });
       for (const category of from.manga.categories?.nodes || []) if (category.id > 0 && !to.manga.categories?.nodes.some(item => item.id === category.id))
         await readRequest({ kind: 'assign-category', mangaId: idOf(to.manga), categoryId: category.id, assigned: true });
+      if(copyBindings&&bindings)for(const row of bindings){
+        const result=await readRequest<{verified:boolean}>({kind:'copy-tracker-binding',originalId:idOf(from.manga),replacementId:idOf(to.manga),
+          originalIdentity:from.manga.readerIdentity!,replacementIdentity:to.manga.readerIdentity!,recordId:row.id,trackerId:row.trackerId,remoteId:String(row.remoteId)});
+        if(result.verified!==true)throw Error(t({id:'Tracker copy unconfirmed',message:'The copied tracker binding could not be verified.'}));
+      }
       const verified = await cached(idOf(to.manga));
       if (!verified.manga.inLibrary || !sameTitle(verified.manga, to.manga) ||
           (copyPages && next.pages.some(page => !verified.chapters.some(chapter => chapter.id === page.targetId && !chapter.isRead && chapter.lastPageRead === page.page && chapter.pageCount === page.pageCount))) ||
@@ -104,9 +123,9 @@ export function MigrationWorkspace({ library, sources, busy, run, reload }: Prop
           (from.manga.categories?.nodes || []).some(category => category.id > 0 && !verified.manga.categories?.nodes.some(item => item.id === category.id)))
         throw new Error(t({ id: "Replacement saved but transfer verification failed. The original is unchanged.", message: "Replacement saved but transfer verification failed. The original is unchanged." }));
       setMessage(t({ id: "Replacement verified. Original retained. Review unmatched chapters and page progress before removing it manually.", message: "Replacement verified. Original retained. Review unmatched chapters and page progress before removing it manually." }));
-      setPreview(null); setCopyPages(false);
+      setPreview(null); setCopyPages(false); setBindings(null); setCopyBindings(false);
     } catch (error) {
-      setPreview(null); setCopyPages(false);
+      setPreview(null); setCopyPages(false); setBindings(null); setCopyBindings(false);
       throw new Error(t({ id: "Transfer stopped; the original is unchanged. The replacement may contain partial changes. Reopen the preview to retry. ", message: "Transfer stopped; the original is unchanged. The replacement may contain partial changes. Reopen the preview to retry. " }) + errorMessage(error));
     } finally { await reload(); }
   }
@@ -133,7 +152,11 @@ export function MigrationWorkspace({ library, sources, busy, run, reload }: Prop
         <label className="flex items-center gap-2"><input type="checkbox" checked={copyPages} disabled={busy || plan.pages.length > 2000} onChange={event => setCopyPages(event.target.checked)} /><Trans id="Copy eligible unfinished page positions">Copy eligible unfinished page positions</Trans></label>
         <p><Trans id="Migration page layout warning">Only enable if you have verified that both editions have the same page layout. Matching names, scanlators and page counts do not prove identical pages. Previously visited replacements are refused.</Trans></p>
       </div>}
-      <p><Trans id="Custom categories are copied additively. Downloads, tracker links and historical timestamps stay on the original.">Custom categories are copied additively. Downloads, tracker links and historical timestamps stay on the original.</Trans></p>
+      <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void run(reviewBindings)}><Trans id="Review tracker bindings">Review tracker bindings</Trans></button>
+      {bindings!==null&&(bindings.length?<div className="space-y-2"><ul>{bindings.map(row=><li key={row.id}>{row.trackerId===1?'MyAnimeList':'AniList'} · {row.title} · {row.remoteId}</li>)}</ul>
+        <label><input type="checkbox" checked={copyBindings} disabled={busy} onChange={event=>setCopyBindings(event.target.checked)}/> <Trans id="Copy reviewed tracker bindings">Copy these local tracker bindings</Trans></label></div>:
+        <p><Trans id="No eligible tracker bindings">No tracker bindings can be added. Existing replacement bindings are kept.</Trans></p>)}
+      <p><Trans id="Migration retains original metadata">Custom categories are copied additively. Downloads and historical timestamps stay on the original.</Trans></p>
       <button className="tsugi-read-action" disabled={busy} onClick={() => void run(apply)}><Trans id="Copy progress and keep original">Copy progress and keep original</Trans></button>
     </div>}
     {message && <p role="status" className="tsugi-transfer-result"><FiCheck aria-hidden /> {message}</p>}

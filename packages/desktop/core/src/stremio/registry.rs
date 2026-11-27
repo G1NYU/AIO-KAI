@@ -58,6 +58,8 @@ pub enum Action {
     WatchRemove { media_type: String, item_id: String, video_id: String },
     RefractStatus,
     RefractConnect { key: String },
+    WatchComplete { media_type:String,item_id:String,video_id:String,updated_at:u64 },
+    RefractThreshold { percent:Option<u8> },
     RefractEnable { enabled: bool },
     RefractDisconnect { discard_pending: bool },
     RefractSync,
@@ -153,6 +155,18 @@ fn summary(manifest: &Manifest) -> Value {
 }
 
 impl Registry {
+    fn record_watch(&mut self,progress:WatchProgress,viewing_id:Option<String>)->Result<Value>{
+        let completed=self.history.completed_at(&progress,viewing_id.as_deref()).is_some();
+        let result=self.history.record(progress.clone(),viewing_id.clone())?;
+        if !completed&&self.refract.qualifies(&progress,viewing_id.as_deref())&&let Some(at)=self.history.claim_refract(){
+            // Project only the outbound event. Local progress keeps its real position.
+            let mut watched=progress;
+            watched.completed=true;
+            self.refract.enqueue(&watched,at,viewing_id.as_deref());
+        }
+        Ok(result)
+    }
+
     fn list(&self) -> Value {
         let sources: Vec<_> = self.sources.iter().map(|source| json!({
             "sourceId":source.id,"enabled":source.enabled,"manifest":summary(&source.manifest)
@@ -201,19 +215,16 @@ impl Registry {
                 self.mal_anime.assign(mal_id,source_id,media_type,item_id,name)
             },
             Action::WatchHistory => Ok(self.history.list()),
-            Action::WatchRecord { progress,viewing_id } => {
-                let already_completed=self.history.completed_at(&progress,viewing_id.as_deref()).is_some();
-                let result=self.history.record(progress.clone(),viewing_id.clone())?;
-                // Persist the optional outbound event together with local history.
-                // A provider outage cannot prevent recording local playback.
-                if progress.completed&&!already_completed&&let Some(at)=self.history.completed_at(&progress,viewing_id.as_deref()){
-                    self.refract.enqueue(&progress,at,viewing_id.as_deref());
-                }
-                Ok(result)
+            Action::WatchRecord {progress,viewing_id} => self.record_watch(progress,viewing_id),
+            Action::WatchComplete {media_type,item_id,video_id,updated_at} => {
+                let (progress,viewing)=self.history.manual_completion(&media_type,&item_id,&video_id,updated_at)?;
+                self.record_watch(progress,viewing)?;
+                Ok(self.history.list())
             },
             Action::WatchRemove { media_type,item_id,video_id } => self.history.remove(&media_type,&item_id,&video_id),
             Action::RefractStatus=>Ok(self.refract.status()),
             Action::RefractConnect{key}=>self.refract.connect(key),
+            Action::RefractThreshold{percent}=>self.refract.set_threshold(percent),
             Action::RefractEnable{enabled}=>self.refract.enable(enabled),
             Action::RefractDisconnect{discard_pending}=>self.refract.disconnect(discard_pending),
             Action::RefractSync=>self.refract.sync(),

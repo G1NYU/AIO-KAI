@@ -172,6 +172,10 @@ pub enum ReadAction {
     TrackerSearch { id: i32, query: String },
     TrackerBind { manga_id: i32, id: i32, remote_id: String },
     TrackerUnbind { manga_id: i32, record_id: i32 },
+    CopyTrackerBinding {
+        original_id: i32, replacement_id: i32, original_identity: String, replacement_identity: String,
+        record_id: i32, tracker_id: i32, remote_id: String,
+    },
     TrackerSync { manga_id: i32 },
     ChapterFlags { ids: Vec<i32>, read: Option<bool>, bookmarked: Option<bool> },
 }

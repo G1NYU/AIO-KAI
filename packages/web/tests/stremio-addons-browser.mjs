@@ -104,6 +104,7 @@ function installStremioFixture(){
       case 'refract-enable':
         if(!profile.refract.connected)return emit(null,'refract-disconnected');
         profile.refract.enabled=a.enabled;return reply(profile.refract);
+      case 'refract-threshold':profile.refract.threshold=a.percent;return reply(profile.refract);
       case 'refract-disconnect':
         if(profile.refract.pending&&!a.discardPending)return emit(null,'refract-pending');
         profile.refract=emptyRefract();return reply(profile.refract);
@@ -112,7 +113,7 @@ function installStremioFixture(){
       case 'refract-watchlist':
         if(!profile.refract.connected)return emit(null,'refract-disconnected');
         if(a.mediaType!=='movie'||a.itemId!=='tt123')return emit(null,'refract-unmatched');
-        return reply({result:a.add?'updated':'protected'});
+        return reply({result:a.add?'queued':'protected'});
       case 'watch-history':return reply({history:profile.history});
       case 'watch-record':{
         const p=a.progress;
@@ -514,6 +515,10 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.ok(Math.abs(checkboxLayout.control-checkboxLayout.text)<=8,'Tracking checkbox and caption should share one row');
     await track.check();
     await firstLaunch.waitForFunction(()=>window.__stremioFixture.profiles.find(p=>p.profileId===1).refract.enabled);
+    const threshold=refract.getByRole('combobox',{name:'Log a watch at'});
+    await threshold.selectOption('70');
+    await firstLaunch.waitForFunction(()=>window.__stremioFixture.profiles.find(p=>p.profileId===1).refract.threshold===70);
+    await threshold.selectOption('');
     await refractKey.fill('rfk_other_account');
     await refract.getByRole('button',{name:'Verify replacement key',exact:true}).click();
     await refract.getByText('This key belongs to another account. Disconnect the current account before connecting a different one.',{exact:true}).waitFor();
@@ -550,7 +555,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     const watchlist=watch.locator('[data-ui="watch-refract-watchlist"]');
     await watchlist.getByText('Refract watchlist',{exact:true}).click();
     await watchlist.getByRole('button',{name:'Add to Refract watchlist',exact:true}).click();
-    await watchlist.getByText('Refract watchlist updated.',{exact:true}).waitFor();
+    await watchlist.getByText('Watchlist change queued for this profile.',{exact:true}).waitFor();
     await watchlist.getByRole('button',{name:'Remove from Refract watchlist',exact:true}).click();
     await watchlist.getByText('Refract kept existing tracked library data unchanged.',{exact:true}).waitFor();
     assert.deepEqual(await firstLaunch.evaluate(()=>window.__stremioFixture.calls.filter(a=>a.kind==='profile-request'&&a.action.kind==='refract-watchlist').map(a=>a.action)),[

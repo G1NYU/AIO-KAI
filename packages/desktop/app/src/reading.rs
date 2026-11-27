@@ -510,6 +510,8 @@ fn execute(
             reader.bind_tracker(manga_id, id, id_value)
         }
         ReadAction::TrackerUnbind { manga_id, record_id } => reader.unbind_tracker(manga_id, record_id),
+        ReadAction::CopyTrackerBinding {original_id,replacement_id,original_identity,replacement_identity,record_id,tracker_id,remote_id} =>
+            reader.copy_tracker_binding(original_id,replacement_id,&original_identity,&replacement_identity,record_id,tracker_id,&remote_id),
         ReadAction::TrackerSync { manga_id } => reader.sync_tracker_progress(manga_id),
         ReadAction::ChapterFlags { ids, read, bookmarked } => reader.update_chapter_flags(&ids, read, bookmarked),
         ReadAction::Stores => reader.query(ReadOperation::Stores),

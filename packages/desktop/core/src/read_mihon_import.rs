@@ -644,6 +644,24 @@ mod tests {
         assert_eq!(managed.mihon_export().unwrap(), preserved);
         managed.shutdown().unwrap(); drop(managed);
         let mut managed = ReadRuntime::start(&runtime, &data).unwrap(); assert_eq!(managed.mihon_export().unwrap(), preserved);
+        let mut replacement=fixture();
+        replacement.manga[0].source_id="9007199254740995".into();
+        replacement.manga[0].trackers.clear();
+        let new_review=managed.review_mihon_import(replacement).unwrap();
+        assert_eq!(managed.apply_mihon_import(new_review).unwrap()["status"],"imported");
+        let ids=managed.mihon_ids().unwrap();
+        let target=ids[&("9007199254740995".into(),"/original/manga".into())];
+        let original=ids[&("9007199254740993".into(),"/original/manga".into())];
+        let old_identity=managed.backup_manga(original).unwrap()["identity"].as_str().unwrap().to_owned();
+        let new_identity=managed.backup_manga(target).unwrap()["identity"].as_str().unwrap().to_owned();
+        let original_records=managed.track_records(original).unwrap();
+        let record=original_records["nodes"][0]["id"].as_i64().unwrap() as i32;
+        assert!(managed.copy_tracker_binding(original,target,&old_identity,&new_identity,record,1,"45").is_err());
+        for _ in 0..2{
+            assert_eq!(managed.copy_tracker_binding(original,target,&old_identity,&new_identity,record,1,"44").unwrap()["verified"],true);
+        }
+        assert_eq!(managed.track_records(original).unwrap(),original_records);
+        assert_eq!(managed.track_records(target).unwrap()["totalCount"],1);
         managed.shutdown().unwrap(); drop(managed); fs::remove_dir_all(data).unwrap();
         eprintln!("PASS: native Mihon reconstruction, exact LongString source, chapters, history, categories and local tracker refs persisted; duplicate reimport was idempotent; stale review refused and failed verification rolled back across restart.");
     }

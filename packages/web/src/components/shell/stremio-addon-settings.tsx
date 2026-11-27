@@ -8,7 +8,7 @@ import { TsugiIcon } from '@/components/tsugi-icons';
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, type AddonMetadata, type AddonOptions, prepareAddonMedia, listWatchHistory, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry } from '@/lib/hosts/shell/stremio';
+import { AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, type AddonMetadata, type AddonOptions, prepareAddonMedia, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry } from '@/lib/hosts/shell/stremio';
 
 function feedback(reason: unknown) {
   switch(reason instanceof AddonError ? reason.code : 'request'){
@@ -404,13 +404,14 @@ function WatchHistory({profileId,busy,run,open,removed}:{profileId:number;busy:b
     <p><Trans>Local playback progress for this profile. Open a saved title to choose a fresh stream. History is not sent to your addons.</Trans></p>
     <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void refresh()}>{rows===null?<Trans>Load history</Trans>:<Trans>Refresh history</Trans>}</button>
     {rows?.length===0&&<p><Trans>No Watch history for this profile.</Trans></p>}
-    {rows&&<ul className="max-h-96 overflow-auto">{rows.map(({progress:p})=>{
+    {rows&&<ul className="max-h-96 overflow-auto">{rows.map(({progress:p,updatedAt})=>{
       const key=JSON.stringify([p.mediaType,p.itemId,p.videoId]);
       return <li key={key} className="tsugi-read-row flex-wrap">
         <div className="min-w-0 flex-1"><strong className="break-words">{p.title}</strong>{p.episodeTitle&&<p className="break-words">{p.episodeTitle}</p>}
           <small>{p.completed?<Trans>Completed</Trans>:<>{watchTime(p.positionMs)} / {watchTime(p.durationMs)}</>}</small></div>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>open(p)}><Trans>Open saved title</Trans></button>
+          {!p.completed&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void run(async()=>{const next=await completeWatch(profileId,{progress:p,updatedAt});if(mounted.current){setRows(next);removed();}})}><Trans>Mark watched</Trans></button>}
           {confirm===key?<><button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void remove(p)}><Trans>Confirm removal</Trans></button><button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>setConfirm(null)}><Trans>Cancel</Trans></button></>:<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>setConfirm(key)}><Trans>Remove from history</Trans></button>}
         </div>
       </li>;

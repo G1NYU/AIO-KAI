@@ -36,7 +36,7 @@ impl AutoSync{
             Action::ProfileRemove{profile_id,..} if *profile_id==flight.profile_id=>flight.delivery.cancel_before_write(),
             Action::ProfileRequest{profile_id,action}=>{
                 let sensitive=(*profile_id==flight.profile_id&&matches!(action.as_ref(),
-                    Action::RefractConnect{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}))||
+                    Action::RefractConnect{..}|Action::RefractThreshold{..}|Action::RefractEnable{..}|Action::RefractDisconnect{..}))||
                     matches!(action.as_ref(),Action::RefractWatchlist{..});
                 !sensitive||flight.delivery.cancel_before_write()
             }

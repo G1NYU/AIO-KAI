@@ -231,7 +231,13 @@ try {
           case 'trackers': data = nodes([{ id: 1, name: 'MyAnimeList', isLoggedIn: !!state.trackerConnected, supportsReadingDates: true, supportsPrivateTracking: false }]); break;
           case 'tracker-login': state.trackerConnected = true; data = { isLoggedIn: true }; break;
           case 'tracker-logout': state.trackerConnected = false; data = { isLoggedIn: false }; break;
-          case 'track-records': data = nodes(state.trackRecord ? [state.trackRecord] : []); break;
+          case 'track-records': data = nodes(state.migrationPages
+            ? (a.mangaId===1 ? [{id:91,trackerId:1,remoteId:'44',title:'Original tracker match'}] : [])
+            : (state.trackRecord ? [state.trackRecord] : [])); break;
+          case 'copy-tracker-binding':
+            if(a.originalId!==1||a.replacementId!==3||a.trackerId!==1||a.remoteId!=='44'||a.recordId!==91||
+              !a.originalIdentity||!a.replacementIdentity||a.originalIdentity===a.replacementIdentity)throw Error('Unexpected binding migration');
+            data={verified:true};break;
           case 'tracker-search': data = { trackSearches: [{ remoteId: '44', title: 'Original tracker match', totalChapters: 2, publishingType: 'Manga', publishingStatus: 'Finished', startDate: '2025' }] }; break;
           case 'tracker-bind': if (a.remoteId !== '44') throw new Error('Expected lossless tracker ID'); state.trackRecord = { id: 91, trackerId: 1, title: 'Original tracker match', lastChapterRead: 0, totalChapters: 2 }; data = { trackRecord: state.trackRecord }; break;
           case 'tracker-sync': state.trackRecord.lastChapterRead = 1; data = { trackRecords: [state.trackRecord] }; break;
@@ -1428,9 +1434,14 @@ try {
   const migratePages = page.getByRole('checkbox', { name: 'Copy eligible unfinished page positions', exact: true });
   assert.equal(await migratePages.isChecked(), false, 'partial-page transfer is opt-in');
   await migratePages.check();
+  await page.getByRole('button',{name:'Review tracker bindings'}).click();
+  const bindingChoice=page.getByRole('checkbox',{name:'Copy these local tracker bindings'});
+  assert.equal(await bindingChoice.isChecked(),false);
+  await bindingChoice.check();
   await capture('10-reader-migration');
   await page.getByRole('button', { name: 'Copy progress and keep original', exact: true }).click();
   await page.getByText(/Replacement verified. Original retained/).waitFor();
+  assert.ok(await page.evaluate(()=>window.__readerFixture.requests.some(a=>a.kind==='copy-tracker-binding')));
   assert.ok(await page.evaluate(() => window.__readerFixture.requests.some(a => a.kind === 'set-library' && a.id === 3 && a.inLibrary)));
   assert.ok(await page.evaluate(() => window.__readerFixture.requests.some(a => a.kind === 'restore-manga-progress' && a.id === 3 && a.changes.length === 1 && a.changes[0].page === 2)));
   assert.equal(await page.evaluate(() => window.__readerFixture.requests.some(a => a.kind === 'restore-manga-progress' && a.id === 3 && a.changes.some(c => c.markRead))), false);

@@ -26,7 +26,7 @@ type MdblistAction={kind:'mdblist-status'}|{kind:'mdblist-connect';key:string}|{
 export type WatchProgress={mediaType:string;itemId:string;videoId:string;title:string;episodeTitle:string|null;positionMs:number;durationMs:number;completed:boolean};
 export type WatchHistoryEntry={progress:WatchProgress;updatedAt:number};
 type WatchHistoryAction={kind:'watch-history'}|{kind:'watch-record';progress:WatchProgress;viewingId?:string}|({kind:'watch-remove'}&Pick<WatchProgress,'mediaType'|'itemId'|'videoId'>);
-type RefractAction={kind:'refract-status'}|{kind:'refract-connect';key:string}|{kind:'refract-enable';enabled:boolean}|{kind:'refract-disconnect';discardPending:boolean}|{kind:'refract-sync'}|{kind:'refract-watchlist';mediaType:string;itemId:string;add:boolean};
+type RefractAction={kind:'refract-threshold';percent:number|null}|{kind:'watch-complete';mediaType:string;itemId:string;videoId:string;updatedAt:number}|{kind:'refract-status'}|{kind:'refract-connect';key:string}|{kind:'refract-enable';enabled:boolean}|{kind:'refract-disconnect';discardPending:boolean}|{kind:'refract-sync'}|{kind:'refract-watchlist';mediaType:string;itemId:string;add:boolean};
 type MalAnimeAction={kind:'mal-anime-list'}|{kind:'mal-anime-import';entries:MalEntry[]}|{kind:'mal-anime-remove';malId:number}|{kind:'mal-anime-match';malId:number;sourceId:number;mediaType:string;itemId:string}|{kind:'mal-anime-unmatch';malId:number};
 type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | WatchHistoryAction | RefractAction | MalAnimeAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
 export type RemoteAddonProfile={profileIndex:number;name:string;usesPrimaryAddons:boolean;locked:boolean};
@@ -302,7 +302,7 @@ export async function mdblistPage(profileId:number,listId:number,offset:number){
   return {items,nextOffset:v.nextOffset===null?null:integer(v.nextOffset,offset+1,100000)};
 }
 
-export type RefractStatus={connected:boolean;username:string|null;enabled:boolean;pending:number;sent:number;skipped:number;retryAt:number;lastError:string|null};
+export type RefractStatus={threshold:number|null;connected:boolean;username:string|null;enabled:boolean;pending:number;sent:number;skipped:number;retryAt:number;lastError:string|null};
 const refractErrors=new Set(['refract-auth','refract-scope','refract-rate','refract-network','refract-request','refract-response','refract-rejected','refract-conflict','refract-unmatched','refract-queue-full','refract-clock','refract-protected','unsupported']);
 export function refractState(v:unknown):RefractStatus{
   const row=obj(v),connected=bool(row.connected),enabled=bool(row.enabled);
@@ -310,19 +310,26 @@ export function refractState(v:unknown):RefractStatus{
   const pending=integer(row.pending,0,256),sent=integer(row.sent,0,0xffffffff),skipped=integer(row.skipped,0,0xffffffff),retryAt=integer(row.retryAt,0,253402300799999);
   const lastError=row.lastError===null?null:str(row.lastError,64);
   if(connected!==(username!==null)||(!connected&&(enabled||pending||sent||skipped||retryAt||lastError))||(lastError!==null&&!refractErrors.has(lastError)))return fail();
-  return {connected,username,enabled,pending,sent,skipped,retryAt,lastError};
+  const threshold=row.threshold==null?null:integer(row.threshold,50,90);
+  if(threshold!==null&&![50,70,80,90].includes(threshold))return fail();
+  return {threshold,connected,username,enabled,pending,sent,skipped,retryAt,lastError};
 }
 export async function refractStatus(profileId:number){return refractState(await scoped(profileId,{kind:'refract-status'}));}
 export async function refractConnect(profileId:number,key:string){return refractState(await scoped(profileId,{kind:'refract-connect',key}));}
+export async function setRefractThreshold(profileId:number,percent:number|null){return refractState(await scoped(profileId,{kind:'refract-threshold',percent}));}
+export async function completeWatch(profileId:number,row:WatchHistoryEntry){
+  const {mediaType,itemId,videoId}=row.progress;
+  return watchHistory(await scoped(profileId,{kind:'watch-complete',mediaType,itemId,videoId,updatedAt:row.updatedAt}));
+}
 export async function refractEnable(profileId:number,enabled:boolean){return refractState(await scoped(profileId,{kind:'refract-enable',enabled}));}
 export async function refractDisconnect(profileId:number,discardPending:boolean){return refractState(await scoped(profileId,{kind:'refract-disconnect',discardPending}));}
 export async function refractSync(profileId:number){return refractState(await scoped(profileId,{kind:'refract-sync'}));}
-export async function refractWatchlist(profileId:number,mediaType:string,itemId:string,add:boolean):Promise<'updated'|'protected'>{
+export async function refractWatchlist(profileId:number,mediaType:string,itemId:string,add:boolean):Promise<'updated'|'protected'|'queued'>{
   const row=await scoped(profileId,{kind:'refract-watchlist',mediaType,itemId,add});
   if(row.result==='failed'){
     if(typeof row.error!=='string'||!refractErrors.has(row.error))return fail();
     throw new AddonError(row.error);
   }
-  if(row.result!=='updated'&&row.result!=='protected')return fail();
+  if(row.result!=='updated'&&row.result!=='protected'&&row.result!=='queued')return fail();
   return row.result;
 }

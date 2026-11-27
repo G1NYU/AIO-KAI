@@ -45,6 +45,7 @@ export type ReadAction =
   | { kind: 'track-records' | 'tracker-sync'; mangaId: number }
   | { kind: 'tracker-search'; id: number; query: string }
   | { kind: 'tracker-bind'; mangaId: number; id: number; remoteId: string }
+  | { kind:'copy-tracker-binding'; originalId:number; replacementId:number; originalIdentity:string; replacementIdentity:string; recordId:number; trackerId:number; remoteId:string }
   | { kind: 'tracker-unbind'; mangaId: number; recordId: number };
 
 export function supportsReadingSection(): boolean {

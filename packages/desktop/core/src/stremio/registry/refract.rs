@@ -153,15 +153,21 @@ fn request_id()->Result<String>{Err("unsupported")}
 
 #[derive(Clone,PartialEq,Eq,Serialize,Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Job{identity:Identity,watched_at:u64,request_id:String,attempts:u32}
+struct Job{
+    identity:Identity,watched_at:u64,request_id:String,attempts:u32,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    watchlist:Option<bool>,
+}
 impl Job{
-    fn valid(&self)->bool{self.identity.valid()&&self.identity.kind!=Kind::Show&&self.watched_at>0&&
+    fn valid(&self)->bool{self.identity.valid()&&(if self.watchlist.is_some(){self.identity.kind!=Kind::Episode}else{self.identity.kind!=Kind::Show})&&self.watched_at>0&&
         self.watched_at<=MAX_MS&&uuid(&self.request_id)&&self.attempts<=32}
 }
 #[derive(Clone,Serialize,Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Saved{
     key:String,member_id:String,username:String,enabled:bool,jobs:Vec<Job>,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    threshold:Option<u8>,
     sent:u32,skipped:u32,retry_at:u64,last_error:Option<String>,
 }
 fn known_error(code:&str)->bool{
@@ -171,7 +177,7 @@ fn known_error(code:&str)->bool{
 impl Saved{
     fn valid(&self)->bool{
         let mut ids=BTreeSet::new();
-        valid_key(&self.key)&&safe_provider_id(&self.member_id)&&safe_name(&self.username)&&self.jobs.len()<=QUEUE_LIMIT&&
+        self.threshold.is_none_or(|n|matches!(n,50|70|80|90))&&valid_key(&self.key)&&safe_provider_id(&self.member_id)&&safe_name(&self.username)&&self.jobs.len()<=QUEUE_LIMIT&&
         self.retry_at<=MAX_MS&&self.last_error.as_deref().is_none_or(known_error)&&
         self.jobs.iter().all(|job|job.valid()&&ids.insert(&job.request_id))
     }
@@ -282,7 +288,20 @@ impl Delivery{
     pub(super) fn run(&self)->DeliveryResult{
         let matched=resolve(&self.key,&self.job.identity);
         if !self.begin_write(){return DeliveryResult(None);}
-        DeliveryResult(Some(matched.and_then(|m|send_watch(&self.key,&self.job,m))))
+        DeliveryResult(Some(matched.and_then(|matched|{
+            if let Some(add)=self.job.watchlist{
+                let url=format!("{API}/watchlist/{}",matched.id.path());
+                let bearer=format!("Bearer {}",self.key);
+                let agent=agent();
+                let result=if add{
+                    agent.put(url.as_str()).header("Accept","application/json").header("Authorization",bearer.as_str()).send("")
+                }else{
+                    agent.delete(url.as_str()).header("Accept","application/json").header("Authorization",bearer.as_str()).call()
+                };
+                return response(result.map_err(|_|Failure::new("refract-network"))?,false).map(|_|());
+            }
+            send_watch(&self.key,&self.job,matched)
+        })))
     }
     #[cfg(test)]
     pub(super) fn succeeded_for_test(&self)->DeliveryResult{
@@ -305,7 +324,7 @@ impl Connection{
     pub(super) fn status(&self)->Value{
         let s=self.saved.as_ref();
         json!({"connected":s.is_some(),"username":s.map(|v|v.username.as_str()),"enabled":s.is_some_and(|v|v.enabled),
-            "pending":s.map_or(0,|v|v.jobs.len()),"sent":s.map_or(0,|v|v.sent),"skipped":s.map_or(0,|v|v.skipped),
+            "threshold":s.and_then(|v|v.threshold),"pending":s.map_or(0,|v|v.jobs.len()),"sent":s.map_or(0,|v|v.sent),"skipped":s.map_or(0,|v|v.skipped),
             "retryAt":s.map_or(0,|v|v.retry_at),"lastError":s.and_then(|v|v.last_error.as_deref())})
     }
     pub(super) fn connect(&mut self,key:String)->Result<Value>{
@@ -317,13 +336,22 @@ impl Connection{
                 saved.retry_at=0;saved.last_error=None;
             }
         }else{
-            self.saved=Some(Saved{key,member_id,username,enabled:false,jobs:Vec::new(),sent:0,skipped:0,retry_at:0,last_error:None});
+            self.saved=Some(Saved{key,member_id,username,enabled:false,threshold:None,jobs:Vec::new(),sent:0,skipped:0,retry_at:0,last_error:None});
         }
         Ok(self.status())
     }
     pub(super) fn enable(&mut self,enabled:bool)->Result<Value>{
         self.saved.as_mut().ok_or("refract-disconnected")?.enabled=enabled;
         Ok(self.status())
+    }
+    pub(super) fn set_threshold(&mut self,value:Option<u8>)->Result<Value>{
+        if value.is_some_and(|n|!matches!(n,50|70|80|90)){return Err("refract-request");}
+        self.saved.as_mut().ok_or("refract-disconnected")?.threshold=value;
+        Ok(self.status())
+    }
+    pub(super) fn qualifies(&self,p:&Progress,viewing_id:Option<&str>)->bool{
+        self.saved.as_ref().is_some_and(|s|s.enabled&&(p.completed||
+            (viewing_id.is_some()&&s.threshold.is_some_and(|n|p.position_ms*100>=p.duration_ms*u64::from(n)))))
     }
     pub(super) fn disconnect(&mut self,discard_pending:bool)->Result<Value>{
         if self.saved.as_ref().is_some_and(|s|!s.jobs.is_empty())&&!discard_pending{return Err("refract-pending");}
@@ -345,10 +373,10 @@ impl Connection{
                 }
                 return;
             }
-        }else if saved.jobs.iter().any(|j|j.identity==identity&&(identity.kind!=Kind::Movie||j.watched_at==watched_at)){return;}
+        }else if saved.jobs.iter().any(|j|j.watchlist.is_none()&&j.identity==identity&&(identity.kind!=Kind::Movie||j.watched_at==watched_at)){return;}
         if saved.jobs.len()>=QUEUE_LIMIT{saved.skipped=saved.skipped.saturating_add(1);saved.last_error=Some("refract-queue-full".into());return;}
         match movie_id.map(str::to_owned).map(Ok).unwrap_or_else(request_id){
-            Ok(request_id)=>saved.jobs.push(Job{identity,watched_at,request_id,attempts:0}),
+            Ok(request_id)=>saved.jobs.push(Job{identity,watched_at,request_id,attempts:0,watchlist:None}),
             Err(code)=>{saved.skipped=saved.skipped.saturating_add(1);saved.last_error=Some(code.into());}
         }
     }
@@ -361,8 +389,9 @@ impl Connection{
     }
     pub(super) fn delivery(&self)->Option<Delivery>{
         let saved=self.saved.as_ref()?;
-        if !saved.enabled||saved.retry_at>now_ms().ok()?{return None;}
-        Some(Delivery{key:saved.key.clone(),member_id:saved.member_id.clone(),job:saved.jobs.first()?.clone(),
+        if saved.retry_at>now_ms().ok()?{return None;}
+        let job=saved.jobs.iter().find(|job|saved.enabled||job.watchlist.is_some())?;
+        Some(Delivery{key:saved.key.clone(),member_id:saved.member_id.clone(),job:job.clone(),
             gate:Arc::new(Mutex::new(Phase::Lookup))})
     }
     pub(super) fn finish_delivery(&mut self,delivery:&Delivery,result:&DeliveryResult)->Result<bool>{
@@ -370,19 +399,19 @@ impl Connection{
         let Some(saved)=self.saved.as_mut()else{return Ok(false);};
         // Commit only the exact queued job and its original account, even if
         // another profile is now active. Never mutate the replacement queue.
-        if !saved.enabled||saved.key!=delivery.key||saved.member_id!=delivery.member_id||
-            saved.jobs.first()!=Some(&delivery.job){return Ok(false);}
+        if (!saved.enabled&&delivery.job.watchlist.is_none())||saved.key!=delivery.key||saved.member_id!=delivery.member_id{return Ok(false);}
+        let Some(index)=saved.jobs.iter().position(|job|job==&delivery.job)else{return Ok(false);};
         let now=now_ms()?;
         match outcome{
-            Ok(())=>{saved.jobs.remove(0);saved.sent=saved.sent.saturating_add(1);
+            Ok(())=>{saved.jobs.remove(index);saved.sent=saved.sent.saturating_add(1);
                 if saved.last_error.as_deref()!=Some("refract-queue-full"){saved.last_error=None;}
                 saved.retry_at=0;},
             Err(error)=>{
                 saved.last_error=Some(error.code.into());
                 if matches!(error.code,"refract-unmatched"|"refract-rejected"|"refract-protected"){
-                    saved.jobs.remove(0);saved.skipped=saved.skipped.saturating_add(1);saved.retry_at=0;
+                    saved.jobs.remove(index);saved.skipped=saved.skipped.saturating_add(1);saved.retry_at=0;
                 }else{
-                    let job=&mut saved.jobs[0];job.attempts=job.attempts.saturating_add(1).min(32);
+                    let job=&mut saved.jobs[index];job.attempts=job.attempts.saturating_add(1).min(32);
                     let delay=if matches!(error.code,"refract-auth"|"refract-scope"){3600000}else{5000u64*(1u64<<job.attempts.min(9))};
                     saved.retry_at=now.saturating_add(delay.max(error.retry_ms)).min(MAX_MS);
                 }
@@ -392,31 +421,17 @@ impl Connection{
     }
     pub(super) fn watchlist(&mut self,media_type:&str,item_id:&str,add:bool)->Result<Value>{
         let saved=self.saved.as_mut().ok_or("refract-disconnected")?;
-        let now=now_ms()?;
-        if saved.retry_at>now{return Err("refract-rate");}
         let identity=Identity::title(media_type,item_id).ok_or("refract-unmatched")?;
-        let result=(||->Remote<Value>{
-            let matched=resolve(&saved.key,&identity)?;
-            let url=format!("{API}/watchlist/{}",matched.id.path());let bearer=format!("Bearer {}",saved.key);
-            let agent=agent();
-            if add{
-                response(agent.put(url.as_str()).header("Accept","application/json").header("Authorization",bearer.as_str())
-                    .send("").map_err(|_|Failure::new("refract-network"))?,false)
-            }else{
-                response(agent.delete(url.as_str()).header("Accept","application/json").header("Authorization",bearer.as_str())
-                    .call().map_err(|_|Failure::new("refract-network"))?,false)
-            }
-        })();
-        match result{
-            Ok(_)=>Ok(json!({"result":"updated"})),
-            Err(error) if error.code=="refract-protected"=>Ok(json!({"result":"protected"})),
-            Err(error)=>{
-                if error.retry_ms>0{saved.retry_at=now.saturating_add(error.retry_ms).min(MAX_MS);}
-                // Return a bounded error envelope so the rate limit survives a
-                // successful snapshot transaction even when the request failed.
-                Ok(json!({"result":"failed","error":error.code}))
-            },
-        }
+        let existing=saved.jobs.iter().position(|j|j.watchlist.is_some()&&j.identity==identity);
+        if let Some(index)=existing{
+            if saved.jobs[index].watchlist==Some(add){return Ok(json!({"result":"queued"}));}
+        }else if saved.jobs.len()>=QUEUE_LIMIT{return Err("refract-queue-full");}
+        // The profile actor cancels a pending lookup or refuses an in-flight
+        // write before changing the latest requested membership.
+        let job=Job{identity,watched_at:now_ms()?,request_id:request_id()?,attempts:0,watchlist:Some(add)};
+        if let Some(index)=existing{saved.jobs.remove(index);}
+        saved.jobs.push(job);
+        Ok(json!({"result":"queued"}))
     }
 }
 
@@ -430,7 +445,24 @@ mod tests{
     }
     fn connection()->Connection{
         Connection::restored(Some(Saved{key:"rfk_fixture-only".into(),member_id:ID.into(),username:"Fixture".into(),
-            enabled:false,jobs:Vec::new(),sent:0,skipped:0,retry_at:0,last_error:None})).unwrap()
+            enabled:false,threshold:None,jobs:Vec::new(),sent:0,skipped:0,retry_at:0,last_error:None})).unwrap()
+    }
+    #[cfg(windows)]
+    #[test]
+    fn latest_watchlist_request_survives_restart_and_runs_with_history_paused(){
+        let mut c=connection();
+        assert_eq!(c.watchlist("movie","tt123",true).unwrap()["result"],"queued");
+        let earlier=c.delivery().unwrap();
+        c.watchlist("movie","tt123",false).unwrap();
+        c.watchlist("movie","tt123",false).unwrap();
+        assert_eq!(c.status()["pending"],1);
+        let mut restored=Connection::restored(c.saved()).unwrap();
+        assert!(!restored.finish_delivery(&earlier,&DeliveryResult(Some(Ok(())))).unwrap());
+        let due=restored.delivery().unwrap();
+        assert_eq!(due.job.watchlist,Some(false));
+        restored.finish_delivery(&due,&DeliveryResult(Some(Err(Failure::new("refract-network"))))).unwrap();
+        assert!(restored.delivery().is_none());
+        assert_eq!(restored.status()["pending"],1);
     }
     #[test]
     fn exact_id_and_episode_numbering_never_guess(){

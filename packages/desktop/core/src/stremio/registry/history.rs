@@ -40,6 +40,8 @@ pub(super) struct Entry{
     updated_at:u64,
     #[serde(default,skip_serializing_if="Option::is_none")]
     viewing_id:Option<String>,
+    #[serde(default,skip_serializing_if="std::ops::Not::not")]
+    refract_recorded:bool,
 }
 #[derive(Clone, Default)]
 pub(super) struct History{rows:Vec<Entry>}
@@ -66,10 +68,26 @@ impl History{
         let updated_at=SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_|"profile-store")?.as_millis();
         if updated_at==0||updated_at>253402300799999{return Err("profile-store");}
         let at=if progress.completed{self.completed_at(&progress,viewing_id.as_deref()).unwrap_or(updated_at as u64)}else{updated_at as u64};
+        let refract_recorded=self.rows.iter().any(|row|row.progress.identity()==progress.identity()
+            &&row.viewing_id==viewing_id&&row.refract_recorded&&(viewing_id.is_some()||progress.completed));
         self.rows.retain(|row|row.progress.identity()!=progress.identity());
-        self.rows.insert(0,Entry{progress,updated_at:at,viewing_id});
+        self.rows.insert(0,Entry{progress,updated_at:at,viewing_id,refract_recorded});
         self.rows.truncate(LIMIT);
         Ok(json!({"saved":true}))
+    }
+    pub(super) fn claim_refract(&mut self)->Option<u64>{
+        let row=self.rows.first_mut()?;
+        if row.refract_recorded{return None;}
+        row.refract_recorded=true;
+        Some(row.updated_at)
+    }
+    pub(super) fn manual_completion(&self,media:&str,item:&str,video:&str,at:u64)->Result<(Progress,Option<String>)>{
+        let row=self.rows.iter().find(|row|row.progress.identity()==(media,item,video)&&row.updated_at==at&&!row.progress.completed)
+            .ok_or("watch-history-changed")?;
+        let mut progress=row.progress.clone();
+        progress.completed=true;
+        progress.position_ms=progress.duration_ms;
+        Ok((progress,row.viewing_id.clone()))
     }
     pub(super) fn remove(&mut self,media_type:&str,item_id:&str,video_id:&str)->Result<Value>{
         if !type_valid(media_type)||!id_valid(item_id)||!id_valid(video_id){return Err("invalid-watch-progress");}

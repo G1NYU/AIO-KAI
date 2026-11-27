@@ -1,3 +1,5 @@
+✓ Independent Chromium review passed for Reader MAL and Anime Hub, including source confirmation, keyboard navigation and narrow layouts. Migration and Refract fixture coverage added; native and live acceptance tracked in HANDOFF.md.
+
 ✓ Migration commit `9d918297e` passed web and native Windows CI in run 45957518665. Reader MAL restore passed the local checkpoint, additive merge, stale review and repeat tests.
 
 # AIO-KAI development handoff

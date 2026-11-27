@@ -1608,8 +1608,45 @@ impl ReadRuntime {
     pub fn track_records(&self, manga_id: i32) -> Result<Value, &'static str> {
         if manga_id <= 0 { return Err("Invalid manga identifier."); }
         self.client.document(
-            "query TsugiTrackRecords($id: Int!) { trackRecords(condition: {mangaId: $id}, first: 20) { nodes { id trackerId title lastChapterRead totalChapters } totalCount } }",
+            "query TsugiTrackRecords($id: Int!) { trackRecords(condition: {mangaId: $id}, first: 20) { nodes { id trackerId remoteId title lastChapterRead totalChapters } totalCount } }",
             "trackRecords", json!({"id": manga_id}))
+    }
+
+    pub fn copy_tracker_binding(&self, original:i32, replacement:i32, original_identity:&str,
+        replacement_identity:&str, record_id:i32, tracker:i32, remote:&str) -> Result<Value, &'static str> {
+        const CHANGED:&str = "Tracker binding changed. Review the two editions again.";
+        if original == replacement || original_identity == replacement_identity || record_id <= 0 || !matches!(tracker,1|2) {
+            return Err(CHANGED);
+        }
+        let remote_id=remote.parse::<i64>().map_err(|_|CHANGED)?;
+        if remote_id<=0 || remote_id.to_string()!=remote { return Err(CHANGED); }
+        let source=self.backup_manga(original)?;
+        let target=self.backup_manga(replacement)?;
+        if source["identity"]!=original_identity || target["identity"]!=replacement_identity || source["sourceId"]==target["sourceId"] {
+            return Err(CHANGED);
+        }
+        let binding=|manga_id| -> Result<Option<Value>, &'static str> {
+            let response=self.track_records(manga_id)?;
+            let nodes=backup_nodes(&response,20)?;
+            let mut found=nodes.iter().filter(|row|row["trackerId"]==tracker);
+            let first=found.next().cloned();
+            if found.next().is_some() { return Err(CHANGED); }
+            Ok(first)
+        };
+        let reviewed=binding(original)?.ok_or(CHANGED)?;
+        if reviewed["id"]!=record_id || backup_long(&reviewed["remoteId"])?!=remote_id { return Err(CHANGED); }
+        if let Some(existing)=binding(replacement)? {
+            if backup_long(&existing["remoteId"])?==remote_id { return Ok(json!({"verified":true})); }
+            return Err("Replacement already has a different tracker binding.");
+        }
+        // Pinned Suwayomi copies the existing local record. Its separate bindTrack
+        // operation performs a provider write and must not be used for migration.
+        self.client.mutation(
+            "mutation TsugiCopyTrackerBinding($input: BindTrackRecordInput!) { bindTrackRecord(input: $input) { trackRecord { id mangaId trackerId remoteId } } }",
+            "bindTrackRecord",json!({"mangaId":replacement,"trackRecordId":record_id}))?;
+        let copied=binding(replacement)?.ok_or(CHANGED)?;
+        if backup_long(&copied["remoteId"])?!=remote_id || binding(original)?!=Some(reviewed) { return Err(CHANGED); }
+        Ok(json!({"verified":true}))
     }
 
     pub fn search_tracker(&self, id: i32, query: &str) -> Result<Value, &'static str> {
@@ -2821,6 +2858,7 @@ mod tests {
             ("mutation TsugiTrackerLogoutContract($input: LogoutTrackerInput!) { logoutTracker(input: $input) @skip(if: true) { isLoggedIn } }", json!({"input": {"trackerId": 1}})),
             ("mutation TsugiTrackerBindContract($input: BindTrackInput!) { bindTrack(input: $input) @skip(if: true) { trackRecord { id trackerId title lastChapterRead totalChapters } } }", json!({"input": {"mangaId": manga_id, "trackerId": 1, "remoteId": "44"}})),
             ("mutation TsugiTrackerUnbindContract($input: UnbindTrackInput!) { unbindTrack(input: $input) @skip(if: true) { clientMutationId } }", json!({"input": {"recordId": 1, "deleteRemoteTrack": false}})),
+            ("mutation TsugiCopyTrackerContract($input: BindTrackRecordInput!) { bindTrackRecord(input: $input) @skip(if: true) { trackRecord { id mangaId trackerId remoteId } } }", json!({"input":{"mangaId":manga_id,"trackRecordId":1}})),
             ("mutation TsugiTrackerSyncContract($input: TrackProgressInput!) { trackProgress(input: $input) @skip(if: true) { trackRecords { id trackerId title lastChapterRead totalChapters } } }", json!({"input": {"mangaId": manga_id}})),
         ] {
             let response = managed.client.send_document(document, variables, Some(&managed.client.authorization)).expect("tracker GraphQL contract response");
