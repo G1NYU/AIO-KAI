@@ -11,6 +11,7 @@ import type { MangaBackup } from '../src/lib/backup/manga';
 import { RESTORE_SESSION_KEY,RESTORE_SESSION_LOCK,finishRestoreSession,parseRestoreSession,prepareMangaRestore,prepareRestoreSession,readRestoreSessionState,
   resumeRestoreSession,reviewRestoreRecovery,reviewRestoreSection,restoreSessionBusy,restoreSessionMatches,runRestoreSection,type RestoreSession } from '../src/lib/backup/restore-session';
 
+import { captureMalManga, load, persist, reviewMalManga } from '../src/lib/backup/mal-manga';
 import { runScheduledBackup } from '../src/lib/backup/scheduled-runner';
 import { BACKUP_SCHEDULE_KEY,defaultSchedule,readBackupSchedule } from '../src/lib/backup/schedule';
 
@@ -61,11 +62,30 @@ beforeEach(()=>{
 afterEach(()=>{vi.unstubAllGlobals();});
 
 describe('verified portable restore session',()=>{
+  it('restores reviewed MAL metadata and source links through the checkpoint without replacing local progress',async()=>{
+    const row={malId:1,title:'Fixture',status:'active' as const,progress:4,total:10,score:7,format:'Manga',volumesRead:1,volumesTotal:2};
+    const link={malId:2,mangaId:81,sourceId:'9007199254740993',identity:'b'.repeat(64)};
+    persist(load(),[row],[]);
+    const sections={preferences,music:{format:'tsugi-music-library',version:1,playlists:[]},
+      books:{format:'tsugi-book-progress',version:1,books:[]}} as const;
+    const archive=(mal:ReturnType<typeof captureMalManga>)=>createPortableArchive({...sections,
+      music:{...sections.music,playlists:[]},books:{...sections.books,books:[]},mal});
+    const source=archive({version:1,entries:[{...row,progress:1},{...row,malId:2}],links:[link]});
+    mock.capture.mockResolvedValue(archive(captureMalManga()));
+    await prepareRestoreSession(source);
+    const incoming=payload(source,'mal'), checkpoint=reviewRestoreSection('mal',incoming), merge=reviewMalManga(incoming);
+    expect([merge.added,merge.assigned]).toEqual([1,1]);
+    await runRestoreSection('mal',incoming,checkpoint,()=>persist(merge.current,merge.entries,merge.links));
+    expect(captureMalManga()).toEqual({version:1,entries:[row,{...row,malId:2}],links:[link]});
+    expect(reviewMalManga(incoming).added).toBe(0);
+    expect(()=>persist(merge.current,merge.entries,merge.links)).toThrow('mal-stale');
+    expect(()=>reviewMalManga(JSON.stringify({version:1,entries:[row],links:[link]}))).toThrow();
+  });
   it('stages and reopens both immutable copies before publishing an intent record or allowing writes',async()=>{
     const source=make(true,true),work=vi.fn(()=>true);
     expect(()=>reviewRestoreSection('preferences',payload(source))).toThrow('restore-prepare');
     const session=await prepareRestoreSession(source);
-    expect(mock.capture).toHaveBeenCalledWith(true);
+    expect(mock.capture).toHaveBeenCalledWith(true,undefined,false);
     expect(copies.get(session.recovery.name)).toEqual(make());
     expect(copies.get(session.source.name)).toEqual(source);
     expect(mock.open).toHaveBeenCalledTimes(2);
@@ -209,7 +229,7 @@ describe('verified portable restore session',()=>{
   it('keeps unsupported Reader sections unavailable and never silently captures default progress',async()=>{
     mock.reader.mockReturnValue(false);
     const source=make(),session=await prepareRestoreSession(source);
-    expect(mock.capture).toHaveBeenCalledWith(false);
+    expect(mock.capture).toHaveBeenCalledWith(false,undefined,false);
     expect(session.steps.filter(step=>step.state==='unavailable').map(step=>step.kind)).toEqual(['manga','categories']);
     expect(()=>reviewRestoreSection('manga',payload(source,'manga'))).toThrow('restore-reader');
     await finishRestoreSession(ready().token);

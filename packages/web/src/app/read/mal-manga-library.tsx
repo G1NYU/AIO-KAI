@@ -3,53 +3,16 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { readRequest } from '@/lib/hosts/shell/reading';
 import { MalCollectionPanel } from '@/components/shell/mal-collection-panel';
-import { validateMalEntries, mergeMalEntries, type MalEntry } from '@/lib/mal-collection';
+import { mergeMalEntries, type MalEntry } from '@/lib/mal-collection';
 import { isReaderIdentity } from './reader-preferences';
+
+import { load, safeLoad, persist, sourceId, positive, type Link } from '@/lib/backup/mal-manga';
 
 type Source = { id:string; name:string; displayName?:string; lang:string };
 type Manga = { id:number|string; sourceId?:string; readerIdentity?:string; title:string; author?:string|null; inLibrary:boolean };
 type Details = { manga:Manga; chapters:{id:number}[] };
-type Link = { malId:number; mangaId:number; sourceId:string; identity:string };
-type Collection = { raw:string|null; entries:MalEntry[]; links:Link[] };
 type Props = { busy:boolean; run(work:()=>Promise<void>):Promise<void> } & ({importOnly:true;onOpen?:never;openExtensions?:never}|{importOnly?:false;onOpen(manga:Manga):Promise<void>;openExtensions():void});
 
-const KEY='tsugi-mal-manga-v1';
-function sourceId(value:unknown):value is string{
-  if(typeof value!=='string'||!(/^-?[1-9][0-9]{0,18}$/).test(value))return false;
-  const n=BigInt(value);
-  return n>=-9223372036854775808n&&n<=9223372036854775807n;
-}
-function positive(value:unknown):value is number{
-  return typeof value==='number'&&Number.isSafeInteger(value)&&value>0&&value<=2147483647;
-}
-function decode(raw:string|null):Collection{
-  if(raw===null)return {raw,entries:[],links:[]};
-  if(raw.length>3*1024*1024||new TextEncoder().encode(raw).length>3*1024*1024)throw Error('mal-store');
-  const data=JSON.parse(raw);
-  if(!data||Object.keys(data).length!==3||data.version!==1||!Array.isArray(data.links))throw Error('mal-store');
-  const entries=validateMalEntries(data.entries,'manga'), ids=new Set(entries.map(entry=>entry.malId));
-  const linked=new Set<number>(), identities=new Set<string>();
-  if(data.links.length>entries.length)throw Error('mal-store');
-  const links:Link[]=data.links.map((row:unknown)=>{
-    if(!row||typeof row!=='object'||Array.isArray(row))throw Error('mal-store');
-    const r=row as Record<string,unknown>;
-    if(Object.keys(r).length!==4||!positive(r.malId)||!ids.has(r.malId)||linked.has(r.malId)||
-        !positive(r.mangaId)||!sourceId(r.sourceId)||!isReaderIdentity(r.identity)||identities.has(r.identity))throw Error('mal-store');
-    linked.add(r.malId);identities.add(r.identity);
-    return {malId:r.malId,mangaId:r.mangaId,sourceId:r.sourceId,identity:r.identity};
-  });
-  return {raw,entries,links};
-}
-function load():Collection{return decode(localStorage.getItem(KEY));}
-function safeLoad():Collection|null{try{return load();}catch{return null;}}
-function persist(current:Collection,entries:MalEntry[],links:Link[]):Collection{
-  if(localStorage.getItem(KEY)!==current.raw)throw Error('mal-stale');
-  const next=decode(JSON.stringify({version:1,entries,links}));
-  if(next.raw===null)throw Error('mal-store');
-  localStorage.setItem(KEY,next.raw);
-  if(localStorage.getItem(KEY)!==next.raw)throw Error('mal-store');
-  return next;
-}
 function identify(manga:Manga,malId:number,selectedSource:string):Link{
   const mangaId=Number(manga.id);
   if(!positive(mangaId)||manga.sourceId!==selectedSource||!sourceId(selectedSource)||!isReaderIdentity(manga.readerIdentity))
@@ -68,8 +31,9 @@ export function MalMangaLibrary({busy,run,onOpen,openExtensions,importOnly=false
   const [review,setReview]=React.useState<Details|null>(null);
   const selectionRef=React.useRef<HTMLElement>(null);
   const entry=collection?.entries.find(row=>row.malId===selected);
+  const selectedSource=sources?.find(row=>row.id===source);
   const link=collection?.links.find(row=>row.malId===selected);
-  React.useEffect(()=>{if(selected!==null)selectionRef.current?.scrollIntoView({block:'nearest'});},[selected]);
+  React.useEffect(()=>{if(selected!==null){selectionRef.current?.focus({preventScroll:true});selectionRef.current?.scrollIntoView({block:'nearest'});}},[selected]);
   function update(entries:MalEntry[],links:Link[]){
     if(!collection)throw Error(t({ id:'MAL collection unavailable',message: 'Reload the imported collection before changing it.'}));
     try{setCollection(persist(collection,entries,links));}
@@ -136,8 +100,8 @@ export function MalMangaLibrary({busy,run,onOpen,openExtensions,importOnly=false
       onImport={async entries=>{update(mergeMalEntries(collection.entries,entries,'manga'),collection.links);}}
       onRemove={async id=>{update(collection.entries.filter(row=>row.malId!==id),collection.links.filter(row=>row.malId!==id));if(selected===id){setSelected(null);setReview(null);setResults(null);}}}/>
     {importOnly&&<p><Trans id="MAL manga onboarding note">Choose reading sources in Reader after setup. Imported titles do not require a running reading engine.</Trans></p>}
-    {!importOnly&&entry&&<section ref={selectionRef} className="space-y-3" data-ui="mal-manga-source">
-      <div className="flex flex-wrap gap-2 items-center justify-between"><h3 className="font-semibold break-words"><Trans id="Choose a reading source">Choose a reading source</Trans> · {entry.title}</h3><button className="tsugi-read-action" disabled={busy} onClick={()=>setSelected(null)}><Trans id="Close">Close</Trans></button></div>
+    {!importOnly&&entry&&<section ref={selectionRef} tabIndex={-1} aria-labelledby="mal-source-title" className="space-y-3" data-ui="mal-manga-source">
+      <div className="flex flex-wrap gap-2 items-center justify-between"><h3 id="mal-source-title" className="font-semibold break-words"><Trans id="Choose a reading source">Choose a reading source</Trans> · {entry.title}</h3><button className="tsugi-read-action" disabled={busy} onClick={()=>setSelected(null)}><Trans id="Close">Close</Trans></button></div>
       <p><Trans id="MAL chapter counts are kept separately. Choosing a source does not mark chapters read or change your MAL account.">MAL chapter counts are kept separately. Choosing a source does not mark chapters read or change your MAL account.</Trans></p>
       {link&&<button className="tsugi-read-action" disabled={busy} onClick={()=>void run(openSaved)}><Trans id="Open saved source">Open saved source</Trans></button>}
       <div className="flex flex-wrap gap-2">
@@ -155,7 +119,7 @@ export function MalMangaLibrary({busy,run,onOpen,openExtensions,importOnly=false
       {results?.mangas.map(row=><button key={row.id} type="button" className="tsugi-read-row w-full text-left" disabled={busy} onClick={()=>void run(()=>inspect(row))}><span className="min-w-0 break-words">{row.title}{row.author&&<small className="block">{row.author}</small>}</span><span><Trans id="Review">Review</Trans></span></button>)}
       {results?.mangas.length===0&&<p><Trans id="No matches on this source. Try another title or extension.">No matches on this source. Try another title or extension.</Trans></p>}
       {results?.hasNextPage&&results.page<100&&<button className="tsugi-read-action" disabled={busy} onClick={()=>void run(()=>search(results.page+1))}><Trans id="Next page">Next page</Trans></button>}
-      {review&&<section className="space-y-2" data-ui="mal-manga-match"><h4><Trans id="Review source match">Review source match</Trans></h4><p>{entry.title} → {review.manga.title}</p><p>{review.chapters.length} <Trans id="chapters found">chapters found</Trans></p><button className="tsugi-read-action" disabled={busy} onClick={()=>void run(apply)}><Trans id="Save source and open manga">Save source and open manga</Trans></button></section>}
+      {review&&<section className="space-y-2" data-ui="mal-manga-match"><h4><Trans id="Review source match">Review source match</Trans></h4><p>{entry.title} → {review.manga.title} · {selectedSource?.displayName||selectedSource?.name}</p><p>{review.chapters.length} <Trans id="chapters found">chapters found</Trans></p><button className="tsugi-read-action" disabled={busy} onClick={()=>void run(apply)}><Trans id="Save source and open manga">Save source and open manga</Trans></button></section>}
     </section>}
   </div>;
 }

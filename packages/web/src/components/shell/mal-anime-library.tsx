@@ -78,7 +78,7 @@ export function MalAnimeLibrary({profileId,sources,busy,historyActive,setupOnly=
     if(!attempted.current){attempted.current=true;void reload();return;}
     if(historyActive&&collection&&!historyAttempted.current){historyAttempted.current=true;void reloadHistory();}
   },[busy,historyActive,setupOnly,collection!==null]);
-  React.useEffect(()=>{if(selected!==null)selectionRef.current?.scrollIntoView({block:'nearest'});},[selected]);
+  React.useEffect(()=>{if(selected!==null){selectionRef.current?.focus({preventScroll:true});selectionRef.current?.scrollIntoView({block:'nearest'});}},[selected]);
   function reset(){setPage(null);setReview(null);setConfirmUnmatch(false);seen.current.clear();clearTitle();}
   function navigate(next:View){setView(next);setSelected(null);reset();}
   function choose(row:MalEntry){
@@ -148,8 +148,8 @@ export function MalAnimeLibrary({profileId,sources,busy,historyActive,setupOnly=
       onImport={async entries=>setCollection(await importMalAnime(profileId,entries))}
       onRemove={async id=>{setCollection(await removeMalAnime(profileId,id));if(selected===id){setSelected(null);reset();}}}/>}
     {setupOnly&&view==='list'&&<p><Trans id="Anime onboarding import note">Imported titles are available in Anime Hub after setup. Choose playback sources there whenever you are ready.</Trans></p>}
-    {!setupOnly&&entry&&<section ref={selectionRef} className="tsugi-anime-source space-y-3" data-ui="mal-anime-source">
-      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="break-words">{entry.title}</h4><button className="tsugi-read-action" disabled={busy} onClick={()=>{setSelected(null);reset();}}><Trans id="Close">Close</Trans></button></div>
+    {!setupOnly&&entry&&<section ref={selectionRef} tabIndex={-1} aria-labelledby="mal-source-title" className="tsugi-anime-source space-y-3" data-ui="mal-anime-source">
+      <div className="flex flex-wrap items-center justify-between gap-2"><h4 id="mal-source-title" className="break-words">{entry.title}</h4><button className="tsugi-read-action" disabled={busy} onClick={()=>{setSelected(null);reset();}}><Trans id="Close">Close</Trans></button></div>
       <p><Trans id="Anime source matching description">Select a searchable catalogue from your installed addons. Confirm the exact title before choosing a video or episode. Imported episode counts do not set local watch history or send Refract events.</Trans></p>
       {link&&<div className="space-y-2" data-ui="mal-anime-saved-match"><p><Trans id="Saved source">Saved source</Trans> · {link.name} · {sources.find(source=>source.sourceId===link.sourceId)?.manifest.name??t({id:'Unavailable source',message:'Unavailable source'})}</p>
         <div className="flex flex-wrap gap-2"><button className="tsugi-read-action" disabled={busy||!sources.some(source=>source.sourceId===link.sourceId&&source.enabled)} onClick={()=>openTitle({id:link.itemId,name:link.name,mediaType:link.mediaType},link.sourceId)}><Trans id="Open saved anime source">Open saved anime source</Trans></button>
@@ -166,7 +166,7 @@ export function MalAnimeLibrary({profileId,sources,busy,historyActive,setupOnly=
       {page?.items.map(row=><button key={row.id} type="button" className="tsugi-read-row w-full text-left" aria-pressed={review?.id===row.id} disabled={busy} onClick={()=>{clearTitle();setReview(row);}}><span className="min-w-0 break-words">{row.name}</span><span><Trans id="Review">Review</Trans></span></button>)}
       {page?.items.length===0&&<p><Trans id="No matching anime titles">No matching titles on this catalogue. Try a different source or title.</Trans></p>}
       {page?.nextSkip!=null&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void run(()=>search(page.nextSkip!))}><Trans id="Next page">Next page</Trans></button>}
-      {review&&<section className="space-y-2" data-ui="mal-anime-match"><h4><Trans id="Review source match">Review source match</Trans></h4><p>{entry.title} → {review.name}</p><p>{review.mediaType}</p><p><Trans id="Anime match persisted">Confirming saves this source assignment in your Watch profile.</Trans></p><button className="tsugi-read-action" disabled={busy} onClick={()=>void saveMatch()}><Trans id="Save and open matched anime">Save and open matched anime</Trans></button></section>}
+      {review&&<section className="space-y-2" data-ui="mal-anime-match"><h4><Trans id="Review source match">Review source match</Trans></h4><p>{entry.title} → {review.name}</p><p>{chosen?.source.manifest.name} · {review.mediaType}</p><p><Trans id="Anime match persisted">Confirming saves this source assignment in your Watch profile.</Trans></p><button className="tsugi-read-action" disabled={busy} onClick={()=>void saveMatch()}><Trans id="Save and open matched anime">Save and open matched anime</Trans></button></section>}
     </section>}
   </section>;
 }

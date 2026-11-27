@@ -76,6 +76,10 @@ fn valid_payload(kind:&str,payload:&str)->bool {
             array(&value["books"],1000,|row|
                 fields(row,&["id","name","title","format","size","sha256","progress"],&[])&&scalars(row,&["progress"])&&
                 (row["progress"].is_null()||(fields(&row["progress"],&["position","fraction","lastReadAt"],&[])&&scalars(&row["progress"],&[])))),
+        "mal"=>version==Some(1)&&fields(&value,&["version","entries","links"],&[])&&
+            array(&value["entries"],3000,|row|
+                fields(row,&["malId","title","status","progress","total","score","format","volumesRead","volumesTotal"],&[])&&scalars(row,&[]))&&
+            array(&value["links"],3000,|row|fields(row,&["malId","mangaId","sourceId","identity"],&[])&&scalars(row,&[])),
         "manga"=>(version==Some(1)||version==Some(2))&&value["format"]=="tsugi-manga-progress"&&
             (if version==Some(2) {fields(&value,&["format","version","manga","categories"],&[])&&array(&value["categories"],100,Value::is_string)}
              else {fields(&value,&["format","version","manga"],&[])})&&
@@ -97,13 +101,13 @@ fn validate_archive(text:&str)->Result<(),&'static str>{
     if text.is_empty()||text.len()>LIMIT{return Err("Invalid backup size.");}
     let archive:Archive=serde_json::from_str(text).map_err(|_|"Invalid backup manifest.")?;
     if archive.format!="tsugi-portable"||archive.version!=1||!valid_timestamp(&archive.created_at)||
-        !(3..=4).contains(&archive.entries.len()){
+        !(3..=5).contains(&archive.entries.len()){
         return Err("Unsupported backup manifest.");
     }
     let mut mask=0u8;
     for entry in archive.entries{
         let (bit,max)=match entry.kind.as_str(){
-            "preferences"=>(1,16*1024),"music"=>(2,4*1024*1024),"books"=>(4,2*1024*1024),"manga"=>(8,8*1024*1024),
+            "preferences"=>(1,16*1024),"music"=>(2,4*1024*1024),"books"=>(4,2*1024*1024),"manga"=>(8,8*1024*1024),"mal"=>(16,3*1024*1024),
             _=>return Err("Unknown backup section."),
         };
         if mask&bit!=0||entry.bytes==0||entry.bytes>max||entry.bytes!=entry.payload.len()||
@@ -358,6 +362,16 @@ mod tests {
         let name=generated_name(false).unwrap();
         let root=std::env::temp_dir().join(format!("tsugi-test-{name}"));
         fs::create_dir(&root).unwrap();root
+    }
+    #[test]
+    fn portable_mal_collection_checks_structure_before_storage(){
+        let payload=json!({"version":1,"entries":[],"links":[]}).to_string();
+        let mut archive:Value=serde_json::from_str(&fixture()).unwrap();
+        archive["entries"].as_array_mut().unwrap().push(json!({
+            "kind":"mal","bytes":payload.len(),"sha256":sha256(payload.as_bytes()),"payload":payload
+        }));
+        assert!(validate_archive(&archive.to_string()).is_ok());
+        assert!(!valid_payload("mal",r#"{"version":1,"entries":[],"links":[{"token":"fixture"}]}"#));
     }
     #[test]
     fn managed_roundtrip_and_fixed_names(){

@@ -1,3 +1,5 @@
+✓ Migration commit `9d918297e` passed web and native Windows CI in run 45957518665. Reader MAL restore passed the local checkpoint, additive merge, stale review and repeat tests.
+
 # AIO-KAI development handoff
 
 - 2026-11-27: [Unified Windows 45954004528](https://github.com/G1NYU/TSUGI/actions/runs/45954004528) passed at 3ce8798 (440 web tests, 220 native tests, 18 ignored, cumulative browser acceptance). B5 reviewed partial-page migration patch authored; strict standalone TypeScript and 25 isolated assertions passed. UI and browser regression coverage require cumulative CI and physical Windows acceptance. Original library state remains retained; tracker delivery/binding transfer and MAL metadata backup remain open. No package or release.

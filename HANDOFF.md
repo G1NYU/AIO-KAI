@@ -1,3 +1,7 @@
+## 2026-11-27 — Reader MAL portable restoration and source review
+
+Migration baseline `9d918297e` passed [Windows and web CI](https://github.com/G1NYU/TSUGI/actions/runs/45957518665). The portable archive now carries an optional MAL manga section through managed backup validation, recovery copies and reviewed additive restore. The Reader and Anime source panels focus the selection and display the source at confirmation. Local web suite: 446 tests passed. The pinned Suwayomi 2.4.2373 TrackerType exposes login state but lacks account identity; trackProgress takes only a manga ID. Queue delivery needs an account-scoped write contract. Tracker-binding migration, Refract improvements, live/physical acceptance and package verification remain open.
+
 ## 2026-11-27 — Reviewed Reader source migration (B5)
 
 Baseline [3ce8798](https://github.com/G1NYU/TSUGI/commit/3ce8798c5783c805bd455a48c8956cda28e98fd3) passed [Unified Windows 45954004528](https://github.com/G1NYU/TSUGI/actions/runs/45954004528): 440 web tests, 220 native tests, 18 intentionally ignored; MAL and Anime Hub/first-launch browser acceptance passed. Package and release jobs were skipped.

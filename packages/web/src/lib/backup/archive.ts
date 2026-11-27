@@ -5,12 +5,14 @@ import { captureBookBackup, parseBookBackup, BOOK_BACKUP_LIMIT, type BookBackup 
 import { collectLocalManga, snapshotManga, parseMangaBackup, MANGA_BACKUP_LIMIT, type MangaBackup } from './manga';
 import { collectLocalCategories } from './manga-categories';
 
+import { captureMalManga, decode as parseMalManga } from './mal-manga';
+
 export const PORTABLE_ARCHIVE_LIMIT = 24 * 1024 * 1024;
-const limits={preferences:MAX_PREFERENCES_BACKUP_BYTES,music:MUSIC_BACKUP_LIMIT,books:BOOK_BACKUP_LIMIT,manga:MANGA_BACKUP_LIMIT} as const;
+const limits={preferences:MAX_PREFERENCES_BACKUP_BYTES,music:MUSIC_BACKUP_LIMIT,books:BOOK_BACKUP_LIMIT,manga:MANGA_BACKUP_LIMIT,mal:3*1024*1024} as const;
 export type ArchiveKind=keyof typeof limits;
 export type ArchiveEntry={kind:ArchiveKind;bytes:number;sha256:string;payload:string};
 export type PortableArchive={format:'tsugi-portable';version:1;createdAt:string;entries:ArchiveEntry[]};
-type Sections={preferences:PreferencesBackup;music:MusicBackup;books:BookBackup;manga?:MangaBackup};
+type Sections={preferences:PreferencesBackup;music:MusicBackup;books:BookBackup;manga?:MangaBackup;mal?:ReturnType<typeof captureMalManga>};
 
 function object(value:unknown):Record<string,unknown>{
   if(!value||typeof value!=='object'||Array.isArray(value))throw Error('object');
@@ -27,6 +29,7 @@ function digest(bytes:Uint8Array){
 }
 function validatePayload(kind:ArchiveKind,text:string){
   switch(kind){
+    case 'mal':return parseMalManga(text);
     case 'preferences':return parsePreferencesBackup(text);
     case 'music':return parseMusicBackup(text);
     case 'books':return parseBookBackup(text);
@@ -46,7 +49,7 @@ export function parsePortableArchive(text:string):PortableArchive{
   if(raw.format!=='tsugi-portable'||raw.version!==1||typeof raw.createdAt!=='string'||
     !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(raw.createdAt)||
     !Number.isFinite(Date.parse(raw.createdAt))||new Date(raw.createdAt).toISOString()!==raw.createdAt||
-    !Array.isArray(raw.entries)||raw.entries.length<3||raw.entries.length>4)throw Error('format');
+    !Array.isArray(raw.entries)||raw.entries.length<3||raw.entries.length>5)throw Error('format');
   const seen=new Set<ArchiveKind>();
   const entries:ArchiveEntry[]=raw.entries.map(value=>{
     const row=object(value);exact(row,['kind','bytes','sha256','payload']);
@@ -67,9 +70,10 @@ export function parsePortableArchive(text:string):PortableArchive{
 export function createPortableArchive(sections:Sections,createdAt=new Date().toISOString()):PortableArchive{
   const entries=[makeEntry('preferences',sections.preferences),makeEntry('music',sections.music),makeEntry('books',sections.books)];
   if(sections.manga!==undefined)entries.push(makeEntry('manga',sections.manga));
+  if(sections.mal!==undefined)entries.push(makeEntry('mal',sections.mal));
   return parsePortableArchive(JSON.stringify({format:'tsugi-portable',version:1,createdAt,entries}));
 }
-export async function capturePortableArchive(includeManga:boolean,onProgress?:(kind:ArchiveKind,done:number,total:number)=>void):Promise<PortableArchive>{
+export async function capturePortableArchive(includeManga:boolean,onProgress?:(kind:ArchiveKind,done:number,total:number)=>void,includeMal?:boolean):Promise<PortableArchive>{
   // Sequential, read-only snapshots. Never present this as a transaction
   // across all stores or silently omit a selected domain after failure.
   const preferences=capturePreferencesBackup(),music=captureMusicBackup();
@@ -82,10 +86,13 @@ export async function capturePortableArchive(includeManga:boolean,onProgress?:(k
     const categories=await collectLocalCategories();
     manga=snapshotManga(local,categories.map(row=>row.name));
   }
-  return createPortableArchive({preferences,music,books,manga});
+  const collection=(includeMal??includeManga)?captureMalManga():undefined;
+  const mal=collection && (collection.entries.length || includeMal===true) ? collection : undefined;
+  return createPortableArchive({preferences,music,books,manga,mal});
 }
 export function archiveEntryCounts(entry:ArchiveEntry):{items:number;secondary?:number;metadataOnly?:number;sourceCount?:number}{
   switch(entry.kind){
+    case 'mal':return {items:parseMalManga(entry.payload).entries.length};
     case 'preferences':return {items:Object.keys(parsePreferencesBackup(entry.payload).settings).length};
     case 'music': {
       const playlists = parseMusicBackup(entry.payload).playlists;

@@ -5,7 +5,8 @@ import { archiveEntryCounts,capturePortableArchive,parsePortableArchive,PORTABLE
 import { supportsReading } from '@/lib/hosts/shell/reading';
 import { supportsManagedBackups,listManagedBackups,saveManagedArchive,openManagedArchive,type ManagedBackupList,type ManagedBackup } from '@/lib/backup/managed-archive';
 import { BACKUP_SCHEDULE_EVENT,configureSchedule,readBackupSchedule,writeBackupSchedule,type ScheduleOptions,type Cadence,type Retention } from '@/lib/backup/schedule';
-import { RESTORE_SESSION_EVENT,RESTORE_SESSION_KEY,finishRestoreSession,prepareRestoreSession,readRestoreSessionState,resumeRestoreSession,reviewRestoreRecovery,restoreSessionBusy,restoreSessionMatches,type RestoreStep } from '@/lib/backup/restore-session';
+import { reviewRestoreSection,runRestoreSection,RESTORE_SESSION_EVENT,RESTORE_SESSION_KEY,finishRestoreSession,prepareRestoreSession,readRestoreSessionState,resumeRestoreSession,reviewRestoreRecovery,restoreSessionBusy,restoreSessionMatches,type RestoreStep } from '@/lib/backup/restore-session';
+import { reviewMalManga, persist as persistMalManga } from '@/lib/backup/mal-manga';
 import { restoreSessionFeedback } from './restore-session-feedback';
 
 export function PortableArchiveSettings({archive,onArchive}:{archive:PortableArchive|null;onArchive(value:PortableArchive|null):void}){
@@ -41,8 +42,27 @@ export function PortableArchiveSettings({archive,onArchive}:{archive:PortableArc
   const musicMatches=counts.find(row=>row.entry.kind==='music')?.metadataOnly??0;
   const session=restoreState.kind==='ready'?restoreState.session:null;
   const matchingSession=React.useMemo(()=>!!session&&!!archive&&restoreSessionMatches(session,archive),[session,archive]);
+  const malPayload=archive?.entries.find(entry=>entry.kind==='mal')?.payload;
+  const [malReview,setMalReview]=React.useState<{
+    merge:ReturnType<typeof reviewMalManga>; checkpoint:ReturnType<typeof reviewRestoreSection>; payload:string
+  }|null>(null);
+  const {added,assigned}=malReview?.merge??{added:0,assigned:0};
+  async function restoreMal(){
+    if(!malPayload||!matchingSession||operationBusy)return;
+    setError('');setNotice('');setBusy(true);
+    try{
+      if(malReview?.payload!==malPayload){
+        setMalReview({merge:reviewMalManga(malPayload),checkpoint:reviewRestoreSection('mal',malPayload),payload:malPayload});
+      }else{
+        const {merge,checkpoint}=malReview;
+        await runRestoreSection('mal',malPayload,checkpoint,()=>persistMalManga(merge.current,merge.entries,merge.links));
+        setNotice(t`MyAnimeList manga collection restored.`);setMalReview(null);
+      }
+    }catch(reason){setMalReview(null);setError(restoreSessionFeedback(reason)??t`Could not confirm the manga collection restore. Review the current collection before retrying.`);}
+    finally{setBusy(false);}
+  }
   function activeReader(){return !!document.querySelector('[data-ui="tsugi-book-reader"], .tsugi-chapter-reader');}
-  function label(kind:ArchiveKind){return kind==='preferences'?t`Preferences`:kind==='music'?t`Music collections`:kind==='books'?t`Book progress`:t`Manga progress`;}
+  function label(kind:ArchiveKind){return kind==='mal'?t`MyAnimeList manga collection`:kind==='preferences'?t`Preferences`:kind==='music'?t`Music collections`:kind==='books'?t`Book progress`:t`Manga progress`;}
   function stepLabel(kind:RestoreStep){return kind==='categories'?t`Manga categories`:label(kind);}
   async function prepareRestore(){
     if(!archive||operationBusy)return;
@@ -209,6 +229,10 @@ export function PortableArchiveSettings({archive,onArchive}:{archive:PortableArc
         {bookFiles>0&&<p><Trans id="Original book files to reimport: {bookFiles}. Progress is matched by file contents.">Original book files to reimport: {bookFiles}. Progress is matched by file contents.</Trans></p>}
         {readerSources>0&&<p><Trans id="Reader sources represented: {readerSources}. Reconnect the original trusted sources and add the matching titles before reviewing manga progress.">Reader sources represented: {readerSources}. Reconnect the original trusted sources and add the matching titles before reviewing manga progress.</Trans></p>}
         {musicMatches>0&&<p><Trans id="Music entries saved as metadata only: {musicMatches}. Connect a music source to find playable matches.">Music entries saved as metadata only: {musicMatches}. Connect a music source to find playable matches.</Trans></p>}
+      </div>}
+      {matchingSession&&malPayload&&<div className="space-y-2">
+        {malReview?.payload===malPayload&&<p>{t`Add ${added} manga entries and ${assigned} source assignments. Existing entries and assignments are kept.`}</p>}
+        <button className="tsugi-read-action" type="button" disabled={operationBusy} onClick={()=>void restoreMal()}>{malReview?.payload===malPayload?t`Apply reviewed manga collection`:t`Review MyAnimeList manga collection`}</button>
       </div>}
       {!archive.entries.some(entry=>entry.kind==='manga')&&<p><Trans>This archive does not contain manga progress.</Trans></p>}
       {archive.entries.some(entry=>entry.kind==='manga')&&!readerAvailable&&<p><Trans>Set up Reader before reviewing the manga section. The original source and title must be available.</Trans></p>}

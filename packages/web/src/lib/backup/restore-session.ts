@@ -14,7 +14,7 @@ export const RESTORE_SESSION_LOCK='tsugi-portable-restore';
 const NAME=/^tsugi-backup-\d{13}-[a-f\d]{32}\.json$/;
 const HASH=/^[a-f\d]{64}$/;
 const UUID=/^[a-f\d]{8}-[a-f\d]{4}-4[a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/;
-export const RESTORE_STEPS=['preferences','music','books','manga','categories'] as const;
+export const RESTORE_STEPS=['preferences','music','books','manga','categories','mal'] as const;
 export type RestoreStep=typeof RESTORE_STEPS[number];
 type StepState='pending'|'running'|'done'|'failed'|'unavailable';
 type SavedCopy={name:string;sha256:string};
@@ -57,7 +57,7 @@ export function parseRestoreSession(text:string):RestoreSession{
   if(row.format!=='tsugi-restore-session'||row.version!==1||typeof row.id!=='string'||!UUID.test(row.id)||
     !integer(row.revision,1_000_000)||typeof row.createdAt!=='string'||
     !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(row.createdAt)||!Number.isFinite(Date.parse(row.createdAt))||
-    new Date(row.createdAt).toISOString()!==row.createdAt||!Array.isArray(row.steps)||!row.steps.length||row.steps.length>5)throw Error('record');
+    new Date(row.createdAt).toISOString()!==row.createdAt||!Array.isArray(row.steps)||!row.steps.length||row.steps.length>RESTORE_STEPS.length)throw Error('record');
   const seen=new Set<RestoreStep>();
   const steps=row.steps.map(value=>{
     const item=object(value);exact(item,['kind','state','attempts']);
@@ -159,7 +159,7 @@ export async function prepareRestoreSession(archive:PortableArchive):Promise<Res
     requireEmpty();requireClosedReaders();
     if(!supportsManagedBackups())throw new RestoreSessionError('unavailable');
     const source=parsePortableArchive(JSON.stringify(archive));
-    const recovery=await capturePortableArchive(source.entries.some(entry=>entry.kind==='manga')&&supportsReading());
+    const recovery=await capturePortableArchive(source.entries.some(entry=>entry.kind==='manga')&&supportsReading(),undefined,source.entries.some(entry=>entry.kind==='mal'));
     requireClosedReaders();
     return prepare(source,recovery,null);
   });
@@ -200,7 +200,7 @@ export async function reviewRestoreRecovery(id:string):Promise<PortableArchive>{
     if(state.kind!=='ready'||state.session.id!==id)throw new RestoreSessionError('changed');
     requireClosedReaders();
     const source=await verifyCopy(state.session.recovery);
-    const recovery=await capturePortableArchive(source.entries.some(entry=>entry.kind==='manga')&&supportsReading());
+    const recovery=await capturePortableArchive(source.entries.some(entry=>entry.kind==='manga')&&supportsReading(),undefined,source.entries.some(entry=>entry.kind==='mal'));
     requireClosedReaders();
     await prepare(source,recovery,state.token,state.session.steps.map(step=>step.kind));
     return source;
