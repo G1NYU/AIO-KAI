@@ -154,26 +154,29 @@ function Standalone() {
     initialDesktopArea(desktop, !!currentServer(), reading || books, desktop ? readStartupArea() : 'auto')
   );
   const [resumeTarget, setResumeTarget] = React.useState<ResumeTarget | null>(null);
+  const [vaultComicTarget, setVaultComicTarget] = React.useState<{jobId:string} | null>(null);
+  const consumeVaultComic = React.useCallback((target: {jobId:string}) => setVaultComicTarget(current => current === target ? null : current), []);
   const [musicResumeRows, setMusicResumeRows] = React.useState<ResumeRow[]>([]);
   const consumeResume = React.useCallback((target: ResumeTarget) => setResumeTarget(current => current === target ? null : current), []);
   const [globalSettings, setGlobalSettings] = React.useState(false);
   const [readVisited, setReadVisited] = React.useState(area === 'read');
   const openSettings = React.useCallback(() => setGlobalSettings(true), []);
   const [readMode, setReadMode] = React.useState<'manga' | 'books'>(reading ? 'manga' : 'books');
-  const openRead = React.useCallback(() => { setResumeTarget(null); setReadVisited(true); setArea('read'); }, []);
-  const openBooks = React.useCallback(() => { setResumeTarget(null); setReadMode('books'); setArea('read'); }, []);
-  const openManga = React.useCallback(() => { setResumeTarget(null); setReadMode('manga'); setReadVisited(true); setArea('read'); }, []);
+  const openRead = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setReadVisited(true); setArea('read'); }, []);
+  const openBooks = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setReadMode('books'); setArea('read'); }, []);
+  const openManga = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setReadMode('manga'); setReadVisited(true); setArea('read'); }, []);
+  const openVaultComic = React.useCallback((jobId: string) => { openManga(); setVaultComicTarget({jobId}); }, [openManga]);
   const [musicLibraryRequest, setMusicLibraryRequest] = React.useState(0);
-  const openMusic = React.useCallback(() => { setResumeTarget(null); setArea('music'); }, []);
-  const openLocalMusic = React.useCallback(() => { setResumeTarget(null); setMusicLibraryRequest(value => value + 1); setArea('music'); }, []);
+  const openMusic = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setArea('music'); }, []);
+  const openLocalMusic = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setMusicLibraryRequest(value => value + 1); setArea('music'); }, []);
   const [vaultAudio, setVaultAudio] = React.useState<File | null>(null);
-  const openLocalAudio = React.useCallback((file: File) => { setResumeTarget(null); setVaultAudio(file); setMusicLibraryRequest(value => value + 1); setArea('music'); }, []);
+  const openLocalAudio = React.useCallback((file: File) => { setResumeTarget(null); setVaultComicTarget(null); setVaultAudio(file); setMusicLibraryRequest(value => value + 1); setArea('music'); }, []);
   const clearVaultAudio = React.useCallback(() => setVaultAudio(null), []);
   const [vaultTrack, setVaultTrack] = React.useState<{id:string;title:string} | null>(null);
-  const openVault = React.useCallback(() => { setResumeTarget(null); setVaultTrack(null); setArea('vault'); }, []);
-  const openVaultMusic = React.useCallback((track: {id:string;title:string}) => { setResumeTarget(null); setVaultTrack(track); setArea('vault'); }, []);
-  const openVideo = React.useCallback(() => { setResumeTarget(null); setReadVisited(false); setArea('video'); }, []);
-  const openWelcome = React.useCallback(() => { setResumeTarget(null); setArea('welcome'); }, []);
+  const openVault = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(null); setArea('vault'); }, []);
+  const openVaultMusic = React.useCallback((track: {id:string;title:string}) => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(track); setArea('vault'); }, []);
+  const openVideo = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setReadVisited(false); setArea('video'); }, []);
+  const openWelcome = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setArea('welcome'); }, []);
   const openVideoDownloads = React.useCallback(() => { openVideo(); navigate(to.downloads); }, [openVideo]);
   const openResume = React.useCallback((target: ResumeTarget) => {
     if (target.kind === 'book' && books) openBooks();
@@ -183,8 +186,8 @@ function Standalone() {
     setResumeTarget({...target});
   }, [books, reading, readerReady, openBooks, openManga, openMusic]);
   const areaActions = React.useMemo(
-    () => ({ openWelcome, openMusic, openVideo, openSettings, openResume, resumeTarget, consumeResume, musicResumeRows, readerReady, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead: reading || books ? openRead : undefined, openBooks: books ? openBooks : undefined, openManga: reading ? openManga : undefined }),
-    [openWelcome, openMusic, openVideo, openSettings, openResume, resumeTarget, consumeResume, musicResumeRows, readerReady, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead, reading, books, openBooks, openManga]
+    () => ({ openWelcome, openMusic, openVideo, openSettings, openResume, resumeTarget, consumeResume, vaultComicTarget, consumeVaultComic, musicResumeRows, readerReady, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead: reading || books ? openRead : undefined, openBooks: books ? openBooks : undefined, openManga: reading ? openManga : undefined, openVaultComic: reading ? openVaultComic : undefined }),
+    [openWelcome, openMusic, openVideo, openSettings, openResume, resumeTarget, consumeResume, vaultComicTarget, consumeVaultComic, musicResumeRows, readerReady, openVault, openVaultMusic, openLocalMusic, openLocalAudio, openVideoDownloads, openRead, reading, books, openBooks, openManga, openVaultComic]
   );
   // Who's watching, asked across the saved servers.
   const [picking, setPicking] = React.useState(() => {

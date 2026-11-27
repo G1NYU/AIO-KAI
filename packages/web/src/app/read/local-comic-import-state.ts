@@ -11,9 +11,10 @@ export type LocalComicResult =
   | { reviewId: string; status: 'published-unregistered'; title: string; pageCount: number }
   | { reviewId?: string; status: 'cancelled' };
 export type LocalComicAction = { kind: 'begin-local-import' }
+  | { kind: 'begin-vault-comic-import'; jobId: string }
   | { kind: 'apply-local-import' | 'cancel-local-import'; reviewId: string };
 export type LocalComicRequest = (action: LocalComicAction) => Promise<unknown>;
-export type LocalComicError = 'invalid' | 'expired' | 'folder' | 'unreadable' | 'choose' | 'unconfirmed' | 'cancel';
+export type LocalComicError = 'invalid' | 'expired' | 'folder' | 'unreadable' | 'vault' | 'chapter' | 'choose' | 'unconfirmed' | 'cancel';
 export type LocalComicImportState = {
   phase: 'idle' | 'choosing' | 'review' | 'applying' | 'cancelling' | 'finished' | 'failed';
   review: LocalComicReview | null; result: LocalComicResult | null; error: LocalComicError | null;
@@ -69,6 +70,8 @@ const knownErrors = new Map<string, LocalComicError>([
   ['The CBZ archive could not be safely imported. Choose a supported PNG/JPEG archive within the import limits.', 'invalid'],
   ['The CBZ import review expired or changed. Choose the archive again.', 'expired'],
   ['CBZ import requires the default private local manga folder.', 'folder'],
+  ['The completed Vault CBZ is unavailable. Check the original download and review it again.', 'vault'],
+  ['Close the current chapter before reviewing a Vault comic.', 'chapter'],
   ['The selected CBZ could not be read. Close other applications using it and choose it again.', 'unreadable'],
 ]);
 /* eslint-enable lingui/no-unlocalized-strings */
@@ -100,14 +103,14 @@ export class LocalComicImportController {
     this.update({ phase: 'idle', review: null, result: null, error: null });
     if (review) void this.release(review.reviewId).catch(() => { /* Native expiry/restart cleanup remains authoritative. */ });
   }
-  async begin(): Promise<boolean> {
+  async begin(vaultJobId?: string): Promise<boolean> {
     if (this.flight || !this.mounted) return false;
     this.flight = true;
     const generation = ++this.generation;
-    // A new native begin drops the old review before showing its file picker.
+    // A new native begin drops the old review before selecting or validating an archive.
     this.update({ phase: 'choosing', review: null, result: null, error: null });
     try {
-      const result = parseLocalComicReview(await this.request({ kind: 'begin-local-import' }));
+      const result = parseLocalComicReview(await this.request(vaultJobId === undefined ? { kind: 'begin-local-import' } : { kind: 'begin-vault-comic-import', jobId: vaultJobId }));
       if (!this.mounted || generation !== this.generation) {
         if ('reviewId' in result) await this.release(result.reviewId).catch(() => {});
         return false;

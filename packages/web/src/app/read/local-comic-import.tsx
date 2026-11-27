@@ -18,14 +18,16 @@ function errorLabel(error: LocalComicError) {
     case 'expired': return t({ id: 'The CBZ import review expired or changed. Choose the archive again.', message: 'The CBZ import review expired or changed. Choose the archive again.' });
     case 'folder': return t({ id: 'CBZ import requires the default private local manga folder.', message: 'CBZ import requires the default private local manga folder.' });
     case 'unreadable': return t({ id: 'The selected CBZ could not be read. Close other applications using it and choose it again.', message: 'The selected CBZ could not be read. Close other applications using it and choose it again.' });
+    case 'vault': return t({ id: 'The completed Vault CBZ is unavailable. Check the original download and review it again.', message: 'The completed Vault CBZ is unavailable. Check the original download and review it again.' });
+    case 'chapter': return t({ id: 'Close the current chapter before reviewing a Vault comic.', message: 'Close the current chapter before reviewing a Vault comic.' });
     case 'choose': return t({ id: 'The CBZ could not be reviewed. Nothing was added to Read. Choose a supported archive to try again.', message: 'The CBZ could not be reviewed. Nothing was added to Read. Choose a supported archive to try again.' });
     case 'unconfirmed': return t({ id: 'The import result could not be confirmed. Check your library, or choose the same CBZ again for a fresh review. The import was not repeated automatically.', message: 'The import result could not be confirmed. Check your library, or choose the same CBZ again for a fresh review. The import was not repeated automatically.' });
     case 'cancel': return t({ id: 'Cancellation could not be confirmed. This review was discarded. Choose the CBZ again before importing it.', message: 'Cancellation could not be confirmed. This review was discarded. Choose the CBZ again before importing it.' });
   }
 }
 
-export function LocalComicImport({ localImport, busy, onClose, onImported, onOpen }: {
-  localImport: ReturnType<typeof useLocalComicImport>; busy: boolean; onClose(): void;
+export function LocalComicImport({ localImport, busy, vaultJobId, onClose, onImported, onOpen }: {
+  localImport: ReturnType<typeof useLocalComicImport>; busy: boolean; vaultJobId?: string; onClose(): void;
   onImported(): Promise<void>; onOpen(result: Extract<LocalComicResult, { mangaId: number }>): void;
 }) {
   const dialog = React.useRef<HTMLDialogElement>(null);
@@ -50,7 +52,7 @@ export function LocalComicImport({ localImport, busy, onClose, onImported, onOpe
     <YomiBanner eyebrow={t({ id: 'Your own stories', message: 'Your own stories' })} title={t({ id: 'Make yourself at home.', message: 'Make yourself at home.' })} description={t({ id: 'Choose a CBZ, review its pages and add it to your collection.', message: 'Choose a CBZ, review its pages and add it to your collection.' })} artwork="/design/shared/hero-train.webp" />
     <p className="my-4 text-sm text-[--tsugi-muted]"><Trans id="Choose one CBZ with PNG or JPEG pages. Archives are limited to 256 MiB, 512 MiB after expansion and 2,000 pages. Review it before adding it to Read.">Choose one CBZ with PNG or JPEG pages. Archives are limited to 256 MiB, 512 MiB after expansion and 2,000 pages. Review it before adding it to Read.</Trans></p>
     {working && <p role="status" className="my-4 text-sm text-[--tsugi-muted]">{snapshot.phase === 'choosing'
-      ? t({ id: 'Choose a CBZ in the native file window. Tsugi will validate it for review.', message: 'Choose a CBZ in the native file window. Tsugi will validate it for review.' })
+      ? (vaultJobId ? t({ id: 'Validating the completed Vault comic for review.', message: 'Validating the completed Vault comic for review.' }) : t({ id: 'Choose a CBZ in the native file window. Tsugi will validate it for review.', message: 'Choose a CBZ in the native file window. Tsugi will validate it for review.' }))
       : snapshot.phase === 'applying' ? t({ id: 'Adding the reviewed comic… Confirm in the native window if prompted.', message: 'Adding the reviewed comic… Confirm in the native window if prompted.' })
       : snapshot.phase === 'cancelling' ? t({ id: 'Discarding the import review…', message: 'Discarding the import review…' })
       : t({ id: 'Refreshing your library…', message: 'Refreshing your library…' })}</p>}
@@ -76,6 +78,6 @@ export function LocalComicImport({ localImport, busy, onClose, onImported, onOpe
       {'title' in result && <p className="break-words font-semibold">{result.title}</p>}
       {'mangaId' in result && <button className="tsugi-read-action" disabled={working} onClick={() => onOpen(result)}>{result.status === 'already-imported' ? <Trans id="Open existing comic">Open existing comic</Trans> : <Trans id="Open in Reader">Open in Reader</Trans>}</button>}
     </section>}
-    <div className="mt-4 flex flex-wrap gap-2"><button className="tsugi-read-action" disabled={working} onClick={() => void controller.begin()}>{review ? <Trans id="Choose another CBZ">Choose another CBZ</Trans> : <Trans id="Choose CBZ">Choose CBZ</Trans>}</button>{(error === 'unconfirmed' || result?.status === 'published-unregistered') && <button className="tsugi-read-action" disabled={working} onClick={() => void onImported().then(onClose)}><Trans id="Refresh library">Refresh library</Trans></button>}</div>
+    <div className="mt-4 flex flex-wrap gap-2"><button className="tsugi-read-action" disabled={working} onClick={() => void controller.begin(vaultJobId)}>{vaultJobId ? <Trans id="Review Vault comic again">Review Vault comic again</Trans> : review ? <Trans id="Choose another CBZ">Choose another CBZ</Trans> : <Trans id="Choose CBZ">Choose CBZ</Trans>}</button>{(error === 'unconfirmed' || result?.status === 'published-unregistered') && <button className="tsugi-read-action" disabled={working} onClick={() => void onImported().then(onClose)}><Trans id="Refresh library">Refresh library</Trans></button>}</div>
   </dialog>;
 }

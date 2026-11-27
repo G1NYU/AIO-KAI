@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { vaultTarget, vaultResponseAllowed } from '../src/app/vault/transfer';
 import { LocalComicImportController, MAX_LOCAL_COMIC_ARCHIVE_BYTES, MAX_LOCAL_COMIC_EXPANDED_BYTES, parseLocalComicReview, parseLocalComicResult, type LocalComicRequest, type LocalComicReview } from '../src/app/read/local-comic-import-state';
 
 function review(patch: Partial<LocalComicReview> = {}): LocalComicReview {
@@ -40,6 +41,23 @@ describe('bounded native CBZ reviews', () => {
 });
 
 describe('explicit local comic import lifecycle', () => {
+  it('accepts bounded CBZ transfers and reviews a completed Vault job using only its ID', async () => {
+    expect(vaultTarget('https://example.org/comic.cbz').extension).toBe('cbz');
+    for (const mime of ['application/zip', 'application/vnd.comicbook+zip', 'application/x-cbz', 'application/octet-stream']) expect(vaultResponseAllowed('cbz', mime)).toBe(true);
+    expect(vaultResponseAllowed('cbz', 'text/html')).toBe(false);
+    const request = vi.fn<LocalComicRequest>().mockResolvedValueOnce(review()).mockResolvedValueOnce({ reviewId: review().reviewId, cancelled: true });
+    const controller = new LocalComicImportController(request);
+    expect(await controller.begin('vault-comic')).toBe(true);
+    expect(await controller.cancel()).toBe(true);
+    expect(request.mock.calls).toEqual([[{ kind: 'begin-vault-comic-import', jobId: 'vault-comic' }], [{ kind: 'cancel-local-import', reviewId: review().reviewId }]]);
+  });
+  it('keeps a missing Vault archive distinct from a cancelled picker', async () => {
+    const request = vi.fn<LocalComicRequest>().mockRejectedValueOnce(new Error('The completed Vault CBZ is unavailable. Check the original download and review it again.'));
+    const controller = new LocalComicImportController(request);
+    expect(await controller.begin('vault-comic')).toBe(false);
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'failed', review: null, error: 'vault' });
+    expect(await controller.apply()).toBeNull();
+  });
   it('opens the picker only explicitly, serializes a slow review and applies only the opaque capability once', async () => {
     const pending = deferred<unknown>();
     const request = vi.fn<LocalComicRequest>().mockReturnValueOnce(pending.promise).mockResolvedValueOnce(result());

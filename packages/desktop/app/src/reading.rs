@@ -13,6 +13,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use aiostreams_desktop_core::bridge::{Outbound, ReadAction};
+use aiostreams_desktop_core::downloads::Downloads;
 use aiostreams_desktop_core::read_runtime::{CatalogueMode, ChapterPages, DownloadCleanupReview, ImageCacheCleanupReview, LocalImportReview, MihonImportReview, SourcePreferencesReview, ReadJob, ReadOperation, ReadRuntime};
 use serde_json::{Value, json};
 
@@ -152,7 +153,7 @@ pub struct Worker {
 }
 
 impl Worker {
-    pub fn new(runtime: PathBuf, data: PathBuf, owner: isize, emit: impl Fn(Outbound) + Send + Sync + 'static) -> Self {
+    pub fn new(runtime: PathBuf, data: PathBuf, owner: isize, downloads: Downloads, emit: impl Fn(Outbound) + Send + Sync + 'static) -> Self {
         let (tx, rx) = mpsc::sync_channel::<Request>(4);
         let stop = Arc::new(AtomicBool::new(false));
         let cache: Cache = Arc::new(Mutex::new(None));
@@ -185,7 +186,7 @@ impl Worker {
                     if preparing {
                         return Ok(json!({"ready": true}));
                     }
-                    execute(reader.as_mut().unwrap(), &mut chapter, &mut cleanup, &mut image_cleanup, &mut preferences, &mut local_import, &mut mihon_import, &images, &mut serial, owner, &stopped, action)
+                    execute(reader.as_mut().unwrap(), &mut chapter, &mut cleanup, &mut image_cleanup, &mut preferences, &mut local_import, &mut mihon_import, &images, &mut serial, owner, &stopped, &downloads, action)
                 })();
                 if !stopped.load(Ordering::Acquire) {
                     answer(&reply, request, result);
@@ -319,6 +320,7 @@ fn execute(
     serial: &mut u64,
     owner: isize,
     stopped: &AtomicBool,
+    downloads: &Downloads,
     action: ReadAction,
 ) -> Result<Value, &'static str> {
     match action {
@@ -350,6 +352,14 @@ fn execute(
             *local_import = None;
             let Some(path) = choose_cbz(owner)? else { return Ok(json!({"cancelled": true})); };
             if stopped.load(Ordering::Acquire) { return Err("Reading is closing."); }
+            let review = reader.review_local_import(&path, stopped)?;
+            let preview = review.preview(); *local_import = Some(review); Ok(preview)
+        }
+        ReadAction::BeginVaultComicImport { job_id } => {
+            *local_import = None;
+            if chapter.is_some() { return Err("Close the current chapter before reviewing a Vault comic."); }
+            if stopped.load(Ordering::Acquire) { return Err("Reading is closing."); }
+            let path = downloads.vault_comic_path(&job_id).ok_or("The completed Vault CBZ is unavailable. Check the original download and review it again.")?;
             let review = reader.review_local_import(&path, stopped)?;
             let preview = review.preview(); *local_import = Some(review); Ok(preview)
         }

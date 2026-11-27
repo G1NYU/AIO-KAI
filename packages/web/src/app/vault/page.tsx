@@ -82,7 +82,7 @@ export function VaultPage({ track = null }: { track?: { id: string; title: strin
         <section>
           <p className="kura-eyebrow"><Trans>CHOOSE YOUR OWN DESTINATION</Trans></p>
           <h2><Trans>Download a book or audio file</Trans></h2>
-          <p className="kura-manual-description"><Trans>Use a direct HTTPS file link you have permission to download. PDF, EPUB and common audio formats, up to 256 MiB. The host must allow direct browser access.</Trans></p>
+          <p className="kura-manual-description"><Trans>Use a direct HTTPS file link you have permission to download. PDF, EPUB, CBZ and common audio formats, up to 256 MiB. The host must allow direct browser access.</Trans></p>
           <form className="tsugi-vault-form" onSubmit={e => { e.preventDefault(); void download(); }}>
             <label><Trans>File URL</Trans><input type="url" required value={input} onChange={e => setInput(e.target.value)} placeholder="https://example.com/book.epub" disabled={busy}/></label>
             <div className="tsugi-vault-actions">
@@ -97,7 +97,7 @@ export function VaultPage({ track = null }: { track?: { id: string; title: strin
         <section className="kura-session-files" aria-labelledby="kura-session-heading">
           <p className="kura-eyebrow"><Trans>A LITTLE CLOSER</Trans></p>
           <h2 id="kura-session-heading"><Trans>Saved this session</Trans></h2>
-          {saved.length === 0 ? <div className="kura-session-empty"><BrushFolder aria-hidden/><p><Trans>No completed transfers yet.</Trans></p></div> : saved.map((file, i) => <div className="tsugi-vault-file-row" key={i}>{/\.(pdf|epub)$/i.test(file.name)?<BrushBook aria-hidden/>:<BrushDisc aria-hidden/>}<span>{file.name}</span><small>{(file.bytes / 1048576).toFixed(1)} MiB</small></div>)}
+          {saved.length === 0 ? <div className="kura-session-empty"><BrushFolder aria-hidden/><p><Trans>No completed transfers yet.</Trans></p></div> : saved.map((file, i) => <div className="tsugi-vault-file-row" key={i}>{/\.(pdf|epub|cbz)$/i.test(file.name)?<BrushBook aria-hidden/>:<BrushDisc aria-hidden/>}<span>{file.name}</span><small>{(file.bytes / 1048576).toFixed(1)} MiB</small></div>)}
         </section>
       </div>
     </details>

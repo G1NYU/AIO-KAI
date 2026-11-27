@@ -30,7 +30,7 @@ const EXTENSIONS: &[&str] = &[
     "3gp", "srt", "vtt", "ass", "ssa", "sub", "sup", "idx", "ttml", "jpg", "jpeg", "png", "webp",
     "avif", "json",
 ];
-const VAULT_EXTENSIONS: &[&str] = &["pdf", "epub", "mp3", "flac", "m4a", "wav", "ogg", "opus", "aac"];
+const VAULT_EXTENSIONS: &[&str] = &["pdf", "epub", "cbz", "mp3", "flac", "m4a", "wav", "ogg", "opus", "aac"];
 const VAULT_LIMIT: u64 = 256 * 1024 * 1024;
 const MIB: u64 = 1024 * 1024;
 const VAULT_RATES: &[u32] = &[0, 1, 2, 4, 8, 16];
@@ -230,6 +230,26 @@ impl Downloads {
         file.take(IMPORT_LIMIT + 1).read_to_end(&mut data).ok()?;
         if data.is_empty() || data.len() as u64 > IMPORT_LIMIT { return None; }
         Some((mime, data))
+    }
+
+    /// Native Reader only: resolve a completed CBZ job without accepting a
+    /// web-supplied filesystem path or serving archive bytes to the webview.
+    /// The Reader still locks, validates and privately stages the archive.
+    pub fn vault_comic_path(&self, id: &str) -> Option<PathBuf> {
+        if !id.starts_with("vault-") || id.len() <= 6 || id.len() > 64 ||
+            !id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_') { return None; }
+        let path = {
+            let shared = self.shared.lock().ok()?;
+            let job = shared.jobs.get(id)?;
+            if !job.done { return None; }
+            job.vault.clone()?
+        };
+        if !path.is_absolute() || !path.extension()?.eq_ignore_ascii_case("cbz") ||
+            path.parent()?.file_name()?.to_str()? != id ||
+            path.parent()?.parent()?.file_name()?.to_str()? != "Vault" { return None; }
+        let meta = fs::symlink_metadata(&path).ok()?;
+        if !meta.file_type().is_file() || meta.len() == 0 || meta.len() > VAULT_LIMIT { return None; }
+        Some(path)
     }
 
     pub fn job_folder(&self, id: &str) -> Option<PathBuf> {
@@ -879,6 +899,7 @@ fn vault_mime_allowed(ext: &str, content_type: &str) -> bool {
     mime == "application/octet-stream" || match ext {
         "pdf" => mime == "application/pdf",
         "epub" => mime == "application/epub+zip",
+        "cbz" => matches!(mime.as_str(), "application/vnd.comicbook+zip" | "application/zip" | "application/x-cbz"),
         "mp3" => matches!(mime.as_str(), "audio/mpeg" | "audio/mp3"),
         "flac" => matches!(mime.as_str(), "audio/flac" | "audio/x-flac"),
         "m4a" => matches!(mime.as_str(), "audio/mp4" | "audio/x-m4a"),
@@ -1267,6 +1288,39 @@ mod vault_tests {
             assert!(downloads.vault_file(id).is_none());
         }
         fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn completed_vault_comic_is_native_only_and_checks_job_identity() {
+        let dir = std::env::temp_dir().join(format!(
+            "tsugi-vault-cbz-{}-{}", std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        let path = dir.join("Vault").join("vault-comic").join("fixture.cbz");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, b"archive fixture").unwrap();
+        let (events, _receiver) = mpsc::channel();
+        let mut jobs = HashMap::new();
+        jobs.insert("vault-comic".into(), Placed { done: true, vault: Some(path.clone()), ..Default::default() });
+        jobs.insert("vault-other".into(), Placed { done: true, vault: Some(path.clone()), ..Default::default() });
+        jobs.insert("vault-pending".into(), Placed { done: false, vault: Some(path.clone()), ..Default::default() });
+        let downloads = Downloads { events, shared: Arc::new(Mutex::new(Shared { folder: dir.clone(), jobs })) };
+        assert_eq!(downloads.vault_comic_path("vault-comic"), Some(path.clone()));
+        assert!(downloads.vault_file("vault-comic").is_none());
+        for id in ["vault-pending", "vault-other", "vault-unknown", "vault-../fixture.cbz", "vault-"] {
+            assert!(downloads.vault_comic_path(id).is_none());
+        }
+        fs::remove_file(&path).unwrap();
+        assert!(downloads.vault_comic_path("vault-comic").is_none());
+        fs::remove_dir_all(dir).unwrap();
+        let mut comic = spec("https://example.org/comic.cbz", "Vault/vault-test/comic.cbz");
+        comic.title = "comic.cbz".into();
+        assert!(check(&comic).is_ok());
+        comic.files[0].kind = FileKind::Video;
+        assert!(check(&comic).is_err());
+        for mime in ["application/zip", "application/vnd.comicbook+zip", "application/x-cbz", "application/octet-stream"] {
+            assert!(vault_mime_allowed("cbz", mime));
+        }
+        assert!(!vault_mime_allowed("cbz", "text/html"));
     }
     #[test]
     fn native_queue_runs_two_transfers_and_waits_for_a_free_slot() {

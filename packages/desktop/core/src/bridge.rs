@@ -150,6 +150,7 @@ pub enum ReadAction {
     PauseDownloads {},
     ResumeDownloads {},
     BeginLocalImport {},
+    BeginVaultComicImport { job_id: String },
     ApplyLocalImport { review_id: String },
     CancelLocalImport { review_id: String },
     ReviewMihonImport { input: MihonImportInput },
@@ -246,6 +247,13 @@ mod reading_metadata_tests {
             value[extra] = serde_json::json!("untrusted");
             assert!(serde_json::from_value::<ReadAction>(value).is_err());
         }
+        assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":"begin-vault-comic-import","jobId":"vault-comic"})).is_ok());
+        for extra in ["path", "url", "archive", "title"] {
+            let mut value = serde_json::json!({"kind":"begin-vault-comic-import","jobId":"vault-comic"});
+            value[extra] = serde_json::json!("untrusted");
+            assert!(serde_json::from_value::<ReadAction>(value).is_err());
+        }
+        assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":"begin-vault-comic-import","jobId":42})).is_err());
         for kind in ["apply-local-import", "cancel-local-import"] {
             assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":kind,"reviewId":"a".repeat(32)})).is_ok());
             assert!(serde_json::from_value::<ReadAction>(serde_json::json!({"kind":kind,"reviewId":42})).is_err());

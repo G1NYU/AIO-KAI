@@ -22,8 +22,9 @@ function installLocalComicImportFixture() {
     if (message.type !== 'read-request') return send(message);
     const action = message.action;
     fixture.calls.push(structuredClone(action));
-    if (action.kind === 'begin-local-import') {
-      if (Object.keys(action).join(',') !== 'kind') throw new Error('Web supplied an unexpected picker argument');
+    if (action.kind === 'begin-local-import' || action.kind === 'begin-vault-comic-import') {
+      if (action.kind === 'begin-local-import' && Object.keys(action).join(',') !== 'kind') throw new Error('Web supplied an unexpected picker argument');
+      if (action.kind === 'begin-vault-comic-import' && (Object.keys(action).sort().join(',') !== 'jobId,kind' || action.jobId !== 'vault-comic-fixture')) throw new Error('Web supplied an unexpected Vault comic argument');
       fixture.review = null;
       const outcome = fixture.nextBegin; fixture.nextBegin = 'review';
       if (outcome === 'cancelled') return emit(message.request, { cancelled: true });
@@ -192,6 +193,38 @@ export async function verifyLocalComicImportBrowser({ browser, origin, installDe
     assert.equal(await page.evaluate(() => window.__localComicImportFixture.copies), 1);
     assert.equal((await calls('catalogue')).length, 0); assert.equal((await calls('set-library')).length, 0);
     assert.equal((await calls('enqueue-downloads')).length, 0);
+    // The completed download enters the same review without opening a picker,
+    // sending a path or using the webview byte-transfer route.
+    const pickerCount = (await calls('begin-local-import')).length;
+    const applyCount = (await calls('apply-local-import')).length;
+    let vaultReads = 0;
+    await page.route('**/__tsugi_vault/file/*', route => { vaultReads++; return route.abort(); });
+    await page.evaluate(() => {
+      window.__readerFixture.vaultJobs = [
+        { id: 'vault-comic-fixture', vault_title: 'Original offline comic.cbz', state: 'done', bytes: 8192, total: 8192, error: null },
+        { id: 'vault-comic-pending', vault_title: 'Pending.cbz', state: 'queued', bytes: 0, total: null, error: null },
+      ];
+    });
+    await read.locator('[data-ui="tsugi-desktop-rail"]').getByRole('button', { name: 'Vault', exact: true }).click();
+    const vault = page.locator('[data-page="vault"]');
+    const complete = vault.locator('[data-vault-job-id="vault-comic-fixture"]');
+    await complete.getByRole('button', { name: 'Import into Read', exact: true }).waitFor();
+    assert.equal(await vault.locator('[data-vault-job-id="vault-comic-pending"]').getByRole('button', { name: 'Import into Read', exact: true }).count(), 0);
+    assert.equal(await complete.getByRole('button', { name: 'Open in Music', exact: true }).count(), 0);
+    await complete.getByRole('button', { name: 'Import into Read', exact: true }).click();
+    await reviewed();
+    assert.deepEqual(await calls('begin-vault-comic-import'), [{ kind: 'begin-vault-comic-import', jobId: 'vault-comic-fixture' }]);
+    assert.equal((await calls('begin-local-import')).length, pickerCount);
+    assert.equal((await calls('apply-local-import')).length, applyCount);
+    await dialog.getByRole('button', { name: 'Review Vault comic again', exact: true }).click();
+    await reviewed();
+    await dialog.getByRole('button', { name: 'Use existing copy', exact: true }).click();
+    await dialog.locator('[data-local-comic-result="already-imported"]').waitFor();
+    assert.equal(vaultReads, 0);
+    assert.equal(await page.evaluate(() => window.__localComicImportFixture.copies), 1);
+    await dialog.getByRole('button', { name: 'Open existing comic', exact: true }).click();
+    await reader.locator('[data-reader-page="1"] img').waitFor();
+    await backToLibrary();
     assert.deepEqual(errors, []);
     console.log('PASS: explicit CBZ picker/review, tonal metadata and backup limits, cancellation/invalid/partial/stale/uncertain recovery without replay, duplicate preservation and existing Reader resume without catalogue requests.');
   } finally { await page.close(); }

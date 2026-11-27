@@ -31,6 +31,7 @@ export type ReadAction =
   | { kind: 'review-mihon-import'; input: MihonReconstruction & { includePartialPages: boolean; includeTrackers: boolean } }
   | { kind: 'apply-mihon-import' | 'cancel-mihon-import'; reviewId: string }
   | { kind: 'begin-local-import' }
+  | { kind: 'begin-vault-comic-import'; jobId: string }
   | { kind: 'apply-local-import' | 'cancel-local-import'; reviewId: string }
   | { kind: 'review-download-cleanup'; ids: number[] }
   | { kind: 'apply-download-cleanup' | 'cancel-download-cleanup'; reviewId: string }
@@ -64,12 +65,12 @@ let sequence = 0;
 const closingChapters = new Map<string, number>();
 export async function readRequest<T>(action: ReadAction): Promise<T> {
   if (action.kind === 'prepare' ? !supportsReadingSection() : !supportsReading()) throw new Error(t({ id: "Reading is not available in this app.", message: "Reading is not available in this app." }));
-  if (action.kind === 'download-cleanup-candidates' || action.kind === 'review-download-cleanup' || action.kind === 'apply-download-cleanup' || action.kind === 'review-image-cache-cleanup' || action.kind === 'apply-image-cache-cleanup' || action.kind === 'source-preferences' || action.kind === 'apply-source-preference' || action.kind === 'begin-local-import' || action.kind === 'apply-local-import' || action.kind === 'review-mihon-import' || action.kind === 'apply-mihon-import') {
+  if (action.kind === 'download-cleanup-candidates' || action.kind === 'review-download-cleanup' || action.kind === 'apply-download-cleanup' || action.kind === 'review-image-cache-cleanup' || action.kind === 'apply-image-cache-cleanup' || action.kind === 'source-preferences' || action.kind === 'apply-source-preference' || action.kind === 'begin-local-import' || action.kind === 'begin-vault-comic-import' || action.kind === 'apply-local-import' || action.kind === 'review-mihon-import' || action.kind === 'apply-mihon-import') {
     for (const [session, chapterId] of [...closingChapters]) await closeReadingChapter(chapterId, session);
   }
   const request = 'read-' + Date.now() + '-' + ++sequence;
   const response = await ask({ type: 'read-request', request, action }, 'read-result', {
-    timeoutMs: action.kind === 'prepare' ? 20 * 60_000 : action.kind === 'update-extension' || action.kind === 'apply-download-cleanup' || action.kind === 'review-download-cleanup' || action.kind === 'review-image-cache-cleanup' || action.kind === 'apply-image-cache-cleanup' || action.kind === 'apply-source-preference' || action.kind === 'begin-local-import' || action.kind === 'apply-local-import' || action.kind === 'review-mihon-import' || action.kind === 'apply-mihon-import' ? 10 * 60_000 : action.kind === 'tracker-login' ? 240_000 : 180_000, matches: (message) => message.request === request,
+    timeoutMs: action.kind === 'prepare' ? 20 * 60_000 : action.kind === 'update-extension' || action.kind === 'apply-download-cleanup' || action.kind === 'review-download-cleanup' || action.kind === 'review-image-cache-cleanup' || action.kind === 'apply-image-cache-cleanup' || action.kind === 'apply-source-preference' || action.kind === 'begin-local-import' || action.kind === 'begin-vault-comic-import' || action.kind === 'apply-local-import' || action.kind === 'review-mihon-import' || action.kind === 'apply-mihon-import' ? 10 * 60_000 : action.kind === 'tracker-login' ? 240_000 : 180_000, matches: (message) => message.request === request,
   });
   if (response.error || response.data == null) throw new Error(response.error || t({ id: "Reading request returned no data.", message: "Reading request returned no data." }));
   return response.data as T;

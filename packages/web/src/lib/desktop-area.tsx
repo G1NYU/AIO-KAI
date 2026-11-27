@@ -13,6 +13,9 @@ export type DesktopAreaActions = {
   openRead?: () => void;
   openBooks?: () => void;
   openManga?: () => void;
+  openVaultComic?: (jobId: string) => void;
+  vaultComicTarget?: { jobId: string } | null;
+  consumeVaultComic?: (target: { jobId: string }) => void;
   openVault?: () => void;
   openVaultMusic?: (track: { id: string; title: string }) => void;
   openLocalMusic?: () => void;

@@ -1,13 +1,13 @@
 export const MAX_VAULT_BYTES = 256 * 1024 * 1024;
 const formats: Record<string,string[]> = {
-  pdf:['application/pdf'],epub:['application/epub+zip'],mp3:['audio/mpeg','audio/mp3'],flac:['audio/flac','audio/x-flac'],m4a:['audio/mp4','audio/x-m4a'],wav:['audio/wav','audio/x-wav','audio/wave'],ogg:['audio/ogg','application/ogg'],opus:['audio/ogg','audio/opus'],aac:['audio/aac']
+  pdf:['application/pdf'],epub:['application/epub+zip'],cbz:['application/vnd.comicbook+zip','application/zip','application/x-cbz'],mp3:['audio/mpeg','audio/mp3'],flac:['audio/flac','audio/x-flac'],m4a:['audio/mp4','audio/x-m4a'],wav:['audio/wav','audio/x-wav','audio/wave'],ogg:['audio/ogg','application/ogg'],opus:['audio/ogg','audio/opus'],aac:['audio/aac']
 };
 export function vaultTarget(input:string) {
   const url = new URL(input.trim());
   if(url.protocol!=='https:'||url.username||url.password)throw new Error('Use a direct HTTPS file URL.');
   const name = decodeURIComponent(url.pathname.split('/').pop()||'').replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').replace(/[. ]+$/,'');
   const extension = name.split('.').pop()?.toLowerCase()||'';
-  if(!name.includes('.')||!Object.hasOwn(formats,extension)||/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name))throw new Error('Choose a PDF, EPUB or supported audio file.');
+  if(!name.includes('.')||!Object.hasOwn(formats,extension)||/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name))throw new Error('Choose a PDF, EPUB, CBZ or supported audio file.');
   return {url:url.href,name,extension};
 }
 export function vaultResponseAllowed(extension:string,contentType:string) {
