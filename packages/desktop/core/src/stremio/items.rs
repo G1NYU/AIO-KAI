@@ -1,10 +1,10 @@
 //! Bounded item responses from installed HTTP addons. Exact video identities
 //! are retained. Signed media URLs are inspected natively and never included
 //! in display responses. The registry keeps exact reviewed playable options in memory.
-use super::{Endpoint, Manifest, ItemResource, Result, fetch, id_valid, type_valid, text_valid, public_poster, title_identities, MAX_URL};
+use super::{Endpoint, Manifest, ItemResource, Result, fetch, fetch_with_timeout, id_valid, type_valid, text_valid, public_poster, title_identities, MAX_URL};
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet,time::Duration};
 use url::{Host, Url};
 
 const ITEM_LIMIT: usize = 4 * 1024 * 1024;
@@ -153,8 +153,11 @@ impl Endpoint {
         parse_meta(&fetch(&url,ITEM_LIMIT)?,kind,id)
     }
     pub(super) fn item_options(&self,manifest:&Manifest,resource:ItemResource,kind:&str,video_id:&str)->Result<Vec<OptionSummary>>{
+        self.item_options_with_timeout(manifest,resource,kind,video_id,Duration::from_secs(20))
+    }
+    pub(super) fn item_options_with_timeout(&self,manifest:&Manifest,resource:ItemResource,kind:&str,video_id:&str,timeout:Duration)->Result<Vec<OptionSummary>>{
         let url=self.item_url(manifest,resource,kind,video_id)?;
-        parse_options(&fetch(&url,ITEM_LIMIT)?,resource)
+        parse_options(&fetch_with_timeout(&url,ITEM_LIMIT,timeout)?,resource)
     }
 }
 #[cfg(test)]

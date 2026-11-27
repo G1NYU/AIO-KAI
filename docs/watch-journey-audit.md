@@ -21,12 +21,12 @@ Baseline `f21bf13`: [cumulative web and Windows CI 46022564530](https://github.c
 | 11 | Catalogue artwork | 🟨 Partial | Public-CDN allowlist, safe proxy fallback and IMDb fallback tests; live provider art and physical display open. |
 | 12 | Catalogue loading | 🟩 Verified | Native independent bounded pool, browser concurrent shelves and failure isolation. |
 | 13 | Search | 🟩 Verified | Ranked exact-title and identity-based dedupe tests, combined browser grid. |
-| 14 | Title identity | 🟨 Partial | Verified explicit aliases and exact returned episode matches; multi-compatible-route fallback and ambiguous anime numbering open. |
+| 14 | Title identity | 🟨 Partial | Verified explicit aliases and exact returned episode matches; bounded multi-compatible-route fallback authored (CI pending), ambiguous anime numbering open. |
 | 15 | Title details | 🟩 Verified | Native metadata fields and browser details/partial-result coverage. |
 | 16 | Seasons | 🟩 Verified | Browser numbered seasons, specials and unnumbered choices. |
 | 17 | Episodes | 🟩 Verified | Native name fallback and browser preserved metadata/episode selection on failure. |
 | 18 | Play action | 🟩 Verified | Browser details-first and explicit Play/episode selection. |
-| 19 | Stream aggregation | 🟨 Partial | Native compatible source and alias selection, disabled isolation; fallback across multiple compatible aliases open. |
+| 19 | Stream aggregation | 🟨 Partial | Native compatible source and alias selection, disabled isolation; bounded empty-response fallback across exact compatible aliases authored (CI pending). |
 | 20 | Stream presentation | 🟩 Verified | Native safe quality/detail fields, browser quality filtering, exact option index. |
 | 21 | Source dropdown | 🟩 Verified | Title and player provider filters/counts in browser. |
 | 22 | Source failures | 🟩 Verified | Native distinct outcomes and targeted retry preserving sibling grants; browser recovery. |

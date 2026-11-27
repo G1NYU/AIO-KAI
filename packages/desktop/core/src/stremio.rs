@@ -443,8 +443,12 @@ fn read_bounded(mut reader: impl Read, limit: usize) -> Result<Vec<u8>> {
 }
 
 fn fetch(url: &Url, limit: usize) -> Result<Vec<u8>> {
+    fetch_with_timeout(url,limit,Duration::from_secs(20))
+}
+fn fetch_with_timeout(url:&Url,limit:usize,timeout:Duration)->Result<Vec<u8>>{
+    if timeout.is_zero(){return Err("network");}
     let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(20))).max_redirects(0).build().into();
+        .timeout_global(Some(timeout.min(Duration::from_secs(20)))).max_redirects(0).build().into();
     let response = agent.get(url.as_str()).header("Accept", "application/json").call().map_err(|error| match error {
         ureq::Error::StatusCode(401 | 403) => "auth",
         ureq::Error::StatusCode(429) => "rate",
