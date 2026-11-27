@@ -20,7 +20,8 @@ type ImportAction = {kind:'import-connect';provider:ImportProvider;email:string;
   | {kind:'import-nuvio-profile';importId:number;remoteProfile:number}
   | {kind:'import-review';importId:number;selected:number[]}
   | {kind:'import-apply';importId:number} | {kind:'import-cancel';importId:number};
-type Action = Mutation | CatalogAction | ImportAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
+type ItemAction = {kind:'metadata';sourceId:number;mediaType:string;itemId:string} | {kind:'item-options';sourceId:number;mediaType:string;videoId:string;subtitles:boolean};
+type Action = Mutation | CatalogAction | ImportAction | ItemAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
 export type RemoteAddonProfile={profileIndex:number;name:string;usesPrimaryAddons:boolean;locked:boolean};
 export type ImportCandidate={candidateId:number;name:string;host:string;enabled:boolean;alreadyInstalled:boolean};
 type ImportBase={importId:number;provider:ImportProvider};
@@ -79,7 +80,7 @@ function sources(v: unknown): AddonSource[] {
   if(new Set(rows.map(s=>s.sourceId)).size!==rows.length)return fail();
   return rows;
 }
-const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit','account-auth','account-request','account-response','import-limit','import-selection','unknown-remote-profile','locked-remote-profile']);
+const codes=new Set(['invalid-endpoint','invalid-manifest','manifest-limit','configuration-required','duplicate','source-limit','expired-review','unknown-source','disabled-source','unsupported-catalog','invalid-extras','required-extra','invalid-position','invalid-resource','invalid-catalog','catalog-limit','response-limit','network','request','auth','rate','busy','unsupported','invalid-response','profile-required','profile-changed','unknown-profile','invalid-profile-name','duplicate-profile','profile-limit','active-profile','profile-confirmation','profile-store','profile-store-limit','account-auth','account-request','account-response','import-limit','import-selection','unknown-remote-profile','locked-remote-profile','unsupported-resource','invalid-item','item-limit']);
 async function request(action: NativeAction): Promise<unknown> {
   if(!appBridge()?.stremioAddons)throw new AddonError('unsupported');
   const id=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
@@ -182,3 +183,30 @@ export async function reviewAddonImport(profileId:number,importId:number,provide
 }
 export async function applyAddonImport(profileId:number,importId:number){return sources(await scoped(profileId,{kind:'import-apply',importId}));}
 export async function cancelAddonImport(profileId:number,importId:number){await scoped(profileId,{kind:'import-cancel',importId});}
+
+export type AddonVideo={id:string;name:string;season:number|null;episode:number|null};
+export type AddonMetadata={id:string;mediaType:string;name:string;description:string|null;videos:AddonVideo[]};
+export type AddonOption={name:string;supported:boolean;reason:'direct-https'|'unsupported-transport'|'invalid-media-url'|'proxy-headers';language:string|null};
+export async function loadAddonMetadata(profileId:number,sourceId:number,mediaType:string,itemId:string):Promise<AddonMetadata>{
+  const v=await scoped(profileId,{kind:'metadata',sourceId,mediaType,itemId});
+  if(v.sourceId!==sourceId)return fail();
+  const m=obj(v.metadata);
+  if(m.id!==itemId||m.mediaType!==mediaType)return fail();
+  const videos=array(m.videos,2048,value=>{
+    const row=obj(value);return {id:str(row.id,512),name:str(row.name,512),season:row.season===null?null:integer(row.season,0,0xffffffff),episode:row.episode===null?null:integer(row.episode,0,0xffffffff)};
+  });
+  if(new Set(videos.map(video=>video.id)).size!==videos.length)return fail();
+  return {id:itemId,mediaType,name:str(m.name,512),description:m.description===null?null:str(m.description,4096),videos};
+}
+export async function loadAddonOptions(profileId:number,sourceId:number,mediaType:string,videoId:string,subtitles:boolean):Promise<AddonOption[]>{
+  const v=await scoped(profileId,{kind:'item-options',sourceId,mediaType,videoId,subtitles});
+  if(v.sourceId!==sourceId||v.mediaType!==mediaType||v.videoId!==videoId||v.subtitles!==subtitles)return fail();
+  return array(v.options,256,value=>{
+    const row=obj(value);
+    const reason=row.reason;
+    if(reason!=='direct-https'&&reason!=='unsupported-transport'&&reason!=='invalid-media-url'&&reason!=='proxy-headers')return fail();
+    const supported=bool(row.supported);
+    if(supported!==(reason==='direct-https'))return fail();
+    return {name:str(row.name,256),supported,reason,language:row.language===null?null:str(row.language,32)};
+  });
+}

@@ -8,6 +8,7 @@ use std::{collections::{BTreeMap, BTreeSet}, io::Read, time::Duration};
 use url::{Host, Url};
 
 pub mod registry;
+mod items;
 
 const MAX_URL: usize = 16 * 1024;
 const MANIFEST_LIMIT: usize = 512 * 1024;

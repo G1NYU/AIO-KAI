@@ -1,6 +1,6 @@
 //! Native addon review and source registry. Profile scoping and Windows
 //! protected persistence are handled in the profiles and store modules.
-use super::{Endpoint, Manifest, Declaration, Result};
+use super::{Endpoint, Manifest, Declaration, Result, ItemResource};
 use crate::bridge::Outbound;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -37,6 +37,8 @@ pub enum Action {
     Move { source_id: u32, position: usize },
     Remove { source_id: u32 },
     Catalog { source_id: u32, media_type: String, catalog_id: String, extras: BTreeMap<String,String> },
+    Metadata { source_id: u32, media_type: String, item_id: String },
+    ItemOptions { source_id: u32, media_type: String, video_id: String, subtitles: bool },
 }
 impl fmt::Debug for Action {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -172,6 +174,19 @@ impl Registry {
                 })).collect();
                 Ok(json!({"sourceId":source_id,"mediaType":media_type,"catalogId":catalog_id,
                     "items":items,"sourceCount":page.source_count,"nextSkip":page.next_skip}))
+            }
+            Action::Metadata { source_id,media_type,item_id } => {
+                let source=&self.sources[self.source_index(source_id)?];
+                if !source.enabled{return Err("disabled-source");}
+                let meta=source.endpoint.metadata(&source.manifest,&media_type,&item_id)?;
+                Ok(json!({"sourceId":source_id,"metadata":meta}))
+            }
+            Action::ItemOptions { source_id,media_type,video_id,subtitles } => {
+                let source=&self.sources[self.source_index(source_id)?];
+                if !source.enabled{return Err("disabled-source");}
+                let resource=if subtitles{ItemResource::Subtitles}else{ItemResource::Stream};
+                let options=source.endpoint.item_options(&source.manifest,resource,&media_type,&video_id)?;
+                Ok(json!({"sourceId":source_id,"mediaType":media_type,"videoId":video_id,"subtitles":subtitles,"options":options}))
             }
             _ => Err("profile-required"),
         }

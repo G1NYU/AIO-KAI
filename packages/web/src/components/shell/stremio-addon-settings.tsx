@@ -5,7 +5,7 @@ import { TsugiIcon } from '@/components/tsugi-icons';
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation } from '@/lib/hosts/shell/stremio';
+import { AddonError, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, type AddonMetadata, type AddonOption } from '@/lib/hosts/shell/stremio';
 
 function feedback(reason: unknown) {
   switch(reason instanceof AddonError ? reason.code : 'request'){
@@ -25,6 +25,8 @@ function feedback(reason: unknown) {
     case 'active-profile': return t`Switch to another profile before deleting this one.`;
     case 'account-auth': return t`The account service refused sign-in or access. Check your credentials and try again.`;
     case 'account-request': case 'account-response': return t`The account service returned an unsupported response. No addons were imported.`;
+    case 'unsupported-resource': return t`This addon does not declare support for that title or video identity.`;
+    case 'invalid-item': case 'item-limit': return t`The addon returned an invalid or oversized item response.`;
     case 'locked-remote-profile': return t`This Nuvio profile is protected. Choose an unlocked profile instead.`;
     case 'import-limit': return t`The account addon list exceeds the import limit.`;
     case 'import-selection': return t`Select compatible addons within the available profile slots.`;
@@ -57,6 +59,10 @@ export function StremioAddonSettings({workspace=false}:{workspace?:boolean}={}){
   const [selection,setSelection]=React.useState<{sourceId:number;catalogIndex:number}|null>(null);
   const [filters,setFilters]=React.useState<Map<string,string>>(()=>new Map());
   const [page,setPage]=React.useState<CatalogPage|null>(null);
+  const [title,setTitle]=React.useState<CatalogPage['items'][number]|null>(null);
+  const [details,setDetails]=React.useState<AddonMetadata|null>(null);
+  const [videoId,setVideoId]=React.useState('');
+  const [options,setOptions]=React.useState<{sourceId:number;subtitles:boolean;rows:AddonOption[]}|null>(null);
   const mounted=React.useRef(false);
   const flight=React.useRef(false);
   const pending=React.useRef<{profileId:number;reviewId:number}|null>(null);
@@ -77,7 +83,8 @@ export function StremioAddonSettings({workspace=false}:{workspace?:boolean}={}){
     void run(async()=>{await reloadProfiles();});
     return ()=>{mounted.current=false;const current=pending.current;pending.current=null;if(current)void cancelAddonReview(current.profileId,current.reviewId).catch(()=>{});};
   },[]);
-  function clearPage(){setPage(null);seen.current.clear();}
+  function clearTitle(){setTitle(null);setDetails(null);setVideoId('');setOptions(null);}
+  function clearPage(){setPage(null);seen.current.clear();clearTitle();}
   function choose(next:typeof selection){setSelection(next);setFilters(new Map());clearPage();}
   function clearReview(){const previous=pending.current;pending.current=null;setReview(null);setUrl('');setConsent(false);return previous;}
   async function reloadProfiles(next?:ProfileState){
@@ -149,6 +156,29 @@ export function StremioAddonSettings({workspace=false}:{workspace?:boolean}={}){
       const fingerprint=JSON.stringify(next.items.map(i=>i.id).sort());
       if(seen.current.has(fingerprint)){setPage({...next,nextSkip:null});setNotice(t`This source repeated a page. Pagination stopped.`);}
       else{seen.current.add(fingerprint);setPage(next);}
+    });
+  }
+  async function openTitle(item:CatalogPage['items'][number]){
+    if(flight.current||profileId===undefined)return;
+    clearTitle();setTitle(item);
+    if(item.mediaType==='movie')setVideoId(item.id);
+    const metadataSource=sources.find(s=>s.enabled&&s.manifest.resources.includes('meta'));
+    if(metadataSource)await readMetadata(item,metadataSource.sourceId);
+  }
+  async function readMetadata(item:CatalogPage['items'][number],sourceId:number){
+    if(flight.current||profileId===undefined)return;
+    setDetails(null);setVideoId(item.mediaType==='movie'?item.id:'');setOptions(null);
+    await run(async()=>{
+      const next=await loadAddonMetadata(profileId,sourceId,item.mediaType,item.id);
+      if(mounted.current){setDetails(next);setVideoId(next.videos.length===1?next.videos[0].id:'');}
+    });
+  }
+  async function readOptions(sourceId:number,subtitles:boolean){
+    if(flight.current||profileId===undefined||!title||!videoId)return;
+    setOptions(null);
+    await run(async()=>{
+      const rows=await loadAddonOptions(profileId,sourceId,title.mediaType,videoId,subtitles);
+      if(mounted.current)setOptions({sourceId,subtitles,rows});
     });
   }
   async function selectPane(next:WatchPane){
@@ -291,10 +321,25 @@ export function StremioAddonSettings({workspace=false}:{workspace?:boolean}={}){
           <input className="tsugi-read-input w-full min-w-0" maxLength={512} required={extra.required} disabled={busy} value={filters.get(extra.name)??''} onChange={e=>update(e.target.value)}/>}</label>;
       })}
       <button type="submit" className="tsugi-read-action" disabled={busy||!validFilters}><Trans>Load catalogue</Trans></button>
-      {page&&<><p>{page.items.length} <Trans>titles on this page</Trans></p><ul className="max-h-64 overflow-auto">{page.items.map(item=><li className="tsugi-read-row break-words" key={item.id}>{item.name}</li>)}</ul>
+      {page&&<><p>{page.items.length} <Trans>titles on this page</Trans></p><ul className="max-h-64 overflow-auto">{page.items.map(item=><li className="tsugi-read-row break-words" key={item.id}>{workspace?<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void openTitle(item)}>{item.name}</button>:item.name}</li>)}</ul>
         {page.nextSkip!==null&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void load(page.nextSkip!)}><Trans>Next page</Trans></button>}</>}
     </form>}
     </>}
+    {workspace&&title&&<section className="space-y-3" data-ui="watch-item-details">
+      <div className="flex items-center justify-between gap-3"><h4>{details?.name??title.name}</h4><button type="button" className="tsugi-read-action" disabled={busy} onClick={clearTitle}><Trans>Close title</Trans></button></div>
+      {details?.description&&<p className="break-words">{details.description}</p>}
+      <div className="flex flex-wrap gap-2">{sources.filter(s=>s.enabled&&s.manifest.resources.includes('meta')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readMetadata(title,s.sourceId)}><Trans>Details from {s.manifest.name}</Trans></button>)}</div>
+      {details&&details.videos.length>0&&<label className="block"><Trans>Video</Trans><select className="tsugi-read-input w-full" value={videoId} disabled={busy} onChange={e=>{setVideoId(e.target.value);setOptions(null);}}><option value=""><Trans>Select an episode or video</Trans></option>{details.videos.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></label>}
+      {!videoId&&<p><Trans>Select a video from a compatible metadata addon before requesting streams.</Trans></p>}
+      {videoId&&<><h4><Trans>Available sources</Trans></h4><div className="flex flex-wrap gap-2">
+        {sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readOptions(s.sourceId,false)}><Trans>Streams from {s.manifest.name}</Trans></button>)}
+        {sources.filter(s=>s.enabled&&s.manifest.resources.includes('subtitles')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readOptions(s.sourceId,true)}><Trans>Subtitles from {s.manifest.name}</Trans></button>)}
+      </div></>}
+      {options&&<div className="space-y-2" data-ui="watch-item-options"><h4>{options.subtitles?<Trans>Subtitle options</Trans>:<Trans>Stream options</Trans>}</h4>
+        {options.rows.length===0?<p><Trans>No options returned by this addon.</Trans></p>:<ul className="max-h-64 overflow-auto">{options.rows.map((row,index)=><li className="tsugi-read-row break-words" key={index}><span>{row.name}</span><span className="text-sm">{row.supported?<Trans>Direct HTTPS</Trans>:row.reason==='proxy-headers'?<Trans>Proxy headers required</Trans>:<Trans>Unsupported transport</Trans>}</span></li>)}</ul>}
+        <p><Trans>Compatibility preview only. Direct playback is not connected yet.</Trans></p>
+      </div>}
+    </section>}
     {busy&&<p role="status"><Trans>Contacting addon registry…</Trans></p>}
     {notice&&<p role="status">{notice}</p>}{error&&<p role="alert">{error}</p>}
     </div>

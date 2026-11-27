@@ -243,3 +243,6 @@ Continue the reliability/recovery roadmap while the user tests the candidate; se
 
 ## 2026-11-27 — Watch workspace browser build repair
 - 48bf3cf Windows native checks passed (45939080231); browser smoke could not load the bundle because the CSS loader tried resolving absolute public artwork URLs as modules. Move artwork references into runtime custom properties, preserving gradients and the existing public assets. Re-run browser smoke before considering packaging.
+
+## 2026-11-27 — D4 item response foundation
+- Native exact metadata/video, stream and subtitle resource parsing and profile-scoped requests; bounded payloads, direct HTTPS classification, no signed media URLs in item display responses. Watch catalogue items now open actual metadata, episode/video selection and per-addon stream/subtitle compatibility previews. Native fixtures cover exact IDs, duplicate videos, wrong metadata, URL and transport rejection. No player launch or external account credential changes in this commit. Next: native one-use media grants, direct Watch player, and subtitle attachment; live providers and browser/Windows CI still required.
