@@ -35,7 +35,7 @@ impl Registry{
     pub(super) fn stream_snapshot(&self,id:u32)->Result<Value>{
         let p=self.progressive.as_ref().filter(|p|p.id==id).ok_or("expired-review")?;
         let q=self.stream_query.as_ref().filter(|q|q.created.elapsed()<REVIEW_TTL).ok_or("expired-review")?;
-        let pending:Vec<_>=p.order.iter().filter(|id|!p.groups.contains_key(id)).collect();
+        let pending:Vec<_>=p.order.iter().filter(|id|!p.groups.contains_key(*id)).collect();
         let groups:Vec<_>=p.order.iter().filter_map(|id|p.groups.get(id)).collect();
         Ok(json!({"queryId":id,"mediaType":q.media_type,"videoId":q.video_id,"groups":groups,"pendingSourceIds":pending,"done":pending.is_empty()}))
     }

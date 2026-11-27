@@ -129,6 +129,11 @@ impl Profiles {
         Ok(source)
     }
     #[cfg(windows)]
+    pub(super) fn browse_tmdb(&self,profile_id:u32)->Result<super::tmdb::Connection>{
+        if self.active!=profile_id{return Err("profile-changed");}
+        Ok(self.profiles[self.index(profile_id)?].registry.tmdb.clone())
+    }
+    #[cfg(windows)]
     pub(super) fn refract_delivery(&self)->Option<(u32,super::refract::Delivery)>{
         let profile=&self.profiles[self.index(self.active).ok()?];
         Some((profile.id,profile.registry.refract.delivery()?))

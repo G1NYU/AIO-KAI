@@ -99,6 +99,9 @@ pub enum Action {
     RefractDisconnect { discard_pending: bool },
     RefractSync,
     RefractWatchlist { media_type: String, item_id: String, add: bool },
+    TmdbSearch { query:String },
+    TmdbTitle { media_type:String,item_id:String },
+    TmdbSeason { tmdb_id:u64,season:u32 },
     WatchSetupStatus,
     TmdbConnect { key: String },
     TmdbDisconnect,
@@ -570,8 +573,11 @@ impl Worker {
         let action=match action{
             Action::ProfileRequest{profile_id,action}=>match *action{
                 Action::BrowseCatalog{source_id,media_type,catalog_id,extras}=>{
-                    return self.2.try_send((request,browse::BrowseRequest{profile_id,source_id,media_type,catalog_id,extras})).is_ok();
+                    return self.2.try_send((request,browse::BrowseRequest{profile_id,kind:browse::ReadKind::Catalog{source_id,media_type,catalog_id,extras}})).is_ok();
                 }
+                Action::TmdbSearch{query}=>return self.2.try_send((request,browse::BrowseRequest{profile_id,kind:browse::ReadKind::TmdbSearch{query}})).is_ok(),
+                Action::TmdbTitle{media_type,item_id}=>return self.2.try_send((request,browse::BrowseRequest{profile_id,kind:browse::ReadKind::TmdbTitle{media_type,item_id}})).is_ok(),
+                Action::TmdbSeason{tmdb_id,season}=>return self.2.try_send((request,browse::BrowseRequest{profile_id,kind:browse::ReadKind::TmdbSeason{tmdb_id,season}})).is_ok(),
                 other=>Action::ProfileRequest{profile_id,action:Box::new(other)},
             },
             other=>other,

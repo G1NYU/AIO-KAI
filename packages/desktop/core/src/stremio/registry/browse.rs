@@ -15,10 +15,14 @@ use std::{sync::mpsc,thread};
 #[cfg_attr(not(windows),allow(dead_code))]
 pub(super) struct BrowseRequest{
     pub(super) profile_id:u32,
-    pub(super) source_id:u32,
-    pub(super) media_type:String,
-    pub(super) catalog_id:String,
-    pub(super) extras:BTreeMap<String,String>,
+    pub(super) kind:ReadKind,
+}
+#[cfg_attr(not(windows),allow(dead_code))]
+pub(super) enum ReadKind{
+    Catalog{source_id:u32,media_type:String,catalog_id:String,extras:BTreeMap<String,String>},
+    TmdbSearch{query:String},
+    TmdbTitle{media_type:String,item_id:String},
+    TmdbSeason{tmdb_id:u64,season:u32},
 }
 
 pub(super) fn catalog_response(page:&CatalogPage,source_id:u32,media_type:&str,catalog_id:&str)->Value{
@@ -35,7 +39,7 @@ pub(super) fn changes_scope(action:&Action)->bool{
     match action{
         Action::ProfileSwitch{..}|Action::ProfileRemove{..}=>true,
         Action::ProfileRequest{action,..}=>matches!(action.as_ref(),
-            Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::ImportRetry{..}),
+            Action::Install{..}|Action::SetEnabled{..}|Action::Remove{..}|Action::Move{..}|Action::ImportApply{..}|Action::ImportRetry{..}|Action::TmdbConnect{..}|Action::TmdbDisconnect),
         _=>false,
     }
 }
@@ -77,18 +81,17 @@ impl Pool{
         for _ in 0..8{
             if self.flights.len()>=MAX_FLIGHTS{break;}
             let Ok((request,action))=self.pending.try_recv()else{break;};
-            let source=match profiles.and_then(|p|p.browse_source(action.profile_id,action.source_id)){
-                Ok(source)=>source,
-                Err(error)=>{respond(emit,request,Err(error));continue;},
+            let profile_id=action.profile_id;
+            let work:Result<Box<dyn FnOnce()->Result<Value>+Send>>=match action.kind{
+                ReadKind::Catalog{source_id,media_type,catalog_id,extras}=>profiles.and_then(|p|p.browse_source(profile_id,source_id)).map(|source|Box::new(move||source.endpoint.catalog(&source.manifest,&media_type,&catalog_id,&extras).map(|page|catalog_response(&page,source_id,&media_type,&catalog_id))) as Box<dyn FnOnce()->Result<Value>+Send>),
+                ReadKind::TmdbSearch{query}=>profiles.and_then(|p|p.browse_tmdb(profile_id)).map(|tmdb|Box::new(move||tmdb.search(&query)) as Box<dyn FnOnce()->Result<Value>+Send>),
+                ReadKind::TmdbTitle{media_type,item_id}=>profiles.and_then(|p|p.browse_tmdb(profile_id)).map(|tmdb|Box::new(move||tmdb.title(&media_type,&item_id)) as Box<dyn FnOnce()->Result<Value>+Send>),
+                ReadKind::TmdbSeason{tmdb_id,season}=>profiles.and_then(|p|p.browse_tmdb(profile_id)).map(|tmdb|Box::new(move||tmdb.season(tmdb_id,season)) as Box<dyn FnOnce()->Result<Value>+Send>),
             };
+            let work=match work{Ok(work)=>work,Err(error)=>{respond(emit,request,Err(error));continue;}};
             let (tx,rx)=mpsc::sync_channel(1);
-            match thread::Builder::new().name("tsugi-watch-catalogue".into()).spawn(move||{
-                let result=source.endpoint.catalog(&source.manifest,&action.media_type,&action.catalog_id,&action.extras)
-                    .map(|page|{
-                        let mut data=catalog_response(&page,action.source_id,&action.media_type,&action.catalog_id);
-                        data["profileId"]=json!(action.profile_id);
-                        data
-                    });
+            match thread::Builder::new().name("tsugi-watch-metadata".into()).spawn(move||{
+                let result=work().map(|mut data|{data["profileId"]=json!(profile_id);data});
                 let _=tx.send(result);
             }){
                 Ok(_)=>self.flights.push(Flight{request,epoch:self.epoch,rx}),

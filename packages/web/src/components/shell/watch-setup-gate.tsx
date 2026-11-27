@@ -81,7 +81,7 @@ export function WatchSetupGate({profileId,onReady,onBack}:{
     void Promise.resolve().then(()=>onReady(state.profileId)).catch(reason=>{if(mounted.current)setError(errorText(reason));});
   },[ready,busy,state,onReady]);
   return <section className="tsugi-required-setup" data-ui="watch-required-setup" aria-labelledby={heading}>
-    <div className="tsugi-required-art" aria-hidden="true"/>
+    <div className="tsugi-required-art" style={{'--tsugi-setup-art':"url('/design/launch/welcome-city.webp')"} as React.CSSProperties} aria-hidden="true"/>
     <div className="tsugi-required-panel">
       <TsugiBrand/><small><Trans>Your streaming library</Trans></small>
       <h2 id={heading}><Trans>Make your next world yours.</Trans></h2>

@@ -45,6 +45,15 @@ impl Connection{
 #[cfg(test)]
 mod tests{
     use super::*;
+    #[test]
+    fn metadata_rejects_private_image_paths_and_wrong_kinds(){
+        assert_eq!(image(&json!("/cover.jpg"),"w500").as_deref(),Some("https://image.tmdb.org/t/p/w500/cover.jpg"));
+        assert!(image(&json!("https://private.example/key"),"w500").is_none());
+        assert!(image(&json!("/cover.jpg?token=private"),"w500").is_none());
+        assert!(summary(&json!({"id":1,"title":"Hidden","adult":true}),"movie").is_none());
+        let row=summary(&json!({"id":123,"name":"Series","backdrop_path":"/scene.jpg"}),"tv").unwrap();
+        assert_eq!(row["id"],"tmdb:tv:123");
+    }
     const FIXTURE:&str="00000000000000000000000000000000";
     #[test]
     fn only_verified_v3_keys_are_saved(){
