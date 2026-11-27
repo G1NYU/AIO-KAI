@@ -206,4 +206,23 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.deepEqual(providerCalls,['import-connect','import-review','import-apply','import-connect','import-nuvio-profile','import-review','import-apply']);
     console.log('Stremio/Nuvio account import, profile isolation, explicit review and local-only apply passed');
   }finally{await page.close();}
+  const firstLaunch=await browser.newPage({viewport:{width:1440,height:900}});
+  try{
+    await firstLaunch.route('**/*',route=>route.request().url().startsWith(origin+'/')?route.continue():route.abort());
+    await firstLaunch.addInitScript({content:'('+installDesktopFixture.toString()+')();('+installStremioFixture.toString()+')();localStorage.removeItem("tsugi-onboarding-complete-v1");'});
+    await firstLaunch.goto(origin,{waitUntil:'domcontentloaded'});
+    const intro=firstLaunch.getByRole('dialog',{name:'Make Tsugi yours',exact:true});
+    await intro.getByRole('button',{name:'Set up addons',exact:true}).click();
+    const setup=firstLaunch.getByRole('dialog',{name:'Set up your addon profile',exact:true});
+    await setup.getByLabel('Active addon profile',{exact:true}).waitFor();
+    await setup.getByRole('button',{name:'Connect and read addons',exact:true}).waitFor();
+    const requests=await firstLaunch.evaluate(()=>window.__stremioFixture.calls);
+    assert.ok(requests.every(a=>a.kind==='profile-list'||(a.kind==='profile-request'&&a.action.kind==='list')));
+    await setup.getByRole('button',{name:'Back',exact:true}).click();
+    await intro.getByRole('button',{name:'Set up addons',exact:true}).waitFor();
+    await intro.getByRole('button',{name:'Skip for now',exact:true}).click();
+    await intro.waitFor({state:'hidden'});
+    assert.equal(await firstLaunch.evaluate(()=>JSON.parse(localStorage.getItem('tsugi-onboarding-complete-v1'))),true);
+    console.log('First launch profile and account import entry and optional skip passed');
+  }finally{await firstLaunch.close();}
 }

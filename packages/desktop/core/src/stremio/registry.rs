@@ -194,6 +194,7 @@ impl Worker {
                     }
                     Err(mpsc::RecvTimeoutError::Disconnected)=>break,
                 };
+                if let Ok((_,profiles))=&mut opened{profiles.expire_all();}
                 let result = match &mut opened {
                     Ok((storage,profiles)) if profiles::is_mutation(&action) => {
                         // Commit to memory only after the encrypted snapshot

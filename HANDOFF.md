@@ -1,3 +1,7 @@
+## 2026-11-27 — D4 first-launch regression hardening
+
+Native pending import sessions expire on each worker message as well as idle ticks, and Nuvio PIN lock markers fail closed. Added a browser fixture for first-launch optional addon setup, no implicit provider contact and skipping. Combined native/web CI and live account acceptance remain pending.
+
 ## 2026-11-27 — D4 account import onboarding interface
 
 Connected read-only account import to the existing profile-scoped settings/onboarding manager. Explicit email/password sign-in, Nuvio profile selection with protected entries disabled, masked and cleared credentials, selected host consent, ready/rejected manifest review, and separate local-only apply. The adapter validates phase/provider/profile/import identity and exact selected IDs; native idle cleanup expires temporary account sessions even without requests. Browser fixtures cover both providers, protected profiles, rejection, ordering and disabled-state preservation. No live accounts used; other login methods/PIN unlock are not implemented. User is designing final welcome/profile visuals; current UI reuses existing theme and forms. Independent visual checker unavailable and combined CI pending. Profile-storage baseline [45937072074](https://github.com/G1NYU/TSUGI/actions/runs/45937072074) passed Windows native checks and web typecheck/lint/unit gates, browser smoke running at inspection. Next: verify combined CI, then independent Movies metadata/stream/subtitle routing and profile-specific watch state.

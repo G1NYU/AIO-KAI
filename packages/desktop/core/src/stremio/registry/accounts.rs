@@ -119,7 +119,7 @@ fn nuvio_profiles(value:&Value)->Result<Vec<RemoteProfile>>{
         let primary=row["uses_primary_addons"].as_bool().ok_or("account-response")?;
         // No public PIN-unlock flow is documented. Never import a protected
         // profile, or access its primary shared sources through another slot.
-        let locked=row["pin_enabled"].as_bool().unwrap_or(true);
+        let locked=row["pin_enabled"].as_bool().unwrap_or(true)||!row["pin_locked_until"].is_null();
         result.push(RemoteProfile{index,name,primary,locked});
     }
     result.sort_by_key(|p|p.index);
