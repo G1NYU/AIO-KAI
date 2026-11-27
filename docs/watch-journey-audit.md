@@ -1,3 +1,5 @@
+> **Superseded acceptance policy:** [Mandatory P0–P5 recovery roadmap](tsugi-recovery-roadmap.md). Prior automated-only checks are historical; sign-in is no longer deferred. Playback/audio confirmed by maintainer; import/selector latency and visual quality remain release blockers.
+
 # Desktop Watch journey audit · 27 November 2026
 
 Audited revision `5d512b1715530a81b95901b01d1b803e228a65ed` on `feature/tsugi-read-runtime`. Findings apply to the standalone Movies & TV and Anime paths. The AIO server path and shared player provide the comparison. This review combines source tracing, the completed web and Windows CI jobs, and credential-free public HTTP requests. Physical Windows, signed-in imports and real media playback still require acceptance.

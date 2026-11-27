@@ -1,3 +1,7 @@
+## 2026-11-27 — Mandatory recovery P0–P5
+
+[Authoritative recovery roadmap](docs/tsugi-recovery-roadmap.md). Maintainer confirms actual playback and sound work; preserve native player. Slow account import, delayed selector (734 streams eventually), incorrect search, missing artwork, sidebar/profile/home design issues and SoundCloud error are mandatory repairs. All stages open until acceptance evidence is recorded; no premature EXE. Prior optional setup and historical visual acceptance statuses are superseded. Next: integrate validated TMDB/account gate and preserve original server route, then remove import/stream batching barriers.
+
 ## 2026-11-27 — Living 30-stage Watch journey tracker
 
 [Original audit and current acceptance states](docs/watch-journey-audit.md). Baseline f21bf13 passed web and Windows CI 46022564530; 17 automated correction milestones verified, 10 partial, 2 outstanding, sign-in deferred. New manifest/schema and large capacity tests prepared; validate before marking stage 07. No stable release.

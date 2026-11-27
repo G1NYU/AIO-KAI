@@ -1,3 +1,7 @@
+## 2026-11-27 — Mandatory recovery P0–P5
+
+[Authoritative recovery roadmap](docs/tsugi-recovery-roadmap.md). Maintainer confirms actual playback and sound work; preserve native player. Slow account import, delayed selector (734 streams eventually), incorrect search, missing artwork, sidebar/profile/home design issues and SoundCloud error are mandatory repairs. All stages open until acceptance evidence is recorded; no premature EXE. Prior optional setup and historical visual acceptance statuses are superseded. Next: integrate validated TMDB/account gate and preserve original server route, then remove import/stream batching barriers.
+
 ## 2026-11-27 — Visual acceptance corrections and replacement test package
 
 The previous package 094ee096 passed web, native and archive verification in run 46035036923 (artifact 15217036013), but the maintainer explicitly rejects the remaining Anime Hub Georgia/Times New Roman and brush-title styles. Replace those with the same bundled Interface face, weights and card/row typography as standalone Movies & TV; remove the actual BrushHeading wrapper. Strengthen the synthetic streaming fixture to supply and decode real-format title-specific Tenrai/MAL discovery poster URLs and TMDB movie poster URLs, and verify computed Anime Hub font families. These are synthetic artwork delivery checks, not proof that every live provider poster is available. Existing exact-ID opt-in MAL collection cover policy remains unchanged.
