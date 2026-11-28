@@ -36,6 +36,7 @@ export function AddonVersionList({groups,sources,busy,resumeMs=0,switching=false
   const [codec,setCodec]=React.useState('all'),[edition,setEdition]=React.useState('all'),[playable,setPlayable]=React.useState(false);
   const [audio,setAudio]=React.useState('all'),[size,setSize]=React.useState('all'),[cacheStatus,setCacheStatus]=React.useState('all');
   const [limits,setLimits]=React.useState<Record<number,number>>({});
+  const [moreFilters,setMoreFilters]=React.useState(false);
   const chosen=groups.some(group=>String(group.sourceId)===provider)?provider:'all';
   const count=(group:AddonStreamGroup)=>group.options?.rows.length??0;
   const total=groups.reduce((sum,group)=>sum+count(group),0);
@@ -46,11 +47,12 @@ export function AddonVersionList({groups,sources,busy,resumeMs=0,switching=false
   const audioOptions=addonAudioTags.filter(tag=>allEntries.some(entry=>entry.tags.audio.includes(tag)));
   const hasSize=allEntries.some(entry=>entry.tags.size!==undefined),hasCache=allEntries.some(entry=>entry.tags.cache!==undefined);
   const selectedAudio=audioOptions.some(tag=>tag===audio)?audio:'all';
+  const activeExtraCount=[codec!=='all',edition!=='all',selectedAudio!=='all',hasSize&&size!=='all',hasCache&&cacheStatus!=='all'].filter(Boolean).length;
   const rowsFor=(group:AddonStreamGroup)=>(indexed.get(group.sourceId)??[])
     .filter(entry=>(quality==='all'||(quality==='unknown'?!entry.quality:entry.quality===quality))&&(codec==='all'||entry.codec===codec)&&(edition==='all'||entry.edition===edition)&&(!playable||entry.row.supported)
       &&(selectedAudio==='all'||entry.tags.audio.some(tag=>tag===selectedAudio))&&(!hasSize||size==='all'||entry.tags.size===size)&&(!hasCache||cacheStatus==='all'||entry.tags.cache===cacheStatus));
   return <div className="space-y-3">
-    {groups.length===0?<p><Trans>No enabled addon declares support for this video.</Trans></p>:<div className="flex flex-wrap items-end gap-3" data-ui="watch-version-filters">
+    {groups.length===0?<p><Trans>No enabled addon declares support for this video.</Trans></p>:<div className="flex flex-wrap items-end gap-3" data-ui="watch-version-filters" data-more-filters={moreFilters}>
       <label className="min-w-[8rem] flex-1"><Trans>Source provider</Trans>
         <select aria-label={t`Source provider`} className="tsugi-menu-select block w-full" value={chosen} onChange={e=>setProvider(e.target.value)}>
           <option value="all"><Trans>All sources</Trans> ({total})</option>
@@ -64,16 +66,17 @@ export function AddonVersionList({groups,sources,busy,resumeMs=0,switching=false
           <option value="unknown"><Trans>Unspecified</Trans></option>
         </select>
       </label>
-      <label className="min-w-[8rem] flex-1"><Trans>Codec</Trans><select aria-label={t`Codec filter`} className="tsugi-menu-select block w-full" value={codec} onChange={e=>setCodec(e.target.value)}><option value="all"><Trans>All codecs</Trans></option>{codecs.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
-      <label className="min-w-[8rem] flex-1"><Trans>Release</Trans><select aria-label={t`Release filter`} className="tsugi-menu-select block w-full" value={edition} onChange={e=>setEdition(e.target.value)}><option value="all"><Trans>All releases</Trans></option>{editions.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
-      {audioOptions.length>0&&<label className="min-w-[8rem] flex-1"><Trans>Audio format</Trans><select aria-label={t`Audio format filter`} className="tsugi-menu-select block w-full" value={selectedAudio} onChange={e=>setAudio(e.target.value)}><option value="all"><Trans>All audio formats</Trans></option>{audioOptions.map(value=><option key={value} value={value}>{value}</option>)}</select></label>}
-      {hasSize&&<label className="min-w-[8rem] flex-1"><Trans>Reported size</Trans><select aria-label={t`File size filter`} className="tsugi-menu-select block w-full" value={size} onChange={e=>setSize(e.target.value)}><option value="all"><Trans>Any size</Trans></option><option value="under-1"><Trans>Under 1 GB</Trans></option><option value="1-to-5"><Trans>1 GB to under 5 GB</Trans></option><option value="5-to-15"><Trans>5 GB to under 15 GB</Trans></option><option value="15-plus"><Trans>15 GB or more</Trans></option></select></label>}
-      {hasCache&&<label className="min-w-[8rem] flex-1"><Trans>Provider cache</Trans><select aria-label={t`Provider cache filter`} className="tsugi-menu-select block w-full" value={cacheStatus} onChange={e=>setCacheStatus(e.target.value)}><option value="all"><Trans>Any cache status</Trans></option><option value="cached"><Trans>Reported cached</Trans></option><option value="uncached"><Trans>Reported uncached</Trans></option></select></label>}
+      <label data-extra-filter className="min-w-[8rem] flex-1"><Trans>Codec</Trans><select aria-label={t`Codec filter`} className="tsugi-menu-select block w-full" value={codec} onChange={e=>setCodec(e.target.value)}><option value="all"><Trans>All codecs</Trans></option>{codecs.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
+      <label data-extra-filter className="min-w-[8rem] flex-1"><Trans>Release</Trans><select aria-label={t`Release filter`} className="tsugi-menu-select block w-full" value={edition} onChange={e=>setEdition(e.target.value)}><option value="all"><Trans>All releases</Trans></option>{editions.map(value=><option key={value} value={value}>{value}</option>)}</select></label>
+      {audioOptions.length>0&&<label data-extra-filter className="min-w-[8rem] flex-1"><Trans>Audio format</Trans><select aria-label={t`Audio format filter`} className="tsugi-menu-select block w-full" value={selectedAudio} onChange={e=>setAudio(e.target.value)}><option value="all"><Trans>All audio formats</Trans></option>{audioOptions.map(value=><option key={value} value={value}>{value}</option>)}</select></label>}
+      {hasSize&&<label data-extra-filter className="min-w-[8rem] flex-1"><Trans>Reported size</Trans><select aria-label={t`File size filter`} className="tsugi-menu-select block w-full" value={size} onChange={e=>setSize(e.target.value)}><option value="all"><Trans>Any size</Trans></option><option value="under-1"><Trans>Under 1 GB</Trans></option><option value="1-to-5"><Trans>1 GB to under 5 GB</Trans></option><option value="5-to-15"><Trans>5 GB to under 15 GB</Trans></option><option value="15-plus"><Trans>15 GB or more</Trans></option></select></label>}
+      {hasCache&&<label data-extra-filter className="min-w-[8rem] flex-1"><Trans>Provider cache</Trans><select aria-label={t`Provider cache filter`} className="tsugi-menu-select block w-full" value={cacheStatus} onChange={e=>setCacheStatus(e.target.value)}><option value="all"><Trans>Any cache status</Trans></option><option value="cached"><Trans>Reported cached</Trans></option><option value="uncached"><Trans>Reported uncached</Trans></option></select></label>}
+      <button type="button" className="tsugi-read-action tsugi-stream-more-filters" aria-expanded={moreFilters} onClick={()=>setMoreFilters(value=>!value)}>{moreFilters?<Trans>Fewer filters</Trans>:<Trans>More filters</Trans>}{activeExtraCount>0&&<span> ({activeExtraCount})</span>}</button>
       <div className="flex basis-full flex-wrap items-center justify-between gap-3">
         <label className="flex items-center gap-2"><input type="checkbox" checked={playable} onChange={e=>setPlayable(e.target.checked)}/><Trans>Playable only</Trans></label>
         <span role="status">{visible.reduce((sum,group)=>sum+rowsFor(group).length,0)} <Trans>returned streams</Trans></span>
       </div>
-      {(audioOptions.length>0||hasSize||hasCache)&&<p className="basis-full text-xs text-[--muted]"><Trans>Audio, sizes and cache status are provider-reported, not independently verified.</Trans></p>}
+      {(audioOptions.length>0||hasSize||hasCache)&&<p data-extra-filter className="basis-full text-xs text-[--muted]"><Trans>Audio, sizes and cache status are provider-reported, not independently verified.</Trans></p>}
     </div>}
     {visible.map(group=>{
       const result=group.options,rows=rowsFor(group),limit=limits[group.sourceId]??24;

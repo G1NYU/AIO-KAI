@@ -503,6 +503,16 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await sizeFilter.selectOption('5-to-15');
     assert.equal(await groups.locator('[data-ui="version"]').filter({hasText:'Alternate HD fixture'}).getByRole('button',{name:'Play',exact:true}).count(),1);
     await page.setViewportSize({width:390,height:844});
+    const moreFilters=groups.getByRole('button',{name:/More filters/});
+    await moreFilters.waitFor();
+    assert.equal(await moreFilters.getAttribute('aria-expanded'),'false');
+    assert.equal(await audioFilter.isVisible(),false);
+    assert.equal(await groups.getByRole('button',{name:'Play',exact:true}).count(),1,'collapsed filters retain active selection');
+    await moreFilters.click();
+    await audioFilter.waitFor({state:'visible'});
+    assert.equal(await audioFilter.inputValue(),'Atmos');
+    await groups.getByRole('button',{name:/Fewer filters/}).click();
+    assert.equal(await audioFilter.isVisible(),false);
     const filterGeometry=await groups.locator('[data-ui="watch-version-filters"]').evaluate(node=>({width:node.clientWidth,scroll:node.scrollWidth}));
     assert.ok(filterGeometry.scroll<=filterGeometry.width+1,'reported stream filters wrap without horizontal overflow');
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-stream-selector-narrow.png'),animations:'disabled'});

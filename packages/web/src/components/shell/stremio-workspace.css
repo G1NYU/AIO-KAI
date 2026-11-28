@@ -285,3 +285,11 @@
 .tsugi-watch-cast-card small{color:var(--tsugi-muted)}
 .tsugi-watch-tagline{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--tsugi-muted)}
 .tsugi-watch-rating{font-weight:650;font-variant-numeric:tabular-nums}
+
+/* Keep results above the fold on narrow displays. Secondary filters retain
+ * their values while collapsed, and the disclosure reports active selections. */
+.tsugi-stream-more-filters{display:none!important}
+@media(max-width:640px){
+  [data-ui="watch-version-filters"][data-more-filters="false"]>[data-extra-filter]{display:none!important}
+  [data-ui="watch-version-filters"]>.tsugi-stream-more-filters{display:inline-flex!important;grid-column:1/-1;justify-content:center;min-height:42px}
+}
