@@ -17,7 +17,6 @@
 
 <p align="center"><img src="branding/readme/tsugi-home-v0.1.2.png" width="100%" alt="TSUGI v0.1.2 Home screen with Movies &amp; TV, Music, Read and Vault"></p>
 
-<p align="center"><img src="https://raw.githubusercontent.com/G1NYU/TSUGI/f8498f8fe9776c88fac8bebaa59aadcdce07aac2/packages/web/public/design/launch/world-hero.webp" width="100%" alt="TSUGI monochrome landscape home artwork: a winding silver river through a dark minimalist landscape"></p>
 
 | [01 / Movies & TV](#01--movies--tv) | [02 / Music](#02--music) | [03 / Read](#03--read) | [04 / Vault](#04--vault) |
 | :---: | :---: | :---: | :---: |
