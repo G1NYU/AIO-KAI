@@ -81,6 +81,14 @@ fn packaged_runtime_feed_catalogues_preserve_reading_state() {
     managed.refresh_extensions().unwrap();
     managed.mutate_extension("org.tsugi.fixture", true).expect("install original Feed source factory");
     let inventory = feed_inventory(&managed);
+    let searchable = managed.query(ReadOperation::Sources).expect("discover global search sources without management metadata");
+    assert_eq!(searchable["complete"], true);
+    assert_eq!(searchable["totalCount"], inventory["totalCount"]);
+    let ids = |value: &Value| value["nodes"].as_array().unwrap().iter()
+        .map(|row| row["id"].as_str().unwrap().to_owned()).collect::<BTreeSet<_>>();
+    assert_eq!(ids(&searchable), ids(&inventory));
+    assert!(searchable["nodes"].as_array().unwrap().iter().all(|row| row.get("extension").is_none()));
+    assert!(ids(&searchable).contains(LAST_FEED_SOURCE), "global search must include sources beyond the first 100 rows");
 
     let manga = feed_page(&managed, CatalogueMode::Popular, 1, Some("Tsugi Original Comic")).unwrap();
     let details = managed.manga(manga).expect("fetch authored chapter identities before saving progress");

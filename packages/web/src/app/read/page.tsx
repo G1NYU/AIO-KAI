@@ -90,6 +90,7 @@ export function ReadPage({ visible }: {
   const [globalTerm, setGlobalTerm] = React.useState('');
   const [globalResults, setGlobalResults] = React.useState<SearchGroup[]>([]);
   const [globalCompleted, setGlobalCompleted] = React.useState(0);
+  const [globalSourceCount, setGlobalSourceCount] = React.useState<number | null>(null);
   const [globalSearching, setGlobalSearching] = React.useState(false);
   const [globalStopping, setGlobalStopping] = React.useState(false);
   const stopSearch = React.useRef(false);
@@ -242,12 +243,21 @@ export function ReadPage({ visible }: {
     setOffset(next);
     setAppliedFilter(term);
   }
-  async function searchAll(available = sources) {
+  async function searchAll() {
     const term = globalQuery.trim();
     if (!term) return;
-    setGlobalTerm(term);
+    setGlobalTerm('');
     setGlobalCompleted(0);
     setGlobalResults([]);
+    setGlobalSourceCount(null);
+    // Always discover fresh searchable sources; never depend on Browse's
+    // extension metadata or repository list before submitting a search.
+    const inventory = await readRequest<Nodes<Source> & { complete: boolean }>({ kind: 'sources' });
+    if (inventory.complete !== true) throw new Error(t({ id: 'The installed source list is incomplete. Retry global search.', message: 'The installed source list is incomplete. Retry global search.' }));
+    const available = inventory.nodes.filter(item => item.id !== '0');
+    setGlobalSourceCount(available.length);
+    if (!available.length || !active.current) return;
+    setGlobalTerm(term);
     stopSearch.current = false;
     pendingManga.current = null;
     setGlobalStopping(false);
@@ -341,7 +351,7 @@ export function ReadPage({ visible }: {
     setDetails(null); setReader(null); setTab('browse'); setBrowseTab(next); setSource(''); setBrowse(null); setError('');
     content.current?.scrollTo(0, 0);
     if (next === 'extensions') void run(() => loadExtensions());
-    else if (next !== 'feed') void run(loadSources);
+    else if (next === 'sources') void run(loadSources);
   }
   function openSettings(next: SettingsPage) {
     setSettingsPage(next); setError('');
@@ -535,6 +545,7 @@ export function ReadPage({ visible }: {
   const libraryRows = (libraryView === 'reading' ? continuing : allLibrary).filter(manga => !categoryFilter || categoryContains(manga, categoryFilter)).filter((manga) => (manga.title + ' ' + (manga.author || '')).toLowerCase().includes(libraryFilter.trim().toLowerCase())).sort((a, b) => librarySort === 'recent' ? Number(b.lastReadChapter?.lastReadAt || 0) - Number(a.lastReadChapter?.lastReadAt || 0) : a.title.localeCompare(b.title));
   const rows = tab === 'library' ? libraryRows : browse?.result.mangas || [];
   const matchingSources = sources.filter(item => sourceMatchesFilters(item, sourceFilter, sourceLanguage, sourceContent));
+  const selectedSource = sources.find(item => item.id === source) ?? globalResults.find(group => group.source.id === source)?.source;
   const extensionLanguages = sourceLanguages([
     ...['en', 'fr', 'es', 'es-419', 'de', 'it', 'pt', 'pt-BR', 'id', 'ja', 'ko', 'zh', 'zh-Hans', 'zh-Hant', 'ar', 'ru', 'nl', 'pl', 'tr', 'uk', 'vi', 'th', 'all', extensionLanguage].map(lang => ({ lang })),
     ...sources, ...(extensions?.nodes || []),
@@ -578,7 +589,7 @@ export function ReadPage({ visible }: {
         <div><p className="yomi-eyebrow"><Trans id="Your reading space">Your reading space</Trans></p><h1>{details ? t({ id: "Series", message: "Series" }) : tabs.find(item => item.id === tab)?.label ?? (tab === 'settings' ? t({ id: "Settings", message: "Settings" }) : browseTab === 'search' ? t({ id: "Global search", message: "Global search" }) : browseTab === 'extensions' ? t({ id: "Extensions", message: "Extensions" }) : browseTab === 'feed' ? t({ id: "Feed", message: "Feed" }) : t({ id: "Browse", message: "Browse" }))}</h1>
           {!details && tab === 'library' && libraryView !== 'mal' && library && <p className="tsugi-library-summary"><Trans id="Saved titles">Saved titles</Trans> <strong>{allLibrary.length}</strong><span aria-hidden="true"> · </span><Trans id="Unread chapters">Unread chapters</Trans> <strong>{allLibrary.reduce((sum, manga) => sum + (manga.unreadCount || 0), 0)}</strong></p>}
         </div>
-        {!(tab === 'browse' && browseTab === 'search' && !details) && <form className="tsugi-reading-global" onSubmit={(event) => { event.preventDefault(); if (!globalQuery.trim() || busy) return; setDetails(null); setTab('browse'); setBrowseTab('search'); void run(async () => { const result = await readRequest<Nodes<Source>>({ kind: 'sources' }); const available = result.nodes.filter((item) => item.id !== '0'); setSources(available); await searchAll(available); }); }}>
+        {!(tab === 'browse' && browseTab === 'search' && !details) && <form className="tsugi-reading-global" onSubmit={(event) => { event.preventDefault(); if (!globalQuery.trim() || busy) return; setDetails(null); setTab('browse'); setBrowseTab('search'); void run(searchAll); }}>
           <FiSearch aria-hidden /><input value={globalQuery} onChange={(event) => setGlobalQuery(event.target.value)} maxLength={200} placeholder={t({ id: "Search all installed sources", message: "Search all installed sources" })} aria-label={t({ id: "Global manga search", message: "Global manga search" })} /><button disabled={busy || !globalQuery.trim()} aria-label={t({ id: "Search", message: "Search" })}><FiChevronRight aria-hidden /></button>
         </form>}
       </header>
@@ -813,11 +824,11 @@ export function ReadPage({ visible }: {
           <div className="tsugi-search-intro"><h2><Trans id="Find your next story">Find your next story</Trans></h2><p><Trans id="Search across installed manga sources and compare their results.">Search across installed manga sources and compare their results.</Trans></p></div>
           <form className="tsugi-search-form" onSubmit={(event) => { event.preventDefault(); void run(() => searchAll()); }}>
             <input className="tsugi-read-input grow" value={globalQuery} maxLength={200} onChange={(event) => setGlobalQuery(event.target.value)} placeholder={t({ id: "Search manga across installed sources", message: "Search manga across installed sources" })} aria-label={t({ id: "Global manga search", message: "Global manga search" })} />
-            <button className="tsugi-read-action" disabled={busy || !globalQuery.trim() || !sources.length}><FiSearch aria-hidden /><Trans id="Search">Search</Trans></button>
+            <button className="tsugi-read-action" disabled={busy || !globalQuery.trim()}><FiSearch aria-hidden /><Trans id="Search">Search</Trans></button>
             {globalSearching && <button type="button" className="tsugi-read-action" disabled={globalStopping} onClick={() => { stopSearch.current = true; setGlobalStopping(true); }}>{globalStopping ? t({ id: "Stopping after current source…", message: "Stopping after current source…" }) : t({ id: "Stop search", message: "Stop search" })}</button>}
           </form>
-          {!sources.length && !busy && <button className="tsugi-read-action" onClick={() => switchBrowse('extensions')}><Trans id="Install a source extension">Install a source extension</Trans></button>}
-          {globalTerm && <div className="tsugi-search-status" role="status"><span><strong>{globalTerm}</strong> · {globalCompleted} / {sources.length} <Trans id="sources checked">sources checked</Trans></span><progress value={globalCompleted} max={Math.max(1,sources.length)} aria-label={t({ id: "Source search progress", message: "Source search progress" })} /><span>{globalResults.reduce((sum,group)=>sum+(group.result?.mangas.length??0),0)} <Trans id="results shown">results shown</Trans></span></div>}
+          {globalSourceCount === 0 && !busy && <div className="mt-3"><p className="mb-2 text-sm text-[--tsugi-muted]"><Trans id="No installed sources. Install an extension to start browsing.">No installed sources. Install an extension to start browsing.</Trans></p><button className="tsugi-read-action" onClick={() => switchBrowse('extensions')}><Trans id="Install a source extension">Install a source extension</Trans></button></div>}
+          {globalTerm && <div className="tsugi-search-status" role="status"><span><strong>{globalTerm}</strong> · {globalCompleted} / {globalSourceCount ?? 0} <Trans id="sources checked">sources checked</Trans></span><progress value={globalCompleted} max={Math.max(1,globalSourceCount ?? 0)} aria-label={t({ id: "Source search progress", message: "Source search progress" })} /><span>{globalResults.reduce((sum,group)=>sum+(group.result?.mangas.length??0),0)} <Trans id="results shown">results shown</Trans></span></div>}
           </div>
           {globalResults.map((group) => <section key={group.source.id} className="tsugi-search-source" data-result-state={group.error?'error':group.result?.mangas.length?'matches':'empty'}><header className="tsugi-search-source-header"><div className="tsugi-search-source-label"><FiCompass aria-hidden /><h3>{group.source.displayName || group.source.name}</h3><span className="tsugi-search-language">{group.source.lang.toUpperCase()}</span></div><span className="tsugi-search-result-count">{group.error?<Trans id="Unavailable">Unavailable</Trans>:<><Trans id="Results">Results</Trans>: {group.result?.mangas.length??0}{group.result?.hasNextPage?'+':''}</>}</span></header>
             {group.error ? <p className="py-3 text-sm text-[--tsugi-muted]">{group.error}</p> : group.result?.mangas.length ? mangaGrid(group.result.mangas) : <p className="py-3 text-sm text-[--tsugi-muted]"><Trans id="No matches.">No matches.</Trans></p>}
@@ -839,10 +850,10 @@ export function ReadPage({ visible }: {
           </button>{item.isConfigurable && <button className="tsugi-read-action" aria-label={sourceSettingsLabel(item.displayName || item.name)} disabled={busy} onClick={() => setSourceSettings(item)}><FiSettings aria-hidden /><Trans id="Settings">Settings</Trans></button>}</div>)}
         </section> : <section>
           <div className="mb-5 flex flex-wrap items-center gap-3">
-            <button className="tsugi-read-action" disabled={busy} onClick={() => { setSource(''); setBrowse(null); }}><FiArrowLeft aria-hidden /><Trans id="Sources">Sources</Trans></button>
-            <h2 className="mr-auto text-xl font-semibold">{sources.find((item) => item.id === source)?.displayName || sources.find((item) => item.id === source)?.name}</h2>
+            <button className="tsugi-read-action" disabled={busy} onClick={() => { setSource(''); setBrowse(null); void run(loadSources); }}><FiArrowLeft aria-hidden /><Trans id="Sources">Sources</Trans></button>
+            <h2 className="mr-auto text-xl font-semibold">{selectedSource?.displayName || selectedSource?.name}</h2>
             <button className="tsugi-read-action" disabled={busy} onClick={() => void run(() => catalogue('popular'))}><Trans id="Popular">Popular</Trans></button>
-            <button className="tsugi-read-action" disabled={busy || !sources.find((item) => item.id === source)?.supportsLatest} onClick={() => void run(() => catalogue('latest'))}><Trans id="Latest">Latest</Trans></button>
+            <button className="tsugi-read-action" disabled={busy || !selectedSource?.supportsLatest} onClick={() => void run(() => catalogue('latest'))}><Trans id="Latest">Latest</Trans></button>
           </div>
           <form className="mb-5 flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); void run(() => catalogue('search')); }}><input className="tsugi-read-input grow" value={query} maxLength={200} onChange={(event) => setQuery(event.target.value)} placeholder={t({ id: "Search manga", message: "Search manga" })} aria-label={t({ id: "Search manga", message: "Search manga" })} /><button className="tsugi-read-action" disabled={busy || !query.trim()}><Trans id="Search">Search</Trans></button></form>
           {mangaGrid(rows)}

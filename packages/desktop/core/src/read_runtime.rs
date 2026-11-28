@@ -609,7 +609,7 @@ fn source_inventory_text(value: &Value, limit: usize) -> Result<&str, &'static s
         .ok_or(SOURCE_INVENTORY_INVALID)
 }
 
-fn source_inventory_pass(fetch: &mut impl FnMut(u32) -> Result<Value, &'static str>) -> Result<SourceInventoryPass, &'static str> {
+fn source_inventory_pass(fetch: &mut impl FnMut(u32) -> Result<Value, &'static str>, metadata: bool) -> Result<SourceInventoryPass, &'static str> {
     let mut expected_total = None;
     let mut offset = 0;
     let mut previous_id = None;
@@ -629,10 +629,12 @@ fn source_inventory_pass(fetch: &mut impl FnMut(u32) -> Result<Value, &'static s
             previous_id = Some(id);
             let mut row = json!({"id": id.to_string(), "name": source_inventory_text(&node["name"], 500)?,
                 "lang": source_inventory_text(&node["lang"], 64)?,
-                "supportsLatest": node["supportsLatest"].as_bool().ok_or(SOURCE_INVENTORY_INVALID)?,
-                "isConfigurable": node["isConfigurable"].as_bool().ok_or(SOURCE_INVENTORY_INVALID)?,
-                "contentWarning": metadata_content_warning(&node["contentWarning"]).map_err(|_| SOURCE_INVENTORY_INVALID)?,
-                "extension": extension_metadata(&node["extension"]).map_err(|_| SOURCE_INVENTORY_INVALID)?});
+                "supportsLatest": node["supportsLatest"].as_bool().ok_or(SOURCE_INVENTORY_INVALID)?});
+            if metadata {
+                row["isConfigurable"] = json!(node["isConfigurable"].as_bool().ok_or(SOURCE_INVENTORY_INVALID)?);
+                row["contentWarning"] = json!(metadata_content_warning(&node["contentWarning"]).map_err(|_| SOURCE_INVENTORY_INVALID)?);
+                row["extension"] = extension_metadata(&node["extension"]).map_err(|_| SOURCE_INVENTORY_INVALID)?;
+            }
             if let Some(display_name) = node.get("displayName").filter(|value| !value.is_null()) {
                 row["displayName"] = json!(source_inventory_text(display_name, 500)?);
             }
@@ -645,9 +647,15 @@ fn source_inventory_pass(fetch: &mut impl FnMut(u32) -> Result<Value, &'static s
     }
 }
 
-fn complete_source_inventory(mut fetch: impl FnMut(u32) -> Result<Value, &'static str>) -> Result<Value, &'static str> {
-    let first = source_inventory_pass(&mut fetch)?;
-    let second = source_inventory_pass(&mut fetch)?;
+fn complete_source_inventory(fetch: impl FnMut(u32) -> Result<Value, &'static str>) -> Result<Value, &'static str> {
+    complete_source_inventory_fields(fetch, true)
+}
+
+// Search needs only stable catalogue identities, not extension management
+// metadata. Both projections retain exact IDs, bounded paging and snapshot checks.
+fn complete_source_inventory_fields(mut fetch: impl FnMut(u32) -> Result<Value, &'static str>, metadata: bool) -> Result<Value, &'static str> {
+    let first = source_inventory_pass(&mut fetch, metadata)?;
+    let second = source_inventory_pass(&mut fetch, metadata)?;
     if first != second { return Err(SOURCE_INVENTORY_CHANGED); }
     // Complete means every raw page was observed twice with the same visible
     // rows/count, not that every database source loaded. No transaction token
@@ -692,6 +700,29 @@ mod source_inventory_tests {
             assert_eq!(rows[1]["id"], "9223372036854775807");
             assert!(rows.iter().all(|row| row.get("unrequested").is_none()));
         }
+    }
+
+    #[test]
+    fn search_inventory_ignores_optional_management_metadata_but_checks_exact_ids() {
+        let mut requests = Vec::new();
+        let result = complete_source_inventory_fields(|offset| {
+            requests.push(offset);
+            let mut row = source(json!(if offset == 0 { -9007199254740993_i64 } else { 9007199254740993_i64 }));
+            row["extension"] = Value::Null;
+            row["contentWarning"] = json!("UNRECOGNIZED");
+            row["isConfigurable"] = Value::Null;
+            Ok(json!({"nodes": [row], "totalCount": 101}))
+        }, false).unwrap();
+        assert_eq!(requests, [0, 100, 0, 100]);
+        assert_eq!(result["complete"], true);
+        assert_eq!(result["nodes"][0]["id"], "-9007199254740993");
+        assert_eq!(result["nodes"][1]["id"], "9007199254740993");
+        assert!(result["nodes"][0].get("extension").is_none());
+        let mut row = source(json!(1));
+        row["extension"] = Value::Null;
+        assert!(complete_source_inventory(|_| Ok(json!({"nodes": [row.clone()], "totalCount": 1}))).is_err());
+        row["id"] = json!("9007199254740993x");
+        assert!(complete_source_inventory_fields(|_| Ok(json!({"nodes": [row.clone()], "totalCount": 1})), false).is_err());
     }
 
     #[test]
@@ -1563,6 +1594,11 @@ impl ReadRuntime {
     }
 
     pub fn query(&self, operation: ReadOperation) -> Result<Value, &'static str> {
+        if matches!(operation, ReadOperation::Sources) {
+            return complete_source_inventory_fields(|offset| self.client.document(
+                "query TsugiSearchSources($offset: Int!) { sources(first: 100, offset: $offset, order: [{ by: ID, byType: ASC }]) { nodes { id name lang displayName supportsLatest } totalCount } }",
+                "sources", json!({"offset": offset})), false);
+        }
         self.client.query(operation)
     }
 

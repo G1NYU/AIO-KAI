@@ -42,6 +42,11 @@
 
 **Execution order:** finish the current installer/playback-strip acceptance and publish v0.1.2 only after maintainer approval; then revisit E1 and E2 as the next priorities. E1 is an exploration with a go/no-go merge decision, not a commitment to replace a working architecture. E2 completes and verifies the existing deferred Discord milestone, rather than assuming it was never implemented.
 
+## F1 — Post-release Reader global search regression (priority hotfix)
+
+- [ ] Restore global search after extension installation, regardless of optional extension-management metadata or store listing failures. Use one fresh bounded native source discovery for header and dedicated forms; preserve exact source IDs, all pages, clear empty/error states, retries, progressive results, stop and per-source errors.
+- [ ] Verify real browser navigation, failed discovery retry and >100-source pinned runtime coverage. Confirm live Windows search using the maintainer's installed sources. Preserve v0.1.2 and its release assets; package a separately versioned hotfix after passing gates.
+
 ## Streaming hub architecture correction
 
 ## 2026-11-27 — D4/D5 test beta verified after interrupted chat

@@ -249,7 +249,10 @@ try {
           case 'extensions': data = nodes(state.stores.length && (a.installed === undefined || a.installed === state.installed) && (!a.language || a.language === 'en') && (!a.updatesOnly || (state.installed && state.fixtureHasUpdate)) ? [{ pkgName: 'org.tsugi.fixture', name: 'Original extension', lang: 'en', versionName: '1.6', storeIndexUrl: state.stores[0].indexUrl, isInstalled: state.installed, isObsolete: false, hasUpdate: !!state.fixtureHasUpdate && state.installed }] : []); break;
           case 'install-extension': state.installed = true; data = { ok: true }; break;
           case 'sources':
-          case 'source-inventory': data = { ...nodes(state.installed ? [{ id: '12345', name: 'Original source', lang: 'en', supportsLatest: true }, ...(state.transferEnabled ? [{ id: '67890', name: 'Replacement source', lang: 'en', supportsLatest: true }] : []), ...(state.searchLayout ? [{ id: '23456', name: 'Additional source', lang: 'fr', supportsLatest: true }, { id: '34567', name: 'Empty source', lang: 'en', supportsLatest: true }, { id: '45678', name: 'Unavailable source', lang: 'en', supportsLatest: true }] : [])] : []), complete: true }; break;
+          case 'source-inventory':
+            if (a.kind === 'source-inventory' && state.failManagementInventory) { error = 'Fixture management metadata unavailable'; break; }
+            if (a.kind === 'sources' && state.failSearchInventory) { error = 'Fixture search inventory unavailable'; break; }
+            data = { ...nodes(state.installed ? [{ id: '12345', name: 'Original source', lang: 'en', supportsLatest: true }, ...(state.transferEnabled ? [{ id: '67890', name: 'Replacement source', lang: 'en', supportsLatest: true }] : []), ...(state.searchLayout ? [{ id: '23456', name: 'Additional source', lang: 'fr', supportsLatest: true }, { id: '34567', name: 'Empty source', lang: 'en', supportsLatest: true }, { id: '45678', name: 'Unavailable source', lang: 'en', supportsLatest: true }] : [])] : []), complete: true }; break;
           case 'catalogue':
             if (a.source === '45678') error = 'Fixture source unavailable';
             else data = { mangas: a.source === '34567' ? [] : a.source === '67890' ? a.query === 'Batch Fixture' ? [batchTitle] : [replacement] : [manga], hasNextPage: false };
@@ -922,18 +925,36 @@ try {
   await page.getByText('No matching extensions.',{exact:true}).waitFor();
   await page.getByRole('combobox', { name: 'Extension status' }).selectOption('installed');
   await page.getByRole('button', { name: 'Uninstall', exact: true }).waitFor();
-  await page.evaluate(() => { window.__readerFixture.searchLayout = true; });
+  await page.evaluate(() => {
+    const state = window.__readerFixture;
+    state.searchLayout = true;
+    state.failManagementInventory = true;
+    state.failSearchInventory = true;
+    state.searchRequestStart = state.requests.length;
+  });
   await rail.getByRole('button', { name: 'Global search', exact: true }).click();
   const search=page.locator('.tsugi-global-search-workspace');
   await search.waitFor();
   assert.equal(await page.getByRole('textbox',{name:'Global manga search',exact:true}).count(),1,'one global search input');
   await search.getByRole('textbox',{name:'Global manga search',exact:true}).fill('Tsugi');
   await search.getByRole('button',{name:'Search',exact:true}).click();
+  await page.getByRole('alert').filter({hasText:'Fixture search inventory unavailable'}).waitFor();
+  assert.equal(await search.getByRole('button',{name:'Search',exact:true}).isEnabled(),true,'discovery failure leaves search retry available');
+  assert.equal(await search.getByRole('button',{name:'Install a source extension',exact:true}).count(),0,'discovery failure is not an empty inventory');
+  await page.evaluate(() => { window.__readerFixture.failSearchInventory = false; });
+  await search.getByRole('button',{name:'Search',exact:true}).click();
   await search.getByRole('heading',{name:'Original source',exact:true}).waitFor();
   await search.getByText('Fixture source unavailable',{exact:true}).waitFor();
   assert.equal(await search.getByText('Results: 1',{exact:true}).count(),2);
   assert.equal(await search.locator('.tsugi-manga-card').count(),2);
   assert.equal(await search.locator('progress').getAttribute('value'),'4');
+  const discoveryRequests = await page.evaluate(() => {
+    const state = window.__readerFixture;
+    return state.requests.slice(state.searchRequestStart).filter(a => ['sources','source-inventory','stores','catalogue'].includes(a.kind));
+  });
+  assert.deepEqual(discoveryRequests.map(a=>a.kind),['sources','sources','catalogue','catalogue','catalogue','catalogue'],'global search retries fresh catalogue identities without management or store requests');
+  assert.deepEqual(discoveryRequests.filter(a=>a.kind==='catalogue').map(a=>a.source),['12345','23456','34567','45678']);
+  console.log('PASS: global search survives unavailable management metadata, retries failed discovery and queries each installed source.');
   for (const width of [1440, 800]) {
     await page.setViewportSize({ width, height: 900 });
     const sourceGeometry = await search.locator('.tsugi-search-source').evaluateAll(groups => groups.map(group => {
@@ -963,7 +984,14 @@ try {
     await capture(width === 1440 ? '03-reader-global-search' : '03-reader-global-search-narrow');
   }
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.evaluate(() => { window.__readerFixture.searchLayout = false; });
+  // The header and dedicated search use the same discovery path.
+  await rail.getByRole('button', { name: 'Library', exact: true }).click();
+  const headerSearch = page.locator('.tsugi-reading-global');
+  await headerSearch.getByRole('textbox',{name:'Global manga search',exact:true}).fill('Tsugi');
+  await headerSearch.getByRole('button',{name:'Search',exact:true}).click();
+  await search.getByText('Fixture source unavailable',{exact:true}).waitFor();
+  assert.equal(await search.locator('progress').getAttribute('value'),'4');
+  await page.evaluate(() => { window.__readerFixture.searchLayout = false; window.__readerFixture.failManagementInventory = false; });
   await rail.getByRole('button', { name: 'Browse', exact: true }).click();
   await page.getByRole('button', { name: /Original source/ }).click();
   await page.locator('.tsugi-manga-card').first().click();
