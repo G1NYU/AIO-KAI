@@ -50,7 +50,7 @@ export function rankCatalogueSearch<T>(candidates:Candidate<T>[],query:string){
     const chosen=prefer?b:a,other=prefer?a:b;
     const ids=new Map([...a.ids,...b.ids]);
     return {...chosen,key:a.key,score:Math.max(a.score,b.score),order:Math.min(a.order,b.order),ids,item:{...chosen.item,
-      poster:chosen.item.poster??other.item.poster,background:chosen.item.background??other.item.background,logo:chosen.item.logo??other.item.logo,
+      poster:chosen.item.poster??other.item.poster,addonPoster:chosen.item.addonPoster??other.item.addonPoster,background:chosen.item.background??other.item.background,logo:chosen.item.logo??other.item.logo,
       description:chosen.item.description??other.item.description,releaseInfo:chosen.item.releaseInfo??other.item.releaseInfo,tmdbRating:chosen.item.tmdbRating??other.item.tmdbRating,
       imdbId:chosen.item.imdbId??other.item.imdbId??ids.get('imdb'),identities:[...new Set([...(chosen.item.identities??[]),...(other.item.identities??[]),...([...ids].filter(([k])=>k!=='local').map(([,v])=>v))])].slice(0,8)}};
   }

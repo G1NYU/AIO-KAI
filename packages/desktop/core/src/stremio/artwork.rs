@@ -19,7 +19,7 @@ fn allowed(origin:&Url,raw:&str)->Option<Url>{
         !host.contains('.')||host.ends_with(".local")||host.ends_with(".localhost")||host.ends_with('.') {return None;}
     let parts:Vec<_>=url.path_segments()?.collect();
     let own=url.origin()==origin.origin()&&(parts.iter().any(|p|matches!(*p,"poster"|"posters"))||
-        parts.last().is_some_and(|p|[".jpg",".jpeg",".png",".webp"].iter().any(|ext|p.ends_with(ext))));
+        parts.last().is_some_and(|p|[".jpg",".jpeg",".png",".webp"].iter().any(|ext|p.ends_with(*ext))));
     // Only explicitly supported public poster endpoints may cross origins.
     let known=url.port().is_none()&&match host{
         "postersplus.cc"=>url.path()=="/poster",

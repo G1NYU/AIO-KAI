@@ -43,10 +43,11 @@ describe('Watch catalogue search',()=>{
     expect(rankCatalogueSearch([publicResult,unrelated,exact],'Example alternate name').map(row=>row.item.id)).toEqual(['tt42','mal:42']);
   });
   it('merges explicit IMDb matches while preserving the canonical provider route and artwork',()=>{
-    const rows=[candidate(2,item('tmdb:42','Example','movie','tt42','poster')),candidate(3,item('tt42','Example'))];
+    const addonPoster='http://tsugi-addon-art.localhost/poster/0123456789abcdef0123456789abcdef';
+    const rows=[candidate(2,{...item('tmdb:42','Example','movie','tt42','poster'),addonPoster}),candidate(3,item('tt42','Example'))];
     const result=rankCatalogueSearch(rows,'Example');
     expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({sourceId:3,target:3,item:{id:'tt42',poster:'poster'}});
+    expect(result[0]).toMatchObject({sourceId:3,target:3,item:{id:'tt42',poster:'poster',addonPoster}});
   });
   it('does not merge provider-local IDs or different media types by name',()=>{
     const rows=[candidate(1,item('local:1','Example')),candidate(2,item('local:1','Example')),candidate(1,item('tt42','Example')),candidate(2,item('tt42','Example','series'))];
