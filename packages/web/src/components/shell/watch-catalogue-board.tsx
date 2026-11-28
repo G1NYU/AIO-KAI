@@ -240,7 +240,7 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
       })}
       {failed.length>0&&<div className="tsugi-watch-muted" data-ui="watch-catalogue-failures">
         <p role="status"><Trans>Some addon catalogues could not load compatible titles.</Trans></p>
-        <div className="flex flex-wrap gap-2">{failed.map(target=><button key={target.key} type="button" className="tsugi-read-action" disabled={busy||!canRequest} onClick={()=>void load(target,rows[target.key]?.skip??0)}><Trans>Retry {target.catalog.name}</Trans></button>)}</div>
+        <div className="flex flex-wrap gap-2">{failed.map(target=>{const name=target.catalog.name;return <button key={target.key} type="button" className="tsugi-read-action" disabled={busy||!canRequest} onClick={()=>void load(target,rows[target.key]?.skip??0)}><Trans>Retry {name}</Trans></button>;})}</div>
       </div>}
       {(pending||stopped||limit<targets.length)&&<div className="flex flex-wrap gap-3">
         {limit<targets.length&&<button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>{setLimit(n=>n+BATCH);setStopped(false);}}><Trans>Show more titles</Trans></button>}
