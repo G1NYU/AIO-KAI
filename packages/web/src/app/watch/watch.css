@@ -71,3 +71,32 @@
 }
 [dir='rtl'] .tsugi-direct-watch .tsugi-watch-detail .tsugi-watch-title-backdrop::after{background:linear-gradient(180deg,var(--tsugi-canvas) 0%,color-mix(in srgb,var(--tsugi-canvas) 60%,transparent) 17%,transparent 45%),linear-gradient(0deg,var(--tsugi-canvas) 0%,transparent 64%),linear-gradient(270deg,var(--tsugi-canvas),color-mix(in srgb,var(--tsugi-canvas) 70%,transparent) 28%,transparent 95%)}
 :root[data-host='desktop'] .tsugi-direct-watch .tsugi-anime-hero::before{background:linear-gradient(0deg,var(--tsugi-canvas),transparent 60%),linear-gradient(90deg,color-mix(in srgb,var(--tsugi-canvas) 92%,transparent),transparent)}
+
+/* Fit the profile chooser below native chrome and its own back header. Keep
+ * natural overflow only when actual content cannot fit (small windows or
+ * enlarged accessibility text), rather than forcing a viewport-height panel. */
+:root[data-host='desktop'] .tsugi-direct-watch:has([data-ui='watch-profile-picker'])>div:not([hidden]){
+  display:flex;flex-direction:column;min-height:100%
+}
+:root[data-host='desktop'] .tsugi-direct-watch [data-ui='watch-profile-picker']{
+  flex:1 1 auto;min-height:0;box-sizing:border-box
+}
+:root[data-host='desktop'] .tsugi-watch-setup [data-ui='watch-profile-picker']{min-height:0}
+:root[data-host='desktop'] .tsugi-direct-watch [data-ui='watch-profile-picker'] .tsugi-watch-picker-content{
+  min-width:0;padding:clamp(16px,4vh,48px) clamp(12px,2vw,24px)
+}
+:root[data-host='desktop'] .tsugi-direct-watch [data-ui='watch-profile-picker'] .tsugi-watch-profiles{
+  margin-block:clamp(16px,3vh,32px);gap:clamp(12px,2vw,24px)
+}
+:root[data-host='desktop'] .tsugi-direct-watch [data-ui='watch-profile-picker'] .tsugi-watch-profile{
+  width:clamp(76px,min(12vw,16vh),148px)
+}
+:root[data-host='desktop'] .tsugi-direct-watch [data-ui='watch-profile-picker'] h3{
+  margin-block:clamp(12px,2vh,24px) 8px
+}
+@media(max-height:700px){
+  :root[data-host='desktop'] .tsugi-direct-watch:has([data-ui='watch-profile-picker'])>div>header{margin-bottom:12px}
+  :root[data-host='desktop'] .tsugi-direct-watch [data-ui='watch-profile-picker'] .tsugi-watch-picker-content{padding-block:16px}
+  :root[data-host='desktop'] .tsugi-direct-watch [data-ui='watch-profile-picker'] .tsugi-watch-profiles{margin-block:16px}
+  :root[data-host='desktop'] .tsugi-direct-watch [data-ui='watch-profile-picker'] .tsugi-watch-create-form{margin-block-start:12px;gap:8px}
+}

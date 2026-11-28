@@ -600,11 +600,11 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   function searchTitleInAddons(){
     if(!title||flight.current)return;
     const name=title.name;
-    choose(null);setBoardSearch(name);setPane('discover');
+    choose(null);setBoardSearch(name);setPane('home');
   }
   return <section className={workspace?onPlay?'tsugi-watch-workspace tsugi-watch-hub':'tsugi-app-general tsugi-watch-workspace tsugi-watch-configuration':'tsugi-app-general'} data-ui="stremio-addon-settings" data-watch-pane={pane} aria-labelledby={titleId}>
     {workspace&&!hubChooser&&<header className={onPlay&&!inSettings?'tsugi-watch-hub-header':'tsugi-watch-workspace-banner'} style={{'--tsugi-watch-art':"url('/design/shared/hero-train.webp')"} as React.CSSProperties}>
-      <div className="tsugi-watch-heading-copy"><TsugiBrand className="tsugi-watch-header-brand"/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}>{pane==='anime'?<Trans>Anime</Trans>:pane==='discover'?<Trans>Series hub</Trans>:pane==='home'||pane==='history'?<Trans>Movies &amp; TV</Trans>:<Trans>Your addon stack.</Trans>}</h3>{pane==='discover'?<p><Trans>Discover television series and upcoming episodes with TVmaze.</Trans></p>:pane==='home'?<p><Trans>Watch from your connected catalogues and streaming addons.</Trans></p>:pane!=='anime'&&<p><Trans>Bring your sources home.</Trans></p>}</div>
+      <div className="tsugi-watch-heading-copy"><TsugiBrand className="tsugi-watch-header-brand"/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}>{pane==='anime'?<Trans>Anime</Trans>:pane==='discover'?<Trans>Series hub</Trans>:pane==='home'||pane==='history'?<Trans>Movies &amp; TV</Trans>:<Trans>Your addon stack.</Trans>}</h3>{pane==='discover'?<p><Trans>Series discovery and search by TVmaze. Connected addons provide playback.</Trans></p>:pane==='home'?<p><Trans>Watch from your connected catalogues and streaming addons.</Trans></p>:pane!=='anime'&&<p><Trans>Bring your sources home.</Trans></p>}</div>
       {onPlay&&profileReady&&!title&&['home','discover','anime'].includes(pane)&&<div ref={setSearchMount} className="tsugi-watch-header-search"/>}
       <div className="tsugi-watch-header-actions">
         {onPlay&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('hubs')}><MovieGlyph name="grid"/> <Trans>Streaming hubs</Trans></button>}

@@ -389,10 +389,14 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       return route.fulfill({contentType:'image/webp',body,headers:{'access-control-allow-origin':'*'}});
     });
     await page.route('https://images.metahub.space/background/**',route=>route.fulfill({contentType:'image/webp',body:heroImage,headers:{'access-control-allow-origin':'*'}}));
+    const tvmazeRequests=[];
+    let tvmazeSearchUnavailable=false;
     const tvmazePoster='https://static.tvmaze.com/uploads/images/medium_portrait/1/90021.jpg';
     await page.route(tvmazePoster,route=>route.fulfill({contentType:'image/webp',body:posterImage,headers:{'access-control-allow-origin':'*'}}));
     await page.route('https://api.tvmaze.com/**',route=>{
       const url=new URL(route.request().url());
+      tvmazeRequests.push(url.pathname);
+      if(tvmazeSearchUnavailable&&url.pathname==='/search/shows')return route.fulfill({status:503,body:'unavailable',headers:{'access-control-allow-origin':'*'}});
       const show={id:21,name:'Family Guy',type:'Animation',genres:['Comedy'],externals:{imdb:'tt90021'},image:{medium:tvmazePoster},premiered:'1999-01-31'};
       const row=url.pathname==='/schedule/web'?{_embedded:{show}}:{show};
       return route.fulfill({json:[row,row,{show:{...show,name:'Unmapped series',externals:{imdb:null}}}],headers:{'access-control-allow-origin':'*'}});
@@ -427,7 +431,29 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await page.goto(origin);
     await page.getByRole('button',{name:'Movies & TV',exact:true}).first().click();
     const watch=page.locator('[data-page="direct-watch"]');
-    await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Default 5 addons',exact:true}).click();
+    const profilePicker=watch.locator('[data-ui="watch-profile-picker"]');
+    await profilePicker.getByRole('button',{name:'Default 5 addons',exact:true}).waitFor();
+    async function assertProfileFits(label){
+      await page.waitForFunction(()=>document.fonts.status==='loaded');
+      const size=await watch.evaluate(root=>{
+        const p=root.querySelector('[data-ui="watch-profile-picker"]'),r=root.getBoundingClientRect();
+        const controls=Array.from(p.querySelectorAll('button,input')).filter(node=>node.getBoundingClientRect().width>0);
+        return {height:root.clientHeight,scrollHeight:root.scrollHeight,width:root.clientWidth,scrollWidth:root.scrollWidth,
+          allVisible:controls.every(node=>{const b=node.getBoundingClientRect();return b.top>=r.top&&b.bottom<=r.bottom+1&&b.left>=r.left&&b.right<=r.right+1;})};
+      });
+      assert.ok(size.scrollHeight<=size.height+1&&size.scrollWidth<=size.width+1&&size.allVisible,label+' profile chooser fits: '+JSON.stringify(size));
+    }
+    await assertProfileFits('1600x900');
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-profile-desktop-fit.png'),animations:'disabled'});
+    await page.setViewportSize({width:1024,height:640});
+    await assertProfileFits('1024x640');
+    await profilePicker.getByRole('button',{name:'Create profile',exact:true}).click();
+    await profilePicker.getByLabel('Profile name',{exact:true}).fill('New profile fixture');
+    await assertProfileFits('1024x640 create form');
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-profile-create-fit.png'),animations:'disabled'});
+    await profilePicker.getByRole('button',{name:'Cancel',exact:true}).click();
+    await page.setViewportSize({width:1600,height:900});
+    await profilePicker.getByRole('button',{name:'Default 5 addons',exact:true}).click();
     await watch.locator('[data-ui="watch-hub-picker"] [data-watch-destination="standalone"]').click();
     const board=watch.locator('[data-ui="watch-catalogue-board"]');
     const film=board.locator('[data-ui="poster-card"][aria-label="Fixture cinema film"]');
@@ -516,8 +542,10 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       assert.ok(layout.headerBottom<layout.closeTop&&layout.closeBottom<=layout.copyTop&&layout.closeReachable,label+' masthead, close and title copy remain separate: '+JSON.stringify(layout));
       assert.ok(layout.blur.includes('blur'),label+' bottom blur applied');
     }
+    const discoverCallsStart=await page.evaluate(()=>window.__stremioFixture.calls.length);
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Discover',exact:true}).click();
     await watch.getByRole('heading',{name:'Series hub',exact:true}).waitFor();
+    assert.equal(await board.getAttribute('data-discovery-provider'),'tvmaze');
     const discovery=board.locator('[data-ui="series-discovery"]');
     const feeds=discovery.locator('[data-ui="series-discovery-feed"]');
     for(const feed of ['streaming-today','streaming-tomorrow','broadcast-us','broadcast-gb']){
@@ -530,9 +558,20 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.equal(await discovery.getByRole('button',{name:'Unmapped series',exact:true}).count(),0);
     await assertArtwork(feeds.first().getByRole('button',{name:'Family Guy',exact:true}));
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-tvmaze-discovery.png'),animations:'disabled'});
-    await watch.locator('.tsugi-watch-header-search').getByRole('button',{name:'Search series',exact:true}).click();
-    await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('family guy');
-    await board.locator('[data-ui="watch-search-results"]').getByRole('button',{name:'Family Guy',exact:true}).click();
+    assert.ok(tvmazeRequests.includes('/schedule')&&tvmazeRequests.includes('/schedule/web'));
+    await watch.locator('.tsugi-watch-header-search').getByRole('button',{name:'Search TVmaze series',exact:true}).click();
+    const tvmazeSearch=board.getByRole('searchbox',{name:'Search TVmaze series',exact:true});
+    tvmazeSearchUnavailable=true;
+    await tvmazeSearch.fill('provider unavailable fixture');
+    await board.locator('[data-ui="tvmaze-search-unavailable"]').waitFor();
+    assert.equal(await board.locator('[data-ui="watch-search-result"]').count(),0);
+    tvmazeSearchUnavailable=false;
+    await tvmazeSearch.fill('family guy');
+    const mazeResult=board.locator('[data-ui="watch-search-results"]').getByRole('button',{name:'Family Guy',exact:true});
+    await mazeResult.waitFor();
+    assert.ok(tvmazeRequests.includes('/search/shows'));
+    assert.equal(await page.evaluate(start=>window.__stremioFixture.calls.slice(start).some(a=>a.kind==='profile-request'&&['tmdb-search','browse-catalog'].includes(a.action.kind)),discoverCallsStart),false,'Discover never substitutes TMDB or addon catalogue search for TVmaze');
+    await mazeResult.click();
     const mazeDetail=watch.locator('[data-ui="watch-item-details"]');
     await mazeDetail.locator('[data-video-id="tt90021:1:1"]').waitFor();
     await assertDetailHero('discover');
@@ -1048,9 +1087,13 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const featuredHero=watch.locator('.tsugi-anime-hero[data-feature-id="mal:90004"]');
     await featuredHero.waitFor();
     await publicPoster.locator('[data-ui="poster-card-badge"]').filter({hasText:'MAL 8.6'}).waitFor();
-    const heroRect=await featuredHero.boundingBox();
+    const heroGeometry=await featuredHero.evaluate(hero=>{
+      const r=hero.getBoundingClientRect(),style=getComputedStyle(hero),root=hero.closest('.tsugi-direct-watch'),rail=root.querySelector('.tsugi-watch-shared-rail'),bounds=root.getBoundingClientRect();
+      return {left:r.left,right:r.right,innerLeft:r.left+parseFloat(style.paddingLeft),innerRight:r.right-parseFloat(style.paddingRight),railRight:rail.getBoundingClientRect().right,viewportRight:bounds.left+root.clientLeft+root.clientWidth};
+    });
     const posterRails=await watch.locator('[data-ui="media-row"][data-shape="poster"][data-contained]').evaluateAll(rows=>rows.filter(row=>row.getBoundingClientRect().width>0).map(row=>({left:row.getBoundingClientRect().left,right:row.getBoundingClientRect().right})));
-    assert.ok(heroRect&&posterRails.length>0&&posterRails.every(row=>Math.abs(row.left-heroRect.x)<=2&&Math.abs(row.right-heroRect.x-heroRect.width)<=2),'Anime poster rails align with the hero gutters');
+    assert.ok(Math.abs(heroGeometry.left-heroGeometry.railRight)<=3&&Math.abs(heroGeometry.right-heroGeometry.viewportRight)<=3,'Anime featured art reaches both workspace edges: '+JSON.stringify(heroGeometry));
+    assert.ok(posterRails.length>0&&posterRails.every(row=>Math.abs(row.left-heroGeometry.innerLeft)<=2&&Math.abs(row.right-heroGeometry.innerRight)<=2),'Anime poster rails align with the inner content gutters: '+JSON.stringify({heroGeometry,posterRails}));
     await page.waitForFunction(()=>{const hero=document.querySelector('.tsugi-anime-hero[data-feature-id="mal:90004"]');const a=hero?.querySelector('img.tsugi-anime-title-art'),b=hero?.querySelector('.tsugi-anime-feature-poster img');return a?.complete&&b?.complete&&a.naturalWidth>0&&b.naturalWidth>0&&a.currentSrc===b.currentSrc;});
     assert.equal(await featuredHero.locator('[data-ui="landscape-artwork-controls"]').count(),0,'a title never shares a decorative rotating background');
     assert.equal(await featuredHero.locator('.tsugi-anime-hero-controls').count(),0,'one featured title needs no 1/1 carousel controls');
@@ -1072,6 +1115,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await assertArtwork(publicBackdrop);
     assert.equal(await item.getByRole('button',{name:'Play',exact:true}).count(),0);
     await item.getByRole('button',{name:'Search this title across addons',exact:true}).click();
+    await watch.locator('[data-watch-pane="home"]').waitFor();
     await board.getByRole('searchbox',{name:'Search across addons',exact:true}).waitFor();
     assert.equal(await board.getByRole('searchbox',{name:'Search across addons',exact:true}).inputValue(),'Public anime discovery fixture');
     console.log('PASS: shared streaming cards, stream-only Cinemeta fallback, settings-only account imports, and independent anime discovery with zero addons.');

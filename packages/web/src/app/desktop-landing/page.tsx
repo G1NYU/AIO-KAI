@@ -73,8 +73,8 @@ export function DesktopLandingPage({ openVideo, openWatch, openMusic, openRead, 
     {openVault && <FirstBootAppearance manual revisit={introRevisit} onProfileSelected={setIntroProfile} onFinished={() => setWelcome(false)} appearanceExtra={personalization} stillArtwork={preferences.stillArtwork}/>}
     {desktopArea?.openResume && <UpNext open={upNextOpen} onClose={() => setUpNextOpen(false)}/>}
     {!welcome && <TsugiRail area="home" className="tsugi-world-shared-rail" onVideoOpen={()=>openWatch?openWatch(introProfile):openVideo()}><nav className="tsugi-rail-local" aria-label={t`Home navigation`}>
-      <button type="button" aria-current="page" aria-label={t`Home`} title={t`Home`}><FiHome aria-hidden/></button>
-      {desktopArea?.openResume&&<button type="button" title={t`Up next`} aria-label={t`Up next`} onClick={()=>setUpNextOpen(true)}><FiClock aria-hidden/></button>}
+      <button type="button" aria-current="page" aria-label={t`Home`} title={t`Home`}><FiHome aria-hidden/><span><Trans>Home</Trans></span></button>
+      {desktopArea?.openResume&&<button type="button" title={t`Up next`} aria-label={t`Up next`} onClick={()=>setUpNextOpen(true)}><FiClock aria-hidden/><span><Trans>Up next</Trans></span></button>}
     </nav></TsugiRail>}
     <div className="tsugi-world-content">
       <header className="tsugi-world-topbar">

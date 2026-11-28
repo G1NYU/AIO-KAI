@@ -72,6 +72,8 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
   const [resultLimit,setResultLimit]=React.useState(RESULT_BATCH);
   const [tmdb,setTmdb]=React.useState<Item[]>([]);
   const [tmdbPending,setTmdbPending]=React.useState(!!search);
+  const [tvmazeFailed,setTvmazeFailed]=React.useState(false);
+  const [searchAttempt,setSearchAttempt]=React.useState(0);
   const checkedAliases=React.useRef(new Set<string>());
   const [featuredResolved,setFeaturedResolved]=React.useState<{key:string;title:TmdbTitle}|null>(null);
   const inFlight=React.useRef(new Set<string>());
@@ -83,12 +85,12 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
   const visible=targets.slice(0,limit);
   React.useEffect(()=>{
     if(!search||!active||paused){setTmdbPending(false);return;}
-    let current=true;const controller=new AbortController();setTmdbPending(true);
+    let current=true;const controller=new AbortController();setTmdbPending(true);setTvmazeFailed(false);
     const publicAnime=scope!=='all'||kind==='anime';
     const request=seriesDiscovery?searchTvmaze(search,controller.signal):publicAnime?searchPublicAnime(search,scope==='anime-films',controller.signal):searchTmdb(profileId,search);
-    void request.then(items=>{if(current)setTmdb(items.filter(item=>kind==='all'||kind==='anime'||item.mediaType===kind));}).catch(()=>{}).finally(()=>{if(current)setTmdbPending(false);});
+    void request.then(items=>{if(current)setTmdb(items.filter(item=>kind==='all'||kind==='anime'||item.mediaType===kind));}).catch(()=>{if(current&&seriesDiscovery){setTmdb([]);setTvmazeFailed(true);}}).finally(()=>{if(current)setTmdbPending(false);});
     return ()=>{current=false;controller.abort();};
-  },[profileId,search,active,paused,scope,kind,seriesDiscovery]);
+  },[profileId,search,active,paused,scope,kind,seriesDiscovery,searchAttempt]);
   React.useEffect(()=>{mounted.current=true;return ()=>{mounted.current=false;};},[]);
   React.useEffect(()=>{if(!active){setHistory(null);setHistoryFailed(false);}},[active]);
 
@@ -141,7 +143,7 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
   const featuredMetadata=featuredResolved?.key===featureKey?featuredResolved.title:null;
   React.useEffect(()=>{if(!active||paused||!includeHistory||!featuredId||!featuredType)return;let current=true;void loadTmdbTitle(profileId,featuredType,featuredId).then(item=>{if(current)setFeaturedResolved({key:featureKey,title:item});}).catch(()=>{});return ()=>{current=false;};},[profileId,active,paused,includeHistory,featuredId,featuredType,featureKey]);
   React.useEffect(()=>{
-    if(!search||!active||paused||scope!=='all'||kind==='anime')return;
+    if(seriesDiscovery||!search||!active||paused||scope!=='all'||kind==='anime')return;
     const addonItems=Object.values(rows).flatMap(row=>row.page?.items??[]);
     for(const item of searchAliasTargets(tmdb,addonItems)){
       if(checkedAliases.current.has(item.id)||checkedAliases.current.size>=4)continue;
@@ -151,7 +153,7 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
         setTmdb(old=>old.map(row=>row.id===item.id?{...row,imdbId:metadata.imdbId,identities:metadata.identities,poster:row.poster??metadata.poster,background:row.background??metadata.background,logo:metadata.logo}:row));
       }).catch(()=>{});
     }
-  },[profileId,search,active,paused,scope,kind,tmdb,rows]);
+  },[profileId,search,active,paused,scope,kind,tmdb,rows,seriesDiscovery]);
   const pending=visible.some(target=>!rows[target.key]||rows[target.key].loading);
   const hits=search?rankCatalogueSearch<{sourceId?:number}>([
     ...visible.flatMap(target=>(rows[target.key]?.page?.items??[]).map(item=>({item,target:{sourceId:target.source.sourceId},sourceId:target.source.sourceId}))),
@@ -195,7 +197,7 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
     {search?<section className="tsugi-watch-search-results" data-ui="watch-search-results">
       <div className="tsugi-watch-search-heading"><h3><Trans>Search results</Trans></h3><span>{hits.length} <Trans>titles</Trans></span></div>
       {(pending||tmdbPending)&&<p className="tsugi-watch-muted" role="status"><Trans>Searching metadata…</Trans></p>}
-      {hits.length===0&&!pending&&!tmdbPending&&<p role="status"><Trans>No matching titles found.</Trans></p>}
+      {tvmazeFailed?<p role="status" data-ui="tvmaze-search-unavailable"><Trans>TVmaze search is unavailable.</Trans> <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>setSearchAttempt(n=>n+1)}><Trans>Retry</Trans></button></p>:hits.length===0&&!pending&&!tmdbPending&&<p role="status"><Trans>No matching titles found.</Trans></p>}
       {hits[0]&&<div className="tsugi-search-best-match" data-ui="watch-top-match">
         <Artwork key={hits[0].key} eager src={[hits[0].item.background,hits[0].item.poster,...(hits[0].item.posterAlternatives??[])].filter((url):url is string=>!!url)} alt="" className="tsugi-search-best-art"/>
         <div className="tsugi-search-best-copy"><small><Trans>Top match</Trans> · {hits[0].item.mediaType.includes('movie')?t`Movie`:t`Series`}{hits[0].item.releaseInfo?' · '+hits[0].item.releaseInfo.slice(0,4):''}</small>
@@ -257,14 +259,14 @@ export function WatchCatalogueBoard({scope='all',includeHistory=false,seriesDisc
     if(searchOpen&&!props.paused){if(!node.open)node.showModal();searchInput.current?.focus();}
     else if(node.open)node.close();
   },[searchOpen,props.paused]);
-  const homeTargets=React.useMemo(()=>catalogueTargets(props.sources,scope,'all',''),[props.sources,scope]);
+  const homeTargets=React.useMemo(()=>seriesDiscovery?[]:catalogueTargets(props.sources,scope,'all',''),[props.sources,scope,seriesDiscovery]);
   const targets=React.useMemo(()=>seriesDiscovery?[]:catalogueTargets(props.sources,scope,kind,submitted),[props.sources,scope,kind,submitted,seriesDiscovery]);
-  const searchLabel=seriesDiscovery?t`Search series`:scope==='all'?t`Search movies & series`:t`Search anime`;
+  const searchLabel=seriesDiscovery?t`Search TVmaze series`:scope==='all'?t`Search movies & series`:t`Search anime`;
   const toolbar=<div className="tsugi-watch-board-toolbar">
     <button type="button" className="tsugi-watch-search-trigger" aria-label={searchLabel} aria-haspopup="dialog" aria-expanded={searchOpen} aria-controls={dialogId} disabled={props.busy} onClick={()=>setSearchOpen(true)}><MovieGlyph name="search"/><span>{searchLabel}</span></button>
     {!searchOnly&&<button type="button" className="tsugi-read-action" disabled={props.busy} onClick={()=>setRevision(r=>r+1)}>{seriesDiscovery?<Trans>Refresh schedules</Trans>:<Trans>Refresh catalogues</Trans>}</button>}
   </div>;
-  return <section className="tsugi-watch-board" data-ui="watch-catalogue-board" data-search-only={searchOnly||undefined} hidden={props.paused} inert={props.paused}>
+  return <section className="tsugi-watch-board" data-ui="watch-catalogue-board" data-discovery-provider={seriesDiscovery?'tvmaze':undefined} data-search-only={searchOnly||undefined} hidden={props.paused} inert={props.paused}>
     {!props.paused&&(searchMount?createPortal(toolbar,searchMount):searchMount===undefined?toolbar:null)}
     {!searchOnly&&scope==='all'&&!props.sources.some(s=>s.enabled&&s.manifest.resources.includes('stream'))&&<p className="tsugi-watch-muted"><Trans>Browse titles now. Connect streaming addons in Settings to watch them.</Trans> <button type="button" className="tsugi-read-action" disabled={props.busy} onClick={props.openAddons}><Trans>Manage addons</Trans></button></p>}
     {!searchOnly&&seriesDiscovery?<SeriesDiscovery key={props.profileId+':'+revision} active={props.active&&!props.paused&&!searchOpen} busy={props.busy} posterPattern={props.posterPattern} openTitle={props.openTitle}/>:!searchOnly&&<CatalogueRows key={JSON.stringify([props.profileId,scope,revision,homeTargets.map(row=>row.key)])} {...props} paused={props.paused||searchOpen} targets={homeTargets} search="" scope={scope} includeHistory={includeHistory}/>} 
@@ -272,7 +274,7 @@ export function WatchCatalogueBoard({scope='all',includeHistory=false,seriesDisc
       {searchOpen&&<div className="tsugi-watch-search-panel">
         <form className="tsugi-watch-search-bar" onSubmit={e=>{e.preventDefault();setSubmitted(query.trim());}}>
           <MovieGlyph name="search"/>
-          <input ref={searchInput} type="search" aria-label={t`Search across addons`} value={query} maxLength={scope==='all'?512:300} placeholder={seriesDiscovery?t`Search television series…`:scope==='all'?t`Search movies, series and anime…`:t`Search anime…`} onChange={e=>setQuery(e.target.value)}/>
+          <input ref={searchInput} type="search" aria-label={seriesDiscovery?t`Search TVmaze series`:t`Search across addons`} value={query} maxLength={scope==='all'?512:300} placeholder={seriesDiscovery?t`Search television series…`:scope==='all'?t`Search movies, series and anime…`:t`Search anime…`} onChange={e=>setQuery(e.target.value)}/>
           {query&&<button type="button" className="tsugi-read-action" onClick={()=>{setQuery('');setSubmitted('');searchInput.current?.focus();}}><Trans>Clear search</Trans></button>}
           <button type="button" className="tsugi-read-action" onClick={()=>setSearchOpen(false)}><Trans>Close search</Trans></button>
         </form>

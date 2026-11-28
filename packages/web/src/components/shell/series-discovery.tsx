@@ -30,7 +30,8 @@ export function SeriesDiscovery({active,busy,posterPattern,openTitle}:{active:bo
   const labels:Record<SeriesFeed,string>={
     'streaming-today':t`Streaming today`,'streaming-tomorrow':t`Streaming tomorrow`,'broadcast-us':t`US television today`,'broadcast-gb':t`UK television today`
   };
-  return <section className="space-y-6" data-ui="series-discovery">
+  return <section className="space-y-6" data-ui="series-discovery" data-provider="tvmaze">
+    <p className="tsugi-watch-muted"><Trans>Powered by <a href="https://www.tvmaze.com/" target="_blank" rel="noreferrer">TVmaze</a>.</Trans></p>
     {feeds.map(feed=><section key={feed} className="tsugi-watch-shelf" data-ui="series-discovery-feed" data-feed={feed}>
       <MediaRow contained shape="poster" title={labels[feed]} loading={!rows[feed]&&!errors.includes(feed)}>
         {rows[feed]?.map(item=><PosterCard key={item.id} title={item.name} image={watchPosterSources(item,posterPattern)} itemType={t`Series`} disabled={busy} onClick={()=>openTitle(item)}/>)}

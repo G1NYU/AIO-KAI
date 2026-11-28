@@ -619,6 +619,12 @@ try {
   console.log('PASS: opt-in schedule defers during settings, then saves verified automatic copy.');
   assert.deepEqual(await landing.locator('.tsugi-world-card').evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label'))), ['Movies & TV', 'Music', 'Read', 'Vault']);
   assert.equal(await landing.locator('.tsugi-world-card .tsugi-world-card-top .tsugi-media-icon').count(), 4);
+  const homeNav=landing.locator('.tsugi-world-shared-rail .tsugi-rail-local');
+  for(const label of ['Home','Up next']){
+    const item=homeNav.getByRole('button',{name:label,exact:true});
+    assert.equal(await item.locator('span').textContent(),label);
+    assert.ok(await item.evaluate(button=>{const text=button.querySelector('span'),icon=button.querySelector('svg'),a=text.getBoundingClientRect(),b=icon.getBoundingClientRect(),r=button.getBoundingClientRect();return getComputedStyle(text).display!=='none'&&parseFloat(getComputedStyle(text).fontSize)>0&&a.width>0&&a.left>=b.right&&a.right<=r.right+1;}),'visible sidebar label next to icon: '+label);
+  }
   const homeArtwork=landing.locator('.tsugi-world-card img');
   assert.ok(await homeArtwork.evaluateAll(images=>images.length===4&&images.every(image=>getComputedStyle(image).filter.includes('blur(14px)'))),'all returning-home card artwork is heavily blurred');
   assert.ok(await landing.locator('.tsugi-world-card-copy,.tsugi-world-card-top').evaluateAll(nodes=>nodes.every(node=>getComputedStyle(node).filter==='none')),'category copy and icons stay sharp');
