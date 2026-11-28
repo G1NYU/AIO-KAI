@@ -89,7 +89,6 @@ Direct mode does not implement every possible addon transport. A source returnin
 
 ## 02 / Music
 
-<p align="center"><img src="https://raw.githubusercontent.com/G1NYU/TSUGI/f8498f8fe9776c88fac8bebaa59aadcdce07aac2/packages/web/public/design/launch/world-music.webp" width="100%" alt="Midnight blue TSUGI Music illustration with headphones and a moonlit horizon"></p>
 
 <img src="branding/readme/icons/music.svg" width="23" height="23" alt=""> **YouTube Music, SoundCloud, Eclipse addons and your local audio library.**
 
@@ -117,7 +116,6 @@ Native public SoundCloud is implemented and covered by fixture tests; live Sound
 
 ## 03 / Read
 
-<p align="center"><img src="https://raw.githubusercontent.com/G1NYU/TSUGI/f8498f8fe9776c88fac8bebaa59aadcdce07aac2/packages/web/public/design/launch/world-read.webp" width="100%" alt="Muted amber TSUGI Read illustration of a contemplative reader beneath a tree"></p>
 
 <img src="branding/readme/icons/book.svg" width="23" height="23" alt=""> **A desktop manga reader with real Mihon and Tachiyomi-compatible extension repository support.**
 
@@ -152,7 +150,6 @@ Repositories and extensions are not preinstalled. Third-party extensions are exe
 
 ## 04 / Vault
 
-<p align="center"><img src="https://raw.githubusercontent.com/G1NYU/TSUGI/f8498f8fe9776c88fac8bebaa59aadcdce07aac2/packages/web/public/design/launch/world-vault.webp" width="100%" alt="Emerald TSUGI Vault illustration with a circular archive door"></p>
 
 <img src="branding/readme/icons/vault.svg" width="23" height="23" alt=""> **An aria2-powered Windows download manager, local archive and transfer workspace.**
 
