@@ -98,6 +98,8 @@ jobs:
           - Restored manga global search across installed extensions, including paginated source discovery, exact source identities, clear errors and retry.
           - More visible search fields, improved placeholder and focus contrast, responsive spacing and a clear Search action.
           - Global search confirmed on the maintainer's Windows installation using four installed manga sources.
+          - Larger featured manga covers with dedicated space for artwork controls, responsive portrait sizing and an atmospheric blurred backdrop; cover, title and reading controls stay sharp.
+          - Known issue: historical unread chapters may still appear in Chapter Updates; a dedicated correction is planned separately.
 
           ## Movies & TV
           - Search moves into the sidebar, leaving cinematic heroes unobstructed.
