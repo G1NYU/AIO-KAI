@@ -107,6 +107,29 @@ fn portable_root() -> Option<PathBuf> {
     root.join(".portable").is_file().then(|| root.to_path_buf())
 }
 
+/// A conventional installer retains the current/ payload but never marks
+/// the installed application portable. Personal data lives outside it.
+fn installed_root() -> Option<PathBuf> {
+    if !cfg!(windows) { return None; }
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?;
+    if dir.file_name()?.to_str()? != "current" { return None; }
+    let root = dir.parent()?;
+    if root.join(".portable").exists() || !root.join("BUILD-INFO.json").is_file() { return None; }
+    let marker = std::fs::read(root.join(".tsugi-installed")).ok()?;
+    (marker.as_slice() == b"TSUGI-INSTALLATION-1\n").then(|| root.to_path_buf())
+}
+
+fn tsugi_package_root() -> Option<PathBuf> {
+    portable_root().or_else(installed_root)
+}
+
+fn installed_data_dir() -> PathBuf {
+    dirs::data_local_dir()
+        .unwrap_or_else(|| platform::fatal("The Windows user data directory is unavailable."))
+        .join("TSUGI")
+}
+
 /// Beside the app or libmpv, or in a macOS bundle's Resources beside either.
 fn licence_dirs() -> Vec<PathBuf> {
     let exe = std::env::current_exe()
@@ -282,6 +305,10 @@ fn bridge_script(reading: bool, reading_setup: bool, backup_store: bool, tsugi_r
 
 fn main() {
     #[cfg(windows)]
+    if std::env::args().any(|arg| arg == "--check-tsugi-installation") {
+        std::process::exit(if installed_root().is_some() && dirs::data_local_dir().is_some() { 0 } else { 2 });
+    }
+    #[cfg(windows)]
     if std::env::args().any(|arg| arg == "--check-media-tools") {
         std::process::exit(if aiostreams_desktop_core::media_tools::installed_ready() { 0 } else { 2 });
     }
@@ -330,12 +357,17 @@ fn main() {
     #[cfg(windows)]
     platform::claim_app_id();
     let portable = portable_root();
-    let (config_dir, data_dir) = match &portable {
-        Some(root) => (root.join("data"), root.join("data")),
-        None => (app_dir(dirs::config_dir()), app_dir(dirs::data_local_dir())),
+    let installed = installed_root();
+    let (config_dir, data_dir) = match (&portable, &installed) {
+        (Some(root), _) => (root.join("data"), root.join("data")),
+        (None, Some(_)) => {
+            let data = installed_data_dir();
+            (data.clone(), data)
+        }
+        (None, None) => (app_dir(dirs::config_dir()), app_dir(dirs::data_local_dir())),
     };
-    let download_folder = match (&portable, dirs::video_dir()) {
-        (None, Some(videos)) => videos.join("AIOStreams"),
+    let download_folder = match (&portable, &installed, dirs::video_dir()) {
+        (None, None, Some(videos)) => videos.join("AIOStreams"),
         _ => data_dir.join("downloads"),
     };
     let logs = data_dir.join("logs");
@@ -388,7 +420,7 @@ fn main() {
     let backup_store = reading::bundled_directory(&args, web.as_deref()).is_some();
     #[cfg(not(windows))]
     let (reading, reading_setup, backup_store) = (false, false, false);
-    let tsugi_release_check = backup_store && portable.is_some() && cfg!(target_arch = "x86_64");
+    let tsugi_release_check = backup_store && (portable.is_some() || installed.is_some()) && cfg!(target_arch = "x86_64");
     log::info!("reading section={reading_setup} runtime_ready={reading}");
     shell::run(App {
         args,

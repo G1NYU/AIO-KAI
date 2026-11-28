@@ -255,7 +255,7 @@ pub fn run(app: App) {
     #[cfg(windows)]
     let backup_busy = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     #[cfg(windows)]
-    let release_root = if backup_root.is_some() && cfg!(target_arch = "x86_64") { crate::portable_root() } else { None };
+    let release_root = if backup_root.is_some() && cfg!(target_arch = "x86_64") { crate::tsugi_package_root() } else { None };
     #[cfg(windows)]
     let release_busy = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     // The same exact bundled Windows origin gate as managed backups.

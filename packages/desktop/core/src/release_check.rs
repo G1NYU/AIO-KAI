@@ -5,7 +5,8 @@ use std::path::Path;
 use std::time::Duration;
 
 const API:&str="https://api.github.com/repos/G1NYU/TSUGI";
-const ASSET:&str="Tsugi-windows-x64.zip";
+const ASSET:&str="Tsugi-windows-x64.zip"; // earlier stable releases
+const INSTALLER:&str="Tsugi-windows-x64-setup.exe";
 const CHECKSUM:&str="SHA256SUMS.txt";
 const LIMIT:u64=512*1024;
 
@@ -71,9 +72,12 @@ fn project_release(release:&Value,reference:&Value,current:Option<String>)->Resu
     // The existing publisher creates lightweight tags pointing at the exact
     // source SHA. Reject an inconsistent or ambiguous published identity.
     if release["target_commitish"]!=commit{return Err("Release tag and source identity disagree.");}
-    let zip=asset(release,ASSET,name,2*1024*1024*1024)?;
+    let rows=release["assets"].as_array().ok_or("Missing release assets.")?;
+    // Prefer the installer; fail closed if a present installer is invalid.
+    let package_name=if rows.iter().any(|row|row["name"]==INSTALLER){INSTALLER}else{ASSET};
+    let package=asset(release,package_name,name,2*1024*1024*1024)?;
     let _=asset(release,CHECKSUM,name,16*1024)?;
-    let digest=zip["digest"].as_str().and_then(|value|value.strip_prefix("sha256:"))
+    let digest=package["digest"].as_str().and_then(|value|value.strip_prefix("sha256:"))
         .filter(|value|hex(value,64)).ok_or("Missing Windows package digest.")?;
     let notes:String=release["body"].as_str().unwrap_or("").chars()
         .filter(|c|!c.is_control()||matches!(c,'\n'|'\t')).take(12_000).collect();
@@ -81,7 +85,7 @@ fn project_release(release:&Value,reference:&Value,current:Option<String>)->Resu
     let status=if same{"same-build"}else if current.is_some(){"different-build"}else{"unknown-build"};
     Ok(json!({
         "latestTag":name,"latestCommit":commit,"currentCommit":current,"status":status,
-        "packageBytes":zip["size"],"sha256":digest,"notes":notes
+        "packageBytes":package["size"],"sha256":digest,"notes":notes
     }))
 }
 // Advertise an upgrade only when the stable release is a proven descendant.
@@ -140,6 +144,20 @@ mod tests{
         assert_eq!(project_release(&release,&reference,Some("c".repeat(40))).unwrap()["status"],"different-build");
         assert_eq!(project_release(&release,&reference,None).unwrap()["status"],"unknown-build");
         assert!(!tag("v0.01.0"));assert!(!tag("v0.1.0-beta"));assert!(!tag("../bad"));
+    }
+    #[test]
+    fn installer_only_release_and_legacy_zip_are_supported(){
+        let (mut release,reference)=fixture();
+        release["assets"][0]["name"]=json!(INSTALLER);
+        release["assets"][0]["browser_download_url"]=json!(format!("https://github.com/G1NYU/TSUGI/releases/download/v0.1.0/{INSTALLER}"));
+        assert_eq!(project_release(&release,&reference,Some("a".repeat(40))).unwrap()["packageBytes"],1000);
+        let mut bad=release.clone();
+        bad["assets"][0]["digest"]=Value::Null;
+        assert!(project_release(&bad,&reference,None).is_err());
+        let (legacy,_)=fixture();
+        bad["assets"].as_array_mut().unwrap().push(legacy["assets"][0].clone());
+        assert!(project_release(&bad,&reference,None).is_err());
+        assert!(project_release(&legacy,&reference,None).is_ok());
     }
     #[test]
     fn newer_release_requires_proven_ancestry(){
