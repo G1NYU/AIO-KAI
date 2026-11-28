@@ -31,7 +31,6 @@ TSUGI started from [AIOStreams](https://github.com/Viren070/AIOStreams) and has 
 
 ## Design philosophy / a quiet canvas
 
-<p align="center"><img src="https://raw.githubusercontent.com/G1NYU/TSUGI/f8498f8fe9776c88fac8bebaa59aadcdce07aac2/packages/web/public/design/launch/launch-purple.jpg" width="100%" alt="Original purple TSUGI first-launch wallpaper, a lone figure among flowing purple and blue formations"></p>
 
 - **Japanese minimalism and ma (間):** space, atmosphere and the expressive ink gesture. Let artwork breathe rather than filling every gap with controls.
 - **Swiss typographic discipline:** aligned grids, deliberate hierarchy, readable sans-serif labels and predictable spacing.
@@ -53,7 +52,6 @@ The launch illustrations are TSUGI's own visual direction, not stock media cover
 
 ## 01 / Movies & TV
 
-<p align="center"><img src="https://raw.githubusercontent.com/G1NYU/TSUGI/f8498f8fe9776c88fac8bebaa59aadcdce07aac2/packages/web/public/design/launch/world-video.webp" width="100%" alt="Crimson cinematic TSUGI Movies and TV category illustration"></p>
 
 <img src="branding/readme/icons/video.svg" width="23" height="23" alt=""> **A native Stremio-compatible desktop experience.**
 
