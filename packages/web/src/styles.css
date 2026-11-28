@@ -3293,6 +3293,12 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   appearance:auto;
   -webkit-appearance:auto;
 }
+/* Episode season selection stays native; only its decorative chevron is hidden. */
+:root[data-host='desktop'] [data-ui='watch-episode-grid'] select.tsugi-menu-select:not([multiple],[size]) {
+  appearance:none;
+  -webkit-appearance:none;
+  cursor:pointer;
+}
 :root[data-host='desktop'] :is(
   .tsugi-global-settings,.tsugi-settings-sheet,.tsugi-chapter-settings,
   .tsugi-reader-settings-content,.tsugi-vault-transfer-settings,

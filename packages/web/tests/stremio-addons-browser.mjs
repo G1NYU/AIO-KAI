@@ -1029,6 +1029,9 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await item.getByText('A fixture tagline',{exact:true}).waitFor();
     
     const season=item.getByRole('combobox',{name:'Select season',exact:true});
+    assert.equal(await season.evaluate(el=>getComputedStyle(el).appearance),'none','season selector hides only the native chevron');
+    await season.focus();
+    assert.equal(await season.evaluate(el=>el===document.activeElement),true,'season selector remains keyboard focusable');
     await season.selectOption('0');
     await item.locator('[data-video-id="tt90002:0:1"]').waitFor();
     assert.equal(await item.locator('[data-video-id="tt90002:1:2"]').count(),0);
