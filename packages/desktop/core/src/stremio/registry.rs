@@ -556,7 +556,7 @@ impl Worker {
                             if slot.generation==generation{slot.grant=Some(grant);}
                         }
                     }
-                    if scope_changed&&result.is_ok(){catalogues.invalidate();}
+                    if scope_changed&&result.is_ok(){catalogues.invalidate();super::artwork::clear();}
                     let (data,error) = match result {
                         Ok(data) => (Some(data),None),
                         Err(error) => (None,Some(error.to_owned())),

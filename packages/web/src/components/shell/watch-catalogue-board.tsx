@@ -42,14 +42,15 @@ export function catalogueTargets(sources:AddonSource[],scope:Scope,kind:Kind,que
   for(const source of available){
     if(!source.enabled||source.manifest.adult||source.manifest.configurationRequired||query&&!source.manifest.resources.includes('meta'))continue;
     for(const catalog of source.manifest.catalogs){
-      const normalized=catalog.mediaType==='anime.movie'?'movie':catalog.mediaType==='anime.series'?'series':catalog.mediaType;
-      if(!['movie','series','anime'].includes(normalized)||kind!=='all'&&kind!=='anime'&&kind!==normalized)continue;
+      const declared=catalog.mediaType.toLowerCase();
+      const normalized=declared==='anime.movie'?'movie':declared==='anime.series'?'series':declared;
+      if(!['movie','series','anime','all','mixed'].includes(normalized)||kind!=='all'&&kind!=='anime'&&kind!==normalized&&normalized!=='all'&&normalized!=='mixed')continue;
       const extras:Record<string,string>={};
       const animeGenre=catalog.extras.find(e=>e.name==='genre')?.options.find(o=>o.toLowerCase()==='anime');
-      const explicitAnime=(catalog.mediaType==='anime'||catalog.mediaType.startsWith('anime.'))||animeWord.test(catalog.name)||animeWord.test(catalog.id)||animeWord.test(source.manifest.name);
+      const explicitAnime=(declared==='anime'||declared.startsWith('anime.'))||animeWord.test(catalog.name)||animeWord.test(catalog.id)||animeWord.test(source.manifest.name);
       if(scope!=='all'||kind==='anime'){
         if(!explicitAnime&&!animeGenre)continue;
-        if(scope==='anime-films'&&normalized!=='movie'&&!(catalog.mediaType==='anime'&&/(^|[^a-z])(film|films|movie|movies)([^a-z]|$)/i.test(catalog.name)))continue;
+        if(scope==='anime-films'&&normalized!=='movie'&&!(declared==='anime'&&/(^|[^a-z])(film|films|movie|movies)([^a-z]|$)/i.test(catalog.name)))continue;
         if(!explicitAnime&&animeGenre)extras.genre=animeGenre;
       }
       if(query){
@@ -162,6 +163,7 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
   const searchGroups=[{key:'series',label:t`Series`,items:hits.filter(h=>h.item.mediaType==='series'||h.item.mediaType==='anime.series')},{key:'movie',label:t`Movies`,items:hits.filter(h=>h.item.mediaType==='movie'||h.item.mediaType==='anime.movie')},{key:'anime',label:t`Anime`,items:hits.filter(h=>h.item.mediaType==='anime')}];
   const canRequest=visible.filter(target=>rows[target.key]?.loading).length<PARALLEL;
   const populated=visible.filter(target=>(rows[target.key]?.page?.items.length??0)>0);
+  const failed=visible.filter(target=>{const row=rows[target.key];return !!row&&!row.loading&&(row.error||!!row.page&&row.page.sourceCount>0&&!row.page.items.length);});
   const continuing=history?.filter(row=>!row.progress.completed&&row.progress.positionMs>0).slice(0,12)??[];
   const resumeArt=useResumeArtwork(profileId,includeHistory?continuing.map(row=>row.progress):[]);
   const featuredYear=(featuredMetadata?.releaseInfo??featured?.item.releaseInfo)?.slice(0,4);
@@ -226,15 +228,19 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
       {populated.map(target=>{
         const row=rows[target.key];
         return <section className="tsugi-watch-shelf" key={target.key} data-ui="watch-catalogue-shelf">
-          <MediaRow contained id={profileId+':'+target.key} shape="poster" title={target.source.sourceId===0?(target.catalog.id==='top'?(target.catalog.mediaType==='movie'?t`Popular movies`:t`Popular series`):(target.catalog.mediaType==='movie'?t`Featured movies`:t`Featured series`)):target.catalog.name} loading={!!row?.loading&&!row.page||!row&&!stopped} action={row?.page&&<div className="flex flex-wrap gap-2">
+          <MediaRow contained id={profileId+':'+target.key} shape="poster" title={target.source.sourceId===0?(target.catalog.id==='top'?(target.catalog.mediaType==='movie'?t`Popular movies`:t`Popular series`):(target.catalog.mediaType==='movie'?t`Featured movies`:t`Featured series`)):<>{target.catalog.name} <span className="tsugi-watch-muted">· {target.catalog.mediaType.toLowerCase().startsWith('anime')?t`Anime`:target.catalog.mediaType.toLowerCase()==='series'?t`Series`:target.catalog.mediaType.toLowerCase()==='movie'?t`Movies`:t`Mixed titles`}</span></>} loading={!!row?.loading&&!row.page||!row&&!stopped} action={row?.page&&<div className="flex flex-wrap gap-2">
               {row.skip>0&&<button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,0)}><Trans>First page</Trans></button>}
               {row.page.nextSkip!==null&&<button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,row.page!.nextSkip!)}><Trans>Next page</Trans></button>}
               {row.error&&<button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,row.skip)}><Trans>Retry</Trans></button>}
           </div>}>
-            {row?.page?.items.map(item=><PosterCard key={item.id} title={item.name} image={watchPosterSources(item,posterPattern)} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item,target.source.sourceId)}/>)}
+            {row?.page?.items.map(item=><PosterCard key={JSON.stringify([item.mediaType,item.id])} title={item.name} image={watchPosterSources(item,posterPattern)} itemType={item.mediaType.includes('movie')?t`Movie`:item.mediaType.startsWith('anime')?t`Anime`:t`Series`} disabled={busy} onClick={()=>openTitle(item,target.source.sourceId)}/>)}
           </MediaRow>
         </section>;
       })}
+      {failed.length>0&&<div className="tsugi-watch-muted" data-ui="watch-catalogue-failures">
+        <p role="status"><Trans>Some addon catalogues could not load compatible titles.</Trans></p>
+        <div className="flex flex-wrap gap-2">{failed.map(target=><button key={target.key} type="button" className="tsugi-read-action" disabled={busy||!canRequest} onClick={()=>void load(target,rows[target.key]?.skip??0)}><Trans>Retry {target.catalog.name}</Trans></button>)}</div>
+      </div>}
       {(pending||stopped||limit<targets.length)&&<div className="flex flex-wrap gap-3">
         {limit<targets.length&&<button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>{setLimit(n=>n+BATCH);setStopped(false);}}><Trans>Show more titles</Trans></button>}
         {(pending||stopped)&&<button type="button" className="tsugi-read-action" onClick={()=>setStopped(v=>!v)}>{stopped?<Trans>Continue loading</Trans>:<Trans>Pause catalogue loading</Trans>}</button>}

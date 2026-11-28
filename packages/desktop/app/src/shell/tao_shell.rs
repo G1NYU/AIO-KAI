@@ -268,6 +268,24 @@ pub fn run(app: App) {
         let proxy = proxy.clone();
         move |message| { let _ = proxy.send_event(UserEvent::Emit(receive_script(&message))); }
     }));
+    // Native artwork responses are bounded and asynchronous. The renderer only
+    // receives random, expiring handles, never addon credentials or remote URLs.
+    #[cfg(windows)]
+    let art_queue = stremio.as_ref().map(|_| {
+        type Job=(String,wry::RequestAsyncResponder);
+        let (tx,rx)=std::sync::mpsc::sync_channel::<Job>(256);
+        let shared=std::sync::Arc::new(std::sync::Mutex::new(rx));
+        for _ in 0..6 {
+            let shared=shared.clone();
+            std::thread::spawn(move||loop{
+                let job=match shared.lock(){Ok(rx)=>rx.recv(),Err(_)=>return};
+                let Ok((token,responder))=job else{return;};
+                let image=aiostreams_desktop_core::stremio::artwork::load(&token);
+                respond_addon_art(responder,image);
+            });
+        }
+        tx
+    });
     let ebook_web = web.clone();
     let mut context = WebContext::new(Some(data_dir.join(platform::WEB_DATA_DIR)));
     let builder = WebViewBuilder::new_with_web_context(&mut context)
@@ -338,6 +356,22 @@ pub fn run(app: App) {
                 .header("Cache-Control", "no-store")
                 .header("Content-Security-Policy", "default-src 'none'; script-src 'self' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' blob:; img-src 'self' blob: data:; font-src 'self' blob: data:; frame-src blob: about:; connect-src 'self' blob:; media-src blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors http://aiostreams.localhost")
                 .body(Cow::Owned(served.body)).unwrap()
+        })
+        .with_asynchronous_custom_protocol("tsugi-addon-art".into(),move|_,req:Request<Vec<u8>>,responder|{
+            #[cfg(windows)]
+            if req.method()==wry::http::Method::GET && req.uri().query().is_none(){
+                if let (Some(queue),Some(token))=(&art_queue,req.uri().path().strip_prefix("/poster/")){
+                    if token.len()==32 && token.bytes().all(|b|b.is_ascii_hexdigit()){
+                        match queue.try_send((token.to_owned(),responder)){
+                            Ok(())=>return,
+                            Err(std::sync::mpsc::TrySendError::Full((_,r))|std::sync::mpsc::TrySendError::Disconnected((_,r)))=>{respond_addon_art(r,None);return;}
+                        }
+                    }
+                }
+            }
+            #[cfg(not(windows))]
+            let _=req;
+            respond_addon_art(responder,None);
         })
         .with_ipc_handler({
             let (player, proxy, app_origin) = (player.clone(), proxy.clone(), app_origin.clone());
@@ -771,4 +805,14 @@ pub fn run(app: App) {
             _ => {}
         }
     });
+}
+
+// The image protocol is a separate unprivileged origin, with a fixed raster MIME.
+fn respond_addon_art(responder:wry::RequestAsyncResponder,image:Option<(&'static str,Vec<u8>)>){
+    let (status,mime,body)=match image{Some((mime,body))=>(200,mime,body),None=>(404,"text/plain",Vec::new())};
+    responder.respond(Response::builder().status(status).header("Content-Type",mime)
+        .header("Access-Control-Allow-Origin","http://aiostreams.localhost")
+        .header("Cache-Control","no-store").header("X-Content-Type-Options","nosniff")
+        .header("Content-Security-Policy","default-src 'none'; sandbox")
+        .body(Cow::Owned(body)).unwrap());
 }

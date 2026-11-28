@@ -9,6 +9,8 @@ use url::{Host, Url};
 
 pub mod registry;
 mod items;
+#[cfg(windows)]
+pub mod artwork;
 
 const MAX_URL: usize = 16 * 1024;
 const MANIFEST_LIMIT: usize = 512 * 1024;
@@ -96,7 +98,7 @@ impl Endpoint {
         let (catalog, skip) = manifest.catalog_request(kind, id, extras)?;
         let url = self.resource_url("catalog", kind, id, extras)?;
         let bytes = fetch(&url, CATALOG_LIMIT)?;
-        CatalogPage::parse(&bytes, kind, skip, catalog.extra.iter().any(|e| e.name == "skip"))
+        CatalogPage::parse_with_endpoint(&bytes, kind, skip, catalog.extra.iter().any(|e| e.name == "skip"),Some(self))
     }
 
     /// Build a request only for a declared metadata, stream or subtitle
@@ -311,8 +313,8 @@ impl Manifest {
     pub fn declared_catalogs(&self) -> impl Iterator<Item = &Catalog> {
         self.catalogs.iter().filter(|c| !self.behavior_hints.configuration_required &&
             self.resources.iter().any(|r| match r {
-                Declaration::Name(name) => name == "catalog" && self.types.contains(&c.kind),
-                Declaration::Detailed { name, types, .. } => name == "catalog" && types.contains(&c.kind),
+                Declaration::Name(name) => name == "catalog",
+                Declaration::Detailed { name, types, .. } => name == "catalog" && (types.is_empty() || types.contains(&c.kind)),
             }))
     }
     fn catalog_request(&self, kind: &str, id: &str, extras: &BTreeMap<String, String>) -> Result<(&Catalog, u32)> {
@@ -440,6 +442,8 @@ pub struct CatalogItem {
     pub id: String,
     pub name: String,
     pub poster: Option<String>,
+    // Ephemeral renderer capability; never persisted as public artwork.
+    pub addon_poster: Option<String>,
     pub background: Option<String>,
     pub description: Option<String>,
     pub imdb_id: Option<String>,
@@ -450,8 +454,21 @@ pub struct CatalogPage {
     pub source_count: usize,
     pub next_skip: Option<u32>,
 }
+// A catalogue's presentation type need not equal its actual title type.
+fn compatible_catalog_type(declared:&str,actual:&str)->bool{
+    match declared.to_ascii_lowercase().as_str(){
+        "anime"|"all"|"mixed"=>matches!(actual,"movie"|"series"|"anime"|"anime.movie"|"anime.series"),
+        "movie"|"anime.movie"=>matches!(actual,"movie"|"anime.movie"),
+        "series"|"anime.series"=>matches!(actual,"series"|"anime"|"anime.series"),
+        _=>declared==actual,
+    }
+}
 impl CatalogPage {
+    #[cfg(test)]
     fn parse(bytes: &[u8], kind: &str, skip: u32, supports_skip: bool) -> Result<Self> {
+        Self::parse_with_endpoint(bytes,kind,skip,supports_skip,None)
+    }
+    fn parse_with_endpoint(bytes: &[u8], kind: &str, skip: u32, supports_skip: bool, endpoint:Option<&Endpoint>) -> Result<Self> {
         if bytes.is_empty() || bytes.len() > CATALOG_LIMIT { return Err("catalog-limit"); }
         let payload: Value = serde_json::from_slice(bytes).map_err(|_| "invalid-catalog")?;
         let metas = payload["metas"].as_array().ok_or("invalid-catalog")?;
@@ -460,14 +477,19 @@ impl CatalogPage {
         let items = metas.iter().filter_map(|row| {
             let id = row["id"].as_str()?;
             let name = row["name"].as_str()?;
-            if row["type"].as_str()? != kind || !id_valid(id) || !text_valid(name, 512) ||
-                !seen.insert(id) { return None; }
+            let actual=row["type"].as_str()?;
+            if !compatible_catalog_type(kind,actual) || !id_valid(id) || !text_valid(name, 512) ||
+                !seen.insert((actual,id)) { return None; }
             let imdb = [Some(id),row["imdb_id"].as_str(),row["imdbId"].as_str()].into_iter().flatten()
                 .find(|id|id.strip_prefix("tt").is_some_and(|digits| !digits.is_empty() && digits.len()<=12 && digits.bytes().all(|b|b.is_ascii_digit())));
             let poster=public_poster(&row["poster"]).or_else(||imdb.map(|id|format!("https://images.metahub.space/poster/medium/{id}/img")));
-            Some(CatalogItem { kind: kind.to_owned(), id: id.to_owned(), name: name.to_owned(), poster,
+            #[cfg(windows)]
+            let addon_poster=endpoint.and_then(|source|artwork::register(&source.0,&row["poster"]));
+            #[cfg(not(windows))]
+            let addon_poster={let _=endpoint;None};
+            Some(CatalogItem { kind: actual.to_owned(), id: id.to_owned(), name: name.to_owned(), poster, addon_poster,
                 background:public_poster(&row["background"]),description:items::display(row.get("description"),4096),
-                imdb_id:imdb.map(str::to_owned),identities:title_identities(row,id,kind) })
+                imdb_id:imdb.map(str::to_owned),identities:title_identities(row,id,actual) })
         }).collect();
         // Invalid/duplicate sibling rows still count toward the source offset.
         // No guessed fixed page length or cross-provider cursor.
@@ -583,6 +605,16 @@ mod tests {
         assert_eq!(CatalogPage::parse(&bytes,"movie",40,false).unwrap().next_skip,None);
         assert_eq!(CatalogPage::parse(br#"{"metas":[]}"#,"movie",45,true).unwrap().next_skip,None);
         assert_eq!(CatalogPage::parse(&bytes,"movie",MAX_SKIP,true).unwrap().next_skip,None);
+    }
+    #[test]
+    fn anime_catalogue_preserves_actual_types_order_and_exact_ids(){
+        let page=CatalogPage::parse(br#"{"metas":[{"id":"kitsu:12","type":"series","name":"First anime"},{"id":"mal:44","type":"anime","name":"Second anime"},{"id":"mal:52","type":"anime.movie","name":"Film"},{"id":"kitsu:12","type":"series","name":"Duplicate"},{"id":"private","type":"person","name":"Not playable"}]}"#,"anime",0,true).unwrap();
+        assert_eq!(page.items.iter().map(|i|(i.id.as_str(),i.kind.as_str())).collect::<Vec<_>>(),vec![("kitsu:12","series"),("mal:44","anime"),("mal:52","anime.movie")]);
+        assert_eq!(page.next_skip,Some(5));
+        let m=Manifest::parse(br#"{"id":"metadata.fixture","name":"Catalogue fixture","version":"1","types":["series"],"resources":["catalog","meta"],"catalogs":[{"id":"mal.airing","type":"anime"}]}"#).unwrap();
+        assert_eq!(m.declared_catalogs().count(),1);
+        assert!(m.catalog_request("anime","mal.airing",&BTreeMap::new()).is_ok());
+        assert!(!m.supports(ItemResource::Meta,"anime","mal:44"));
     }
     #[test]
     fn actual_http_fetch_is_bounded_and_does_not_follow_redirects() {

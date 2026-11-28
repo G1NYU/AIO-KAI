@@ -26,7 +26,7 @@ export const publicCinemeta:AddonSource={
 export interface AddonReview { reviewId: number; manifest: AddonManifest }
 export interface CatalogPage {
   sourceId: number; mediaType: string; catalogId: string;
-  items: { id: string; name: string; mediaType: string; poster?: string; posterAlternatives?:string[]; description?: string; background?: string; imdbId?: string; identities?:string[]; releaseInfo?:string; tmdbRating?:number; malRating?:number; logo?:string }[]; sourceCount: number; nextSkip: number | null;
+  items: { id: string; name: string; mediaType: string; poster?: string; addonPoster?:string; posterAlternatives?:string[]; description?: string; background?: string; imdbId?: string; identities?:string[]; releaseInfo?:string; tmdbRating?:number; malRating?:number; logo?:string }[]; sourceCount: number; nextSkip: number | null;
 }
 export type Mutation = { kind: 'install'; reviewId: number } | { kind: 'set-enabled'; sourceId: number; enabled: boolean }
   | { kind: 'move'; sourceId: number; position: number } | { kind: 'remove'; sourceId: number };
@@ -209,18 +209,30 @@ export function publicAddonLogo(value:unknown):string|undefined{
     return allowed?url.href:undefined;
   }catch{return undefined;}
 }
+// This is only the native image capability namespace, never an arbitrary URL.
+function addonPosterCapability(value:unknown):string|undefined{
+  return typeof value==='string'&&/^http:\/\/tsugi-addon-art\.localhost\/poster\/[a-f0-9]{32}$/.test(value)?value:undefined;
+}
+function compatibleCatalogType(declared:string,actual:string){
+  switch(declared.toLowerCase()){
+    case 'anime':case 'all':case 'mixed':return ['movie','series','anime','anime.movie','anime.series'].includes(actual);
+    case 'movie':case 'anime.movie':return actual==='movie'||actual==='anime.movie';
+    case 'series':case 'anime.series':return ['series','anime','anime.series'].includes(actual);
+    default:return declared===actual;
+  }
+}
 export async function loadAddonCatalog(profileId:number,action:CatalogAction):Promise<CatalogPage>{
   const v=await scoped(profileId,action);
   if(v.sourceId!==action.sourceId||v.catalogId!==action.catalogId||v.mediaType!==action.mediaType)return fail();
   const items=array(v.items,500,i=>{
-    const row=obj(i);if(row.mediaType!==action.mediaType)return fail();
-    const poster=publicAddonPoster(row.poster),background=publicAddonPoster(row.background),description=optionalDisplay(row.description,4096);
+    const row=obj(i),mediaType=str(row.mediaType,32);if(!compatibleCatalogType(action.mediaType,mediaType))return fail();
+    const poster=publicAddonPoster(row.poster),addonPoster=addonPosterCapability(row.addonPoster),background=publicAddonPoster(row.background),description=optionalDisplay(row.description,4096);
     const id=str(row.id,512);
     const imdbId=/^tt[0-9]{1,12}$/.test(id)?id:typeof row.imdbId==='string'&&/^tt[0-9]{1,12}$/.test(row.imdbId)?row.imdbId:undefined;
     const identities=titleIdentities(row.identities);
-    return {id,name:str(row.name,512),mediaType:action.mediaType,...(poster?{poster}:{}),...(background?{background}:{}),...(description?{description}:{}),...(imdbId?{imdbId}:{}),...(identities?{identities}:{})};
+    return {id,name:str(row.name,512),mediaType,...(poster?{poster}:{}),...(addonPoster?{addonPoster}:{}),...(background?{background}:{}),...(description?{description}:{}),...(imdbId?{imdbId}:{}),...(identities?{identities}:{})};
   });
-  if(new Set(items.map(i=>i.id)).size!==items.length)return fail();
+  if(new Set(items.map(i=>JSON.stringify([i.mediaType,i.id]))).size!==items.length)return fail();
   const sourceCount=integer(v.sourceCount,items.length,500);
   const nextSkip=v.nextSkip===null?null:integer(v.nextSkip,1,100000);
   if(nextSkip!==null&&(!sourceCount||nextSkip!==Number(action.extras.skip??0)+sourceCount))return fail();
