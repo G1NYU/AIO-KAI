@@ -43,13 +43,26 @@ async function load(feed:Feed,signal:AbortSignal):Promise<Item[]>{
   const hit=cache.get(feed);
   if(hit&&hit.expires>Date.now())return hit.items;
   const endpoint=feed==='airing'?'seasons/now?sfw=true&limit=25':feed==='popular'?'top/anime?filter=bypopularity&sfw=true&limit=25':feed==='films'?'top/anime?type=movie&sfw=true&limit=25':feed==='romance'?'anime?genres=22&order_by=score&sort=desc&sfw=true&limit=25':'seasons/upcoming?sfw=true&limit=25';
+  const items=await requestPublicAnime(endpoint,feed==='films',signal);
+  if(!signal.aborted)cache.set(feed,{items,expires:Date.now()+600000});
+  return items;
+}
+async function requestPublicAnime(endpoint:string,films:boolean,signal:AbortSignal):Promise<Item[]>{
   const response=await fetch('https://api.tenrai.org/v1/'+endpoint,{credentials:'omit',referrerPolicy:'no-referrer',signal:AbortSignal.any([signal,AbortSignal.timeout(12000)])});
   if(!response.ok)throw new Error('anime-request');
   const raw=await response.text();
   if(raw.length>2000000)throw new Error('anime-response');
-  const items=parsePublicAnime(JSON.parse(raw),feed==='films');
-  if(!signal.aborted)cache.set(feed,{items,expires:Date.now()+600000});
-  return items;
+  return parsePublicAnime(JSON.parse(raw),films);
+}
+/** Public title-only search: no account, profile, history or addon credentials.
+ * The documented Tenrai query limit is 300 characters. Playback still resolves
+ * the selected MAL identity through the existing reviewed metadata path. */
+export function searchPublicAnime(query:string,films:boolean,signal:AbortSignal){
+  const q=query.trim().slice(0,300);
+  if(!q)return Promise.resolve([]);
+  const params=new URLSearchParams({q,sfw:'true',limit:'25'});
+  if(films)params.set('type','movie');
+  return requestPublicAnime('anime?'+params.toString(),films,signal);
 }
 export function PublicAnimeDiscovery({filmsOnly=false,seasonal=false,active,busy,openTitle,onFeatured}:{filmsOnly?:boolean;seasonal?:boolean;active:boolean;busy:boolean;openTitle(item:Item):void;onFeatured?(items:Item[]):void}){
   const feeds:Feed[]=filmsOnly?['films']:seasonal?['airing','upcoming']:['airing','popular','films','romance','upcoming'];
@@ -74,12 +87,11 @@ export function PublicAnimeDiscovery({filmsOnly=false,seasonal=false,active,busy
   },[active,filmsOnly,seasonal,retry]);
   React.useEffect(()=>{if(active&&onFeatured&&rows.airing?.length)onFeatured(rows.airing.slice(0,4));},[active,onFeatured,rows.airing]);
   return <section className="space-y-6" data-ui="anime-public-discovery">
-    {feeds.map(feed=><div key={feed}>
+    {feeds.filter(feed=>rows[feed]?.length!==0).map(feed=><div key={feed}>
       <MediaRow shape="poster" title={feed==='airing'?t`Airing now`:feed==='popular'?t`Popular anime`:feed==='films'?t`Anime films`:feed==='romance'?t`Romance anime`:t`Upcoming season`} loading={!rows[feed]&&!errors.includes(feed)}>
         {rows[feed]?.map(item=><PosterCard key={item.id} title={item.name} image={item.poster?[item.poster,...(item.posterAlternatives??[])]:null} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item)}/>)}
       </MediaRow>
       {errors.includes(feed)&&<p className="text-sm text-[--muted]"><Trans>Public anime catalogue unavailable.</Trans> <button type="button" className="tsugi-read-action" onClick={()=>{setErrors([]);setRetry(n=>n+1);}}><Trans>Retry</Trans></button></p>}
-      {rows[feed]?.length===0&&<p className="text-sm text-[--muted]"><Trans>No titles returned by this catalogue.</Trans></p>}
     </div>)}
     <p className="text-sm text-[--muted]"><Trans>Anime discovery by Tenrai / MyAnimeList. No account or addon is required to browse. Playback uses your connected sources.</Trans></p>
   </section>;

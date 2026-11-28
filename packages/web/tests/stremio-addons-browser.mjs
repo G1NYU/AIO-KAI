@@ -303,6 +303,7 @@ export function installStremioFixture(initializeStartup=true){
           const catalogue=source?.manifest.catalogs.find(c=>c.id===a.catalogId&&c.mediaType===a.mediaType);
           if(!catalogue)return emit(null,'unsupported-resource');
           if(a.catalogId==='broken')return emit(null,'request');
+          if(a.catalogId==='empty')return reply({sourceId:a.sourceId,mediaType:a.mediaType,catalogId:a.catalogId,items:[],sourceCount:0,nextSkip:null});
           const items=a.extras.search?(a.catalogId==='films'?[
             {id:'tmdb:90001',imdbId:'tt90001',mediaType:'movie',name:'Fixture cinema film',poster:'https://image.tmdb.org/t/p/w342/cinema.jpg'},
             {id:'local:9',mediaType:'movie',name:'Another film'},
@@ -368,7 +369,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       const catalog=(id,mediaType,name,extras=[])=>({id,mediaType,name,extras});
       const searchExtra={name:'search',required:false,options:[],optionsLimit:null};
       f.profiles[0].sources=[
-        addon(101,'Catalogue only',['catalog','meta'],[catalog('films','movie','Popular films',[searchExtra]),catalog('anime','series','Trending anime'),catalog('broken','movie','Unavailable catalogue'),catalog('duplicate-search','movie','More films',[{...searchExtra,required:true}])]),
+        addon(101,'Catalogue only',['catalog','meta'],[catalog('films','movie','Popular films',[searchExtra]),catalog('anime','series','Trending anime'),catalog('broken','movie','Unavailable catalogue'),catalog('empty','movie','Empty catalogue'),catalog('duplicate-search','movie','More films',[{...searchExtra,required:true}])]),
         addon(102,'Streaming only',['stream']),
         addon(103,'Metadata only',['meta']),
         addon(104,'Failed stream addon',['stream']),
@@ -410,7 +411,12 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.match(heroFont.family,/^Interface(?:,|$)/);
     assert.ok(heroFont.weight>=600&&heroFont.weight<=750);
     assert.equal(await watch.locator('.tsugi-watch-nav').getByRole('button',{name:/Stremio|Nuvio|Add addon/}).count(),0);
-    await board.getByText('This catalogue is unavailable.',{exact:true}).waitFor();
+    await page.waitForFunction(()=>{const f=window.__stremioFixture;return f.catalogPending===0&&['broken','empty'].every(id=>f.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='browse-catalog'&&a.action.catalogId===id));});
+    assert.equal(await board.getByText('This catalogue is unavailable.',{exact:true}).count(),0);
+    assert.equal(await board.getByText('No titles returned by this catalogue.',{exact:true}).count(),0);
+    assert.equal(await board.getByText('Empty catalogue',{exact:true}).count(),0);
+    assert.equal(await board.getByText('Unavailable catalogue',{exact:true}).count(),0);
+    assert.equal(await board.getByText(/^\d+ catalogues$/).count(),0,'provider counts and empty/error shelves do not appear in browsing');
     assert.ok(await page.evaluate(()=>window.__stremioFixture.catalogPeak>=2));
     assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='browse-catalog')));
     assert.equal(await board.getByText('Disabled films',{exact:true}).count(),0);
@@ -427,6 +433,9 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await assertArtwork(item.locator('.tsugi-watch-title-backdrop'));
     const titleHero=item.locator('.tsugi-watch-title-hero');
     await titleHero.evaluate(node=>node.scrollIntoView({block:'start',behavior:'instant'}));
+    const closeTitleBounds=await titleHero.locator('.tsugi-watch-close-title').boundingBox();
+    const titleCopyBounds=await titleHero.locator('.tsugi-watch-title-copy').boundingBox();
+    assert.ok(closeTitleBounds&&titleCopyBounds&&closeTitleBounds.y+closeTitleBounds.height<=titleCopyBounds.y,'title close is separated from cinematic title copy');
     const titleBounds=await titleHero.boundingBox();
     const titleControls=await page.locator('[data-ui="window-controls"]').boundingBox();
     assert.ok(titleBounds&&titleControls&&titleBounds.y>=titleControls.y+titleControls.height+8,'title hero clears native controls after programmatic scrolling');
@@ -545,7 +554,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await page.keyboard.press('Escape');
     await groups.waitFor({state:'detached'});
     await item.getByRole('button',{name:'Close title',exact:true}).click();
-    await board.getByRole('button',{name:/Search movies & series/}).click();
+    await watch.locator('.tsugi-watch-header-search').getByRole('button',{name:'Search movies & series',exact:true}).click();
     await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Fixture cinema film');
     const results=board.locator('[data-ui="watch-search-results"]');
     await results.getByRole('button',{name:'Fixture cinema film sequel',exact:true}).waitFor();
@@ -585,7 +594,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await page.keyboard.press('Escape');
     await groups.waitFor({state:'detached'});
     await item.getByRole('button',{name:'Close title',exact:true}).click();
-    await board.getByRole('button',{name:/Search movies & series/}).waitFor();
+    await watch.locator('.tsugi-watch-header-search').getByRole('button',{name:'Search movies & series',exact:true}).waitFor();
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
     const anime=watch.locator('[data-ui="mal-anime-library"]');
     await anime.locator('[data-ui="watch-catalogue-board"]').getByRole('button',{name:'Fixture anime series',exact:true}).click();
@@ -623,6 +632,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await page.evaluate(()=>{const f=window.__stremioFixture;f.emptyMetadata=false;f.holdStreamCompletion=true;f.preparedWhilePending=null;});
     await episode.click();
     await page.getByRole('status').filter({hasText:'1 providers still loading'}).waitFor();
+    await groups.locator('[data-ui="watch-stream-context"]').filter({hasText:/S1 E2/}).waitFor();
     assert.equal(await groups.locator('[data-stream-source="104"]').count(),0);
     await groups.locator('[data-stream-source="102"]').getByRole('button',{name:'Play',exact:true}).first().click();
     await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
@@ -758,8 +768,22 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const animeFonts=await watch.locator('.tsugi-anime-hub').locator('.tsugi-anime-heading,[data-ui="media-row-title"],[data-ui="poster-card-title"]').evaluateAll(nodes=>nodes.map(el=>({family:getComputedStyle(el).fontFamily,weight:Number(getComputedStyle(el).fontWeight)})));
     assert.ok(animeFonts.length>=3);
     assert.ok(animeFonts.every(font=>/^Interface(?:,|$)/.test(font.family)&&font.weight>=600&&font.weight<=750),'Anime Hub uses the same Interface font as Movies & TV: '+JSON.stringify(animeFonts));
+    const featuredHero=watch.locator('.tsugi-anime-hero[data-feature-id="mal:90004"]');
+    await featuredHero.waitFor();
+    await page.waitForFunction(()=>{const hero=document.querySelector('.tsugi-anime-hero[data-feature-id="mal:90004"]');const a=hero?.querySelector('img.tsugi-anime-title-art'),b=hero?.querySelector('.tsugi-anime-feature-poster img');return a?.complete&&b?.complete&&a.naturalWidth>0&&b.naturalWidth>0&&a.currentSrc===b.currentSrc;});
+    assert.equal(await featuredHero.locator('[data-ui="landscape-artwork-controls"]').count(),0,'a title never shares a decorative rotating background');
+    assert.equal(await featuredHero.locator('.tsugi-anime-hero-controls').count(),0,'one featured title needs no 1/1 carousel controls');
+    assert.equal(await watch.locator('[data-ui="watch-catalogue-board"][data-search-only] .tsugi-watch-shelf').count(),0,'Anime uses public shelves without a duplicate addon browsing board');
+    assert.equal(await watch.getByText('No matching catalogues',{exact:true}).count(),0);
+    await watch.evaluate(node=>node.scrollTo({top:0,left:0,behavior:'instant'}));
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-anime-populated.png'),animations:'disabled'});
-    await publicPoster.click();
+    await watch.locator('.tsugi-watch-header-search').getByRole('button',{name:'Search anime',exact:true}).click();
+    const animeSearch=page.getByRole('dialog',{name:'Search titles',exact:true});
+    await animeSearch.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Public anime discovery fixture');
+    const animeResult=animeSearch.locator('[data-ui="watch-search-results"]').getByRole('button',{name:'Public anime discovery fixture',exact:true});
+    await animeResult.waitFor();
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-anime-search.png'),animations:'disabled'});
+    await animeResult.click();
     await item.getByRole('heading',{name:'Public anime discovery fixture',exact:true}).waitFor();
     await item.getByText('Independent discovery without addon installation.',{exact:true}).waitFor();
     const publicBackdrop=item.locator('.tsugi-watch-title-backdrop');

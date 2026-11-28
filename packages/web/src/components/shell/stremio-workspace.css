@@ -247,3 +247,13 @@
 .tsugi-watch-episode-synopsis{color:var(--tsugi-muted);font-size:13px;line-height:1.55}
 .tsugi-watch-stream-inner{width:min(1120px,100%)}
 .tsugi-watch-stream-background{position:absolute;inset:0 0 auto;height:min(76vh,680px)}
+
+/* Keep search in the masthead rather than below catalogue or anime shelves. */
+.tsugi-watch-hub-header:has(>.tsugi-watch-header-search){display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,1.6fr) auto;gap:16px 24px;align-items:center}
+@media(max-width:1200px){.tsugi-watch-hub-header:has(>.tsugi-watch-header-search){grid-template-columns:minmax(0,1fr) auto}.tsugi-watch-header-search{grid-column:1/-1;grid-row:2}}
+@media(max-width:700px){.tsugi-watch-hub-header:has(>.tsugi-watch-header-search){grid-template-columns:minmax(0,1fr)}.tsugi-watch-header-search{grid-column:1;grid-row:auto}}
+/* Title navigation is a chrome action, not a control floating beside the title. */
+.tsugi-watch-close-title{grid-column:1/-1;justify-self:end}
+.tsugi-watch-title-hero[data-has-backdrop]>.tsugi-watch-close-title{position:absolute;inset-block-start:20px;inset-inline-end:20px;z-index:2;background:var(--tsugi-canvas);color:var(--tsugi-ink);border-color:var(--tsugi-line)}
+.tsugi-watch-title-hero[data-has-backdrop]{padding-block-start:max(76px,4vw)}
+:root[data-host='desktop'] .tsugi-watch-hub:has(.tsugi-watch-shared-rail)>.tsugi-watch-content{padding-inline:0}

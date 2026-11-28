@@ -94,3 +94,13 @@
 .tsugi-anime-feature-poster{inset-block:22px 62px;inset-inline-end:38px}
 .tsugi-anime-hero-controls{bottom:16px;right:38px}
 .tsugi-anime-shelf{margin-block:20px 12px}
+
+/* Featured title art belongs to that title only. Reserve an actual grid cell
+   for the poster and a separate control row rather than overlapping the art. */
+.tsugi-anime-hero[data-feature-id]{display:grid;grid-template-columns:minmax(0,1fr) clamp(122px,15vw,190px);gap:12px 28px;align-items:center;min-height:clamp(270px,25vw,365px);padding:clamp(18px,2.5vw,32px)}
+.tsugi-anime-hero[data-feature-id] .tsugi-anime-hero-copy{width:100%;max-width:620px;padding:0;min-width:0}
+:root[data-host='desktop'] .tsugi-anime-hero[data-feature-id] .tsugi-anime-heading{font-size:clamp(1.45rem,2.4vw,2.5rem);line-height:1.18;margin:10px 0 12px}
+.tsugi-anime-hero[data-feature-id] .tsugi-anime-feature-poster{position:relative;inset:auto;width:100%;max-width:none;aspect-ratio:2/3;grid-column:2;grid-row:1}
+.tsugi-anime-hero[data-feature-id] .tsugi-anime-hero-controls{position:static;grid-column:1/-1;justify-self:end}
+.tsugi-anime-hero[data-feature-id] .tsugi-anime-poster-backdrop{filter:blur(12px) brightness(.72);transform:scale(1.05)}
+@media(max-width:760px){.tsugi-anime-hero[data-feature-id]{grid-template-columns:minmax(0,1fr);gap:16px;min-height:0}.tsugi-anime-hero[data-feature-id] .tsugi-anime-feature-poster{display:none}}

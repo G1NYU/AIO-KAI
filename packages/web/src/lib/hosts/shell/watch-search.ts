@@ -1,7 +1,7 @@
 import type { CatalogPage } from './stremio';
 
 type Item=CatalogPage['items'][number];
-type Candidate<T>={item:Item;sourceId:number;target:T};
+type Candidate<T>={item:Item;sourceId:number;target:T;providerMatch?:boolean};
 
 function normalized(value:string){
   return value.normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
@@ -57,7 +57,7 @@ export function rankCatalogueSearch<T>(candidates:Candidate<T>[],query:string){
   candidates.forEach((candidate,order)=>{
     const {kind,values}=identities(candidate.item,candidate.sourceId);
     let next:Hit={...candidate,key:JSON.stringify([kind,candidate.sourceId,candidate.item.id]),score:rank(candidate.item.name,needle),order,kind,ids:values};
-    if(needle&&next.score===0)return;
+    if(needle&&next.score===0&&!candidate.providerMatch)return;
     for(let i=0;i<hits.length;){
       if(hits[i].kind===kind&&compatible(hits[i].ids,next.ids)){next=combine(hits[i],next);hits.splice(i,1);i=0;}else i++;
     }

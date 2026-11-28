@@ -1,4 +1,6 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
+import { searchPublicAnime } from './anime-public-discovery';
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
 import { MovieGlyph } from '@/components/movie-icons';
@@ -15,10 +17,10 @@ type Item=CatalogPage['items'][number];
 type Scope='all'|'anime'|'anime-films';
 type Kind='all'|'movie'|'series'|'anime';
 type Target={key:string;source:AddonSource;catalog:AddonSource['manifest']['catalogs'][number];extras:Record<string,string>};
-type Row={page?:CatalogPage;error?:boolean;loading?:boolean;skip:number;repeated?:boolean};
+type Row={page?:CatalogPage;error?:boolean;loading?:boolean;skip:number;pageSkip?:number;repeated?:boolean};
 type Props={
   profileId:number;sources:AddonSource[];busy:boolean;active:boolean;paused:boolean;
-  scope?:Scope;includeHistory?:boolean;initialQuery?:string;run(work:()=>Promise<void>):Promise<void>;
+  scope?:Scope;includeHistory?:boolean;initialQuery?:string;searchMount?:HTMLElement|null;searchOnly?:boolean;run(work:()=>Promise<void>):Promise<void>;
   openTitle(item:Item,sourceId?:number):void;openHistory?(progress:WatchProgress):void;openAddons():void;
 };
 const BATCH=6;
@@ -75,7 +77,13 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
   const [historyFailed,setHistoryFailed]=React.useState(false);
   const mounted=React.useRef(false);
   const visible=targets.slice(0,limit);
-  React.useEffect(()=>{if(!search||!active||paused||scope!=='all'||kind==='anime'){setTmdbPending(false);return;}let current=true;setTmdbPending(true);void searchTmdb(profileId,search).then(items=>{if(current)setTmdb(items.filter(item=>kind==='all'||item.mediaType===kind));}).catch(()=>{}).finally(()=>{if(current)setTmdbPending(false);});return ()=>{current=false;};},[profileId,search,active,paused,scope,kind]);
+  React.useEffect(()=>{
+    if(!search||!active||paused||scope==='all'&&kind==='anime'){setTmdbPending(false);return;}
+    let current=true;const controller=new AbortController();setTmdbPending(true);
+    const request=scope==='all'?searchTmdb(profileId,search):searchPublicAnime(search,scope==='anime-films',controller.signal);
+    void request.then(items=>{if(current)setTmdb(items.filter(item=>kind==='all'||item.mediaType===kind));}).catch(()=>{}).finally(()=>{if(current)setTmdbPending(false);});
+    return ()=>{current=false;controller.abort();};
+  },[profileId,search,active,paused,scope,kind]);
   React.useEffect(()=>{mounted.current=true;return ()=>{mounted.current=false;};},[]);
   React.useEffect(()=>{if(!active){setHistory(null);setHistoryFailed(false);}},[active]);
 
@@ -90,11 +98,15 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
       if(!mounted.current)return;
       setRows(old=>{
         const previous=old[target.key]?.page;
+        if(!search&&skip>0&&previous&&page.items.length===0){
+          // An empty next page must not remove a populated shelf or its back path.
+          return {...old,[target.key]:{page:{...previous,nextSkip:null},skip:old[target.key]?.pageSkip??0,pageSkip:old[target.key]?.pageSkip??0}};
+        }
         const ids=new Set(previous?.items.map(i=>i.id));
         const fresh=page.items.filter(item=>!ids.has(item.id));
         const repeated=skip>0&&!!previous&&page.items.length>0&&(search?fresh.length===0:JSON.stringify(previous.items.map(i=>i.id))===JSON.stringify(page.items.map(i=>i.id)));
         const items=search&&skip>0&&previous?[...previous.items,...fresh]:page.items;
-        return {...old,[target.key]:{page:{...page,items,nextSkip:repeated?null:page.nextSkip},skip,repeated}};
+        return {...old,[target.key]:{page:{...page,items,nextSkip:repeated?null:page.nextSkip},skip,pageSkip:skip,repeated}};
       });
     }catch{if(mounted.current)setRows(old=>({...old,[target.key]:{...old[target.key],skip,loading:false,error:true}}));}
     finally{inFlight.current.delete(target.key);}
@@ -120,7 +132,7 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
   const featuredId=featured?.item.id,featuredType=featured?.item.mediaType;
   React.useEffect(()=>{setFeaturedMetadata(null);if(!active||paused||!featuredId||!featuredType)return;let current=true;void loadTmdbTitle(profileId,featuredType,featuredId).then(item=>{if(current)setFeaturedMetadata(item);}).catch(()=>{});return ()=>{current=false;};},[profileId,active,paused,featuredId,featuredType]);
   React.useEffect(()=>{
-    if(!search||!active||paused)return;
+    if(!search||!active||paused||scope!=='all')return;
     const addonItems=Object.values(rows).flatMap(row=>row.page?.items??[]);
     for(const item of searchAliasTargets(tmdb,addonItems)){
       if(checkedAliases.current.has(item.id)||checkedAliases.current.size>=4)continue;
@@ -130,14 +142,15 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
         setTmdb(old=>old.map(row=>row.id===item.id?{...row,imdbId:metadata.imdbId,identities:metadata.identities,poster:row.poster??metadata.poster,background:row.background??metadata.background,logo:metadata.logo}:row));
       }).catch(()=>{});
     }
-  },[profileId,search,active,paused,tmdb,rows]);
+  },[profileId,search,active,paused,scope,tmdb,rows]);
   const pending=visible.some(target=>!rows[target.key]||rows[target.key].loading);
   const hits=search?rankCatalogueSearch<{sourceId?:number}>([
     ...visible.flatMap(target=>(rows[target.key]?.page?.items??[]).map(item=>({item,target:{sourceId:target.source.sourceId},sourceId:target.source.sourceId}))),
-    ...tmdb.map(item=>({item,target:{},sourceId:0}))
+    ...tmdb.map(item=>({item,target:{},sourceId:0,providerMatch:scope!=='all'}))
   ],search):[];
   const searchGroups=[{key:'series',label:t`Series`,items:hits.filter(h=>h.item.mediaType==='series'||h.item.mediaType==='anime.series')},{key:'movie',label:t`Movies`,items:hits.filter(h=>h.item.mediaType==='movie'||h.item.mediaType==='anime.movie')},{key:'anime',label:t`Anime`,items:hits.filter(h=>h.item.mediaType==='anime')}];
   const canRequest=visible.filter(target=>rows[target.key]?.loading).length<PARALLEL;
+  const populated=visible.filter(target=>(rows[target.key]?.page?.items.length??0)>0);
   const continuing=history?.filter(row=>!row.progress.completed&&row.progress.positionMs>0).slice(0,12)??[];
   const resumeArt=useResumeArtwork(profileId,includeHistory?continuing.map(row=>row.progress):[]);
   return <>
@@ -163,7 +176,7 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
       {(pending||tmdbPending)&&<p className="tsugi-watch-muted" role="status"><Trans>Searching metadata…</Trans></p>}
       {hits.length===0&&!pending&&!tmdbPending&&<p role="status"><Trans>No matching titles found.</Trans></p>}
       {hits[0]&&<div className="tsugi-search-best-match" data-ui="watch-top-match">
-        <Artwork eager src={hits[0].item.background??hits[0].item.poster??null} alt="" className="tsugi-search-best-art"/>
+        <Artwork key={hits[0].key} eager src={[hits[0].item.background,hits[0].item.poster,...(hits[0].item.posterAlternatives??[])].filter((url):url is string=>!!url)} alt="" className="tsugi-search-best-art"/>
         <div className="tsugi-search-best-copy"><small><Trans>Top match</Trans> · {hits[0].item.mediaType.includes('movie')?t`Movie`:t`Series`}{hits[0].item.releaseInfo?' · '+hits[0].item.releaseInfo.slice(0,4):''}</small>
           <h4>{hits[0].item.name}</h4>
           {hits[0].item.description&&<p className="line-clamp-2">{hits[0].item.description}</p>}
@@ -186,32 +199,29 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
       <p><Trans>Enable an addon with compatible catalogues. Stream-only addons provide playback sources but cannot populate browsing rows.</Trans></p>
       <button className="tsugi-read-action" type="button" disabled={busy} onClick={openAddons}><Trans id="Manage addons">Manage addons</Trans></button>
     </section>:<>
-      <div className="tsugi-watch-board-status">
-        <span>{targets.length} <Trans>catalogues</Trans></span>
-        {(pending||stopped)&&<button type="button" className="tsugi-read-action" onClick={()=>setStopped(v=>!v)}>{stopped?<Trans>Continue loading</Trans>:<Trans>Pause catalogue loading</Trans>}</button>}
-      </div>
-      {visible.map(target=>{
+      {!populated.length&&<p className="tsugi-watch-muted" role="status">{stopped?<Trans>Loading paused.</Trans>:pending?<Trans>Loading titles…</Trans>:<Trans>No titles available yet.</Trans>}</p>}
+      {populated.map(target=>{
         const row=rows[target.key];
         return <section className="tsugi-watch-shelf" key={target.key} data-ui="watch-catalogue-shelf">
           <MediaRow id={profileId+':'+target.key} shape="poster" title={target.source.sourceId===0?(target.catalog.id==='top'?(target.catalog.mediaType==='movie'?t`Popular movies`:t`Popular series`):(target.catalog.mediaType==='movie'?t`Featured movies`:t`Featured series`)):target.catalog.name} loading={!!row?.loading&&!row.page||!row&&!stopped} action={row?.page&&<div className="flex flex-wrap gap-2">
               {row.skip>0&&<button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,0)}><Trans>First page</Trans></button>}
               {row.page.nextSkip!==null&&<button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,row.page!.nextSkip!)}><Trans>Next page</Trans></button>}
+              {row.error&&<button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,row.skip)}><Trans>Retry</Trans></button>}
           </div>}>
-            {row?.page?.items.map(item=><PosterCard key={item.id} title={item.name} image={item.poster??null} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item,target.source.sourceId)}/>)}
+            {row?.page?.items.map(item=><PosterCard key={item.id} title={item.name} image={item.poster?[item.poster,...(item.posterAlternatives??[])]:null} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item,target.source.sourceId)}/>)}
           </MediaRow>
           {row?.page&&row.page.items.length>0&&<small>{target.source.manifest.name} · {target.catalog.mediaType==='movie'?t`Movies`:target.catalog.mediaType==='series'?t`Series`:t`Anime`}</small>}
-          {row?.page?.items.length===0&&<p className="tsugi-watch-muted"><Trans id="No titles returned by this catalogue.">No titles returned by this catalogue.</Trans></p>}
-          {row?.repeated&&<p className="tsugi-watch-muted"><Trans id="This source repeated a page. Pagination stopped.">This source repeated a page. Pagination stopped.</Trans></p>}
-          {row?.error?<div className="tsugi-watch-board-status"><p role="status"><Trans>This catalogue is unavailable.</Trans></p><button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,row.skip)}><Trans>Retry</Trans></button></div>:
-            row?.loading?<p role="status"><Trans>Loading catalogue…</Trans></p>:!row&&<p className="tsugi-watch-muted">{stopped?<Trans>Loading paused.</Trans>:<Trans>Waiting to load catalogue…</Trans>}</p>}
         </section>;
       })}
-      {limit<targets.length&&<button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>{setLimit(n=>n+(search?SEARCH_BATCH:BATCH));setStopped(false);}}><Trans>Show more catalogues</Trans> ({targets.length-limit})</button>}
+      {(pending||stopped||limit<targets.length)&&<div className="flex flex-wrap gap-3">
+        {limit<targets.length&&<button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>{setLimit(n=>n+BATCH);setStopped(false);}}><Trans>Show more titles</Trans></button>}
+        {(pending||stopped)&&<button type="button" className="tsugi-read-action" onClick={()=>setStopped(v=>!v)}>{stopped?<Trans>Continue loading</Trans>:<Trans>Pause catalogue loading</Trans>}</button>}
+      </div>}
     </>}
   </>;
 }
 
-export function WatchCatalogueBoard({scope='all',includeHistory=false,initialQuery='',...props}:Props){
+export function WatchCatalogueBoard({scope='all',includeHistory=false,initialQuery='',searchMount,searchOnly=false,...props}:Props){
   const [query,setQuery]=React.useState(initialQuery);
   const [submitted,setSubmitted]=React.useState(initialQuery);
   const [searchOpen,setSearchOpen]=React.useState(!!initialQuery);
@@ -220,7 +230,7 @@ export function WatchCatalogueBoard({scope='all',includeHistory=false,initialQue
   const dialog=React.useRef<HTMLDialogElement>(null);
   const searchInput=React.useRef<HTMLInputElement>(null);
   const dialogId=React.useId();
-  React.useEffect(()=>{const timer=window.setTimeout(()=>setSubmitted(query.trim()),200);return ()=>window.clearTimeout(timer);},[query]);
+  React.useEffect(()=>{const timer=window.setTimeout(()=>setSubmitted(query.trim()),scope==='all'?200:450);return ()=>window.clearTimeout(timer);},[query,scope]);
   React.useEffect(()=>{
     const node=dialog.current;
     if(!node)return;
@@ -229,18 +239,20 @@ export function WatchCatalogueBoard({scope='all',includeHistory=false,initialQue
   },[searchOpen,props.paused]);
   const homeTargets=React.useMemo(()=>catalogueTargets(props.sources,scope,'all',''),[props.sources,scope]);
   const targets=React.useMemo(()=>catalogueTargets(props.sources,scope,kind,submitted),[props.sources,scope,kind,submitted]);
-  return <section className="tsugi-watch-board" data-ui="watch-catalogue-board" hidden={props.paused} inert={props.paused}>
-    {scope==='all'&&!props.sources.some(s=>s.enabled&&s.manifest.resources.includes('stream'))&&<p className="tsugi-watch-muted"><Trans>Browse titles now. Connect streaming addons in Settings to watch them.</Trans> <button type="button" className="tsugi-read-action" disabled={props.busy} onClick={props.openAddons}><Trans>Manage addons</Trans></button></p>}
-    <div className="tsugi-watch-board-toolbar">
-      <button type="button" className="tsugi-watch-search-trigger" aria-haspopup="dialog" aria-controls={dialogId} disabled={props.busy} onClick={()=>setSearchOpen(true)}><MovieGlyph name="search"/><span><Trans>Search movies &amp; series</Trans></span><span className="tsugi-watch-muted"><Trans>Search</Trans></span></button>
-      <button type="button" className="tsugi-read-action" disabled={props.busy} onClick={()=>setRevision(r=>r+1)}><Trans>Refresh catalogues</Trans></button>
-    </div>
-    <CatalogueRows key={JSON.stringify([props.profileId,scope,revision,homeTargets.map(row=>row.key)])} {...props} paused={props.paused||searchOpen} targets={homeTargets} search="" scope={scope} includeHistory={includeHistory}/>
+  const searchLabel=scope==='all'?t`Search movies & series`:t`Search anime`;
+  const toolbar=<div className="tsugi-watch-board-toolbar">
+    <button type="button" className="tsugi-watch-search-trigger" aria-label={searchLabel} aria-haspopup="dialog" aria-expanded={searchOpen} aria-controls={dialogId} disabled={props.busy} onClick={()=>setSearchOpen(true)}><MovieGlyph name="search"/><span>{searchLabel}</span></button>
+    {!searchOnly&&<button type="button" className="tsugi-read-action" disabled={props.busy} onClick={()=>setRevision(r=>r+1)}><Trans>Refresh catalogues</Trans></button>}
+  </div>;
+  return <section className="tsugi-watch-board" data-ui="watch-catalogue-board" data-search-only={searchOnly||undefined} hidden={props.paused} inert={props.paused}>
+    {!props.paused&&(searchMount?createPortal(toolbar,searchMount):searchMount===undefined?toolbar:null)}
+    {!searchOnly&&scope==='all'&&!props.sources.some(s=>s.enabled&&s.manifest.resources.includes('stream'))&&<p className="tsugi-watch-muted"><Trans>Browse titles now. Connect streaming addons in Settings to watch them.</Trans> <button type="button" className="tsugi-read-action" disabled={props.busy} onClick={props.openAddons}><Trans>Manage addons</Trans></button></p>}
+    {!searchOnly&&<CatalogueRows key={JSON.stringify([props.profileId,scope,revision,homeTargets.map(row=>row.key)])} {...props} paused={props.paused||searchOpen} targets={homeTargets} search="" scope={scope} includeHistory={includeHistory}/>} 
     <dialog ref={dialog} id={dialogId} className="tsugi-watch-search-dialog" aria-label={t`Search titles`} onCancel={e=>{e.preventDefault();setSearchOpen(false);}} onClick={e=>{if(e.target===e.currentTarget)setSearchOpen(false);}}>
       {searchOpen&&<div className="tsugi-watch-search-panel">
         <form className="tsugi-watch-search-bar" onSubmit={e=>{e.preventDefault();setSubmitted(query.trim());}}>
           <MovieGlyph name="search"/>
-          <input ref={searchInput} type="search" aria-label={t`Search across addons`} value={query} maxLength={512} placeholder={t`Search movies, series and anime…`} onChange={e=>setQuery(e.target.value)}/>
+          <input ref={searchInput} type="search" aria-label={t`Search across addons`} value={query} maxLength={scope==='all'?512:300} placeholder={scope==='all'?t`Search movies, series and anime…`:t`Search anime…`} onChange={e=>setQuery(e.target.value)}/>
           {query&&<button type="button" className="tsugi-read-action" onClick={()=>{setQuery('');setSubmitted('');searchInput.current?.focus();}}><Trans>Clear search</Trans></button>}
           <button type="button" className="tsugi-read-action" onClick={()=>setSearchOpen(false)}><Trans>Close search</Trans></button>
         </form>
