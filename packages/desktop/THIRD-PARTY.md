@@ -61,3 +61,7 @@ The Windows release check reads metadata from the official [Tsugi GitHub Release
 ## Launcher artwork (portable live-acceptance build)
 
 The recovery candidate includes six launcher images in `packages/web/public/design/launch/`: `launch-purple.jpg` is the exact user-provided purple wallpaper (SHA-256 `aaa60e2c16ef1692449dc2f866156b3af32568acf1e86ac55ac26c72d7c7ec9f`), `world-hero.webp` is an optimized version of the user-provided monochrome landscape, and `world-video.webp`, `world-music.webp`, `world-read.webp`, and `world-vault.webp` are distinct generated dark illustrations based on the supplied visual direction. This is a user-requested development candidate for live acceptance. The provenance note does not establish ownership or permission for broader public redistribution of supplied reference imagery. Review artwork rights before any stable publication.
+
+## TVmaze public series discovery
+
+The Discover Series Hub uses the [TVmaze public API](https://www.tvmaze.com/api) for broadcast and web schedules and show search. TVmaze data is attributed in the interface and is licensed under [CC BY-SA](https://creativecommons.org/licenses/by-sa/4.0/); the selected titles are a filtered, normalized view of the source data. Remote poster images are linked from the TVmaze CDN, not bundled. Requests contain only public schedule dates, country codes and user-entered title queries, no account or playback credentials. Only explicitly mapped IMDb identities enter the existing Watch route; no TVDB key or direct TVDB service is used.

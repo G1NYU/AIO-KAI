@@ -1,3 +1,9 @@
+## 2026-11-28 — Final release corrections (candidate)
+
+- Maintainer live-approved the previous Windows portable recovery build except duplicate Discover, optional Discord Rich Presence and newly reported hero/card polish. Discover now uses TVmaze public web/broadcast schedules and show search, not TVDB. Explicit IMDb mapping only; preserve existing addon metadata/episode/stream routes, omit unmapped shows. TVmaze attribution included. No API key.
+- Shared title-detail hero extends from rail to right viewport edge and beneath the masthead with bottom blur/fade; retain native window strip and controls. Anime hub feature also extends horizontally. Returning Home only: 14px blur on all four original category artworks, kept on hover; sharp centered copy/icons and unchanged click behavior.
+- Browser regression asserts independent Discover shelves, exact episode route, desktop movie/series/anime/Discover detail geometry, narrow layout and launcher blur. New TVmaze parser/date tests. CI and rendered evidence still required. Keep Discord optional; no unrelated changes. Stable v0.1.0 must not be overwritten. Public redistribution rights for provided wallpaper and landscape remain to be confirmed; release workflow still hardcodes old tag.
+
 ## 2026-11-28 — Artwork integration and history UI lint repair
 
 - Prior cumulative CI [46131295365](https://github.com/G1NYU/TSUGI/actions/runs/46131295365): Windows native compile/test passed (256 passed, zero failed, 18 ignored); web typecheck passed, but Lingui lint rejected two object-property expressions in history import messages. Bind the count to a local variable in both views, preserving the same wording and behavior.

@@ -2,6 +2,8 @@ import React from 'react';
 import { watchPosterSources } from '@/lib/watch-poster-pattern';
 import { createPortal } from 'react-dom';
 import { searchPublicAnime } from './anime-public-discovery';
+import { SeriesDiscovery } from './series-discovery';
+import { searchTvmaze } from '@/lib/hosts/shell/tvmaze';
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
 import { MovieGlyph } from '@/components/movie-icons';
@@ -22,7 +24,7 @@ type Target={key:string;source:AddonSource;catalog:AddonSource['manifest']['cata
 type Row={page?:CatalogPage;error?:boolean;loading?:boolean;skip:number;pageSkip?:number;repeated?:boolean};
 type Props={
   profileId:number;posterPattern?:string;sources:AddonSource[];busy:boolean;active:boolean;paused:boolean;
-  scope?:Scope;includeHistory?:boolean;initialQuery?:string;searchMount?:HTMLElement|null;searchOnly?:boolean;run(work:()=>Promise<void>):Promise<void>;
+  scope?:Scope;includeHistory?:boolean;seriesDiscovery?:boolean;initialQuery?:string;searchMount?:HTMLElement|null;searchOnly?:boolean;run(work:()=>Promise<void>):Promise<void>;
   openTitle(item:Item,sourceId?:number):void;openHistory?(progress:WatchProgress):void;openAddons():void;
 };
 const BATCH=6;
@@ -65,7 +67,7 @@ export function catalogueTargets(sources:AddonSource[],scope:Scope,kind:Kind,que
   return rows;
 }
 
-function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,openTitle,openAddons,includeHistory,openHistory,search,scope='all',kind='all'}:Omit<Props,'sources'> & {targets:Target[];search:string;kind?:Kind}){
+function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,openTitle,openAddons,includeHistory,openHistory,search,scope='all',kind='all',seriesDiscovery=false}:Omit<Props,'sources'> & {targets:Target[];search:string;kind?:Kind}){
   const [limit,setLimit]=React.useState(search?SEARCH_BATCH:BATCH);
   const [resultLimit,setResultLimit]=React.useState(RESULT_BATCH);
   const [tmdb,setTmdb]=React.useState<Item[]>([]);
@@ -83,10 +85,10 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
     if(!search||!active||paused){setTmdbPending(false);return;}
     let current=true;const controller=new AbortController();setTmdbPending(true);
     const publicAnime=scope!=='all'||kind==='anime';
-    const request=publicAnime?searchPublicAnime(search,scope==='anime-films',controller.signal):searchTmdb(profileId,search);
+    const request=seriesDiscovery?searchTvmaze(search,controller.signal):publicAnime?searchPublicAnime(search,scope==='anime-films',controller.signal):searchTmdb(profileId,search);
     void request.then(items=>{if(current)setTmdb(items.filter(item=>kind==='all'||kind==='anime'||item.mediaType===kind));}).catch(()=>{}).finally(()=>{if(current)setTmdbPending(false);});
     return ()=>{current=false;controller.abort();};
-  },[profileId,search,active,paused,scope,kind]);
+  },[profileId,search,active,paused,scope,kind,seriesDiscovery]);
   React.useEffect(()=>{mounted.current=true;return ()=>{mounted.current=false;};},[]);
   React.useEffect(()=>{if(!active){setHistory(null);setHistoryFailed(false);}},[active]);
 
@@ -153,7 +155,7 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
   const pending=visible.some(target=>!rows[target.key]||rows[target.key].loading);
   const hits=search?rankCatalogueSearch<{sourceId?:number}>([
     ...visible.flatMap(target=>(rows[target.key]?.page?.items??[]).map(item=>({item,target:{sourceId:target.source.sourceId},sourceId:target.source.sourceId}))),
-    ...tmdb.map(item=>({item,target:{},sourceId:0,providerMatch:scope!=='all'||kind==='anime'}))
+    ...tmdb.map(item=>({item,target:{},sourceId:0,providerMatch:seriesDiscovery||scope!=='all'||kind==='anime'}))
   ],search):[];
   const searchGroups=[{key:'series',label:t`Series`,items:hits.filter(h=>h.item.mediaType==='series'||h.item.mediaType==='anime.series')},{key:'movie',label:t`Movies`,items:hits.filter(h=>h.item.mediaType==='movie'||h.item.mediaType==='anime.movie')},{key:'anime',label:t`Anime`,items:hits.filter(h=>h.item.mediaType==='anime')}];
   const canRequest=visible.filter(target=>rows[target.key]?.loading).length<PARALLEL;
@@ -239,11 +241,11 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
   </>;
 }
 
-export function WatchCatalogueBoard({scope='all',includeHistory=false,initialQuery='',searchMount,searchOnly=false,...props}:Props){
+export function WatchCatalogueBoard({scope='all',includeHistory=false,seriesDiscovery=false,initialQuery='',searchMount,searchOnly=false,...props}:Props){
   const [query,setQuery]=React.useState(initialQuery);
   const [submitted,setSubmitted]=React.useState(initialQuery);
   const [searchOpen,setSearchOpen]=React.useState(!!initialQuery);
-  const [kind,setKind]=React.useState<Kind>('all');
+  const [kind,setKind]=React.useState<Kind>(seriesDiscovery?'series':'all');
   const [revision,setRevision]=React.useState(0);
   const dialog=React.useRef<HTMLDialogElement>(null);
   const searchInput=React.useRef<HTMLInputElement>(null);
@@ -256,28 +258,28 @@ export function WatchCatalogueBoard({scope='all',includeHistory=false,initialQue
     else if(node.open)node.close();
   },[searchOpen,props.paused]);
   const homeTargets=React.useMemo(()=>catalogueTargets(props.sources,scope,'all',''),[props.sources,scope]);
-  const targets=React.useMemo(()=>catalogueTargets(props.sources,scope,kind,submitted),[props.sources,scope,kind,submitted]);
-  const searchLabel=scope==='all'?t`Search movies & series`:t`Search anime`;
+  const targets=React.useMemo(()=>seriesDiscovery?[]:catalogueTargets(props.sources,scope,kind,submitted),[props.sources,scope,kind,submitted,seriesDiscovery]);
+  const searchLabel=seriesDiscovery?t`Search series`:scope==='all'?t`Search movies & series`:t`Search anime`;
   const toolbar=<div className="tsugi-watch-board-toolbar">
     <button type="button" className="tsugi-watch-search-trigger" aria-label={searchLabel} aria-haspopup="dialog" aria-expanded={searchOpen} aria-controls={dialogId} disabled={props.busy} onClick={()=>setSearchOpen(true)}><MovieGlyph name="search"/><span>{searchLabel}</span></button>
-    {!searchOnly&&<button type="button" className="tsugi-read-action" disabled={props.busy} onClick={()=>setRevision(r=>r+1)}><Trans>Refresh catalogues</Trans></button>}
+    {!searchOnly&&<button type="button" className="tsugi-read-action" disabled={props.busy} onClick={()=>setRevision(r=>r+1)}>{seriesDiscovery?<Trans>Refresh schedules</Trans>:<Trans>Refresh catalogues</Trans>}</button>}
   </div>;
   return <section className="tsugi-watch-board" data-ui="watch-catalogue-board" data-search-only={searchOnly||undefined} hidden={props.paused} inert={props.paused}>
     {!props.paused&&(searchMount?createPortal(toolbar,searchMount):searchMount===undefined?toolbar:null)}
     {!searchOnly&&scope==='all'&&!props.sources.some(s=>s.enabled&&s.manifest.resources.includes('stream'))&&<p className="tsugi-watch-muted"><Trans>Browse titles now. Connect streaming addons in Settings to watch them.</Trans> <button type="button" className="tsugi-read-action" disabled={props.busy} onClick={props.openAddons}><Trans>Manage addons</Trans></button></p>}
-    {!searchOnly&&<CatalogueRows key={JSON.stringify([props.profileId,scope,revision,homeTargets.map(row=>row.key)])} {...props} paused={props.paused||searchOpen} targets={homeTargets} search="" scope={scope} includeHistory={includeHistory}/>} 
+    {!searchOnly&&seriesDiscovery?<SeriesDiscovery key={props.profileId+':'+revision} active={props.active&&!props.paused&&!searchOpen} busy={props.busy} posterPattern={props.posterPattern} openTitle={props.openTitle}/>:!searchOnly&&<CatalogueRows key={JSON.stringify([props.profileId,scope,revision,homeTargets.map(row=>row.key)])} {...props} paused={props.paused||searchOpen} targets={homeTargets} search="" scope={scope} includeHistory={includeHistory}/>} 
     <dialog ref={dialog} id={dialogId} className="tsugi-watch-search-dialog" aria-label={t`Search titles`} onCancel={e=>{e.preventDefault();setSearchOpen(false);}} onClick={e=>{if(e.target===e.currentTarget)setSearchOpen(false);}}>
       {searchOpen&&<div className="tsugi-watch-search-panel">
         <form className="tsugi-watch-search-bar" onSubmit={e=>{e.preventDefault();setSubmitted(query.trim());}}>
           <MovieGlyph name="search"/>
-          <input ref={searchInput} type="search" aria-label={t`Search across addons`} value={query} maxLength={scope==='all'?512:300} placeholder={scope==='all'?t`Search movies, series and anime…`:t`Search anime…`} onChange={e=>setQuery(e.target.value)}/>
+          <input ref={searchInput} type="search" aria-label={t`Search across addons`} value={query} maxLength={scope==='all'?512:300} placeholder={seriesDiscovery?t`Search television series…`:scope==='all'?t`Search movies, series and anime…`:t`Search anime…`} onChange={e=>setQuery(e.target.value)}/>
           {query&&<button type="button" className="tsugi-read-action" onClick={()=>{setQuery('');setSubmitted('');searchInput.current?.focus();}}><Trans>Clear search</Trans></button>}
           <button type="button" className="tsugi-read-action" onClick={()=>setSearchOpen(false)}><Trans>Close search</Trans></button>
         </form>
-        {scope==='all'&&<div className="tsugi-search-kind" aria-label={t`Media type`}>
+        {scope==='all'&&!seriesDiscovery&&<div className="tsugi-search-kind" aria-label={t`Media type`}>
           {([{value:'all',label:t`All titles`},{value:'series',label:t`Series`},{value:'movie',label:t`Movies`},{value:'anime',label:t`Anime`}] as const).map(({value,label})=><button type="button" key={value} aria-pressed={kind===value} onClick={()=>setKind(value)}>{label}</button>)}
         </div>}
-        {submitted?<CatalogueRows key={JSON.stringify([props.profileId,scope,kind,submitted,targets.map(row=>row.key)])} {...props} openTitle={(item,sourceId)=>{setSearchOpen(false);props.openTitle(item,sourceId);}} targets={targets} search={submitted} scope={scope} kind={kind} includeHistory={false}/>:<p className="tsugi-watch-search-hint"><Trans>Find your next favorite. Results appear as you type.</Trans></p>}
+        {submitted?<CatalogueRows key={JSON.stringify([props.profileId,scope,kind,submitted,targets.map(row=>row.key)])} {...props} openTitle={(item,sourceId)=>{setSearchOpen(false);props.openTitle(item,sourceId);}} targets={targets} search={submitted} scope={scope} kind={kind} seriesDiscovery={seriesDiscovery} includeHistory={false}/>:<p className="tsugi-watch-search-hint"><Trans>Find your next favorite. Results appear as you type.</Trans></p>}
       </div>}
     </dialog>
   </section>;

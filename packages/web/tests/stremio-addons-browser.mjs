@@ -389,6 +389,14 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       return route.fulfill({contentType:'image/webp',body,headers:{'access-control-allow-origin':'*'}});
     });
     await page.route('https://images.metahub.space/background/**',route=>route.fulfill({contentType:'image/webp',body:heroImage,headers:{'access-control-allow-origin':'*'}}));
+    const tvmazePoster='https://static.tvmaze.com/uploads/images/medium_portrait/1/90021.jpg';
+    await page.route(tvmazePoster,route=>route.fulfill({contentType:'image/webp',body:posterImage,headers:{'access-control-allow-origin':'*'}}));
+    await page.route('https://api.tvmaze.com/**',route=>{
+      const url=new URL(route.request().url());
+      const show={id:21,name:'Family Guy',type:'Animation',genres:['Comedy'],externals:{imdb:'tt90021'},image:{medium:tvmazePoster},premiered:'1999-01-31'};
+      const row=url.pathname==='/schedule/web'?{_embedded:{show}}:{show};
+      return route.fulfill({json:[row,row,{show:{...show,name:'Unmapped series',externals:{imdb:null}}}],headers:{'access-control-allow-origin':'*'}});
+    });
     await page.route('https://api.tenrai.org/v1/**',route=>{
       const films=new URL(route.request().url()).searchParams.get('type')==='movie';
       return route.fulfill({json:{data:[{mal_id:films?90005:90004,title:films?'Public anime film fixture':'Public anime discovery fixture',type:films?'Movie':'TV',rating:'PG-13 - Teens 13 or older',score:8.6,images:{webp:{large_image_url:missingDiscoveryPoster},jpg:{image_url:discoveryPoster}},synopsis:'Independent discovery without addon installation.'}]},headers:{'access-control-allow-origin':'*'}});
@@ -480,6 +488,45 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='browse-catalog')));
     assert.equal(await board.getByText('Disabled films',{exact:true}).count(),0);
     assert.equal(await watch.getByRole('heading',{name:'Installed addons',exact:true}).count(),0);
+    async function assertDetailHero(label){
+      const hero=watch.locator('[data-ui="watch-detail-hero"][data-has-backdrop]');
+      await hero.waitFor();
+      await hero.evaluate(node=>node.closest('.tsugi-direct-watch').scrollTo({top:0}));
+      assert.equal(await hero.evaluate(node=>getComputedStyle(node).borderRadius),'0px');
+      assert.ok(await hero.evaluate(node=>{
+        const r=node.getBoundingClientRect(),root=node.closest('.tsugi-direct-watch'),rail=root.querySelector('.tsugi-watch-shared-rail');
+        const bounds=root.getBoundingClientRect(),side=rail.getBoundingClientRect(),header=root.querySelector('.tsugi-watch-hub>header');
+        const close=node.querySelector('.tsugi-watch-close-title'),copy=node.querySelector('.tsugi-watch-title-copy');
+        const c=close.getBoundingClientRect(),h=header.getBoundingClientRect(),b=copy.getBoundingClientRect();
+        return Math.abs(r.left-side.right)<=3&&Math.abs(r.right-(bounds.left+root.clientLeft+root.clientWidth))<=3&&
+          Math.abs(r.top-(bounds.top+root.clientTop))<=3&&h.bottom<c.top&&c.bottom<=b.top&&close.contains(document.elementFromPoint(c.x+c.width/2,c.y+c.height/2))&&
+          getComputedStyle(node.querySelector('.tsugi-watch-title-backdrop'),'::before').backdropFilter.includes('blur');
+      }),label+' full-bleed geometry, readable masthead and close control');
+      if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-detail-'+label+'.png'),animations:'disabled'});
+    }
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Discover',exact:true}).click();
+    await watch.getByRole('heading',{name:'Series hub',exact:true}).waitFor();
+    const discovery=board.locator('[data-ui="series-discovery"]');
+    const feeds=discovery.locator('[data-ui="series-discovery-feed"]');
+    for(const feed of ['streaming-today','streaming-tomorrow','broadcast-us','broadcast-gb']){
+      const row=feeds.locator('[data-feed="'+feed+'"]');
+      await row.getByRole('button',{name:'Family Guy',exact:true}).waitFor();
+      assert.equal(await row.getByRole('button',{name:'Family Guy',exact:true}).count(),1);
+    }
+    assert.equal(await board.locator('[data-ui="watch-catalogue-shelf"]').count(),0);
+    assert.equal(await board.locator('[data-ui="watch-continue-shelf"]').count(),0);
+    assert.equal(await discovery.getByRole('button',{name:'Unmapped series',exact:true}).count(),0);
+    await assertArtwork(feeds.first().getByRole('button',{name:'Family Guy',exact:true}));
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-tvmaze-discovery.png'),animations:'disabled'});
+    await watch.locator('.tsugi-watch-header-search').getByRole('button',{name:'Search series',exact:true}).click();
+    await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('family guy');
+    await board.locator('[data-ui="watch-search-results"]').getByRole('button',{name:'Family Guy',exact:true}).click();
+    const mazeDetail=watch.locator('[data-ui="watch-item-details"]');
+    await mazeDetail.locator('[data-video-id="tt90021:1:1"]').waitFor();
+    await assertDetailHero('discover');
+    await mazeDetail.getByRole('button',{name:'Close title',exact:true}).click();
+    await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Home',exact:true}).click();
+    await film.waitFor();
     const watchCarouselHero=board.locator('[data-ui="hero"]');
     const seriesSlide=watchCarouselHero.getByRole('button',{name:'Show Fixture anime series',exact:true});
     await seriesSlide.waitFor();
@@ -502,14 +549,12 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await item.getByText('Fixture Actor',{exact:true}).waitFor();
     assert.equal(await item.locator('.tsugi-watch-title-backdrop').count(),1);
     await assertArtwork(item.locator('.tsugi-watch-title-backdrop'));
-    const titleHero=item.locator('.tsugi-watch-title-hero');
-    await titleHero.evaluate(node=>node.scrollIntoView({block:'start',behavior:'instant'}));
-    const closeTitleBounds=await titleHero.locator('.tsugi-watch-close-title').boundingBox();
-    const titleCopyBounds=await titleHero.locator('.tsugi-watch-title-copy').boundingBox();
-    assert.ok(closeTitleBounds&&titleCopyBounds&&closeTitleBounds.y+closeTitleBounds.height<=titleCopyBounds.y,'title close is separated from cinematic title copy');
-    const titleBounds=await titleHero.boundingBox();
-    const titleControls=await page.locator('[data-ui="window-controls"]').boundingBox();
-    assert.ok(titleBounds&&titleControls&&titleBounds.y>=titleControls.y+titleControls.height+8,'title hero clears native controls after programmatic scrolling');
+    await assertDetailHero('movie');
+    await page.setViewportSize({width:390,height:844});
+    const narrowHero=item.locator('[data-ui="watch-detail-hero"]');
+    assert.ok(await narrowHero.evaluate(node=>{const r=node.getBoundingClientRect();return r.left>=0&&r.right<=window.innerWidth+1&&node.scrollWidth<=node.clientWidth+1;}),'narrow title hero does not overflow');
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-detail-movie-narrow.png'),animations:'disabled'});
+    await page.setViewportSize({width:1600,height:900});
     assert.ok(await page.evaluate(()=>!!document.elementFromPoint(Math.floor(window.innerWidth/2),20)?.closest('[data-page="direct-watch"]')),'Watch scroll region preserves its opaque window strip');
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-movie-details.png'),animations:'disabled'});
     assert.equal(await groups.count(),0);
@@ -739,6 +784,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('family guy');
     await seriesResults.getByRole('button',{name:'Family Guy',exact:true}).click();
     await item.getByRole('heading',{name:'Family Guy',exact:true}).waitFor();
+    await assertDetailHero('series');
     assert.equal(await groups.count(),0,'ordinary TV detail does not query streams before episode selection');
     await item.locator('[data-video-id="tt90021:1:1"]').click();
     await groups.getByRole('heading',{name:'TV fixture pilot',exact:true}).waitFor();
@@ -782,6 +828,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await episode.getByText('A synopsis supplied by TMDB.',{exact:true}).waitFor();
     await assertArtwork(episode);
     assert.equal(await anime.isVisible(),false,'title details replace the Anime Hub rather than stacking above it');
+    await assertDetailHero('anime-series');
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-episode-list.png'),animations:'disabled'});
     await episode.click();
     await groups.getByRole('button',{name:'Play',exact:true}).first().waitFor();
@@ -879,6 +926,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await watch.locator('[data-ui="anime-public-discovery"]').getByRole('button',{name:'Public anime film fixture',exact:true}).first().click();
     await item.getByRole('heading',{name:'Public anime film fixture',exact:true}).waitFor();
     assert.equal(await groups.count(),0,'anime movie details do not request streams before Play');
+    await assertDetailHero('anime-film');
     await item.locator('[data-ui="watch-play-title"]').click();
     await groups.getByRole('heading',{name:'Public anime film fixture',exact:true}).waitFor();
     await groups.getByRole('button',{name:'Play',exact:true}).first().waitFor();

@@ -620,6 +620,8 @@ try {
   assert.deepEqual(await landing.locator('.tsugi-world-card').evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label'))), ['Movies & TV', 'Music', 'Read', 'Vault']);
   assert.equal(await landing.locator('.tsugi-world-card .tsugi-world-card-top .tsugi-media-icon').count(), 4);
   const homeArtwork=landing.locator('.tsugi-world-card img');
+  assert.ok(await homeArtwork.evaluateAll(images=>images.length===4&&images.every(image=>getComputedStyle(image).filter.includes('blur(14px)'))),'all returning-home card artwork is heavily blurred');
+  assert.ok(await landing.locator('.tsugi-world-card-copy,.tsugi-world-card-top').evaluateAll(nodes=>nodes.every(node=>getComputedStyle(node).filter==='none')),'category copy and icons stay sharp');
   assert.deepEqual(await homeArtwork.evaluateAll(images=>Promise.all(images.map(async image=>{await image.decode();return image.getAttribute('src');}))),expectedWorldArtwork,'each returning-home world has distinct dark artwork');
   assert.equal(await page.locator('html').getAttribute('class').then(value => value.includes('tsugi-desktop-boot')), true);
   const assertLauncherGeometry = async () => {

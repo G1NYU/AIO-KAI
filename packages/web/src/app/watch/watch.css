@@ -41,3 +41,31 @@
   :root[data-host='desktop'] .tsugi-direct-watch .tsugi-watch-hub[data-watch-pane='home']:has(.tsugi-watch-board:not([hidden]) .tsugi-watch-featured)>.tsugi-watch-content{grid-row:1}
   :root[data-host='desktop'] .tsugi-direct-watch .tsugi-watch-hub[data-watch-pane='home'] .tsugi-watch-board:not([hidden]) .tsugi-watch-featured{margin-inline:calc(-32px - var(--tsugi-page-gap,24px)) -32px;margin-block-start:-24px;padding-inline:calc(32px + var(--tsugi-page-gap,24px)) 32px;padding-block-start:clamp(150px,15vw,210px);border-radius:0;min-height:clamp(420px,44vw,640px)}
 }
+
+/* One cinematic detail layout for movies, series, anime and every browse
+ * entry point. Reuse the Home gutters; the native title strip remains opaque. */
+@media(min-width:1024px){
+  :root[data-host='desktop'] .tsugi-direct-watch .tsugi-watch-hub:has(>.tsugi-watch-content .tsugi-watch-detail .tsugi-watch-title-hero[data-has-backdrop])>header{grid-row:1;z-index:2;align-self:start}
+  :root[data-host='desktop'] .tsugi-direct-watch .tsugi-watch-hub:has(>.tsugi-watch-content .tsugi-watch-detail .tsugi-watch-title-hero[data-has-backdrop])>.tsugi-watch-content{grid-row:1}
+  :root[data-host='desktop'] .tsugi-direct-watch .tsugi-watch-detail .tsugi-watch-title-hero[data-has-backdrop]{
+    margin-inline:calc(-32px - var(--tsugi-page-gap,24px)) -32px;margin-block-start:-24px;
+    padding-inline:calc(32px + var(--tsugi-page-gap,24px)) 32px;padding-block-start:clamp(180px,17vw,240px);
+    padding-block-end:36px;border-radius:0;min-height:clamp(460px,44vw,660px);
+  }
+  :root[data-host='desktop'] .tsugi-direct-watch .tsugi-watch-detail .tsugi-watch-title-hero[data-has-backdrop]>.tsugi-watch-close-title{inset-block-start:132px;inset-inline-end:32px}
+  :root[data-host='desktop'] .tsugi-direct-watch .tsugi-anime-hub:not([hidden]) .tsugi-anime-hero{
+    margin-inline:calc(-32px - var(--tsugi-page-gap,24px)) -32px;border-radius:0;
+    padding-inline:calc(32px + var(--tsugi-page-gap,24px)) 32px;min-height:clamp(330px,36vw,500px)
+  }
+}
+@media(max-width:1023px){
+  :root[data-host='desktop'] .tsugi-direct-watch .tsugi-watch-detail .tsugi-watch-title-hero[data-has-backdrop]{border-radius:0}
+}
+.tsugi-direct-watch .tsugi-watch-detail .tsugi-watch-title-backdrop::before{
+  content:'';position:absolute;inset:55% 0 0;z-index:1;backdrop-filter:blur(12px);mask-image:linear-gradient(transparent,#000 92%);pointer-events:none
+}
+.tsugi-direct-watch .tsugi-watch-detail .tsugi-watch-title-backdrop::after{
+  z-index:2;background:linear-gradient(180deg,var(--tsugi-canvas) 0%,color-mix(in srgb,var(--tsugi-canvas) 60%,transparent) 17%,transparent 45%),linear-gradient(0deg,var(--tsugi-canvas) 0%,transparent 64%),linear-gradient(90deg,var(--tsugi-canvas),color-mix(in srgb,var(--tsugi-canvas) 70%,transparent) 28%,transparent 95%)
+}
+[dir='rtl'] .tsugi-direct-watch .tsugi-watch-detail .tsugi-watch-title-backdrop::after{background:linear-gradient(180deg,var(--tsugi-canvas) 0%,color-mix(in srgb,var(--tsugi-canvas) 60%,transparent) 17%,transparent 45%),linear-gradient(0deg,var(--tsugi-canvas) 0%,transparent 64%),linear-gradient(270deg,var(--tsugi-canvas),color-mix(in srgb,var(--tsugi-canvas) 70%,transparent) 28%,transparent 95%)}
+:root[data-host='desktop'] .tsugi-direct-watch .tsugi-anime-hero::before{background:linear-gradient(0deg,var(--tsugi-canvas),transparent 60%),linear-gradient(90deg,color-mix(in srgb,var(--tsugi-canvas) 92%,transparent),transparent)}

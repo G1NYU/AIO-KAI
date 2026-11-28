@@ -120,7 +120,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const [automatic,setAutomatic]=React.useState(false);
   const detailRef=React.useRef<HTMLElement>(null);
   React.useEffect(()=>{
-    if(automatic&&title){detailRef.current?.focus({preventScroll:true});detailRef.current?.scrollIntoView({block:'start'});}
+    if(automatic&&title){const detail=detailRef.current;detail?.focus({preventScroll:true});const scroll=detail?.closest('.tsugi-direct-watch');if(scroll)scroll.scrollTo({top:0});else detail?.scrollIntoView({block:'start'});}
   },[automatic,title]);
   const mounted=React.useRef(false);
   const flight=React.useRef(false);
@@ -604,7 +604,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   }
   return <section className={workspace?onPlay?'tsugi-watch-workspace tsugi-watch-hub':'tsugi-app-general tsugi-watch-workspace tsugi-watch-configuration':'tsugi-app-general'} data-ui="stremio-addon-settings" data-watch-pane={pane} aria-labelledby={titleId}>
     {workspace&&!hubChooser&&<header className={onPlay&&!inSettings?'tsugi-watch-hub-header':'tsugi-watch-workspace-banner'} style={{'--tsugi-watch-art':"url('/design/shared/hero-train.webp')"} as React.CSSProperties}>
-      <div className="tsugi-watch-heading-copy"><TsugiBrand className="tsugi-watch-header-brand"/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}>{pane==='anime'?<Trans>Anime</Trans>:pane==='home'||pane==='discover'||pane==='history'?<Trans>Movies &amp; TV</Trans>:<Trans>Your addon stack.</Trans>}</h3>{(pane==='home'||pane==='discover')?<p><Trans>Watch from your connected catalogues and streaming addons.</Trans></p>:pane!=='anime'&&<p><Trans>Bring your sources home.</Trans></p>}</div>
+      <div className="tsugi-watch-heading-copy"><TsugiBrand className="tsugi-watch-header-brand"/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}>{pane==='anime'?<Trans>Anime</Trans>:pane==='discover'?<Trans>Series hub</Trans>:pane==='home'||pane==='history'?<Trans>Movies &amp; TV</Trans>:<Trans>Your addon stack.</Trans>}</h3>{pane==='discover'?<p><Trans>Discover television series and upcoming episodes with TVmaze.</Trans></p>:pane==='home'?<p><Trans>Watch from your connected catalogues and streaming addons.</Trans></p>:pane!=='anime'&&<p><Trans>Bring your sources home.</Trans></p>}</div>
       {onPlay&&profileReady&&!title&&['home','discover','anime'].includes(pane)&&<div ref={setSearchMount} className="tsugi-watch-header-search"/>}
       <div className="tsugi-watch-header-actions">
         {onPlay&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('hubs')}><MovieGlyph name="grid"/> <Trans>Streaming hubs</Trans></button>}
@@ -649,7 +649,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       {onPlay&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('home')}><Trans>Back to streaming hub</Trans></button>}
     </nav>}
     {!workspace&&<h3 id={titleId}><Trans>Stremio addons</Trans></h3>}
-    {workspace&&onPlay&&profileReady&&profileId!==undefined&&(pane==='home'||pane==='discover')&&<WatchCatalogueBoard key={JSON.stringify([profileId,pane,boardSearch])} initialQuery={boardSearch} searchMount={searchMount} profileId={profileId} posterPattern={posterPattern} sources={sources} busy={busy} run={run} active={historyActive} paused={!!title} includeHistory={pane==='home'} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} openAddons={()=>void selectPane('addons')}/>}
+    {workspace&&onPlay&&profileReady&&profileId!==undefined&&(pane==='home'||pane==='discover')&&<WatchCatalogueBoard key={JSON.stringify([profileId,pane,boardSearch])} initialQuery={boardSearch} searchMount={searchMount} profileId={profileId} posterPattern={posterPattern} sources={sources} busy={busy} run={run} active={historyActive} paused={!!title} includeHistory={pane==='home'} seriesDiscovery={pane==='discover'} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} openAddons={()=>void selectPane('addons')}/>}
     {workspace&&onPlay&&pane==='playback'&&<section className="min-w-0" data-ui="watch-playback-settings"><WatchPlaybackSettings/></section>}
     {show('profile')&&<>
     <p><Trans>Each local profile has its own addons, without an AIOStreams connection. Browse catalogues and select supported direct HTTPS streams in Watch.</Trans></p>
@@ -752,7 +752,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     {workspace&&pane==='mdblist'&&profileReady&&profileId!==undefined&&<MdblistSettings key={profileId} profileId={profileId} openTitle={item=>void openTitle(item)}/>}
     {workspace&&pane==='refract'&&(historyActive||setupConnections)&&profileReady&&profileId!==undefined&&<RefractSettings key={profileId} profileId={profileId} busy={busy} run={run}/>}
     {workspace&&title&&<section ref={detailRef} tabIndex={-1} className={automatic?'space-y-3 tsugi-watch-detail':'space-y-3'} data-ui="watch-item-details">
-      <div className="tsugi-watch-title-hero" data-has-backdrop={!!(cinema?.background||details?.background||title.background||cinema?.poster||details?.poster||title.poster)||undefined}>
+      <div className="tsugi-watch-title-hero" data-ui="watch-detail-hero" data-has-backdrop={!!(cinema?.background||details?.background||title.background||cinema?.poster||details?.poster||title.poster)||undefined}>
         <button type="button" className="tsugi-read-action tsugi-watch-close-title" disabled={busy} onClick={closeTitle}><Trans>Close title</Trans></button>
         {(cinema?.background||details?.background||title.background||cinema?.poster||details?.poster||title.poster)&&<div className="tsugi-watch-title-backdrop" aria-hidden="true"><Artwork eager src={[cinema?.background,details?.background,title.background,cinema?.poster,details?.poster,title.poster,...(title.posterAlternatives??[])].filter((value):value is string=>!!value)} alt=""/></div>}
         <div className="tsugi-watch-title-art"><Artwork src={watchPosterSources({...title,identities:[...(title.identities??[]),...(cinema?.identities??[]),...(cinema?[cinema.id]:[])],imdbId:cinema?.imdbId??title.imdbId},posterPattern,details?.poster??cinema?.poster)} alt={title.name}/></div>

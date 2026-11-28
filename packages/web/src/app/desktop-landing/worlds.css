@@ -110,3 +110,9 @@
 .tsugi-worlds[data-view='welcome'] .tsugi-world-hero{align-items:end}
 .tsugi-worlds[data-view='welcome'] .tsugi-world-hero::before{background:linear-gradient(90deg,#0a1018d9,#0a101878 50%,#0a101840),linear-gradient(0deg,#0a1018a6,transparent 70%)}
 .tsugi-worlds[data-view='home'] .tsugi-world-hero>img{object-position:center 64%}
+
+/* Returning Home uses the original four artworks as soft colour fields.
+ * Scale the image only, keeping its blur within the clipped card and leaving
+ * the centered text, Japanese character and icon fully sharp. */
+.tsugi-worlds[data-view='home'] .tsugi-world-card>img{filter:blur(14px) brightness(.82);transform:scale(1.24)}
+.tsugi-worlds[data-view='home'] .tsugi-world-card:is(:hover,:focus-visible)>img{filter:blur(14px) brightness(.98)}
