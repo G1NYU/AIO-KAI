@@ -108,6 +108,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const streamRequest=React.useRef<{profileId:number;queryId?:number;cancelled:boolean}|null>(null);
   const [streamPending,setStreamPending]=React.useState<number|null>(null);
   const streamBack=React.useRef<HTMLButtonElement>(null);
+  const streamDialog=React.useRef<HTMLElement>(null);
   const browseTrigger=React.useRef<HTMLElement|null>(null);
   const browseScroll=React.useRef<{element:Element;top:number;left:number}[]>([]);
   const handledReturn=React.useRef<WatchPlayback|null>(null);
@@ -144,13 +145,52 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     });
     return ()=>{mounted.current=false;stopStreams(true,false);const current=pending.current;pending.current=null;if(current)void cancelAddonReview(current.profileId,current.reviewId).catch(()=>{});};
   },[]);
-  function stopStreams(cancelNative=true,update=true){
+  const stopStreams=React.useCallback((cancelNative=true,update=true)=>{
     const request=streamRequest.current;streamRequest.current=null;
     if(request){request.cancelled=true;if(cancelNative&&request.queryId!==undefined)void cancelAddonStreams(request.profileId,request.queryId).catch(()=>{});}
     if(update)setStreamPending(null);
-  }
-  function closeStreams(){if(flight.current)return;stopStreams();setSourceOpen(false);if(!suppressSourceFocus.current)requestAnimationFrame(()=>sourceTrigger.current?.focus({preventScroll:true}));}
-  React.useEffect(()=>{if(sourceOpen)streamBack.current?.focus({preventScroll:true});},[sourceOpen]);
+  },[]);
+  const closeStreams=React.useCallback(()=>{if(flight.current)return;stopStreams();setSourceOpen(false);if(!suppressSourceFocus.current)requestAnimationFrame(()=>sourceTrigger.current?.focus({preventScroll:true}));},[stopStreams]);
+  React.useEffect(()=>{
+    if(!automatic||!sourceOpen)return;
+    const dialog=streamDialog.current;
+    if(!dialog)return;
+    const focusBack=()=>{
+      const back=streamBack.current;
+      if(back&&!back.disabled)back.focus({preventScroll:true});
+      else dialog.focus({preventScroll:true});
+    };
+    focusBack();
+    // A responsive filter control can disappear at a breakpoint while it
+    // owns focus. Keep keyboard navigation on the stream page in that case.
+    let frame=0;
+    const resize=()=>{
+      cancelAnimationFrame(frame);
+      frame=requestAnimationFrame(()=>{
+        if(!dialog.isConnected)return;
+        const active=document.activeElement;
+        if(active===document.body||active===document.documentElement||
+          (active instanceof HTMLElement&&dialog.contains(active)&&active.getClientRects().length===0))focusBack();
+      });
+    };
+    const keydown=(event:KeyboardEvent)=>{
+      if(event.key!=='Escape'||event.isComposing||!dialog.isConnected)return;
+      const active=document.activeElement;
+      // Only own Escape while focus is here or has fallen back to the
+      // document during responsive reflow; leave other dialogs alone.
+      if(active!==document.body&&active!==document.documentElement&&!dialog.contains(active))return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeStreams();
+    };
+    window.addEventListener('resize',resize);
+    window.addEventListener('keydown',keydown,true);
+    return ()=>{
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize',resize);
+      window.removeEventListener('keydown',keydown,true);
+    };
+  },[automatic,sourceOpen,closeStreams]);
   function clearTitle(){stopStreams();setCinema(null);setSeasonArt([]);setTitle(null);setDetails(null);setVideoId('');setSeasonChoice(null);setSourceOpen(false);setOptions(null);setResumeEntry(null);setStreamGroups(null);setAutomatic(false);}
   function rememberBrowse(){
     browseTrigger.current=document.activeElement instanceof HTMLElement?document.activeElement:null;
@@ -759,7 +799,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
         </button>})}</div>
       </section>}
       {!videoId&&!videos.length&&<p><Trans>Select a video from a compatible metadata addon before requesting streams.</Trans></p>}
-      {automatic&&sourceOpen&&createPortal(<section className="tsugi-watch-stream-page" role="dialog" aria-modal="true" aria-label={t`Choose your stream`} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();closeStreams();}}}>
+      {automatic&&sourceOpen&&createPortal(<section ref={streamDialog} tabIndex={-1} className="tsugi-watch-stream-page" role="dialog" aria-modal="true" aria-label={t`Choose your stream`}>
         <div className="tsugi-watch-stream-background" aria-hidden="true"><Artwork eager src={[seasonArt.find(e=>e.episode===selectedVideo?.episode&&String(selectedVideo?.season)===selectedSeason)?.thumbnail,selectedVideo?.thumbnail,cinema?.background,details?.background,title.background,details?.poster,title.poster,...(title.posterAlternatives??[])].filter((value):value is string=>!!value)} alt=""/></div>
         <div className="tsugi-watch-stream-inner" data-ui="watch-stream-groups">
           <header className="tsugi-watch-stream-header"><button ref={streamBack} type="button" className="tsugi-read-action" disabled={busy} onClick={closeStreams}>← <Trans>Back</Trans></button><button type="button" className="tsugi-read-action" disabled={busy} onClick={refreshStreams}><Trans>Refresh streams</Trans></button></header>

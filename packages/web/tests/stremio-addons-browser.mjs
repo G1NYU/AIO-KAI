@@ -517,8 +517,13 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.ok(filterGeometry.scroll<=filterGeometry.width+1,'reported stream filters wrap without horizontal overflow');
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-stream-selector-narrow.png'),animations:'disabled'});
     await page.setViewportSize({width:1600,height:900});
+    await page.waitForFunction(()=>document.activeElement?.closest('.tsugi-watch-stream-page')!=null);
+    // Also exercise the transient document focus during breakpoint reflow,
+    // rather than depending on a visible button to receive the key event.
+    await page.evaluate(()=>{if(document.activeElement instanceof HTMLElement)document.activeElement.blur();});
     await page.keyboard.press('Escape');
     await groups.waitFor({state:'detached'});
+    await page.waitForFunction(()=>document.activeElement?.matches('[data-ui="watch-play-title"]')===true);
     await item.locator('[data-ui="watch-play-title"]').click();
     await groups.getByRole('heading',{name:'Streaming only',exact:true}).waitFor();
     assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='metadata'&&a.action.sourceId===103)));
