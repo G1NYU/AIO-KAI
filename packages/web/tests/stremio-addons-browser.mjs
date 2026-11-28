@@ -1200,6 +1200,13 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await requiredSetup.goto(origin);
     const gate=requiredSetup.locator('[data-ui="watch-required-setup"]');
     await gate.getByLabel('TMDB v3 API key',{exact:true}).waitFor();
+    assert.deepEqual(await gate.locator('.tsugi-required-art').evaluate(async node=>{
+      const match=getComputedStyle(node).backgroundImage.match(/url\(["']?([^"')]+)["']?\)/);
+      if(!match)throw new Error('Missing setup artwork');
+      const image=new Image();image.src=match[1];await image.decode();
+      return {path:new URL(image.src).pathname,width:image.naturalWidth,height:image.naturalHeight};
+    }),{path:'/design/launch/launch-purple.jpg',width:2048,height:1152});
+    if(screenshotDir)await requiredSetup.screenshot({path:join(screenshotDir,'watch-purple-first-launch.png'),animations:'disabled'});
     assert.equal(await requiredSetup.locator('[data-page="desktop-landing"]').count(),0);
     assert.equal(await requiredSetup.locator('[data-page="direct-watch"]').count(),0);
     await requiredSetup.keyboard.press('Escape');

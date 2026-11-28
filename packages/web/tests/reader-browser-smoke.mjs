@@ -339,15 +339,14 @@ try {
   assert.equal(await onboarding.isVisible(), false, 'first launch does not force setup');
   const welcomeHero=landing.locator('[data-ui="tsugi-world-hero"] img');
   await welcomeHero.evaluate(image => image.decode());
-  assert.equal(await welcomeHero.getAttribute('src'),'/design/launch/welcome-city.webp');
+  assert.equal(await welcomeHero.getAttribute('src'),'/design/launch/launch-purple.jpg');
   assert.equal(await landing.locator('.tsugi-world-card').count(), 4);
   const welcomeArt=await landing.locator('.tsugi-world-hero img').evaluateAll(images=>Promise.all(images.map(async image=>{await image.decode();return image.getAttribute('src');})));
   assert.equal(welcomeArt.length,1);
   assert.equal(await landing.getByText('Your next world starts here.',{exact:true}).count(),0);
-  assert.equal(await landing.locator('.tsugi-world-card img').count(),0);
-  const minimalArt=landing.locator('.tsugi-world-card .tsugi-world-minimal-art .tsugi-media-icon');
-  assert.equal(await minimalArt.count(),4);
-  assert.equal(new Set(await minimalArt.evaluateAll(nodes=>nodes.map(node=>node.innerHTML))).size,4);
+  const worldArtwork=landing.locator('.tsugi-world-card img');
+  const expectedWorldArtwork=['video','music','read','vault'].map(area=>'/design/launch/world-'+area+'.webp');
+  assert.deepEqual(await worldArtwork.evaluateAll(images=>Promise.all(images.map(async image=>{await image.decode();if(image.naturalWidth!==960||image.naturalHeight<500)throw new Error('Invalid category artwork dimensions');return image.getAttribute('src');}))),expectedWorldArtwork);
   assert.ok(await landing.locator('.tsugi-world-card').evaluateAll(cards=>cards.every(card=>{
     const a=card.getBoundingClientRect(),b=card.querySelector('.tsugi-world-card-copy').getBoundingClientRect();
     return Math.abs(a.x+a.width/2-b.x-b.width/2)<2&&Math.abs(a.y+a.height/2-b.y-b.height/2)<2;
@@ -382,7 +381,7 @@ try {
   assert.equal(await onboarding.isVisible(), false, 'onboarding does not reopen after completion');
   assert.equal(await landing.getAttribute('data-view'), 'home');
   await landing.locator('.tsugi-world-shared-rail').getByRole('button',{name:'Movies & TV',exact:true}).waitFor();
-  assert.equal(await landing.locator('.tsugi-world-hero img').getAttribute('src'),'/design/shared/hero-train.webp');
+  assert.equal(await landing.locator('.tsugi-world-hero img').getAttribute('src'),'/design/launch/world-hero.webp');
   assert.ok(!welcomeArt.includes(await landing.locator('.tsugi-world-hero img').getAttribute('src')),'distinct returning-home hero');
   await landing.getByRole('heading', { name: 'Welcome, Fixture.', exact: true }).waitFor();
   await landing.getByRole('button', { name: 'Introduction', exact: true }).click();
@@ -620,10 +619,8 @@ try {
   console.log('PASS: opt-in schedule defers during settings, then saves verified automatic copy.');
   assert.deepEqual(await landing.locator('.tsugi-world-card').evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label'))), ['Movies & TV', 'Music', 'Read', 'Vault']);
   assert.equal(await landing.locator('.tsugi-world-card .tsugi-world-card-top .tsugi-media-icon').count(), 4);
-  const homeArtwork=landing.locator('.tsugi-world-card .tsugi-world-minimal-art .tsugi-media-icon');
-  assert.equal(await homeArtwork.count(),4);
-  assert.equal(new Set(await homeArtwork.evaluateAll(nodes=>nodes.map(node=>node.innerHTML))).size,4,'each returning-home world has distinct artwork');
-  assert.equal(await landing.locator('.tsugi-world-card img').count(),0,'returning Home uses minimalist cards, not onboarding illustration repeats');
+  const homeArtwork=landing.locator('.tsugi-world-card img');
+  assert.deepEqual(await homeArtwork.evaluateAll(images=>Promise.all(images.map(async image=>{await image.decode();return image.getAttribute('src');}))),expectedWorldArtwork,'each returning-home world has distinct dark artwork');
   assert.equal(await page.locator('html').getAttribute('class').then(value => value.includes('tsugi-desktop-boot')), true);
   const assertLauncherGeometry = async () => {
     const hero = await landing.locator('.tsugi-world-hero').boundingBox();
@@ -638,6 +635,10 @@ try {
     const artBounds=await homeArtwork.evaluateAll(nodes=>nodes.map(node=>{const {width,height}=node.getBoundingClientRect();return {width,height};}));
     assert.equal(artBounds.length,4);
     assert.ok(artBounds.every(({width,height})=>width>0&&height>0),'all four world illustrations have visible geometry');
+    assert.ok(await landing.locator('.tsugi-world-card').evaluateAll(cards=>cards.every(card=>{
+      const a=card.getBoundingClientRect(),b=card.querySelector('.tsugi-world-card-copy').getBoundingClientRect();
+      return Math.abs(a.x+a.width/2-b.x-b.width/2)<2&&Math.abs(a.y+a.height/2-b.y-b.height/2)<2;
+    })),'returning-home card copy stays centered');
     await landing.locator('.tsugi-world-hero img').evaluate(image => image.decode());
   };
   await assertLauncherGeometry();

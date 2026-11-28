@@ -1,6 +1,6 @@
 /* Shared TSUGI theme, existing welcome illustration, native title-bar clearance. */
 .tsugi-required-setup{position:relative;isolation:isolate;min-height:calc(100dvh - var(--tsugi-window-strip,40px));display:grid;align-items:center;justify-items:end;padding:clamp(24px,5vw,80px);color:var(--tsugi-ink);background:var(--tsugi-canvas);font-family:var(--tsugi-font)}
-.tsugi-required-art{position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,transparent 0%,color-mix(in srgb,var(--tsugi-canvas) 35%,transparent) 42%,var(--tsugi-canvas) 90%),var(--tsugi-setup-art) left center/cover no-repeat}
+.tsugi-required-art{position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#090c1452 0%,#090c146b 42%,var(--tsugi-canvas) 94%),var(--tsugi-setup-art) left center/cover no-repeat}
 .tsugi-required-panel{display:grid;gap:18px;width:min(100%,540px);padding:clamp(24px,3.5vw,48px);border:1px solid var(--tsugi-line);border-radius:var(--tsugi-radius-panel);background:color-mix(in srgb,var(--tsugi-canvas) 94%,transparent);box-shadow:0 20px 90px #0004}
 .tsugi-required-panel h2{font-size:clamp(26px,3vw,42px);font-weight:700;line-height:1.1;letter-spacing:-.045em}
 .tsugi-required-panel>small,.tsugi-required-panel p,.tsugi-watch-key-form p{color:var(--tsugi-muted)}

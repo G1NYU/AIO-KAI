@@ -74,6 +74,7 @@ export function WatchSetupGate({profileId,onReady,onBack}:{
     const id=state.profileId,status=await loadWatchSetup(id);
     if(mounted.current){setState({profileId:id,status});setReport(old=>({...result,historyImport:result.historyImport??old?.historyImport}));setAccepted(false);}
   }
+  const importedCount=report?.historyImport?.imported??0;
   const ready=!loading&&!!state&&(profileId===undefined||state.profileId===profileId)&&state.status.tmdbConnected&&state.status.accountProvider!==null&&((!report?.rejected.length&&!report?.historyImport?.unavailable)||accepted);
   React.useEffect(()=>{
     if(!ready||busy||!state||delivered.current)return;
@@ -81,7 +82,7 @@ export function WatchSetupGate({profileId,onReady,onBack}:{
     void Promise.resolve().then(()=>onReady(state.profileId)).catch(reason=>{if(mounted.current)setError(errorText(reason));});
   },[ready,busy,state,onReady]);
   return <section className="tsugi-required-setup" data-ui="watch-required-setup" aria-labelledby={heading}>
-    <div className="tsugi-required-art" style={{'--tsugi-setup-art':"url('/design/launch/welcome-city.webp')"} as React.CSSProperties} aria-hidden="true"/>
+    <div className="tsugi-required-art" style={{'--tsugi-setup-art':"url('/design/launch/launch-purple.jpg')"} as React.CSSProperties} aria-hidden="true"/>
     <div className="tsugi-required-panel">
       <TsugiBrand/><small><Trans>Your streaming library</Trans></small>
       <h2 id={heading}><Trans>Make your next world yours.</Trans></h2>
@@ -93,7 +94,7 @@ export function WatchSetupGate({profileId,onReady,onBack}:{
         </div>
         {!state.status.tmdbConnected?<TmdbKeyForm profileId={state.profileId} busy={busy} run={run} onVerified={status=>{if(mounted.current)setState({profileId:state.profileId,status});}}/>:!ready&&<div className="space-y-3" data-ui="watch-required-account">
           <StremioAccountImport profileId={state.profileId} busy={busy} run={run} onConnect={()=>{setReport(null);setAccepted(false);}} onSources={imported} onActive={ignoreActivity}/>
-          {report?.historyImport&&<p role="status">{report.historyImport.unavailable?<Trans>Stremio watch history is unavailable. Reconnect later to retry, or continue with your imported addons.</Trans>:<Trans>{report.historyImport.imported} Continue watching entries imported from Stremio.</Trans>}</p>}
+          {report?.historyImport&&<p role="status">{report.historyImport.unavailable?<Trans>Stremio watch history is unavailable. Reconnect later to retry, or continue with your imported addons.</Trans>:<Trans>{importedCount} Continue watching entries imported from Stremio.</Trans>}</p>}
           {report&&(report.rejected.length>0||report.historyImport?.unavailable)&&<div className="space-y-2" role="status">
             {!!report.rejected.length&&<><p>{report.rejected.length} <Trans>addons could not be imported.</Trans></p>
             <ul>{report.rejected.map(row=><li key={row.candidateId}>{importFailureText(row)}</li>)}</ul></>}

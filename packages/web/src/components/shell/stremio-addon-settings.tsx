@@ -89,6 +89,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const [busy,setBusy]=React.useState(false);
   const [error,setError]=React.useState('');
   const [importReport,setImportReport]=React.useState<{profileId:number;result:ImportResult}|null>(null);
+  const importedCount=importReport?.result.historyImport?.imported??0;
   const [notice,setNotice]=React.useState('');
   const [selection,setSelection]=React.useState<{sourceId:number;catalogIndex:number}|null>(null);
   const [filters,setFilters]=React.useState<Map<string,string>>(()=>new Map());
@@ -832,7 +833,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       </div>}
     </section>}
     {busy&&<p role="status"><Trans>Loading sources…</Trans></p>}
-    {importReport&&importReport.profileId===profileId&&importReport.result.historyImport&&<p role="status">{importReport.result.historyImport.unavailable?<Trans>Addon import succeeded, but Stremio watch history was unavailable. Reconnect Stremio to retry.</Trans>:<Trans>{importReport.result.historyImport.imported} Continue watching entries imported from Stremio.</Trans>}</p>}
+    {importReport&&importReport.profileId===profileId&&importReport.result.historyImport&&<p role="status">{importReport.result.historyImport.unavailable?<Trans>Addon import succeeded, but Stremio watch history was unavailable. Reconnect Stremio to retry.</Trans>:<Trans>{importedCount} Continue watching entries imported from Stremio.</Trans>}</p>}
     {importReport&&importReport.profileId===profileId&&importReport.result.rejected.length>0&&<div className="space-y-2" data-ui="addon-import-report">
       <div role="status">{importReport.result.rejected.map(row=><p key={row.candidateId}>{importFailureText(row)}</p>)}</div>
       {importReport.result.retryImportId!==null&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void run(async()=>{
