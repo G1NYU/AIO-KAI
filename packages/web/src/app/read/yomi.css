@@ -384,6 +384,28 @@
 }
 :root[data-host='desktop'] .yomi-workspace .tsugi-search-console { padding:22px; margin-bottom:24px; border:0; background:var(--tsugi-surface); border-radius:12px; }
 .yomi-workspace .tsugi-search-form { gap:10px; }
+/* Search is an intentional input surface, not a decorative panel separator.
+   Keep the field distinguishable from its parent in every saved palette. */
+:root[data-host='desktop'] .yomi-workspace :is(.tsugi-reading-global,.tsugi-global-search-field) {
+  box-sizing:border-box; min-height:48px; border:1px solid color-mix(in srgb,var(--tsugi-muted) 72%,var(--tsugi-canvas)); border-radius:var(--tsugi-radius-control,8px); background:var(--tsugi-canvas); color:var(--tsugi-muted);
+}
+:root[data-host='desktop'] .yomi-workspace :is(.tsugi-reading-global,.tsugi-global-search-field):focus-within {
+  border-color:var(--tsugi-focus); outline:2px solid var(--tsugi-focus); outline-offset:2px;
+}
+:root[data-host='desktop'] .yomi-workspace .tsugi-global-search-field {
+  display:flex; flex:1 1 220px; min-width:0; align-items:center; gap:12px; padding:0 14px; cursor:text;
+}
+.yomi-workspace .tsugi-global-search-field > svg { width:18px; height:18px; flex:none; }
+:root[data-host='desktop'] .yomi-workspace :is(.tsugi-reading-global,.tsugi-global-search-field) > input {
+  flex:1 1 0%; width:0; min-width:0; min-height:44px; border:0; padding:0; background:transparent; color:var(--tsugi-ink); font-size:14px;
+}
+:root[data-host='desktop'] .yomi-workspace :is(.tsugi-reading-global,.tsugi-global-search-field) > input:focus { outline:none; box-shadow:none; }
+:root[data-host='desktop'] .yomi-workspace :is(.tsugi-reading-global,.tsugi-global-search-field) > input::placeholder { color:var(--tsugi-muted); opacity:1; }
+:root[data-host='desktop'] .yomi-workspace .tsugi-search-form { align-items:center; }
+:root[data-host='desktop'] .yomi-workspace .tsugi-search-form > .tsugi-search-submit { flex:none; min-height:48px; min-width:108px; font-size:14px; font-weight:600; }
+:root[data-host='desktop'] .yomi-workspace .tsugi-search-form > .tsugi-search-submit:disabled { background:var(--tsugi-panel); color:var(--tsugi-muted); opacity:1; }
+:root[data-host='desktop'] .yomi-workspace .tsugi-reading-global > button:not(:disabled) { background:var(--tsugi-accent); color:var(--tsugi-on-accent); }
+
 :root[data-host='desktop'] .yomi-workspace .tsugi-search-source { padding:0; margin-bottom:28px; border-radius:0; background:transparent; }
 .yomi-workspace .tsugi-search-source-header { margin-bottom:18px; }
 .yomi-workspace .tsugi-search-status { margin-top:18px; font-size:12px; gap:14px; }

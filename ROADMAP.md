@@ -46,7 +46,7 @@
 
 - [x] Restore global search after extension installation, regardless of optional extension-management metadata or store listing failures. Use one fresh bounded native source discovery for header and dedicated forms; preserve exact source IDs, all pages, clear empty/error states, retries, progressive results, stop and per-source errors.
 - [x] Verify real browser navigation, failed discovery retry and >100-source pinned runtime coverage. Source 421de62; unified CI 46163108686 and pinned runtime smoke 46163108723 passed, including 260 native tests.
-- [ ] Confirm live Windows search using the maintainer's installed sources. Preserve v0.1.2 and its release assets; package a separately versioned hotfix after passing gates.
+- [x] Confirm live Windows search using the maintainer's installed sources. Maintainer screenshot confirms Solo Leveling, 4/4 sources checked and 54 results on the v0.1.3 candidate. Preserve v0.1.2 and its assets.
 
 ## F2 — Watch chrome cleanup (maintainer screenshots, 2026-11-28)
 
@@ -56,11 +56,17 @@
 
 ## F3 — Rename Default Watch profile and package v0.1.3 test installer
 
-**Automated acceptance passed:** source b8534247ada1414c4954155e57624128583b9730, run 46165930467, installer artifact 15271593471. All five required jobs passed. Live Windows global search and visual acceptance remain open under F1; no public publication authorized until installed-source acceptance.
+**Automated acceptance passed:** source b8534247ada1414c4954155e57624128583b9730, run 46165930467, installer artifact 15271593471. All five required jobs passed. Live Windows global search has since been confirmed by the maintainer. F4 is the final requested visual correction before authorized public publication.
 
 - [x] Prefill active profile's name in its own rename form, separate from creating profiles. Rename Default (ID 1) in place without re-running setup or changing addons, account links, history, collections or active selection. Preserve native validation and show errors on duplicate names.
 - [x] Verify native snapshot equality except display name, persistence across reopen and real browser badge/management/media navigation; run F1/F2 regressions in the combined build.
 - [x] Build a separately versioned v0.1.3 Windows setup EXE through existing CI, test both installation scopes and checksum round-trip. Do not publish until maintainer confirms live manga global search with installed extensions.
+
+## F4 — Final Reader search-field visual correction and v0.1.3 publication
+
+- [ ] Make the dedicated and header global search fields visually obvious with a contrasting boundary, existing search icon, readable placeholder, visible focus and accent submit. Preserve existing source search behavior and unboxed result shelves.
+- [ ] Validate empty/focus/populated controls at desktop and compact widths; rerun the full Windows installer workflow and verify artifact identity and checksum.
+- [ ] Publish the exact validated v0.1.3 installer using the existing gated publication workflow, with v0.1.2 unchanged. Maintainer has approved publication after this final visual correction.
 
 ## Streaming hub architecture correction
 

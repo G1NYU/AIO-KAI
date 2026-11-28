@@ -936,8 +936,35 @@ try {
   const search=page.locator('.tsugi-global-search-workspace');
   await search.waitFor();
   assert.equal(await page.getByRole('textbox',{name:'Global manga search',exact:true}).count(),1,'one global search input');
-  await search.getByRole('textbox',{name:'Global manga search',exact:true}).fill('Tsugi');
-  await search.getByRole('button',{name:'Search',exact:true}).click();
+  const assertSearchFieldVisibility = async (field, surfaceSelector, minHeight=48) => {
+    const geometry = await field.evaluate((node, surfaceSelector) => {
+      const input = node.querySelector('input'), style = getComputedStyle(node), rect = node.getBoundingClientRect();
+      const surface = node.closest(surfaceSelector);
+      const ctx = document.createElement('canvas').getContext('2d', {willReadFrequently:true});
+      const luminance = color => {
+        ctx.fillStyle = '#000'; ctx.fillStyle = color; ctx.fillRect(0,0,1,1);
+        return Array.from(ctx.getImageData(0,0,1,1).data).slice(0,3).map(n=>n/255).map(n=>n<=0.04045?n/12.92:((n+0.055)/1.055)**2.4).reduce((s,n,i)=>s+n*[0.2126,0.7152,0.0722][i],0);
+      };
+      const contrast = (a,b) => {const [hi,lo]=[luminance(a),luminance(b)].sort((x,y)=>y-x); return (hi+0.05)/(lo+0.05);};
+      let backing=surface;
+      while(backing && ['transparent','rgba(0, 0, 0, 0)'].includes(getComputedStyle(backing).backgroundColor))backing=backing.parentElement;
+      const surrounding=getComputedStyle(backing||document.documentElement).backgroundColor;
+      return {width:rect.width,height:rect.height,border:parseFloat(style.borderTopWidth),borderContrast:contrast(style.borderTopColor,surrounding),placeholderContrast:contrast(getComputedStyle(input,'::placeholder').color,style.backgroundColor),font:parseFloat(getComputedStyle(input).fontSize),overflow:node.scrollWidth-node.clientWidth,icon:!!node.querySelector('svg')};
+    }, surfaceSelector);
+    assert.ok(geometry.border>=1&&geometry.borderContrast>=3&&geometry.placeholderContrast>=4.5&&geometry.font>=14&&geometry.height>=minHeight&&geometry.width>0&&geometry.overflow<=1&&geometry.icon,'search has a visible contrasting input boundary, readable placeholder and icon: '+JSON.stringify(geometry));
+  };
+  const searchField=search.locator('.tsugi-global-search-field');
+  const searchInput=search.getByRole('textbox',{name:'Global manga search',exact:true});
+  const submitSearch=search.getByRole('button',{name:'Search',exact:true});
+  await assertSearchFieldVisibility(searchField,'.tsugi-search-console');
+  assert.equal(await submitSearch.isEnabled(),false,'empty query still disables submit');
+  await capture('03-reader-search-empty');
+  await searchInput.focus();
+  assert.equal(await searchField.evaluate(node=>getComputedStyle(node).outlineWidth),'2px','the whole input has a visible focus ring');
+  await searchInput.fill('Tsugi');
+  assert.ok(await submitSearch.isEnabled());
+  await capture('03-reader-search-focused');
+  await searchInput.press('Enter');
   await page.getByRole('alert').filter({hasText:'Fixture search inventory unavailable'}).waitFor();
   assert.equal(await search.getByRole('button',{name:'Search',exact:true}).isEnabled(),true,'discovery failure leaves search retry available');
   assert.equal(await search.getByRole('button',{name:'Install a source extension',exact:true}).count(),0,'discovery failure is not an empty inventory');
@@ -955,8 +982,11 @@ try {
   assert.deepEqual(discoveryRequests.map(a=>a.kind),['sources','sources','catalogue','catalogue','catalogue','catalogue'],'global search retries fresh catalogue identities without management or store requests');
   assert.deepEqual(discoveryRequests.filter(a=>a.kind==='catalogue').map(a=>a.source),['12345','23456','34567','45678']);
   console.log('PASS: global search survives unavailable management metadata, retries failed discovery and queries each installed source.');
-  for (const width of [1440, 800]) {
+  for (const width of [1440, 800, 440]) {
     await page.setViewportSize({ width, height: 900 });
+    await assertSearchFieldVisibility(searchField,'.tsugi-search-console');
+    assert.ok(await search.locator('.tsugi-search-form').evaluate(node=>node.scrollWidth<=node.clientWidth+1),'search form fits the viewport');
+    if(width===440){await capture('03-reader-search-compact');continue;}
     const sourceGeometry = await search.locator('.tsugi-search-source').evaluateAll(groups => groups.map(group => {
       const box = group.getBoundingClientRect();
       const header = group.querySelector('header');
@@ -987,6 +1017,7 @@ try {
   // The header and dedicated search use the same discovery path.
   await rail.getByRole('button', { name: 'Library', exact: true }).click();
   const headerSearch = page.locator('.tsugi-reading-global');
+  await assertSearchFieldVisibility(headerSearch,'.tsugi-reading-header');
   await headerSearch.getByRole('textbox',{name:'Global manga search',exact:true}).fill('Tsugi');
   await headerSearch.getByRole('button',{name:'Search',exact:true}).click();
   await search.getByText('Fixture source unavailable',{exact:true}).waitFor();

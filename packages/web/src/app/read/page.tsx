@@ -823,8 +823,10 @@ export function ReadPage({ visible }: {
           <div className="tsugi-search-console">
           <div className="tsugi-search-intro"><h2><Trans id="Find your next story">Find your next story</Trans></h2><p><Trans id="Search across installed manga sources and compare their results.">Search across installed manga sources and compare their results.</Trans></p></div>
           <form className="tsugi-search-form" onSubmit={(event) => { event.preventDefault(); void run(() => searchAll()); }}>
-            <input className="tsugi-read-input grow" value={globalQuery} maxLength={200} onChange={(event) => setGlobalQuery(event.target.value)} placeholder={t({ id: "Search manga across installed sources", message: "Search manga across installed sources" })} aria-label={t({ id: "Global manga search", message: "Global manga search" })} />
-            <button className="tsugi-read-action" disabled={busy || !globalQuery.trim()}><FiSearch aria-hidden /><Trans id="Search">Search</Trans></button>
+            <label className="tsugi-global-search-field"><FiSearch aria-hidden />
+              <input className="tsugi-read-input" value={globalQuery} maxLength={200} onChange={(event) => setGlobalQuery(event.target.value)} placeholder={t({ id: "Search manga across installed sources", message: "Search manga across installed sources" })} aria-label={t({ id: "Global manga search", message: "Global manga search" })} />
+            </label>
+            <button type="submit" className="tsugi-read-action tsugi-series-primary tsugi-search-submit" disabled={busy || !globalQuery.trim()}><Trans id="Search">Search</Trans></button>
             {globalSearching && <button type="button" className="tsugi-read-action" disabled={globalStopping} onClick={() => { stopSearch.current = true; setGlobalStopping(true); }}>{globalStopping ? t({ id: "Stopping after current source…", message: "Stopping after current source…" }) : t({ id: "Stop search", message: "Stop search" })}</button>}
           </form>
           {globalSourceCount === 0 && !busy && <div className="mt-3"><p className="mb-2 text-sm text-[--tsugi-muted]"><Trans id="No installed sources. Install an extension to start browsing.">No installed sources. Install an extension to start browsing.</Trans></p><button className="tsugi-read-action" onClick={() => switchBrowse('extensions')}><Trans id="Install a source extension">Install a source extension</Trans></button></div>}
