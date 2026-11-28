@@ -15,7 +15,7 @@
 
 <p align="center"><sub>INDEPENDENT OPEN SOURCE / WINDOWS x64 / DESIGNED BY GIINYU</sub></p>
 
-<p align="center"><img src="[branding/readme/tsugi-home-v0.1.2.png](https://i.ibb.co/fhNBB66/image.png)" width="100%" alt="TSUGI v0.1.2 Home screen with Movies &amp; TV, Music, Read and Vault"></p>
+<p align="center"><img src="https://i.ibb.co/fhNBB66/image.png" width="100%" alt="TSUGI v0.1.2 Home screen with Movies &amp; TV, Music, Read and Vault"></p>
 
 
 | [01 / Movies & TV](#01--movies--tv) | [02 / Music](#02--music) | [03 / Read](#03--read) | [04 / Vault](#04--vault) |
