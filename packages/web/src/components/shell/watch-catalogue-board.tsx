@@ -171,7 +171,14 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
         </div></div>}
       {searchGroups.filter(group=>group.items.length>0).map(group=><section key={group.key} className="tsugi-watch-search-section" data-search-kind={group.key}>
         <div className="tsugi-watch-search-heading"><h4>{group.label}</h4><span>{group.items.length}</span></div>
-        <div className="tsugi-watch-search-row">{group.items.slice(0,resultLimit).map(({key,item,target})=><PosterCard key={key} title={item.name} image={item.poster??null} itemType={item.releaseInfo?.slice(0,4)??group.label} disabled={busy} onClick={()=>openTitle(item,target.sourceId)}/>)}</div>
+        <div className="tsugi-watch-search-row">{group.items.slice(0,resultLimit).map(({key,item,target})=><button key={key} type="button" data-ui="watch-search-result" className="tsugi-watch-search-result" aria-label={item.name} disabled={busy} onClick={()=>openTitle(item,target.sourceId)}>
+          <span className="tsugi-watch-search-result-art" aria-hidden="true"><Artwork src={[item.poster,...(item.posterAlternatives??[])].filter((url):url is string=>!!url)} alt={item.name}/></span>
+          <span className="tsugi-watch-search-result-copy">
+            <strong data-ui="watch-search-result-title">{item.name}</strong>
+            {(item.releaseInfo||item.tmdbRating!=null)&&<small>{item.releaseInfo}{item.releaseInfo&&item.tmdbRating!=null?' · ':''}{item.tmdbRating!=null&&<>{'★ '}{item.tmdbRating.toFixed(1)}</>}</small>}
+            {item.description&&<span className="tsugi-watch-search-result-description">{item.description}</span>}
+          </span>
+        </button>)}</div>
       </section>)}
       {searchGroups.some(group=>group.items.length>resultLimit)&&<button type="button" className="tsugi-read-action" onClick={()=>setResultLimit(n=>n+RESULT_BATCH)}><Trans>Show more results</Trans></button>}
     </section>:!targets.length?<section className="tsugi-watch-empty">

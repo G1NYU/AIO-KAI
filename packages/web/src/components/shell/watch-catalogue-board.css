@@ -114,7 +114,17 @@
 .tsugi-watch-search-dialog .tsugi-watch-search-heading h3{font-size:22px}
 .tsugi-watch-search-dialog .tsugi-watch-search-heading h4{font-size:17px}
 .tsugi-watch-search-dialog .tsugi-watch-search-section{gap:6px}
-.tsugi-watch-search-dialog .tsugi-watch-search-row{grid-auto-columns:clamp(78px,min(10vw,12vh),124px);gap:12px;padding:3px 3px 8px}
+.tsugi-watch-search-dialog .tsugi-watch-search-row{grid-auto-columns:min(420px,88%);gap:12px;padding:3px 3px 8px;align-items:stretch}
+.tsugi-watch-search-result{display:flex;align-items:center;gap:14px;min-width:0;min-height:116px;padding:8px;text-align:start;border:0;background:transparent;color:var(--tsugi-ink);border-radius:var(--tsugi-radius-control);scroll-snap-align:start;font-family:var(--tsugi-font)}
+.tsugi-watch-search-result-art{position:relative;flex:0 0 64px;aspect-ratio:2/3;overflow:hidden;border-radius:var(--tsugi-radius-control);background:var(--tsugi-panel)}
+.tsugi-watch-search-result-copy{display:flex;min-width:0;flex:1;flex-direction:column;gap:4px}
+.tsugi-watch-search-result-copy strong{font-size:15px;line-height:1.35;font-weight:650;white-space:normal;overflow-wrap:anywhere}
+.tsugi-watch-search-result-copy small{font-size:12px;line-height:1.4;color:var(--tsugi-muted)}
+.tsugi-watch-search-result-description{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:12px;line-height:1.45;color:var(--tsugi-muted);overflow-wrap:anywhere}
+.tsugi-watch-search-result:is(:hover,:focus-visible):not(:disabled){background:var(--tsugi-wash)}
+.tsugi-watch-search-result:focus-visible{outline:2px solid var(--tsugi-focus);outline-offset:-2px}
+.tsugi-watch-search-result:disabled{opacity:.6;cursor:not-allowed}
+@media(max-width:700px){.tsugi-watch-search-dialog .tsugi-watch-search-row{grid-auto-columns:min(340px,96%)}.tsugi-watch-search-result{gap:10px}.tsugi-watch-search-result-copy strong{font-size:14px}}
 .tsugi-watch-search-dialog .tsugi-search-best-match{min-height:128px}
 .tsugi-watch-search-dialog .tsugi-search-best-copy{gap:6px;padding:16px 20px}
 .tsugi-watch-search-dialog .tsugi-search-best-copy h4{font-size:clamp(21px,2.4vw,30px)}

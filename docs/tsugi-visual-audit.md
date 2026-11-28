@@ -54,3 +54,9 @@ Original 16 annotations and written feedback remain individually tracked in the 
 3. Continue Harbor title/search/episode/stream comparisons against the actual reference at comparable dimensions, real artwork and long lists; retain provider order, first-result selection, cancellation and exact identity.
 4. Perform real Windows fresh/upgrade and native frame/DPI, actual authorized TMDB and Stremio/Nuvio setup, import of 35+ sources and partial failure/timing, working server/movie/series/anime playback and audio, source switching, resume and SoundCloud checks. Real credentials/device are not available here. Record evidence without secrets.
 5. Only mark P0–P5 accepted after all requirements are verified. No packaging or stable publication in this visual repair batch.
+
+
+### Harbor search result refinement — 2026-11-28
+
+- Full-size 6101e392 Family Guy preview showed related movie names truncated to nearly identical text and omitted available descriptions. Read Harbor `src/components/search/meta-list.tsx` and `result-poster.tsx` at pinned reference 02593b5: compact 64x96 poster with title, metadata, synopsis and clear click target. Adapt that structure in TSUGI's ordered horizontal Series/Movies/Anime groups using the existing Artwork renderer, same-identity poster alternatives, loaded font/theme tokens and real result callback. No ranking, search-provider, identity, or stream changes.
+- Browser regression now asserts distinct long title text is not clipped, available description is rendered, both movie results remain present, series-before-movie ordering and narrow dialog/row scrolling. New narrow screenshot target. CI/render verification pending. Real TMDB media/artwork and Windows comparison remain open.
