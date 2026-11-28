@@ -245,7 +245,7 @@
 .tsugi-watch-episode-meta{display:flex;gap:7px;flex-wrap:wrap;color:var(--tsugi-muted);font-size:12px}
 .tsugi-watch-episode-meta>span+span::before{content:' · ';margin-inline-end:5px}
 .tsugi-watch-episode-synopsis{color:var(--tsugi-muted);font-size:13px;line-height:1.55}
-.tsugi-watch-stream-inner{width:min(1120px,100%)}
+.tsugi-watch-stream-inner{width:min(1440px,100%)}
 .tsugi-watch-stream-background{position:absolute;inset:0 0 auto;height:min(76vh,680px)}
 
 /* Keep search in the masthead rather than below catalogue or anime shelves. */
@@ -285,6 +285,19 @@
 .tsugi-watch-cast-card small{color:var(--tsugi-muted)}
 .tsugi-watch-tagline{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--tsugi-muted)}
 .tsugi-watch-rating{font-weight:650;font-variant-numeric:tabular-nums}
+
+/* The formatted result owns the row; narrow player sheets also get full-width
+ * text and a separate action line without changing provider order or handles. */
+.tsugi-addon-version-list{container:tsugi-addon-versions / inline-size;min-width:0}
+.tsugi-addon-version-row{min-width:0}
+.tsugi-addon-version-copy>[data-ui="version-name"],.tsugi-addon-version-copy>[data-ui="version-description"]{line-height:1.45}
+.tsugi-addon-version-actions{max-width:min(100%,20rem)}
+.tsugi-addon-version-actions>button{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+@container tsugi-addon-versions (max-width:640px){
+  .tsugi-addon-version-row{flex-direction:column}
+  .tsugi-addon-version-copy{width:100%;flex:auto}
+  .tsugi-addon-version-actions{width:100%;max-width:100%}
+}
 
 /* Keep results above the fold on narrow displays. Secondary filters retain
  * their values while collapsed, and the disclosure reports active selections. */

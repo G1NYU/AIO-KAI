@@ -385,6 +385,12 @@ export async function loadAddonOptions(profileId:number,sourceId:number,mediaTyp
   if(v.sourceId!==sourceId||v.mediaType!==mediaType||v.videoId!==videoId||v.subtitles!==subtitles)return fail();
   return {reviewId:integer(v.reviewId,1,0xffffffff),rows:parseOptions(v.options)};
 }
+// Match the native formatter boundary without flattening provider whitespace.
+function streamDisplay(value:unknown,max:number):string|undefined{
+  if(typeof value!=='string'||value.length>max*2)return undefined;
+  const text=value.replaceAll('\r\n','\n');
+  return text.trim()&&new TextEncoder().encode(text).length<=max&&!/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/u.test(text)&&!text.includes('://')&&!/token=|password=|apikey=|api_key=/i.test(text)?text:undefined;
+}
 function parseOptions(options:unknown):AddonOption[]{
   return array<AddonOption>(options,256,value=>{
     const row=obj(value);
@@ -392,7 +398,9 @@ function parseOptions(options:unknown):AddonOption[]{
     if(reason!=='direct-https'&&reason!=='unsupported-transport'&&reason!=='invalid-media-url'&&reason!=='proxy-headers')return fail();
     const supported=bool(row.supported);
     if(supported!==(reason==='direct-https'))return fail();
-    return {name:str(row.name,256),detail:typeof row.detail==='string'&&optionalDisplay(row.detail.replaceAll('\n',' '),512)?row.detail:undefined,supported,reason,language:row.language===null?null:str(row.language,32)};
+    const name=streamDisplay(row.name,1024);
+    if(!name)return fail();
+    return {name,detail:streamDisplay(row.detail,4096),supported,reason,language:row.language===null?null:str(row.language,32)};
   });
 }
 

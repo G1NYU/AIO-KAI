@@ -573,7 +573,7 @@ export function Versions({
                   <span
                     data-ui="version-name"
                     className={cn(
-                      'block whitespace-pre-line text-sm font-medium [overflow-wrap:anywhere]',
+                      'block whitespace-pre-wrap text-sm font-medium [overflow-wrap:anywhere]',
                       !compact && 'sm:text-base'
                     )}
                   >
@@ -583,7 +583,7 @@ export function Versions({
                     <span
                       data-ui="version-description"
                       className={cn(
-                        'block whitespace-pre-line text-xs text-gray-300 [overflow-wrap:anywhere]',
+                        'block whitespace-pre-wrap text-xs text-gray-300 [overflow-wrap:anywhere]',
                         !compact && 'sm:text-sm'
                       )}
                     >

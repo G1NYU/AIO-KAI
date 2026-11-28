@@ -60,12 +60,15 @@ pub(super) fn display(value: Option<&Value>, max: usize) -> Option<String> {
         joined.to_ascii_lowercase().contains("password=") { return None; }
     Some(joined)
 }
-fn stream_detail(value:Option<&Value>)->Option<String>{
+// Provider formatters already render these strings. Preserve spacing and blank
+// lines while retaining the native display-only security boundary and byte caps.
+fn stream_display(value:Option<&Value>,max:usize)->Option<String>{
     let raw=value?.as_str()?;
-    if raw.len()>2048{return None;}
-    let lines=raw.lines().map(|line|line.split_whitespace().collect::<Vec<_>>().join(" ")).filter(|line|!line.is_empty()).collect::<Vec<_>>().join("\n");
-    if lines.is_empty()||lines.len()>512||lines.chars().any(|c|c.is_control()&&c!='\n')||lines.contains("://")||["token=","password=","apikey=","api_key="].iter().any(|marker|lines.to_ascii_lowercase().contains(marker)){return None;}
-    Some(lines)
+    if raw.len()>max*2{return None;}
+    let text=raw.replace("\r\n","\n");
+    let lower=text.to_ascii_lowercase();
+    if text.trim().is_empty()||text.len()>max||text.chars().any(|c|c.is_control()&&c!='\n'&&c!='\t')||text.contains("://")||["token=","password=","apikey=","api_key="].iter().any(|marker|lower.contains(marker)){return None;}
+    Some(text)
 }
 fn display_list(value: Option<&Value>, limit: usize, max: usize) -> Vec<String> {
     match value {
@@ -138,10 +141,10 @@ fn parse_options(bytes:&[u8],resource:ItemResource)->Result<Vec<OptionSummary>>{
     if rows.len()>MAX_OPTIONS{return Err("item-limit");}
     Ok(rows.iter().enumerate().map(|(i,row)|{
         let language=row.get("lang").and_then(Value::as_str).filter(|s|type_valid(s)).map(str::to_owned);
-        let name=display(row.get("name"),256).or_else(||display(row.get("title"),256))
+        let name=stream_display(row.get("name"),1024).or_else(||stream_display(row.get("title"),1024))
             .or_else(||language.clone()).unwrap_or_else(||format!("Option {}",i+1));
-        let detail=stream_detail(row.get("title")).filter(|text|text!=&name)
-            .or_else(||stream_detail(row.get("description")).filter(|text|text!=&name));
+        let detail=stream_display(row.get("description"),4096).filter(|text|text!=&name)
+            .or_else(||stream_display(row.get("title"),4096).filter(|text|text!=&name));
         let valid=safe_url(row.get("url"));
         let proxy=row.pointer("/behaviorHints/proxyHeaders").is_some_and(|v|!v.is_null());
         let unsupported=["infoHash","ytId","externalUrl","nzbUrl","rarUrls","zipUrls","7zipUrls","tgzUrls","tarUrls"].iter()
@@ -207,6 +210,24 @@ mod tests{
         assert_eq!(rows[0].detail.as_deref(),Some("1080p HEVC"));
         assert_eq!(rows[1].detail.as_deref(),Some("720p"));
         assert!(rows[2].detail.is_none());
+        assert!(!serde_json::to_string(&rows).unwrap().contains("private-fixture"));
+    }
+    #[test]
+    fn stream_summary_preserves_bounded_multiline_formatter_output(){
+        let name="2160p  HEVC\r\nCached";
+        let description=format!("Release\n\nAudio: TrueHD Atmos  \n{}","LongFixtureReleaseName.".repeat(30));
+        let payload=serde_json::json!({"streams":[
+            {"name":name,"title":"Legacy title","description":description,"url":"https://cdn.example.org/file"},
+            {"name":"Name\nwith api_key=private-fixture","description":"https://cdn.example.org/?token=private-fixture","url":"https://cdn.example.org/file"},
+            {"name":"Safe name","description":"x".repeat(4097),"url":"https://cdn.example.org/file"},
+            {"name":"Safe name","description":"unsafe\u{0000}text","url":"https://cdn.example.org/file"}
+        ]});
+        let rows=parse_options(&serde_json::to_vec(&payload).unwrap(),ItemResource::Stream).unwrap();
+        assert_eq!(rows[0].name,"2160p  HEVC\nCached");
+        assert_eq!(rows[0].detail.as_deref(),payload["streams"][0]["description"].as_str());
+        assert!(rows[0].supported);
+        assert_eq!(rows[1].name,"Option 2");
+        assert!(rows[1..].iter().all(|row|row.detail.is_none()));
         assert!(!serde_json::to_string(&rows).unwrap().contains("private-fixture"));
     }
     #[test]

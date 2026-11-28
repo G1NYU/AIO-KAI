@@ -389,7 +389,7 @@ export function VersionPickerProvider({
               ? itemSubtitle(item)
               : item?.ProductionYear || undefined
           }
-          contentClass="isolate flex w-full max-w-4xl flex-col gap-0 overflow-hidden p-0 max-md:h-[100dvh] max-md:rounded-none max-md:border-0 md:max-h-[85vh]"
+          contentClass="isolate flex w-full max-w-7xl flex-col gap-0 overflow-hidden p-0 max-md:h-[100dvh] max-md:rounded-none max-md:border-0 md:max-h-[85vh]"
           headerClass="relative z-[1] px-4 pb-3 pe-14 pt-5 text-start max-md:pt-[calc(1.25rem+env(safe-area-inset-top))] sm:px-5 sm:pe-14"
           closeClass="z-[2] max-md:top-[calc(1rem+env(safe-area-inset-top))]"
         >

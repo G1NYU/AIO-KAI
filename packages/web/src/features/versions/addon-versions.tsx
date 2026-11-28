@@ -51,7 +51,7 @@ export function AddonVersionList({groups,sources,busy,resumeMs=0,switching=false
   const rowsFor=(group:AddonStreamGroup)=>(indexed.get(group.sourceId)??[])
     .filter(entry=>(quality==='all'||(quality==='unknown'?!entry.quality:entry.quality===quality))&&(codec==='all'||entry.codec===codec)&&(edition==='all'||entry.edition===edition)&&(!playable||entry.row.supported)
       &&(selectedAudio==='all'||entry.tags.audio.some(tag=>tag===selectedAudio))&&(!hasSize||size==='all'||entry.tags.size===size)&&(!hasCache||cacheStatus==='all'||entry.tags.cache===cacheStatus));
-  return <div className="space-y-3">
+  return <div className="tsugi-addon-version-list space-y-3">
     {groups.length===0?<p><Trans>No enabled addon declares support for this video.</Trans></p>:<div className="flex flex-wrap items-end gap-3" data-ui="watch-version-filters" data-more-filters={moreFilters}>
       <label className="min-w-[8rem] flex-1"><Trans>Source provider</Trans>
         <select aria-label={t`Source provider`} className="tsugi-menu-select block w-full" value={chosen} onChange={e=>setProvider(e.target.value)}>
@@ -89,13 +89,13 @@ export function AddonVersionList({groups,sources,busy,resumeMs=0,switching=false
             {group.error==='network'?<small><Trans>Network request failed.</Trans></small>:group.error==='rate'?<small><Trans>Provider rate limit reached.</Trans></small>:group.error==='auth'?<small><Trans>Provider authorization failed.</Trans></small>:null}</>:<p><Trans>No streams returned.</Trans></p>}
           {onRetry&&group.error!=='unsupported-resource'&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>onRetry(group.sourceId)}><Trans>Retry provider</Trans></button>}
         </div>:rows.length===0?<p><Trans>No streams match these filters.</Trans></p>:<><ul className="space-y-2">{rows.slice(0,limit).map(({row,index})=><li key={index}>
-          <VersionFrame><div className="flex w-full flex-wrap items-center justify-between gap-3 p-3">
-            <span className="min-w-0 flex-1 break-words">
-              <strong>{row.name}</strong>
-              {row.detail&&<span className="block text-sm whitespace-pre-line">{row.detail}</span>}
+          <VersionFrame><div className="tsugi-addon-version-row flex w-full items-start gap-3 p-3">
+            <span className="tsugi-addon-version-copy min-w-0 flex-1">
+              <strong data-ui="version-name" className="block whitespace-pre-wrap [overflow-wrap:anywhere]">{row.name}</strong>
+              {row.detail&&<span data-ui="version-description" className="block whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">{row.detail}</span>}
               <small className="block text-[--muted]">{row.supported?<Trans>Direct HTTPS</Trans>:row.reason==='proxy-headers'?<Trans>Proxy headers required</Trans>:row.reason==='invalid-media-url'?<Trans>Invalid media URL</Trans>:<Trans>Unsupported transport</Trans>}</small>
             </span>
-            {row.supported&&<div className="flex flex-wrap gap-2">{resumeMs>0&&!switching&&<button className="tsugi-read-action tsugi-series-primary" type="button" disabled={busy} onClick={()=>onPick(group,result,index,true)}><Trans>Resume</Trans></button>}
+            {row.supported&&<div className="tsugi-addon-version-actions flex flex-none flex-wrap gap-2">{resumeMs>0&&!switching&&<button className="tsugi-read-action tsugi-series-primary" type="button" disabled={busy} onClick={()=>onPick(group,result,index,true)}><Trans>Resume</Trans></button>}
               <button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>onPick(group,result,index,switching)}>{switching?<Trans>Switch stream</Trans>:resumeMs>0?<Trans>Play from beginning</Trans>:<Trans>Play</Trans>}</button>
             </div>}
           </div></VersionFrame>

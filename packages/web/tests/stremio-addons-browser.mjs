@@ -253,7 +253,7 @@ export function installStremioFixture(initializeStartup=true){
         const groups=profile.sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(source=>{
           if(f.boardFixture&&source.sourceId===104)return {sourceId:source.sourceId,reviewId:null,options:[],error:'request'};
           const id=++f.sequence;f.streamReviews.push({id,sourceId:source.sourceId,subtitles:false});
-          return {sourceId:source.sourceId,reviewId:id,error:null,options:[{name:'HD fixture',...(f.boardFixture&&source.sourceId===102?{detail:'720p AAC\n700 MB · uncached'}:{}),supported:true,reason:'direct-https',language:null},...(f.boardFixture&&source.sourceId===102?[{name:'Alternate HD fixture',detail:'1080p HEVC\nTrueHD Atmos · 8.5 GB · cached',supported:true,reason:'direct-https',language:null}]:[]),{name:'Unsupported fixture',supported:false,reason:'unsupported-transport',language:null}]};
+          return {sourceId:source.sourceId,reviewId:id,error:null,options:[{name:'HD fixture',...(f.boardFixture&&source.sourceId===102?{detail:'720p AAC\n700 MB · uncached'}:{}),supported:true,reason:'direct-https',language:null},...(f.boardFixture&&source.sourceId===102?[{name:'Alternate HD fixture\n⚡  Provider',detail:'1080p HEVC\nTrueHD Atmos · 8.5 GB · cached\n\n'+'LongFixtureReleaseName.'.repeat(30)+'mkv',supported:true,reason:'direct-https',language:null}]:[]),{name:'Unsupported fixture',supported:false,reason:'unsupported-transport',language:null}]};
         });
         if(a.kind==='begin-stream-options'){
           const queryId=++f.sequence;f.progressive={queryId,mediaType:a.mediaType,videoId:a.videoId,groups};
@@ -508,6 +508,22 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await audioFilter.selectOption('Atmos');
     await sizeFilter.selectOption('5-to-15');
     assert.equal(await groups.locator('[data-ui="version"]').filter({hasText:'Alternate HD fixture'}).getByRole('button',{name:'Play',exact:true}).count(),1);
+    const formattedRow=groups.locator('[data-ui="version"]').filter({hasText:'Alternate HD fixture'});
+    const formattedName=formattedRow.locator('[data-ui="version-name"]');
+    const formattedDetail=formattedRow.locator('[data-ui="version-description"]');
+    async function assertFormatterLayout(narrow){
+      await formattedRow.scrollIntoViewIfNeeded();
+      assert.equal(await formattedName.textContent(),'Alternate HD fixture\n⚡  Provider');
+      assert.equal(await formattedDetail.textContent(),'1080p HEVC\nTrueHD Atmos · 8.5 GB · cached\n\n'+'LongFixtureReleaseName.'.repeat(30)+'mkv');
+      for(const label of [formattedName,formattedDetail]){
+        assert.ok(await label.evaluate(node=>getComputedStyle(node).whiteSpace==='pre-wrap'&&node.scrollWidth<=node.clientWidth+1&&node.scrollHeight<=node.clientHeight+1),'provider text retains line breaks and spaces without clipping');
+      }
+      const textBounds=await formattedDetail.boundingBox();
+      const playBounds=await formattedRow.getByRole('button',{name:'Play',exact:true}).boundingBox();
+      assert.ok(textBounds&&playBounds&&(narrow?playBounds.y>=textBounds.y+textBounds.height:playBounds.x>=textBounds.x+textBounds.width-1),'play action does not consume formatter text space on narrow layouts');
+    }
+    await assertFormatterLayout(false);
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-stream-formatter-wide.png'),animations:'disabled'});
     await page.setViewportSize({width:390,height:844});
     const moreFilters=groups.getByRole('button',{name:/More filters/});
     await moreFilters.waitFor();
@@ -522,6 +538,8 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const filterGeometry=await groups.locator('[data-ui="watch-version-filters"]').evaluate(node=>({width:node.clientWidth,scroll:node.scrollWidth}));
     assert.ok(filterGeometry.scroll<=filterGeometry.width+1,'reported stream filters wrap without horizontal overflow');
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-stream-selector-narrow.png'),animations:'disabled'});
+    await assertFormatterLayout(true);
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-stream-formatter-narrow.png'),animations:'disabled'});
     await page.setViewportSize({width:1600,height:900});
     await page.waitForFunction(()=>document.activeElement?.closest('.tsugi-watch-stream-page')!=null);
     // Also exercise the transient document focus during breakpoint reflow,
