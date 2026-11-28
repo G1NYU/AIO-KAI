@@ -1,6 +1,7 @@
 import React from 'react';
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
+import { TsugiIcon } from '@/components/tsugi-icons';
 import { checkTsugiRelease,supportsTsugiReleaseCheck,tsugiReleasePage,TSUGI_RELEASES,type TsugiRelease } from '@/lib/hosts/shell/tsugi-release';
 
 export function TsugiReleaseSettings(){
@@ -15,7 +16,7 @@ export function TsugiReleaseSettings(){
     finally{setBusy(false);}
   }
   return <section className="tsugi-app-general" aria-label={t`Tsugi updates`}>
-    <h3><Trans>Tsugi updates</Trans></h3>
+    <h3 className="flex items-center gap-2"><TsugiIcon name="cicada" className="h-5 w-5 flex-none" data-ui="tsugi-cicada-update"/><Trans>Tsugi updates</Trans></h3>
     <p><Trans>Tsugi checks the official Windows x64 stable release once at startup. You can check again here. This reads release metadata only and never downloads or replaces program files.</Trans></p>
     <div className="flex flex-wrap gap-2"><button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>void check()}><Trans>Check stable release</Trans></button><a className="tsugi-read-action" href={TSUGI_RELEASES} target="_blank" rel="noopener noreferrer"><Trans>Browse GitHub releases</Trans></a></div>
     {busy&&<p role="status"><Trans>Checking Tsugi releases…</Trans></p>}

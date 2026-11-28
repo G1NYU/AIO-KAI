@@ -1,7 +1,7 @@
 import React from 'react';
 import { WatchPosterSettings } from './watch-poster-settings';
 import { readPosterPattern, writePosterPattern, watchPosterSources } from '@/lib/watch-poster-pattern';
-import { StremioAccountImport, importFailureText, manifestFailureText } from './stremio-account-import';
+import { StremioAccountImport, AddonLogo, importFailureText, manifestFailureText } from './stremio-account-import';
 import { MdblistSettings } from './mdblist-settings';
 import { WatchSetupGate,TmdbSettings } from './watch-setup-gate';
 import { MalAnimeLibrary } from './mal-anime-library';
@@ -685,7 +685,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       <button type="submit" className="tsugi-read-action" disabled={manualBlocked||!url.trim()||!consent}><Trans>Review addon</Trans></button>
     </form>
     {review&&<div className="space-y-2" data-ui="stremio-review">
-      <h4 className="break-words">{review.manifest.name}</h4>
+      <h4 className="flex items-center gap-3 break-words"><AddonLogo logo={review.manifest.logo}/>{review.manifest.name}</h4>
       <p>{review.manifest.version} · {review.manifest.resources.join(', ')}</p>
       <p>{review.manifest.catalogs.length} <Trans>catalogues</Trans></p>
       {review.manifest.configurationRequired&&<p role="alert"><Trans>This addon needs configuration before installation.</Trans></p>}
@@ -708,6 +708,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     <button type="button" className="tsugi-read-action tsugi-watch-refresh" disabled={busy} onClick={()=>void refreshProfiles()}><Trans>Refresh installed addons</Trans></button>
     {profileReady&&!sources.length&&<p><Trans>No addons installed for this profile.</Trans></p>}
     {sources.map((s,index)=><div key={s.sourceId} data-stremio-source-id={s.sourceId} className="tsugi-watch-addon-row">
+      <AddonLogo logo={s.manifest.logo}/>
       <div className="min-w-0 flex-1"><span className="break-words">{s.manifest.name}</span><small className="block">{s.manifest.version} · {s.enabled?t`Enabled`:t`Disabled`}</small></div>
       <div className="flex flex-wrap gap-2">
         <button type="button" className="tsugi-read-action" disabled={busy||!s.enabled||!s.manifest.catalogs.length} onClick={()=>choose({sourceId:s.sourceId,catalogIndex:0})}><Trans>Browse catalogues</Trans></button>

@@ -84,7 +84,11 @@ impl Endpoint {
     }
 
     pub fn manifest(&self) -> Result<Manifest> {
-        let bytes = fetch(&self.0, MANIFEST_LIMIT)?;
+        self.manifest_with_timeout(Duration::from_secs(20))
+    }
+
+    fn manifest_with_timeout(&self, timeout: Duration) -> Result<Manifest> {
+        let bytes = fetch_with_timeout(&self.0, MANIFEST_LIMIT, timeout)?;
         Manifest::parse(&bytes)
     }
 
@@ -200,6 +204,10 @@ pub struct Manifest {
     pub version: String,
     #[serde(default,deserialize_with="nullable_description")]
     pub description: String,
+    // Persist only public, credential-free artwork. Invalid optional images
+    // must never invalidate an otherwise compatible addon.
+    #[serde(default,deserialize_with="deserialize_addon_logo",skip_serializing_if="Option::is_none")]
+    pub logo: Option<String>,
     pub types: Vec<String>,
     #[serde(default)]
     id_prefixes: Vec<String>,
@@ -319,6 +327,30 @@ impl Manifest {
         };
         Ok((catalog, skip))
     }
+}
+
+// Public static logo origins only. Do not send configured addon URLs,
+// embedded secrets, arbitrary hosts or query-bearing URLs to the renderer.
+fn public_addon_logo(value:&Value)->Option<String>{
+    if let Some(art)=public_cdn_art(value){return Some(art);}
+    let raw=value.as_str()?;
+    if raw.len()>512||raw.chars().any(|c|c.is_control()||c.is_whitespace())||raw.contains('\\'){return None;}
+    let url=Url::parse(raw).ok()?;
+    if url.scheme()!="https"||url.port().is_some()||!url.username().is_empty()||url.password().is_some()||
+        url.query().is_some()||url.fragment().is_some(){return None;}
+    let parts:Vec<_>=url.path_segments()?.collect();
+    let segment=|s:&str|!s.is_empty()&&s.len()<=100&&s!="."&&s!=".."&&s.bytes().all(|b|b.is_ascii_alphanumeric()||matches!(b,b'_'|b'-'|b'.'));
+    let image=|s:&str|s.rsplit_once('.').is_some_and(|(stem,ext)|!stem.is_empty()&&matches!(ext,"png"|"jpg"|"jpeg"|"webp"|"svg"|"ico"));
+    let valid=match url.host_str()?{
+        "raw.githubusercontent.com"=>parts.len()>=4&&parts.len()<=16&&parts.iter().all(|p|segment(p))&&parts.last().is_some_and(|p|image(p)),
+        "www.stremio.com"|"stremio.com"|"torrentio.strem.fun"=>parts.len()<=4&&parts.iter().all(|p|segment(p))&&parts.last().is_some_and(|p|image(p)),
+        _=>false
+    };
+    valid.then(||url.to_string())
+}
+fn deserialize_addon_logo<'de,D:serde::Deserializer<'de>>(d:D)->std::result::Result<Option<String>,D::Error>{
+    let value=Value::deserialize(d)?;
+    Ok(public_addon_logo(&value))
 }
 
 // Conventional public artwork paths only. Arbitrary addon image URLs can
@@ -611,6 +643,19 @@ mod tests {
             manifest["catalogs"].as_array_mut().unwrap().push(json!({"type":"movie","id":format!("more-{i}")}));
         }
         assert_eq!(Manifest::parse(&serde_json::to_vec(&manifest).unwrap()).err(),Some("manifest-catalog-limit"));
+    }
+    #[test]
+    fn manifest_logo_retains_only_public_static_artwork(){
+        let mut row=json!({"id":"fixture","name":"Fixture","version":"1","types":["movie"],"resources":["stream"]});
+        let logo="https://raw.githubusercontent.com/Viren070/AIOStreams/refs/heads/main/packages/frontend/public/logo.png";
+        row["logo"]=json!(logo);
+        let manifest=Manifest::parse(&serde_json::to_vec(&row).unwrap()).unwrap();
+        assert_eq!(manifest.logo.as_deref(),Some(logo));
+        assert_eq!(Manifest::parse(&serde_json::to_vec(&manifest).unwrap()).unwrap().logo.as_deref(),Some(logo));
+        for bad in [json!("https://raw.githubusercontent.com/owner/repo/main/logo.png?token=secret"),json!("https://127.0.0.1/logo.png"),json!("https://example.invalid/private/logo.png"),json!("https://user:pass@raw.githubusercontent.com/a/b/main/logo.png"),json!({"url":logo}),Value::Null]{
+            row["logo"]=bad;
+            assert!(Manifest::parse(&serde_json::to_vec(&row).unwrap()).unwrap().logo.is_none());
+        }
     }
     #[test]
     fn manifest_errors_are_fixed_schema_categories(){

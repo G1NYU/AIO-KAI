@@ -192,7 +192,7 @@ struct Registry {
 }
 
 /// Only bounded display fields and declared capabilities cross the bridge.
-/// No configured endpoint, logo, raw manifest, config fields or headers.
+/// No configured endpoint, private artwork, raw manifest, config fields or headers.
 fn summary(manifest: &Manifest) -> Value {
     let resources: BTreeSet<&str> = manifest.resources.iter().map(|r| match r {
         Declaration::Name(name) | Declaration::Detailed { name, .. } => name.as_str(),
@@ -204,7 +204,7 @@ fn summary(manifest: &Manifest) -> Value {
         json!({"id":catalog.id,"mediaType":catalog.kind,"name":catalog.name,"extras":extras})
     }).collect();
     json!({
-        "id":manifest.id,"name":manifest.name,"version":manifest.version,
+        "id":manifest.id,"name":manifest.name,"version":manifest.version,"logo":manifest.logo,
         "resources":resources,"catalogs":catalogs,"configurable":manifest.behavior_hints.configurable,
         "configurationRequired":manifest.behavior_hints.configuration_required,
         "p2p":manifest.behavior_hints.p2p,"adult":manifest.behavior_hints.adult

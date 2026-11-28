@@ -5,7 +5,7 @@ export interface AddonExtra { name: string; required: boolean; options: string[]
 export interface AddonCatalog { id: string; mediaType: string; name: string; extras: AddonExtra[] }
 export interface AddonManifest {
   id: string; name: string; version: string; resources: string[]; catalogs: AddonCatalog[];
-  configurable: boolean; configurationRequired: boolean; p2p: boolean; adult: boolean;
+  configurable: boolean; configurationRequired: boolean; p2p: boolean; adult: boolean; logo?: string;
 }
 export const MAX_ADDON_SOURCES = 128;
 export interface AddonSource { sourceId: number; enabled: boolean; manifest: AddonManifest }
@@ -51,7 +51,7 @@ type TmdbAction={kind:'tmdb-search';query:string}|{kind:'tmdb-title';mediaType:s
 type SetupAction={kind:'watch-setup-status'}|{kind:'tmdb-connect';key:string}|{kind:'tmdb-disconnect'};
 type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | SetupAction | TmdbAction | WatchCollectionAction | WatchHistoryAction | RefractAction | MalAnimeAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
 export type RemoteAddonProfile={profileIndex:number;name:string;usesPrimaryAddons:boolean;locked:boolean};
-export type ImportCandidate={candidateId:number;name:string;host:string;enabled:boolean;alreadyInstalled:boolean};
+export type ImportCandidate={candidateId:number;name:string;host:string;enabled:boolean;alreadyInstalled:boolean;logo?:string};
 type ImportBase={importId:number;provider:ImportProvider};
 export type ImportProfiles=ImportBase&{phase:'profiles';remoteProfiles:RemoteAddonProfile[]};
 export type ImportCandidates=ImportBase&{phase:'candidates';candidates:ImportCandidate[];availableSlots:number;skipped:number;remoteProfile?:number;effectiveProfile?:number};
@@ -88,6 +88,7 @@ function manifest(v: unknown): AddonManifest {
   const m = obj(v);
   return {
     id: str(m.id,512), name: str(m.name,256), version: str(m.version,64),
+    logo:publicAddonLogo(m.logo),
     resources: array(m.resources,4,r=>{const name=str(r,32);return ['catalog','meta','stream','subtitles'].includes(name)?name:fail();}),
     catalogs: array(m.catalogs,512,c=>{
       const row=obj(c);
@@ -192,6 +193,20 @@ export function publicAddonPoster(value:unknown):string|undefined{
       url.hostname==='cdn.myanimelist.net'&&new RegExp('^/images/anime/[0-9]{1,12}/'+file+'$').test(path)||
       url.hostname==='media.kitsu.io'&&new RegExp('^/anime/poster_images/[0-9]{1,12}/'+file+'$').test(path);
     return valid?url.href:undefined;
+  }catch{return undefined;}
+}
+/** Optional manifest identity artwork is never a configured addon URL. */
+export function publicAddonLogo(value:unknown):string|undefined{
+  const art=publicAddonPoster(value);if(art)return art;
+  if(typeof value!=='string'||value.length>512||/[\s\\]/u.test(value))return undefined;
+  try{
+    const url=new URL(value);
+    if(url.protocol!=='https:'||url.port||url.username||url.password||url.search||url.hash)return undefined;
+    const parts=url.pathname.slice(1).split('/');
+    if(!parts.every(p=>/^[A-Za-z0-9_.-]{1,100}$/.test(p)&&p!=='.'&&p!=='..')||!/^.+\.(png|jpg|jpeg|webp|svg|ico)$/.test(parts.at(-1)??''))return undefined;
+    const allowed=url.hostname==='raw.githubusercontent.com'?parts.length>=4&&parts.length<=16:
+      ['www.stremio.com','stremio.com','torrentio.strem.fun'].includes(url.hostname)&&parts.length<=4;
+    return allowed?url.href:undefined;
   }catch{return undefined;}
 }
 export async function loadAddonCatalog(profileId:number,action:CatalogAction):Promise<CatalogPage>{
@@ -331,7 +346,7 @@ function parseAccountImport(v:unknown):AccountImport{
     return {...identity,phase:'profiles',remoteProfiles};
   }
   const candidate=(item:unknown)=>{
-    const c=obj(item);return {candidateId:integer(c.candidateId,1,128),name:str(c.name,256),host:str(c.host,253),enabled:bool(c.enabled)};
+    const c=obj(item);return {candidateId:integer(c.candidateId,1,128),name:str(c.name,256),host:str(c.host,253),enabled:bool(c.enabled),logo:publicAddonLogo(c.logo)};
   };
   if(data.phase==='candidates'){
     const candidates=array(data.candidates,128,item=>({...candidate(item),alreadyInstalled:bool(obj(item).alreadyInstalled)}));

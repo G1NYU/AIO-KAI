@@ -595,7 +595,11 @@ try {
   await releaseSettings.getByText('v0.1.0',{exact:true}).waitFor();
   await releaseSettings.getByText(/This build differs from the stable release/).waitFor();
   assert.equal(await releaseSettings.getByRole('link',{name:'Open official release'}).getAttribute('href'),'https://github.com/G1NYU/TSUGI/releases/tag/v0.1.0');
-  console.log('PASS: official release discovery distinguishes source revision and release tag.');
+  assert.equal(await releaseSettings.locator('[data-ui="tsugi-cicada-update"]').count(),1);
+  assert.equal(await releaseSettings.getByRole('link',{name:'Browse GitHub releases',exact:true}).getAttribute('href'),'https://github.com/G1NYU/TSUGI/releases');
+  await releaseSettings.scrollIntoViewIfNeeded();
+  if(screenshotDir)await page.screenshot({path:join(screenshotDir,'tsugi-cicada-updater.png'),animations:'disabled'});
+  console.log('PASS: cicada updater links to official GitHub Releases and distinguishes source revision and release tag.');
   await portable.getByRole('combobox',{name:'Backup frequency'}).selectOption('daily');
   await portable.getByRole('combobox',{name:'Scheduled copy retention'}).selectOption('7');
   await page.evaluate(()=>{const key='tsugi-backup-schedule-v1';const state=JSON.parse(localStorage.getItem(key));localStorage.setItem(key,JSON.stringify({...state,dueMs:Date.now()-1}));window.dispatchEvent(new Event('focus'));});

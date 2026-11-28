@@ -17,6 +17,9 @@ const NUVIO:&str="https://api.nuvio.tv/";
 const NUVIO_PUBLIC_CLIENT:&str="sb_publishable_1Clq8rlTVACkdcZuqr6_AD__xUUC_EN";
 const RESPONSE_LIMIT:usize=4*1024*1024;
 const MAX_REMOTE_ADDONS:usize=128;
+// Bound the whole selected-manifest pass, not each successive batch. Slow
+// or unreachable addons remain retryable without repeating authentication.
+const IMPORT_MANIFEST_BUDGET:Duration=Duration::from_secs(12);
 
 #[derive(Clone,Copy,Deserialize,serde::Serialize,PartialEq,Eq)]
 #[serde(rename_all="lowercase")]
@@ -28,10 +31,10 @@ impl Provider {
 #[derive(Clone)]
 struct Candidate {id:u32,name:String,endpoint:Endpoint,enabled:bool,cached_manifest:Option<Manifest>}
 impl Candidate {
-    fn manifest(&self)->Result<Manifest>{
+    fn manifest_until(&self,deadline:Instant)->Result<Manifest>{
         match self.cached_manifest.as_ref().filter(|m|!m.behavior_hints.configuration_required){
             Some(manifest)=>Ok(manifest.clone()),
-            None=>self.endpoint.manifest(),
+            None=>self.endpoint.manifest_with_timeout(deadline.saturating_duration_since(Instant::now())),
         }
     }
 }
@@ -193,7 +196,8 @@ fn nuvio_addons_at(agent:&ureq::Agent,base:&str,client:&str,access:&str,profile:
     nuvio_candidates(&value,profile)
 }
 fn candidate_summary(c:&Candidate,existing:bool)->Value{
-    json!({"candidateId":c.id,"name":c.name,"host":host(&c.endpoint),"enabled":c.enabled,"alreadyInstalled":existing})
+    json!({"candidateId":c.id,"name":c.name,"host":host(&c.endpoint),"enabled":c.enabled,"alreadyInstalled":existing,
+        "logo":c.cached_manifest.as_ref().and_then(|m|m.logo.as_deref())})
 }
 impl Registry{
     fn import_view(&self,flow:&Flow)->Result<Value>{
@@ -252,7 +256,8 @@ impl Registry{
         }
         let account_order = rows.iter().map(|row| row.endpoint.0.clone()).collect();
         let chosen:Vec<_>=rows.into_iter().filter(|c|selected.contains(&c.id)).collect();
-        let (ready,failed)=self.review_import_candidates(&chosen,&Candidate::manifest);
+        let deadline=Instant::now()+IMPORT_MANIFEST_BUDGET;
+        let (ready,failed)=self.review_import_candidates(&chosen,&|candidate|candidate.manifest_until(deadline));
         let preview:Vec<_>=ready.iter().map(|row|json!({"candidateId":row.candidate.id,"name":row.candidate.name,
             "host":host(&row.candidate.endpoint),"enabled":row.candidate.enabled,"manifest":summary(&row.manifest)})).collect();
         let rejected=failed.iter().map(Self::import_failure).collect::<Vec<_>>();
@@ -334,7 +339,8 @@ impl Registry{
     }
     fn retryable_import_failure(row:&Failed)->bool{row.reason!="duplicate"&&row.reason!="configuration-required"}
     pub(super) fn import_retry(&mut self,id:u32)->Result<Value>{
-        self.import_retry_with(id,&|candidate|candidate.endpoint.manifest())
+        let deadline=Instant::now()+IMPORT_MANIFEST_BUDGET;
+        self.import_retry_with(id,&|candidate|candidate.manifest_until(deadline))
     }
     fn import_retry_with(&mut self,id:u32,fetch:&(impl Fn(&Candidate)->Result<Manifest>+Sync))->Result<Value>{
         let Some(flow)=self.import.as_ref().filter(|flow|flow.id==id&&!flow.expired()) else{return Err("expired-review");};
@@ -388,6 +394,15 @@ mod tests{
         let applied=registry.import_apply(1).unwrap();
         assert_eq!(applied["sources"][0]["manifest"]["id"],"fixture.cached");
         assert_eq!(registry.setup_status()["accountProvider"],"stremio");
+    }
+    #[test]
+    fn expired_import_budget_uses_cached_manifests_without_new_requests(){
+        let mut row=candidate(1,Endpoint::parse("https://example.invalid/manifest.json").unwrap(),None,true);
+        let deadline=Instant::now();
+        assert!(matches!(row.manifest_until(deadline),Err("network")));
+        row.cached_manifest=Some(Manifest::parse(br#"{"id":"fixture","name":"Fixture","version":"1","types":["movie"],"resources":["stream"],"logo":"https://raw.githubusercontent.com/example/addon/main/logo.png"}"#).unwrap());
+        assert!(row.manifest_until(deadline).is_ok());
+        assert_eq!(candidate_summary(&row,false)["logo"],"https://raw.githubusercontent.com/example/addon/main/logo.png");
     }
     #[test]
     fn import_pool_does_not_wait_for_a_slow_first_batch(){

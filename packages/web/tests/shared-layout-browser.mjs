@@ -316,6 +316,9 @@ export async function verifySharedLayoutBrowser({ browser, origin, installDeskto
     await rail.getByRole('button', { name: 'Music', exact: true }).click();
     rail = await assertRailGeometry(page, music, 'Music');
     await assertBrushHeadingSpacing(page, '.tsugi-library-intro h2');
+    // Exercise Read before the later intentionally disabled reader fixture.
+    await verifySharedPaletteBrowser(page, screenshotDir);
+    rail = await assertRailGeometry(page, music, 'Music');
     await rail.getByRole('button', { name: 'All media', exact: true }).click();
     await landing.waitFor({ state: 'visible' });
     await landing.locator('.tsugi-world-card[data-world="video"]').click();
@@ -337,7 +340,6 @@ export async function verifySharedLayoutBrowser({ browser, origin, installDeskto
     await assertMasthead(page, setupNavigation, 'Narrow Read setup');
     await setupNavigation.getByRole('button', { name: 'Music', exact: true }).click();
     await music.waitFor({ state: 'visible' });
-    await verifySharedPaletteBrowser(page, screenshotDir);
     assert.deepEqual(errors, [], 'Shared layout transitions have no runtime errors');
     console.log('PASS: shared rails reach the top edge, preserve window drag/maximize/resize bridge actions and inset media states; masthead controls align at wide/narrow widths; Music, Read, Books and App settings headings and artwork groups have no broad background panels.');
   } catch (error) {
