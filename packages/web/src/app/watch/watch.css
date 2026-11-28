@@ -59,7 +59,6 @@
     padding-inline:calc(32px + var(--tsugi-page-gap,24px)) 32px;padding-block-start:calc(clamp(180px,17vw,240px) + 20px);
     padding-block-end:36px;border-radius:0;min-height:calc(clamp(460px,44vw,660px) + 20px);
   }
-  :root[data-host='desktop'] .tsugi-direct-watch .tsugi-watch-detail .tsugi-watch-title-hero[data-has-backdrop]>.tsugi-watch-close-title{inset-block-start:156px;inset-inline-end:32px}
   :root[data-host='desktop'] .tsugi-direct-watch .tsugi-anime-hub:not([hidden]) .tsugi-anime-hero{
     margin-inline:calc(-32px - var(--tsugi-page-gap,24px)) -32px;border-radius:0;
     padding-inline:calc(32px + var(--tsugi-page-gap,24px)) 32px;min-height:clamp(330px,36vw,500px)

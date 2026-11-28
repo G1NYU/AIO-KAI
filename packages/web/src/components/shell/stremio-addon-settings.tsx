@@ -596,6 +596,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const hubPanes:WatchPane[]=['hubs','home','discover','anime','history','favorites','queue'];
   const inSettings=!hubPanes.includes(pane);
   const hubChooser=workspace&&!!onPlay&&pane==='hubs';
+  const railOwnsTitleClose=workspace&&!!desktopArea&&!!onPlay&&!hubChooser;
   const settingsTabs=([
     ['addons',t`Your addons`,'addons'],
     ['stremio',t`Stremio import`,'stremio'],
@@ -656,6 +657,9 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
         ['addons',t`Settings`,'settings']
       ] as const).map(([id,label,icon])=><button key={id} type="button" className="tsugi-watch-nav-item" title={label} aria-label={label} aria-current={(id==='addons'?inSettings:pane===id)?'page':undefined} aria-pressed={id==='addons'?inSettings:pane===id} disabled={busy} onClick={()=>void selectPane(id)}><MovieGlyph name={icon}/><span>{label}</span></button>)}
     </nav>
+      {railOwnsTitleClose&&title&&<div className="tsugi-watch-nav tsugi-rail-local" data-ui="watch-rail-title-actions">
+        <button type="button" className="tsugi-watch-nav-item tsugi-watch-close-title" title={t`Close title`} aria-label={t`Close title`} disabled={busy} onClick={closeTitle}><MovieGlyph name="back"/><span><Trans>Close title</Trans></span></button>
+      </div>}
       <div ref={desktopArea?setSearchMount:undefined} className="tsugi-watch-nav tsugi-rail-local tsugi-watch-rail-search" data-ui="watch-rail-search"/>
       <div className="tsugi-watch-nav tsugi-rail-local tsugi-watch-rail-actions" data-ui="watch-rail-actions">
         <div ref={desktopArea?setRefreshMount:undefined} className="tsugi-watch-nav tsugi-rail-local tsugi-watch-rail-refresh" data-ui="watch-rail-refresh"/>
@@ -776,7 +780,6 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     {workspace&&pane==='refract'&&(historyActive||setupConnections)&&profileReady&&profileId!==undefined&&<RefractSettings key={profileId} profileId={profileId} busy={busy} run={run}/>}
     {workspace&&title&&<section ref={detailRef} tabIndex={-1} className={automatic?'space-y-3 tsugi-watch-detail':'space-y-3'} data-ui="watch-item-details">
       <div className="tsugi-watch-title-hero" data-ui="watch-detail-hero" data-has-backdrop={!!(cinema?.background||details?.background||title.background||cinema?.poster||details?.poster||title.poster)||undefined}>
-        <button type="button" className="tsugi-read-action tsugi-watch-close-title" disabled={busy} onClick={closeTitle}><Trans>Close title</Trans></button>
         {(cinema?.background||details?.background||title.background||cinema?.poster||details?.poster||title.poster)&&<div className="tsugi-watch-title-backdrop" aria-hidden="true"><Artwork eager src={[cinema?.background,details?.background,title.background,cinema?.poster,details?.poster,title.poster,...(title.posterAlternatives??[])].filter((value):value is string=>!!value)} alt=""/></div>}
         <div className="tsugi-watch-title-art"><Artwork src={watchPosterSources({...title,identities:[...(title.identities??[]),...(cinema?.identities??[]),...(cinema?[cinema.id]:[])],imdbId:cinema?.imdbId??title.imdbId},posterPattern,details?.poster??cinema?.poster)} alt={title.name}/></div>
         <div className="tsugi-watch-title-copy">
@@ -802,6 +805,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
           </div>}
         </div>
       </div>
+      {!railOwnsTitleClose&&<div className="flex justify-start"><button type="button" className="tsugi-read-action tsugi-watch-close-title" disabled={busy} onClick={closeTitle}><MovieGlyph name="back"/> <Trans>Close title</Trans></button></div>}
       {resumeMatch?.episodeTitle&&<p>{resumeMatch.episodeTitle}</p>}
       {resumeMs>0&&<p><Trans>Saved playback position:</Trans> {watchTime(resumeMs)}</p>}
       {!automatic&&videos.length>0&&<label className="block"><Trans>Video</Trans><select aria-label={t`Video`} className="tsugi-read-input w-full" value={videoId} disabled={busy} onChange={e=>selectVideo(e.target.value)}><option value=""><Trans>Select an episode or video</Trans></option>{videos.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></label>}

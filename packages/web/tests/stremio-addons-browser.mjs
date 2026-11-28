@@ -608,7 +608,12 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     async function assertDetailHero(label){
       const hero=watch.locator('[data-ui="watch-detail-hero"][data-has-backdrop]');
       await hero.waitFor();
-      await page.waitForFunction(()=>{const node=document.querySelector('[data-ui="watch-detail-hero"] .tsugi-watch-close-title');return node&&!node.disabled;});
+      const close=watch.locator('[data-ui="watch-rail-title-actions"]').getByRole('button',{name:'Close title',exact:true});
+      await close.waitFor({state:'visible'});
+      await page.waitForFunction(()=>{const node=document.querySelector('[data-ui="watch-rail-title-actions"] .tsugi-watch-close-title');return node&&!node.disabled;});
+      assert.equal(await hero.locator('.tsugi-watch-close-title').count(),0,label+' no close control overlays artwork');
+      assert.equal(await watch.getByRole('button',{name:'Close title',exact:true}).count(),1,label+' one close action');
+      await close.scrollIntoViewIfNeeded();
       await hero.evaluate(async node=>{
         node.closest('.tsugi-direct-watch').scrollTo({top:0,behavior:'instant'});
         await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
@@ -616,12 +621,13 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       const layout=await hero.evaluate(node=>{
         const r=node.getBoundingClientRect(),root=node.closest('.tsugi-direct-watch'),rail=root.querySelector('.tsugi-watch-shared-rail');
         const bounds=root.getBoundingClientRect(),side=rail.getBoundingClientRect(),header=root.querySelector('.tsugi-watch-hub>header');
-        const close=node.querySelector('.tsugi-watch-close-title'),copy=node.querySelector('.tsugi-watch-title-copy');
+        const close=rail.querySelector('[data-ui="watch-rail-title-actions"] .tsugi-watch-close-title'),copy=node.querySelector('.tsugi-watch-title-copy');
         const c=close.getBoundingClientRect(),h=header.getBoundingClientRect(),b=copy.getBoundingClientRect();
         const hit=document.elementFromPoint(c.x+c.width/2,c.y+c.height/2);
         return {left:r.left,railRight:side.right,right:r.right,rootRight:bounds.left+root.clientLeft+root.clientWidth,
           top:r.top,rootTop:bounds.top+root.clientTop,rootScroll:root.scrollTop,headerBottom:h.bottom,closeTop:c.top,closeBottom:c.bottom,
           copyTop:b.top,hit:hit?.outerHTML.slice(0,200),closeReachable:close.contains(hit),
+          closeLeft:c.left,closeRight:c.right,railLeft:side.left,closeInRail:rail.contains(close),
           radius:getComputedStyle(node).borderRadius,blur:getComputedStyle(node.querySelector('.tsugi-watch-title-backdrop'),'::before').backdropFilter};
       });
       console.log('DETAIL HERO '+label+' '+JSON.stringify(layout));
@@ -630,7 +636,8 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       assert.ok(Math.abs(layout.left-layout.railRight)<=3,label+' hero begins at rail edge: '+JSON.stringify(layout));
       assert.ok(Math.abs(layout.right-layout.rootRight)<=3,label+' hero reaches right edge: '+JSON.stringify(layout));
       assert.ok(Math.abs(layout.top-layout.rootTop)<=3,label+' hero begins beneath native title strip: '+JSON.stringify(layout));
-      assert.ok(layout.headerBottom<layout.closeTop&&layout.closeBottom<=layout.copyTop&&layout.closeReachable,label+' masthead, close and title copy remain separate: '+JSON.stringify(layout));
+      assert.ok(layout.headerBottom<=layout.copyTop,label+' masthead and title copy remain separate: '+JSON.stringify(layout));
+      assert.ok(layout.closeInRail&&layout.closeLeft>=layout.railLeft-1&&layout.closeRight<=layout.railRight+1&&layout.closeRight<=layout.left+3&&layout.closeReachable,label+' close is reachable inside the rail, outside the hero: '+JSON.stringify(layout));
       assert.ok(layout.blur.includes('blur'),label+' bottom blur applied');
       const header=watch.locator('.tsugi-watch-hub>header');
       assert.equal(await header.locator('button,.tsugi-watch-header-search').count(),0,label+' detail artwork has no header actions');
@@ -638,6 +645,12 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       const actions=watch.locator('.tsugi-watch-shared-rail [data-ui="watch-rail-actions"]');
       assert.equal(await actions.getByRole('button',{name:'Streaming hubs',exact:true}).count(),1);
       assert.equal(await actions.getByRole('button',{name:'Switch profile',exact:true}).count(),1);
+      if(label==='movie'){
+        await page.setViewportSize({width:720,height:720});
+        await close.scrollIntoViewIfNeeded();
+        assert.ok(await close.evaluate(button=>{const r=button.getBoundingClientRect(),rail=button.closest('.tsugi-watch-shared-rail').getBoundingClientRect(),art=document.querySelector('[data-ui="watch-detail-hero"]').getBoundingClientRect();const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return r.width>0&&r.height>=32&&r.left>=rail.left-1&&r.right<=rail.right+1&&r.right<=art.left+3&&button.contains(hit);}), 'compact close remains a reachable sidebar action outside artwork');
+        await page.setViewportSize({width:1600,height:900});
+      }
     }
     const discoverCallsStart=await page.evaluate(()=>window.__stremioFixture.calls.length);
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Discover',exact:true}).click();
@@ -715,7 +728,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const mazeDetail=watch.locator('[data-ui="watch-item-details"]');
     await mazeDetail.locator('[data-video-id="tt90021:1:1"]').waitFor();
     await assertDetailHero('discover');
-    await mazeDetail.getByRole('button',{name:'Close title',exact:true}).click();
+    await watch.getByRole('button',{name:'Close title',exact:true}).click();
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Home',exact:true}).click();
     await film.waitFor();
     const watchCarouselHero=board.locator('[data-ui="hero"]');
@@ -767,7 +780,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await sequel.click();
     await item.getByRole('heading',{name:'Fixture franchise sequel',exact:true}).waitFor();
     assert.equal(await groups.count(),0);
-    await item.getByRole('button',{name:'Close title',exact:true}).click();
+    await watch.getByRole('button',{name:'Close title',exact:true}).click();
     await film.click();
     await item.locator('[data-ui="watch-play-title"]').waitFor();
     await item.getByRole('button',{name:'Add to favorites',exact:true}).click();
@@ -924,7 +937,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.waitFor({state:'detached'});
     assert.ok(await watch.evaluate(root=>parseFloat(getComputedStyle(root).borderTopWidth)>=40),'opaque browsing strip restored after playback');
     console.log('PASS: direct player fills windowed/fullscreen viewport without opaque top strip; browsing chrome returns.');
-    await item.getByRole('button',{name:'Close title',exact:true}).click();
+    await watch.getByRole('button',{name:'Close title',exact:true}).click();
     const resumedCard=board.locator('[data-ui="watch-continue-shelf"] [data-ui="wide-card"]').filter({hasText:'Fixture cinema film'});
     await resumedCard.waitFor();
     assert.equal(await resumedCard.getAttribute('data-in-progress'),'true');
@@ -940,7 +953,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await groups.getByRole('button',{name:'Resume',exact:true}).first().waitFor();
     await page.keyboard.press('Escape');
     await groups.waitFor({state:'detached'});
-    await item.getByRole('button',{name:'Close title',exact:true}).click();
+    await watch.getByRole('button',{name:'Close title',exact:true}).click();
     await watch.locator('[data-ui="watch-rail-search"]').getByRole('button',{name:'Search movies & series',exact:true}).click();
     await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Fixture cinema film');
     const results=board.locator('[data-ui="watch-search-results"]');
@@ -993,7 +1006,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&['all-stream-options','begin-stream-options'].includes(a.action.kind)&&a.action.videoId==='tmdb:90007'&&a.action.alternatives?.some(route=>route.videoId==='tt90007'&&route.mediaType==='movie'))));
     await page.keyboard.press('Escape');
     await groups.waitFor({state:'detached'});
-    await item.getByRole('button',{name:'Close title',exact:true}).click();
+    await watch.getByRole('button',{name:'Close title',exact:true}).click();
     await watch.locator('[data-ui="watch-rail-search"]').getByRole('button',{name:'Search movies & series',exact:true}).click();
     await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('family guy');
     await seriesResults.getByRole('button',{name:'Family Guy',exact:true}).click();
@@ -1012,7 +1025,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await page.setViewportSize({width:1600,height:900});
     await page.keyboard.press('Escape');
     await groups.waitFor({state:'detached'});
-    await item.getByRole('button',{name:'Close title',exact:true}).click();
+    await watch.getByRole('button',{name:'Close title',exact:true}).click();
     console.log('PASS: ordinary TV search opens exact episode stream selector with multiline formatter layout.');
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
     const anime=watch.locator('[data-ui="mal-anime-library"]');
@@ -1103,7 +1116,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await item.locator('[data-video-id="tt90025:1:1"]').waitFor();
     assert.equal(await related.count(),0,'stale recommendations do not survive title changes');
     assert.equal(await page.evaluate(()=>window.__stremioFixture.calls.filter(a=>a.kind==='profile-request'&&['begin-stream-options','all-stream-options'].includes(a.action.kind)).length),streamCallsBeforeRelated,'opening a related title does not request streams before playback selection');
-    await item.getByRole('button',{name:'Close title',exact:true}).click();
+    await watch.getByRole('button',{name:'Close title',exact:true}).click();
     await anime.waitFor({state:'visible'});
     console.log('PASS: related TMDB titles use real artwork, explicit IMDb aliases, exact episodes and the normal browsing return path.');
     console.log('PASS: imported standalone Watch profile loads ordered shelves, isolates failures, resolves metadata and streams across addons, and plays an exact anime episode without MAL or a media server.');
@@ -1140,7 +1153,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await item.locator('[data-video-id="kitsu:90004:2"][aria-current="true"]').waitFor();
     assert.equal(await groups.count(),0);
     console.log('PASS: public MAL discovery maps to verified Kitsu metadata and advances to the exact next episode using a stream-only addon profile.');
-    await item.getByRole('button',{name:'Close title',exact:true}).click();
+    await watch.getByRole('button',{name:'Close title',exact:true}).click();
     await watch.locator('[data-ui="anime-public-discovery"]').getByRole('button',{name:'Public anime film fixture',exact:true}).first().click();
     await item.getByRole('heading',{name:'Public anime film fixture',exact:true}).waitFor();
     assert.equal(await groups.count(),0,'anime movie details do not request streams before Play');
@@ -1696,7 +1709,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await discovery.getByRole('button',{name:/First original film/}).click();
     await watch.locator('[data-ui="watch-item-details"]').getByRole('heading',{name:'First original film',exact:true}).waitFor();
     assert.equal(await anime.isVisible(),false,'Title detail replaces the Anime Hub while open');
-    await watch.locator('[data-ui="watch-item-details"]').getByRole('button',{name:'Close title',exact:true}).click();
+    await watch.getByRole('button',{name:'Close title',exact:true}).click();
     await hubNav.getByRole('button',{name:'My List',exact:true}).click();
     await animeFilm.click();
     const animeSource=anime.locator('[data-ui="mal-anime-source"]');
@@ -1870,7 +1883,7 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await animeFilm.click();
     await animeSource.getByRole('button',{name:'Open saved anime source',exact:true}).click();
     await watch.locator('[data-ui="watch-item-details"]').getByRole('heading',{name:'First original film',exact:true}).waitFor();
-    await watch.locator('[data-ui="watch-item-details"]').getByRole('button',{name:'Close title',exact:true}).click();
+    await watch.getByRole('button',{name:'Close title',exact:true}).click();
     await hubNav.getByRole('button',{name:'History',exact:true}).click();
     await anime.locator('[data-ui="anime-history"]').getByRole('button',{name:/First original film/}).waitFor();
     await hubNav.getByRole('button',{name:'My List',exact:true}).click();
