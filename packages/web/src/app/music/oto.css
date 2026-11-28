@@ -524,10 +524,10 @@
   :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='junction'][data-lyrics-open='false'] .tsugi-stage-artwork { width:min(100%,calc(100dvh - 240px)); max-width:760px; }
   /* Nocturne is a cinematic, bottom-aligned composition, not a second Junction. */
   :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='nocturne'][data-lyrics-open='false'] {
-    grid-template-columns:minmax(0,280px) minmax(0,640px); align-items:end; align-content:end;
+    grid-template-columns:minmax(0,440px) minmax(0,640px); align-items:end; align-content:end;
     padding-block:24px clamp(24px,6vh,76px);
   }
-  :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='nocturne'][data-lyrics-open='false'] .tsugi-stage-artwork { width:min(100%,32dvh,280px); }
+  :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='nocturne'][data-lyrics-open='false'] .tsugi-stage-artwork { width:min(100%,54dvh,440px); }
   :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='nocturne'][data-lyrics-open='false'] .tsugi-junction-content { padding:0; }
   :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='nocturne'][data-lyrics-open='false'] .tsugi-track-title { font-size:clamp(28px,3vw,44px); }
 }

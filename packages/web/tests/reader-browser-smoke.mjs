@@ -1390,7 +1390,7 @@ try {
     } else if (layout === 'junction') {
       assert.ok(geometry.art >= 440 && geometry.contentX >= geometry.artX + geometry.art + 24, 'Junction retains a large split workspace');
     } else {
-      assert.ok(geometry.art >= 200 && geometry.art <= 280 && geometry.contentX >= geometry.artX + geometry.art + 24, 'Nocturne uses smaller artwork against its cinematic backdrop');
+      assert.ok(geometry.art >= 400 && geometry.art <= 440 && geometry.contentX >= geometry.artX + geometry.art + 24, 'Nocturne uses a larger foreground cover against its cinematic backdrop');
     }
     await stage.locator('canvas[data-ui="tsugi-pixel-matrix"]').waitFor();
     assert.equal(await stage.locator('.tsugi-nocturne-backdrop').count(), layout === 'nocturne' ? 1 : 0);
@@ -1421,7 +1421,7 @@ try {
         return { art: { width: art.width, height: art.height, left: art.left, right: art.right }, content: { left: content.left, right: content.right }, stage: { left: bounds.left, right: bounds.right }, viewport: innerWidth, scroll: node.scrollWidth, client: node.clientWidth };
       });
       if (layout === 'junction') assert.ok(wide.art.width >= 700 && wide.art.width <= 760, 'wide Junction retains the balanced large artwork scale');
-      else assert.ok(wide.art.width >= 240 && wide.art.width <= 280, 'wide Nocturne retains its compact foreground cover');
+      else assert.ok(wide.art.width >= 400 && wide.art.width <= 440, 'wide Nocturne retains its enlarged foreground cover');
       assert.ok(Math.abs(wide.art.width - wide.art.height) <= 1, 'wide artwork remains square');
       assert.ok(wide.content.left - wide.art.right >= 24, 'wide artwork and listening controls remain distinct columns');
       assert.ok(wide.art.left >= wide.stage.left && wide.content.right <= wide.stage.right + 1 && wide.stage.right <= wide.viewport && wide.scroll <= wide.client + 1, 'wide player content fits without horizontal clipping');

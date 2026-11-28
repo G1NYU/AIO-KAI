@@ -125,7 +125,9 @@ describe('shared Tsugi desktop identity', () => {
     }
     const brand = readFileSync(new URL('../src/components/tsugi-brand.tsx', import.meta.url), 'utf8');
     const icon = readFileSync(new URL('../src/components/tsugi-icons.tsx', import.meta.url), 'utf8');
-    expect(brand).toContain('fillRule="evenodd"');
+    expect(brand).toContain('tsugi-brand-wordmark');
+    expect(brand).toContain('<Trans>Tsugi</Trans>');
+    expect(brand).not.toContain('<svg');
     expect(icon).toContain('viewBox="0 0 24 24"');
   });
 });

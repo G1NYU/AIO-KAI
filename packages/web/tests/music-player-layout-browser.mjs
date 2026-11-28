@@ -94,7 +94,7 @@ export async function verifyMusicPlayerLayoutBrowser({ browser, origin, installD
     await page.evaluate(() => document.fonts.ready);
     const geometry = () => expanded.evaluate(node => {
       const rect = selector => { const r = node.querySelector(selector).getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom }; };
-      return { columns: getComputedStyle(node.querySelector('.tsugi-native-stage')).gridTemplateColumns.split(' ').length, stage: rect('.tsugi-native-stage'), artwork: rect('.tsugi-stage-artwork'), art: rect('.tsugi-junction-art'), content: rect('.tsugi-junction-content'), hud: rect('.tsugi-player-hud'), transport: rect('.oto-transport'), timeline: rect('.oto-timeline'), actions: rect('.tsugi-stage-actions'), next: rect('.oto-up-next'), width: innerWidth, height: innerHeight, scrollWidth: node.scrollWidth, scrollHeight: node.scrollHeight, clientHeight: node.clientHeight };
+      return { columns: getComputedStyle(node.querySelector('.tsugi-native-stage')).gridTemplateColumns.split(' ').length, stage: rect('.tsugi-native-stage'), artwork: rect('.tsugi-stage-artwork'), art: rect('.tsugi-junction-art'), title: rect('.tsugi-track-title'), content: rect('.tsugi-junction-content'), hud: rect('.tsugi-player-hud'), transport: rect('.oto-transport'), timeline: rect('.oto-timeline'), actions: rect('.tsugi-stage-actions'), next: rect('.oto-up-next'), width: innerWidth, height: innerHeight, scrollWidth: node.scrollWidth, scrollHeight: node.scrollHeight, clientHeight: node.clientHeight };
     });
     const titleSpacing = async (selector = '.tsugi-track-title') => {
       await page.waitForFunction(selector => {
@@ -155,7 +155,8 @@ export async function verifyMusicPlayerLayoutBrowser({ browser, origin, installD
         if (layout === 'junction') {
           assert.ok(box.art.width >= 500, 'Junction uses a generous square cover');
         } else {
-          assert.ok(box.art.width >= 240 && box.art.width <= 280, 'Nocturne uses a compact cover');
+          assert.ok(box.art.width >= 400 && box.art.width <= 440, 'Nocturne enlarges the foreground cover without copying Junction');
+          assert.ok(Math.abs(box.art.y - box.title.y) <= 48, 'Nocturne artwork top approximately aligns with the track title');
           assert.ok(Math.abs(box.artwork.bottom - box.content.bottom) <= 2, 'Nocturne aligns cover and controls at the bottom');
           const backdrop = stage.locator('.tsugi-nocturne-backdrop img');
           await backdrop.waitFor();
@@ -193,6 +194,10 @@ export async function verifyMusicPlayerLayoutBrowser({ browser, origin, installD
       const compact = await geometry();
       assert.equal(compact.columns, 2, `${layout}: short desktop preserves the two-column composition`);
       assert.ok(compact.next.bottom <= compact.height - 12 && compact.transport.bottom <= compact.height && compact.scrollWidth <= compact.width + 1, `${layout}: short desktop keeps controls and Up next visible`);
+      if (layout === 'nocturne') {
+        assert.ok(compact.art.width >= 320 && compact.art.width <= 440, 'Short Nocturne scales its foreground cover');
+        assert.ok(Math.abs(compact.art.y - compact.title.y) <= 48, 'Short Nocturne retains title alignment');
+      }
       await capture(`52-player-short-${layout}`);
     }
     await page.setViewportSize({ width: 440, height: 900 });
