@@ -2567,8 +2567,7 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 :root[data-host='desktop'] .tsugi-video-entry [data-ui='auth-card'] [data-ui='page-title'] { text-align:center; }
 :root[data-host='desktop'] .tsugi-video-entry [data-ui='auth-card'] .UI-Button__root[type='submit'] { border-radius:8px; }
 
-/* Movies keeps its compact, established sidebar. Other media live in its
-   labelled footer menu, without changing the movie navigation order. */
+/* Legacy media menu presentation for consumers outside the shared desktop rail. */
 :root[data-host='desktop'] .tsugi-video-media-switch {
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   gap:4px; width:100%; min-height:52px; padding:6px 0;
@@ -2591,16 +2590,16 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 }
 @media(min-width:1024px) {
   :root[data-host='desktop'] .tsugi-video-shell[data-navigation='sidebar'] {
-    --tsugi-video-gutter:clamp(24px,2.5vw,48px);
+    --tsugi-video-gutter:var(--tsugi-page-gap,32px);
+    --side-bar:var(--tsugi-rail-width);
   }
   :root[data-host='desktop'] .tsugi-video-shell[data-navigation='sidebar'] [data-ui='sidebar'] {
     inset-block-start:0; padding-block-start:var(--tsugi-window-strip,36px);
     background:color-mix(in srgb,var(--tsugi-canvas) 70%,var(--tsugi-surface));
   }
-  :root[data-host='desktop'] .tsugi-video-sidebar {
-    min-height:0; overscroll-behavior:contain; scrollbar-width:thin;
+  :root[data-host='desktop'] .tsugi-server-rail [data-ui='sidebar-history'] {
+    flex-direction:row; justify-content:center;
   }
-  :root[data-host='desktop'] .tsugi-video-sidebar > div { flex-shrink:0; }
   :root[data-host='desktop'] .tsugi-video-shell[data-navigation='sidebar'] :is([data-ui='page-body'],[data-ui='item-body'],[data-ui='home-rows'],[data-ui='hero-content']) {
     padding-inline:var(--tsugi-video-gutter);
   }

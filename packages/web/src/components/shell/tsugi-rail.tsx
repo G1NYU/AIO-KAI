@@ -28,7 +28,7 @@ export function TsugiRail({ area, disabled = false, children, footer, className 
     </button>
     <div className="tsugi-rail-workspace">{children}</div>
     <nav className={'tsugi-rail-media ' + mediaClassName} aria-label={t({ id: 'Media sections', message: 'Media sections' })}>
-      {mediaDestinations(actions).map(({ id, label, open }) => <button type="button" key={id} disabled={disabled} onClick={() => id === 'video' && onVideoOpen ? onVideoOpen() : open()} aria-current={area === id ? 'page' : undefined} title={label} aria-label={label}><TsugiMediaIcon area={id} /></button>)}
+      {mediaDestinations(actions).map(({ id, label, open }) => <button type="button" key={id} data-name={id} disabled={disabled} onClick={() => id === 'video' && onVideoOpen ? onVideoOpen() : open()} aria-current={area === id ? 'page' : undefined} title={label} aria-label={label}><TsugiMediaIcon area={id} /></button>)}
     </nav>
     {(globalSettings || footer) && <div className="tsugi-rail-footer">{globalSettings && <button type="button" className="tsugi-rail-global" disabled={disabled} onClick={actions.openSettings} title={settings} aria-label={settings}><TsugiIcon name="settings" /><span>{settings}</span></button>}{footer}</div>}
   </aside>;

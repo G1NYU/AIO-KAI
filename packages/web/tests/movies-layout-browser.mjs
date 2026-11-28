@@ -89,10 +89,12 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
     await home().locator('[data-ui="home-rows"]').getByText(movies[2].Name, { exact: true }).waitFor();
     assert.ok(requests.has('/Users/Me') && requests.has('/Items'), 'Home uses the real signed-in session and catalog query');
     assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='watch-setup-status')),'existing server startup still verifies mandatory native setup');
-    assert.equal(await visibleShell().locator('.tsugi-desktop-rail').count(), 0, 'Movies uses its retained sidebar component');
-    const menuNames = await sidebar().locator('[data-vertical-menu-item-button]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-name')));
+    const sharedRail=sidebar().locator('[data-ui="tsugi-desktop-rail"][data-area="video"]');
+    await sharedRail.waitFor({state:'visible'});
+    assert.equal(await sharedRail.count(),1,'connected Movies uses the same desktop rail as other worlds');
+    const menuNames = await sharedRail.locator('.tsugi-rail-local > button').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-name')));
     assert.deepEqual(menuNames.slice(0, 4), ['home', 'discover', 'search', 'favourites'], 'Original movie navigation order is preserved');
-    assert.ok(!menuNames.some(name => ['music', 'read', 'vault', 'all-media'].includes(name)), 'Other media use the footer menu');
+    assert.ok(!menuNames.some(name => ['music', 'read', 'vault', 'all-media'].includes(name)), 'Other media use the shared media switch, not duplicate local routes');
     for(const id of ['home','discover','search','favourites','anime-hub','addon-library','settings']) {
       const glyph=sidebar().locator(`[data-name="${id}"] [data-movie-glyph]`);
       assert.equal(await glyph.count(),1,`${id} has a filled vector glyph`);
@@ -108,29 +110,30 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
       return {
         sidebar: { x: sideRect.x, y: sideRect.y, width: sideRect.width, height: sideRect.height },
         sidebarBackground: getComputedStyle(side).backgroundColor,
-        logoTop: document.querySelector('[data-ui="sidebar-logo"]').getBoundingClientRect().top,
+        logoTop: side.querySelector('.tsugi-rail-brand').getBoundingClientRect().top,
+        sharedWidth:parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tsugi-rail-width')),
         heroStart: heroRect.x + parseFloat(getComputedStyle(hero).paddingLeft),
         rowsStart: rowRect.x + parseFloat(getComputedStyle(rows).paddingLeft),
       };
     });
     assert.equal(geometry.sidebar.y, 0, 'Movies sidebar backing reaches the top edge');
     assert.equal(geometry.sidebar.height, 1000, 'Movies sidebar backing fills the viewport');
-    assert.equal(geometry.sidebar.width, 80, 'Original compact movie sidebar width is retained');
+    assert.equal(geometry.sidebar.width,geometry.sharedWidth,'Movies reserves the shared TSUGI rail width');
     assert.ok(geometry.logoTop >= 36, 'Sidebar controls clear the native drag strip');
     assert.ok(!['transparent', 'rgba(0, 0, 0, 0)'].includes(geometry.sidebarBackground), 'Sidebar remains legible over artwork');
-    assert.ok(geometry.heroStart >= 104, 'Hero content has at least24px clearance from sidebar');
+    assert.ok(geometry.heroStart >= geometry.sidebar.width+24, 'Hero content has at least 24px clearance from the shared sidebar');
     assert.equal(geometry.heroStart, geometry.rowsStart, 'Hero and catalog content share an inset');
-    const icons = await sidebar().locator('.UI-VerticalMenu__item').evaluateAll(nodes => nodes.map(node => {
+    const icons = await sharedRail.locator('.tsugi-rail-local > button').evaluateAll(nodes => nodes.map(node => {
       const s = getComputedStyle(node);
-      return { background: s.backgroundColor, image: s.backgroundImage, shadow: s.boxShadow, current: node.getAttribute('data-current') };
+      return { background: s.backgroundColor, image: s.backgroundImage, shadow: s.boxShadow, current: node.getAttribute('aria-current') };
     }));
-    assert.ok(icons.length > 0 && icons.some(item => item.current === 'true'), 'Movies sidebar has a selected navigation icon');
+    assert.ok(icons.length > 0 && icons.some(item => item.current === 'page'), 'Movies sidebar has a selected navigation icon');
     assert.ok(icons.every(item => ['transparent', 'rgba(0, 0, 0, 0)'].includes(item.background) && item.image === 'none' && item.shadow === 'none'), 'Movies sidebar icons have no grey rounded backgrounds');
     await sidebar().locator('[data-name="home"]').hover();
     assert.ok(['transparent', 'rgba(0, 0, 0, 0)'].includes(await sidebar().locator('[data-name="home"]').evaluate(el => getComputedStyle(el).backgroundColor)), 'Movie navigation hover stays unboxed');
     await noHorizontalOverflow('Connected Movies home');
     await capture('40-movies-home-restored-sidebar');
-    console.log('PASS: connected Movies home restores the compact sidebar, original navigation order and aligned hero/catalog gutters.');
+    console.log('PASS: connected Movies home shares the desktop rail, retains original navigation order and aligns hero/catalog gutters.');
 
     await home().locator('[data-slide="0"][data-details] [data-ui="hero-action"][data-name="info"]').click();
     await page.locator('[data-ui="item-page"] [data-ui="item-title"]').filter({ hasText: movies[0].Name }).waitFor();
@@ -159,7 +162,7 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
       const rect = selector => { const { x, y, width, right } = document.querySelector('[data-page="settings"]:not([inert]) ' + selector).getBoundingClientRect(); return { x, y, width, right }; };
       return { layout: rect('[data-ui="settings-layout"]'), index: rect('[data-ui="settings-index"]'), content: rect('[data-ui="settings-content"]'), title: rect('[data-ui="page-title"]') };
     });
-    assert.ok(settings.title.x >= 104 && settings.title.y >= 60, 'Settings clears both sidebar and native titlebar');
+    assert.ok(settings.title.x >= geometry.sidebar.width+24 && settings.title.y >= 60, 'Settings clears both shared sidebar and native titlebar');
     assert.ok(settings.layout.width <= 1280, 'Settings maintains a readable content measure');
     assert.equal(settings.index.width, 240, 'Settings retains its category index');
     assert.ok(settings.content.x - settings.index.right >= 24, 'Settings columns have visible separation');
@@ -196,25 +199,24 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
     console.log('PASS: Movies Settings category selection remains stable during sidebar scrolling.');
 
     for (const [destination, surface] of [['music', '.tsugi-music-root'], ['read', '.tsugi-read-root'], ['vault', '.tsugi-vault-root']]) {
-      await sidebar().locator('[data-ui="movie-media-switch"]').click();
-      const menu = page.locator('[data-ui="movie-media-menu"]');
-      await menu.locator(`[data-name="${destination}"]`).click();
+      await sidebar().locator(`.tsugi-rail-media > button[data-name="${destination}"]`).click();
       await page.locator(surface + ':visible').first().waitFor();
       // Reload the saved Movies preference to exercise each destination from a
       // genuine connected movie session, independently of other workspaces' UI.
       await page.reload();
       await settingsPage().locator('[data-ui="settings-layout"]').waitFor();
     }
-    console.log('PASS: the labelled Movies footer menu reaches Music, Read and Vault through desktop routing.');
+    console.log('PASS: the shared Movies media switch reaches Music, Read and Vault through desktop routing.');
 
     await page.setViewportSize({ width: 1100, height: 620 });
-    const switcher = sidebar().locator('[data-ui="movie-media-switch"]');
+    const switcher = sidebar().locator('.tsugi-rail-media > button[data-name="music"]');
     await switcher.scrollIntoViewIfNeeded();
+    const bounds = await switcher.boundingBox();
     await switcher.focus();
     await page.keyboard.press('Enter');
-    await page.locator('[data-ui="movie-media-menu"]').waitFor();
-    await page.keyboard.press('Escape');
-    const bounds = await switcher.boundingBox();
+    await page.locator('.tsugi-music-root:visible').waitFor();
+    await page.reload();
+    await settingsPage().locator('[data-ui="settings-layout"]').waitFor();
     assert.ok(bounds.y >= 36 && bounds.y + bounds.height <= 620, 'Short windows can scroll to the footer below the drag strip');
     const accountControl = sidebar().locator('[data-name="account"]');
     await accountControl.scrollIntoViewIfNeeded();
@@ -222,7 +224,7 @@ export async function verifyMoviesLayoutBrowser({ browser, origin, installDeskto
     assert.ok(accountBounds.y >= 36 && accountBounds.y + accountBounds.height <= 620, 'Short windows can also reach the account control');
     await noHorizontalOverflow('Short desktop settings');
     await capture('42-movies-settings-short');
-    console.log('PASS: the restored sidebar scrolls in short windows and its media menu opens from the keyboard.');
+    console.log('PASS: the shared sidebar preserves short-window account access and keyboard media switching.');
 
     await page.setViewportSize({width:1600,height:1000});
     for(const [id,pane] of [['anime-hub','anime'],['addon-library','home']]){

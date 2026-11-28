@@ -79,8 +79,8 @@ import {
 import { HistoryButtons } from './history-buttons';
 import { ConnectionNote } from './unreachable';
 import { Logo, onBar } from './nav/common';
-import { SidebarAccount } from './nav/account';
-import { MovieMediaMenu } from './nav/movie-media-menu';
+import { SidebarAccount, YouIcon } from './nav/account';
+import { TsugiRail } from './tsugi-rail';
 import { MovieIcons } from '@/components/movie-icons';
 import { MobileNav } from './nav/mobile-nav';
 import { TouchRail } from './nav/touch-rail';
@@ -343,16 +343,31 @@ export function WebLayout() {
                     you={you}
                     open={named}
                   />
+                ) : desktopArea && nav === 'sidebar' ? (
+                  <TsugiRail area="video" className="tsugi-server-rail" footer={
+                    <button type="button" data-name="account" aria-label={you.name} title={you.name} onClick={you.onClick}>
+                      <YouIcon /><span className="min-w-0 truncate">{user.Name ?? you.name}</span>
+                    </button>
+                  }>
+                    <nav className="tsugi-rail-local" aria-label={t`Movies navigation`}>
+                      {[...movieItems,settingsItem].map(item=>{
+                        const Icon=item.iconType;
+                        return <button type="button" key={item.id??item.name} data-name={item.id}
+                          aria-current={item.isCurrent?'page':undefined} title={item.name} aria-label={item.name} onClick={item.onClick}>
+                          {Icon&&<Icon/>}<span className="min-w-0 truncate">{item.name}</span>
+                        </button>;
+                      })}
+                    </nav>
+                    <HistoryButtons />
+                  </TsugiRail>
                 ) : (
                   <Sidebar
-                    className={desktopArea ? 'tsugi-video-sidebar' : undefined}
                     header={<Logo />}
                     items={movieItems}
                     belowItems={<HistoryButtons />}
                     footerItems={[settingsItem]}
                     footer={
                       <>
-                        {desktopArea && <MovieMediaMenu />}
                         <SidebarAccount you={you} />
                       </>
                     }
