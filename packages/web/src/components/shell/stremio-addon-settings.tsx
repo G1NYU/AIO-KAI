@@ -597,10 +597,10 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     <div className="tsugi-watch-form-stack" data-ui="stremio-profile-management">
       <h4><Trans>Addon profiles</Trans></h4>
       {profileState&&activeProfile&&<>
-        <label><Trans>Active addon profile</Trans><select className="tsugi-menu-select w-full" value={profileId} disabled={busy} onChange={e=>void changeProfile({kind:'profile-switch',profileId:Number(e.target.value)})}>
+        <label><Trans>Active addon profile</Trans><select aria-label={t`Active addon profile`} className="tsugi-menu-select w-full" value={profileId} disabled={busy} onChange={e=>void changeProfile({kind:'profile-switch',profileId:Number(e.target.value)})}>
           {profileState.profiles.map(p=><option key={p.profileId} value={p.profileId}>{p.name}</option>)}
         </select></label>
-        <label><Trans>Profile name</Trans><input className="tsugi-read-input w-full min-w-0" autoComplete="off" maxLength={64} value={profileName} disabled={busy} onChange={e=>setProfileName(e.target.value)}/></label>
+        <label><Trans>Profile name</Trans><input aria-label={t`Profile name`} className="tsugi-read-input w-full min-w-0" autoComplete="off" maxLength={64} value={profileName} disabled={busy} onChange={e=>setProfileName(e.target.value)}/></label>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="tsugi-read-action" disabled={busy||!profileName.trim()||profileState.profiles.length>=6} onClick={()=>void changeProfile({kind:'profile-create',name:profileName})}><Trans>Create profile</Trans></button>
           <button type="button" className="tsugi-read-action" disabled={busy||!profileName.trim()} onClick={()=>void changeProfile({kind:'profile-rename',profileId:activeProfile.profileId,name:profileName})}><Trans>Rename active profile</Trans></button>

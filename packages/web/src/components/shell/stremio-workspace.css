@@ -52,6 +52,8 @@
 .tsugi-watch-heading-copy h3 { margin:0; line-height:1.18; }
 .tsugi-watch-heading-copy p { margin:0; line-height:1.5; overflow-wrap:anywhere; }
 .tsugi-watch-header-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.tsugi-watch-workspace-banner .tsugi-watch-header-actions .tsugi-read-action { background:var(--tsugi-canvas); }
+.tsugi-watch-workspace-banner .tsugi-watch-header-actions .tsugi-read-action:hover:not(:disabled) { background:var(--tsugi-surface); }
 .tsugi-watch-hub-header:has(.tsugi-watch-heading-copy) { gap:var(--tsugi-page-gap,24px); padding-block:8px; align-items:center; }
 .tsugi-watch-form-stack { display:grid; gap:20px; width:100%; max-width:44rem; min-width:0; align-content:start; }
 .tsugi-watch-form-stack label { display:grid; gap:8px; min-width:0; font-size:14px; line-height:1.45; }

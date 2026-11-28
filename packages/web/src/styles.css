@@ -3162,8 +3162,7 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 /* Category controls use surface changes for active, hover and focus states. */
 :root[data-host='desktop'] :is(
   .tsugi-read-subnav > button,.tsugi-music-navigation > button:not(.tsugi-music-source-trigger),
-  .tsugi-category-link,.tsugi-library-list-item,.tsugi-library-nav,.tsugi-dashboard-nav,
-  .tsugi-desktop-rail .tsugi-rail-local > button
+  .tsugi-category-link,.tsugi-library-list-item,.tsugi-library-nav,.tsugi-dashboard-nav
 ) {
   border-width:0!important;
   background:var(--tsugi-row);
@@ -3173,6 +3172,24 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 }
 :root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-local > .tsugi-pixel-rule + button,
 :root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-local > .tsugi-pixel-rule + .tsugi-reading-rail-label + button { margin-block-start:12px; }
+
+/* Shared rails are navigation, not striped data lists. Keep focus and selected
+   identity visible without decorative grey rectangles around icon labels. */
+:root[data-host='desktop'] .tsugi-desktop-rail :is(.tsugi-rail-local,.tsugi-rail-footer) > button {
+  background:transparent!important;
+  box-shadow:none!important;
+}
+:root[data-host='desktop'] .tsugi-desktop-rail :is(.tsugi-rail-local,.tsugi-rail-footer) > button:is([aria-current='page'],[aria-pressed='true']) {
+  color:var(--tsugi-accent)!important;
+  font-weight:650;
+}
+:root[data-host='desktop'] .tsugi-desktop-rail :is(.tsugi-rail-local,.tsugi-rail-footer) > button:is(:hover,:focus-visible):not(:disabled) {
+  color:var(--tsugi-ink);
+}
+:root[data-host='desktop'] .tsugi-desktop-rail :is(.tsugi-rail-local,.tsugi-rail-footer) > button:focus-visible {
+  outline:2px solid var(--tsugi-focus);
+  outline-offset:2px;
+}
 
 /* Artwork groups use spacing; their titles, empty states and errors stay
    together without painting a full-width band behind the covers. */
@@ -3224,7 +3241,8 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   [data-ui='settings-card-body'],
   [data-ui='settings-tab-group'],
   [data-ui='settings-card-item'],
-  [data-ui='settings-tab']
+  [data-ui='settings-tab'],
+  [data-ui='settings-header-icon']
 ) {
   background:transparent!important;
   background-image:none!important;
@@ -3232,6 +3250,11 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   box-shadow:none!important;
   backdrop-filter:none!important;
 }
+:root[data-host='desktop'] :is(.tsugi-video-shell [data-page='settings'],[data-ui='watch-playback-settings']) [data-ui='settings-header-icon'] {
+  padding:0;
+  color:var(--tsugi-accent);
+}
+:root[data-host='desktop'] :is(.tsugi-video-shell [data-page='settings'],[data-ui='watch-playback-settings']) [data-ui='settings-header-icon'] svg { color:inherit; }
 :root[data-host='desktop'] :is(.tsugi-video-shell [data-page='settings'],[data-ui='watch-playback-settings']) [data-ui='settings-tab']:is([data-state='active'],[aria-current='page']) {
   color:var(--tsugi-accent)!important;
   font-weight:650;

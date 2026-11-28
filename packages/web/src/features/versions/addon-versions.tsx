@@ -85,10 +85,9 @@ export function AddonVersionList({groups,sources,busy,resumeMs=0,switching=false
           {group.error==='unsupported-resource'?<p><Trans>This addon does not support this video identity.</Trans></p>:!result?<><p><Trans>This addon could not return streams. Other sources remain available.</Trans></p>
             {group.error==='network'?<small><Trans>Network request failed.</Trans></small>:group.error==='rate'?<small><Trans>Provider rate limit reached.</Trans></small>:group.error==='auth'?<small><Trans>Provider authorization failed.</Trans></small>:null}</>:<p><Trans>No streams returned.</Trans></p>}
           {onRetry&&group.error!=='unsupported-resource'&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>onRetry(group.sourceId)}><Trans>Retry provider</Trans></button>}
-        </div>:rows.length===0?<p><Trans>No streams match these filters.</Trans></p>:<><ul className="space-y-2">{rows.slice(0,limit).map(({row,index,quality:reportedQuality})=><li key={index}>
+        </div>:rows.length===0?<p><Trans>No streams match these filters.</Trans></p>:<><ul className="space-y-2">{rows.slice(0,limit).map(({row,index})=><li key={index}>
           <VersionFrame><div className="flex w-full flex-wrap items-center justify-between gap-3 p-3">
             <span className="min-w-0 flex-1 break-words">
-              {reportedQuality&&qualityOf({...row,detail:undefined})!==reportedQuality&&<small className="block font-semibold">{reportedQuality}</small>}
               <strong>{row.name}</strong>
               {row.detail&&<span className="block text-sm whitespace-pre-line">{row.detail}</span>}
               <small className="block text-[--muted]">{row.supported?<Trans>Direct HTTPS</Trans>:row.reason==='proxy-headers'?<Trans>Proxy headers required</Trans>:row.reason==='invalid-media-url'?<Trans>Invalid media URL</Trans>:<Trans>Unsupported transport</Trans>}</small>

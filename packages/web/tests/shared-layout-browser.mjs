@@ -72,6 +72,11 @@ async function assertRailGeometry(page, scope, area) {
   assert.ok(geometry.brandTop >= 40 && geometry.brandBottom <= geometry.bottom, `${area}: the interactive brand stays below the window drag strip`);
   assert.ok(geometry.bottom <= geometry.height + 1, `${area}: rail remains within the viewport`);
 
+  const local = rail.locator('.tsugi-rail-local > button:visible,.tsugi-rail-footer > button:visible');
+  assert.ok(await local.evaluateAll(nodes=>nodes.length>0&&nodes.every(node=>{
+    const s=getComputedStyle(node);
+    return ['transparent','rgba(0, 0, 0, 0)'].includes(s.backgroundColor)&&s.backgroundImage==='none'&&s.boxShadow==='none';
+  })),`${area}: local rail labels and icons remain unboxed, including the active destination`);
   const media = rail.locator('.tsugi-rail-media');
   const buttons = media.getByRole('button');
   assert.equal(await media.locator('[aria-current="page"]').getAttribute('aria-label'), area, `${area}: current media remains clear`);
