@@ -1,3 +1,6 @@
+## 2026-11-28 — Non-negotiable visual cohesion standard
+
+The maintainer requires every visual element to be reviewed and every equivalent settings surface, font, color, sidebar and UI control to be cohesive. Harbor is the Watch presentation reference; TSUGI retains its approved identity and original designs. [Mandatory visual standard](docs/tsugi-visual-standard.md) and [agent instructions](AGENTS.md) govern all current/future UI work and P0–P5 acceptance. No visually deficient package or automated-only visual sign-off. Full rendered audit ledger and re-verification remain required before packaging. This is a documentation-only directive, not a completed visual audit; current physical Windows and live-provider gates remain open.
 
 ## 2026-11-27 — Watch recovery implementation checkpoint
 

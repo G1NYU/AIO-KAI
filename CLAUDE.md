@@ -1,5 +1,11 @@
 # CLAUDE.md
 
+## Mandatory TSUGI desktop visual acceptance
+
+**Mandatory visual standard (2026-11-28):** [TSUGI's non-negotiable visual standard](docs/tsugi-visual-standard.md) governs every user-facing surface and equivalent control, including Harbor-style Watch presentation and cohesive cross-section settings, fonts, colors, sidebars and UI. Read it before implementation, review or packaging. Latest explicit maintainer direction supersedes conflicting historical design notes; passing CI is not visual acceptance.
+
+See also [AGENTS.md](AGENTS.md). The upstream architecture guidance below remains applicable where relevant.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project

@@ -1,5 +1,7 @@
 # TSUGI desktop design integration
 
+**Mandatory visual standard (2026-11-28):** [TSUGI's non-negotiable visual standard](tsugi-visual-standard.md) governs every user-facing surface and equivalent control, including Harbor-style Watch presentation and cohesive cross-section settings, fonts, colors, sidebars and UI. Read it before implementation, review or packaging. Latest explicit maintainer direction supersedes conflicting historical design notes; passing CI is not visual acceptance.
+
 The supplied design packs shape TSUGI's existing **Read**, **Books**, **Music** and **Vault** spaces. They share one application and navigation rail. Their illustrations and editorial layouts sit over the existing readers, audio engines and download manager.
 
 **YOMI, OTO and KURA are placeholder names for the reference packs, not product or section names.** YOMI supplies the Read/Books reference, OTO the Music reference, and KURA the Vault reference. The application brand remains **TSUGI**; user-facing navigation keeps **Read**, **Books**, **Music** and **Vault**. Internal CSS, asset and filename labels may retain the pack names without displaying them.

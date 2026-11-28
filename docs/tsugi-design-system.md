@@ -1,5 +1,7 @@
 # Tsugi desktop design system
 
+**Mandatory visual standard (2026-11-28):** [TSUGI's non-negotiable visual standard](tsugi-visual-standard.md) governs every user-facing surface and equivalent control, including Harbor-style Watch presentation and cohesive cross-section settings, fonts, colors, sidebars and UI. Read it before implementation, review or packaging. Latest explicit maintainer direction supersedes conflicting historical design notes; passing CI is not visual acceptance.
+
 ## Current direction
 
 Use typography, alignment and useful controls rather than decorative numbering, arrows, marketing copy or theme branding. The launcher contains a single Tsugi identity, a small 次 (next) and three direct media destinations. Japanese lettering is a restrained part of the brand, not a visual motif repeated throughout the interface.
