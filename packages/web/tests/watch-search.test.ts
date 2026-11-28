@@ -8,6 +8,12 @@ describe('Watch catalogue search',()=>{
     const rows=[candidate(1,item('local:1','Another film')),candidate(1,item('tt2','Example film sequel')),candidate(1,item('tt1','Éxample Film'))];
     expect(rankCatalogueSearch(rows,'example film').map(row=>row.item.id)).toEqual(['tt1','tt2']);
   });
+  it('retains a public provider title match for alternate title queries without accepting unrelated addon items',()=>{
+    const publicResult={...candidate(0,item('mal:42','Example English Name','series')),providerMatch:true};
+    const exact=candidate(1,item('tt42','Example alternate name','series'));
+    const unrelated=candidate(2,item('local:1','Another anime','series'));
+    expect(rankCatalogueSearch([publicResult,unrelated,exact],'Example alternate name').map(row=>row.item.id)).toEqual(['tt42','mal:42']);
+  });
   it('merges explicit IMDb matches while preserving the canonical provider route and artwork',()=>{
     const rows=[candidate(2,item('tmdb:42','Example','movie','tt42','poster')),candidate(3,item('tt42','Example'))];
     const result=rankCatalogueSearch(rows,'Example');
