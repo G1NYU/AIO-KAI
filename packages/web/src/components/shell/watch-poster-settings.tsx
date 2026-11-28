@@ -21,7 +21,7 @@ export function WatchPosterSettings({pattern,onSave}:{pattern?:string;onSave(pat
       <button type="button" className="tsugi-read-action" onClick={()=>{setDraft(BETTER_POSTERS_PATTERN);setError(false);}}><Trans>BetterPosters</Trans></button>
     </div>
     <form className="grid gap-3" onSubmit={event=>{event.preventDefault();save(draft);}}>
-      <label className="grid gap-2"><span><Trans>Custom poster URL pattern</Trans></span><input type="text" autoComplete="off" spellCheck={false} className="tsugi-watch-input" aria-label={t`Custom poster URL pattern`} value={draft} maxLength={8192} onChange={event=>{setDraft(event.target.value);setError(false);}}/></label>
+      <label className="grid gap-2"><span><Trans>Custom poster URL pattern</Trans></span><input type="text" autoComplete="off" spellCheck={false} className="w-full min-w-0" aria-label={t`Custom poster URL pattern`} value={draft} maxLength={8192} onChange={event=>{setDraft(event.target.value);setError(false);}}/></label>
       <p className="tsugi-watch-muted"><Trans>Use a key-free public PostersPlus or BetterPosters pattern. Do not paste API keys, account tokens or private URLs. Only portrait posters are replaced.</Trans></p>
       {error&&<p role="alert"><Trans>Unsupported public poster URL pattern. Check the provider, placeholders and public options.</Trans></p>}
       <div><button type="submit" className="tsugi-read-action"><Trans>Save poster preference</Trans></button></div>

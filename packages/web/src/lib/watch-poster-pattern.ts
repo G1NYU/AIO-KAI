@@ -16,7 +16,7 @@ const imdb=/^tt[0-9]{1,12}$/;
 const tmdb=/^tmdb:(?:(movie|tv):)?([1-9][0-9]{0,9})$/;
 const anime=/^(mal|kitsu|anilist):([1-9][0-9]{0,9})$/;
 const identityKeys=new Set(['imdb_id','tmdb_id','stremio_id']);
-const identityMarker=/^\{(?:id|imdb_id|tmdb_id|mal_id|kitsu_id|anilist_id)\??\}$/;
+const identityMarker=(key:string,value:string)=>key==='stremio_id'?/^\{id\??\}$/.test(value):value==='{'+key+'}'||value==='{'+key+'?}';
 const safeId=(id:string)=>imdb.test(id)||tmdb.test(id)||anime.test(id);
 const validStyle=(value:string)=>value.length<=256&&/^[a-zA-Z0-9_.,:+%#() -]*$/.test(value);
 
@@ -37,8 +37,8 @@ export function validatePosterPattern(input:unknown):string|undefined{
     const entries=[...url.searchParams.entries()];
     if(new Set(entries.map(([key])=>key)).size!==entries.length)return undefined;
     if(url.hostname==='postersplus.cc'){
-      if(url.pathname!=='/poster'||!entries.some(([key,value])=>identityKeys.has(key)&&identityMarker.test(value)))return undefined;
-      if(entries.some(([key,value])=>identityKeys.has(key)?!identityMarker.test(value):key==='type'? !['{type}','movie','series'].includes(value):key==='shape'?!['{shape}','poster','portrait'].includes(value):!plusStyles.has(key)||!validStyle(value)))return undefined;
+      if(url.pathname!=='/poster'||!entries.some(([key,value])=>identityKeys.has(key)&&identityMarker(key,value)))return undefined;
+      if(entries.some(([key,value])=>identityKeys.has(key)?!identityMarker(key,value):key==='type'? !['{type}','movie','series'].includes(value):key==='shape'?!['{shape}','poster','portrait'].includes(value):!plusStyles.has(key)||!validStyle(value)))return undefined;
       return raw;
     }
     if(url.hostname==='btttr.cc'){
@@ -61,7 +61,7 @@ export function customPosterUrl(pattern:string|undefined,item:Item):string|undef
   const tmdbId=ids.map(id=>tmdb.exec(id)).find(match=>match&&(!match[1]||match[1]===(type==='movie'?'movie':'tv')))?.[2];
   const animeIds=ids.map(id=>anime.exec(id));
   const animeId=(kind:string)=>animeIds.find(match=>match?.[1]===kind)?.[2];
-  const primary=safeId(item.id)?item.id:imdbId??(tmdbId?'tmdb:'+tmdbId:undefined);
+  const primary=safeId(item.id)&&(!tmdb.test(item.id)||!!tmdbId)?item.id:imdbId??(tmdbId?'tmdb:'+tmdbId:undefined);
   if(!imdbId&&!tmdbId&&!animeIds.some(Boolean))return undefined;
   const values:Record<string,string|undefined>={id:primary,imdb_id:imdbId,tmdb_id:tmdbId,mal_id:animeId('mal'),kitsu_id:animeId('kitsu'),anilist_id:animeId('anilist'),type,shape:'poster'};
   let missing=false;
