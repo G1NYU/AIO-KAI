@@ -491,18 +491,30 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     async function assertDetailHero(label){
       const hero=watch.locator('[data-ui="watch-detail-hero"][data-has-backdrop]');
       await hero.waitFor();
-      await hero.evaluate(node=>node.closest('.tsugi-direct-watch').scrollTo({top:0}));
-      assert.equal(await hero.evaluate(node=>getComputedStyle(node).borderRadius),'0px');
-      assert.ok(await hero.evaluate(node=>{
+      await page.waitForFunction(()=>{const node=document.querySelector('[data-ui="watch-detail-hero"] .tsugi-watch-close-title');return node&&!node.disabled;});
+      await hero.evaluate(async node=>{
+        node.closest('.tsugi-direct-watch').scrollTo({top:0,behavior:'instant'});
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      });
+      const layout=await hero.evaluate(node=>{
         const r=node.getBoundingClientRect(),root=node.closest('.tsugi-direct-watch'),rail=root.querySelector('.tsugi-watch-shared-rail');
         const bounds=root.getBoundingClientRect(),side=rail.getBoundingClientRect(),header=root.querySelector('.tsugi-watch-hub>header');
         const close=node.querySelector('.tsugi-watch-close-title'),copy=node.querySelector('.tsugi-watch-title-copy');
         const c=close.getBoundingClientRect(),h=header.getBoundingClientRect(),b=copy.getBoundingClientRect();
-        return Math.abs(r.left-side.right)<=3&&Math.abs(r.right-(bounds.left+root.clientLeft+root.clientWidth))<=3&&
-          Math.abs(r.top-(bounds.top+root.clientTop))<=3&&h.bottom<c.top&&c.bottom<=b.top&&close.contains(document.elementFromPoint(c.x+c.width/2,c.y+c.height/2))&&
-          getComputedStyle(node.querySelector('.tsugi-watch-title-backdrop'),'::before').backdropFilter.includes('blur');
-      }),label+' full-bleed geometry, readable masthead and close control');
+        const hit=document.elementFromPoint(c.x+c.width/2,c.y+c.height/2);
+        return {left:r.left,railRight:side.right,right:r.right,rootRight:bounds.left+root.clientLeft+root.clientWidth,
+          top:r.top,rootTop:bounds.top+root.clientTop,rootScroll:root.scrollTop,headerBottom:h.bottom,closeTop:c.top,closeBottom:c.bottom,
+          copyTop:b.top,hit:hit?.outerHTML.slice(0,200),closeReachable:close.contains(hit),
+          radius:getComputedStyle(node).borderRadius,blur:getComputedStyle(node.querySelector('.tsugi-watch-title-backdrop'),'::before').backdropFilter};
+      });
+      console.log('DETAIL HERO '+label+' '+JSON.stringify(layout));
       if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-detail-'+label+'.png'),animations:'disabled'});
+      assert.equal(layout.radius,'0px',label+' square full-bleed art');
+      assert.ok(Math.abs(layout.left-layout.railRight)<=3,label+' hero begins at rail edge: '+JSON.stringify(layout));
+      assert.ok(Math.abs(layout.right-layout.rootRight)<=3,label+' hero reaches right edge: '+JSON.stringify(layout));
+      assert.ok(Math.abs(layout.top-layout.rootTop)<=3,label+' hero begins beneath native title strip: '+JSON.stringify(layout));
+      assert.ok(layout.headerBottom<layout.closeTop&&layout.closeBottom<=layout.copyTop&&layout.closeReachable,label+' masthead, close and title copy remain separate: '+JSON.stringify(layout));
+      assert.ok(layout.blur.includes('blur'),label+' bottom blur applied');
     }
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Discover',exact:true}).click();
     await watch.getByRole('heading',{name:'Series hub',exact:true}).waitFor();
