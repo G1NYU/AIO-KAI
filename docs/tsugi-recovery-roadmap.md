@@ -166,3 +166,8 @@ Six new annotated Windows captures supplement the original 16-image review. See 
 
 - Full-size 6101e392 Family Guy preview showed related movie names truncated to nearly identical text and omitted available descriptions. Read Harbor `src/components/search/meta-list.tsx` and `result-poster.tsx` at pinned reference 02593b5: compact 64x96 poster with title, metadata, synopsis and clear click target. Adapt that structure in TSUGI's ordered horizontal Series/Movies/Anime groups using the existing Artwork renderer, same-identity poster alternatives, loaded font/theme tokens and real result callback. No ranking, search-provider, identity, or stream changes.
 - Browser regression now asserts distinct long title text is not clipped, available description is rendered, both movie results remain present, series-before-movie ordering and narrow dialog/row scrolling. New narrow screenshot target. CI/render verification pending. Real TMDB media/artwork and Windows comparison remain open.
+
+
+### Stream filter geometry follow-up — 2026-11-28
+
+- Full-size 6101e392 stream-selector capture showed clipped default audio-format and cache-status select text. Shared desktop filter labels now reserve 12rem where space allows and wrap to the available width instead of compressing seven controls into one row. This applies to standalone and in-player versions; selected values, provider filters and playback callbacks unchanged. Added width regression alongside existing narrow overflow and functional filtering tests. New rendered verification pending.

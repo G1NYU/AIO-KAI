@@ -3287,6 +3287,17 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   color:var(--tsugi-ink);
 }
 
+/* Stream filter labels must fit their native select, rather than squeeze seven
+   controls into one row and clip option text. The same list is used in-player. */
+:root[data-host='desktop'] [data-ui='watch-version-filters'] > label {
+  flex:1 1 min(12rem,100%);
+  min-width:min(12rem,100%);
+}
+:root[data-host='desktop'] [data-ui='watch-version-filters'] > label > select {
+  max-width:100%;
+  min-width:0;
+}
+
 /* Shared desktop video settings and Movies navigation: surface-free labels/icons.
    Both server-backed Movies and standalone Watch reuse these Settings components.
    Preserve visible keyboard focus without alternating grey tiles. */

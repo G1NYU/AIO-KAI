@@ -448,6 +448,8 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const windowBounds=await page.locator('[data-ui="window-controls"]').boundingBox();
     assert.ok(streamBounds&&streamHeader&&windowBounds&&streamBounds.y===0&&streamHeader.y>=windowBounds.y+windowBounds.height+8,'stream selector covers the viewport and clears native controls');
     assert.ok(await page.evaluate(()=>!!document.elementFromPoint(Math.floor(window.innerWidth/2),20)?.closest('.tsugi-watch-stream-page')),'previous page cannot show through the title-bar strip');
+    const filterWidths=await groups.locator('[data-ui="watch-version-filters"] > label > select').evaluateAll(nodes=>nodes.map(node=>({width:node.getBoundingClientRect().width,available:node.closest('[data-ui="watch-version-filters"]').clientWidth})));
+    assert.ok(filterWidths.length>=7&&filterWidths.every(({width,available})=>width>=Math.min(192,available)-1),'desktop stream filters reserve enough room for the option label');
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-stream-selector.png'),animations:'disabled'});
     await groups.getByText('This addon could not return streams. Other sources remain available.',{exact:true}).waitFor();
     assert.equal(await groups.getByRole('button',{name:'Play',exact:true}).count(),2);
@@ -548,7 +550,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const results=board.locator('[data-ui="watch-search-results"]');
     await results.getByRole('button',{name:'Fixture cinema film sequel',exact:true}).waitFor();
     assert.equal(await results.getByRole('button',{name:'Fixture cinema film',exact:true}).count(),1);
-    assert.equal(await results.locator('[data-ui="poster-card"]').first().getAttribute('aria-label'),'Fixture cinema film');
+    assert.equal(await results.locator('[data-ui="watch-search-result"]').first().getAttribute('aria-label'),'Fixture cinema film');
     assert.equal(await results.getByRole('button',{name:'Fixture alias movie',exact:true}).count(),0);
     await results.locator('[data-ui="watch-top-match"]').waitFor();
     await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('family guy');
