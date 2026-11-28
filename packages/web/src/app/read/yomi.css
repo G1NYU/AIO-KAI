@@ -345,7 +345,7 @@
 .yomi-workspace .tsugi-reader-categories[data-category-selected='false'] .yomi-category-cards { grid-template-columns:repeat(2,minmax(0,1fr)); }
 :root[data-host='desktop'] .yomi-workspace .yomi-category-card { position:relative; isolation:isolate; display:flex; align-items:center; min-height:160px; padding:24px; overflow:hidden; border:0; border-radius:13px; color:#efeee8; text-align:start; }
 .yomi-category-card::after { background:linear-gradient(90deg,rgba(8,16,22,.94),rgba(8,16,22,.6) 65%,rgba(8,16,22,.3)); }
-.yomi-category-card:hover .yomi-category-art { filter:brightness(1.13); }
+.yomi-category-card:hover .yomi-category-art { filter:blur(var(--tsugi-artwork-blur,2px)) brightness(1.13); }
 .yomi-category-card[aria-current='page'] .yomi-category-copy { color:var(--tsugi-accent); }
 .yomi-category-copy { display:grid; position:relative; z-index:1; gap:8px; min-width:0; max-width:65%; }
 .yomi-category-copy > svg { width:18px; height:18px; color:#afc4ac; }

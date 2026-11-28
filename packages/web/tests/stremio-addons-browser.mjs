@@ -488,6 +488,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.equal(await board.locator('[data-ui="media-row"]').count()>0,true);
     assert.equal(await film.getAttribute('data-ui'),'poster-card');
     await assertArtwork(film);
+    assert.ok(await film.locator('img').evaluateAll(nodes=>nodes.length>0&&nodes.every(node=>getComputedStyle(node).filter==='none')),'addon poster remains sharp');
     assert.ok(addonArtRequests>0,'the imported addon poster is requested without an override');
     const malRow=board.locator('[data-ui="watch-catalogue-shelf"]').filter({hasText:'MAL Airing Now'});
     await malRow.getByRole('button',{name:'MAL airing series fixture',exact:true}).waitFor();

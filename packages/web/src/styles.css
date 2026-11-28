@@ -3476,8 +3476,10 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
    This is not a glass/overlay effect and does not target provider artwork,
    posters, album covers, reader pages, logos, controls or text. */
 :root[data-host='desktop'] { --tsugi-artwork-blur:2px; }
-:root[data-host='desktop'] :is(.tsugi-world-hero,.tsugi-intro-art,.tsugi-hero-artwork,.tsugi-watch-destination-art) > img[src^='/design/'] {
+:root[data-host='desktop'] :where(img[src^='/design/']) {
   filter:blur(var(--tsugi-artwork-blur));
+}
+:root[data-host='desktop'] :where(:is(.tsugi-world-hero,.tsugi-intro-art,.tsugi-hero-artwork,.tsugi-watch-destination-art) > img[src^='/design/'],img.yomi-category-art[src^='/design/']) {
   scale:1.025;
 }
 :root[data-host='desktop'] .tsugi-settings-backdrop {

@@ -94,8 +94,12 @@ export async function verifyLandscapeDecorationBrowser({ browser, origin, instal
       });
       await page.goto(origin, { waitUntil: 'domcontentloaded' });
       await read.locator('.tsugi-manga-card').filter({ hasText: 'Tsugi Original Fixture' }).click();
+      const bundled = decoration.locator('img.tsugi-design-illustration');
+      await bundled.waitFor();
+      assert.equal(await bundled.evaluate(node => getComputedStyle(node).filter), 'blur(2px)', 'bundled Reader illustration is softened');
       await hero.getByRole('button', { name: 'Enable external illustration', exact: true }).click();
       await decoration.locator('[data-artwork-provider="kitsu"]').waitFor();
+      assert.equal(await decoration.locator('[data-artwork-provider="kitsu"]').evaluate(node => getComputedStyle(node).filter), 'none', 'external artwork is not given the brand illustration effect');
       await pendingStarted;
       await hide();
       const hiddenRequests = [...requests];
