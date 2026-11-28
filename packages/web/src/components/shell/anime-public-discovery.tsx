@@ -1,4 +1,5 @@
 import React from 'react';
+import { watchPosterSources } from '@/lib/watch-poster-pattern';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { MediaRow } from '@/components/media/media-row';
@@ -65,7 +66,7 @@ export function searchPublicAnime(query:string,films:boolean,signal:AbortSignal)
   if(films)params.set('type','movie');
   return requestPublicAnime('anime?'+params.toString(),films,signal);
 }
-export function PublicAnimeDiscovery({filmsOnly=false,seasonal=false,active,busy,openTitle,onFeatured}:{filmsOnly?:boolean;seasonal?:boolean;active:boolean;busy:boolean;openTitle(item:Item):void;onFeatured?(items:Item[]):void}){
+export function PublicAnimeDiscovery({posterPattern,filmsOnly=false,seasonal=false,active,busy,openTitle,onFeatured}:{posterPattern?:string;filmsOnly?:boolean;seasonal?:boolean;active:boolean;busy:boolean;openTitle(item:Item):void;onFeatured?(items:Item[]):void}){
   const feeds:Feed[]=filmsOnly?['films']:seasonal?['airing','upcoming']:['airing','popular','films','romance','upcoming'];
   const [rows,setRows]=React.useState<Partial<Record<Feed,Item[]>>>({});
   const [errors,setErrors]=React.useState<Feed[]>([]);
@@ -90,7 +91,7 @@ export function PublicAnimeDiscovery({filmsOnly=false,seasonal=false,active,busy
   return <section className="space-y-6" data-ui="anime-public-discovery">
     {feeds.filter(feed=>rows[feed]?.length!==0).map(feed=><div key={feed}>
       <MediaRow contained shape="poster" title={feed==='airing'?t`Airing now`:feed==='popular'?t`Popular anime`:feed==='films'?t`Anime films`:feed==='romance'?t`Romance anime`:t`Upcoming season`} loading={!rows[feed]&&!errors.includes(feed)}>
-        {rows[feed]?.map(item=><PosterCard key={item.id} title={item.name} badge={item.malRating!==undefined?<><Trans>MAL</Trans> {item.malRating.toFixed(1)}</>:undefined} image={item.poster?[item.poster,...(item.posterAlternatives??[])]:null} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item)}/>)}
+        {rows[feed]?.map(item=><PosterCard key={item.id} title={item.name} badge={item.malRating!==undefined?<><Trans>MAL</Trans> {item.malRating.toFixed(1)}</>:undefined} image={watchPosterSources(item,posterPattern)} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item)}/>)}
       </MediaRow>
       {errors.includes(feed)&&<p className="text-sm text-[--muted]"><Trans>Public anime catalogue unavailable.</Trans> <button type="button" className="tsugi-read-action" onClick={()=>{setErrors([]);setRetry(n=>n+1);}}><Trans>Retry</Trans></button></p>}
     </div>)}

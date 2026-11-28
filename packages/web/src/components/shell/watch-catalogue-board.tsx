@@ -1,4 +1,5 @@
 import React from 'react';
+import { watchPosterSources } from '@/lib/watch-poster-pattern';
 import { createPortal } from 'react-dom';
 import { searchPublicAnime } from './anime-public-discovery';
 import { Trans } from '@lingui/react/macro';
@@ -19,7 +20,7 @@ type Kind='all'|'movie'|'series'|'anime';
 type Target={key:string;source:AddonSource;catalog:AddonSource['manifest']['catalogs'][number];extras:Record<string,string>};
 type Row={page?:CatalogPage;error?:boolean;loading?:boolean;skip:number;pageSkip?:number;repeated?:boolean};
 type Props={
-  profileId:number;sources:AddonSource[];busy:boolean;active:boolean;paused:boolean;
+  profileId:number;posterPattern?:string;sources:AddonSource[];busy:boolean;active:boolean;paused:boolean;
   scope?:Scope;includeHistory?:boolean;initialQuery?:string;searchMount?:HTMLElement|null;searchOnly?:boolean;run(work:()=>Promise<void>):Promise<void>;
   openTitle(item:Item,sourceId?:number):void;openHistory?(progress:WatchProgress):void;openAddons():void;
 };
@@ -63,7 +64,7 @@ export function catalogueTargets(sources:AddonSource[],scope:Scope,kind:Kind,que
   return rows;
 }
 
-function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openAddons,includeHistory,openHistory,search,scope='all',kind='all'}:Omit<Props,'sources'> & {targets:Target[];search:string;kind?:Kind}){
+function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,openTitle,openAddons,includeHistory,openHistory,search,scope='all',kind='all'}:Omit<Props,'sources'> & {targets:Target[];search:string;kind?:Kind}){
   const [limit,setLimit]=React.useState(search?SEARCH_BATCH:BATCH);
   const [resultLimit,setResultLimit]=React.useState(RESULT_BATCH);
   const [tmdb,setTmdb]=React.useState<Item[]>([]);
@@ -188,7 +189,7 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
       {searchGroups.filter(group=>group.items.length>0).map(group=><section key={group.key} className="tsugi-watch-search-section" data-search-kind={group.key}>
         <div className="tsugi-watch-search-heading"><h4>{group.label}</h4><span>{group.items.length}</span></div>
         <div className="tsugi-watch-search-row">{group.items.slice(0,resultLimit).map(({key,item,target})=><button key={key} type="button" data-ui="watch-search-result" className="tsugi-watch-search-result" aria-label={item.name} disabled={busy} onClick={()=>openTitle(item,target.sourceId)}>
-          <span className="tsugi-watch-search-result-art" aria-hidden="true"><Artwork src={[item.poster,...(item.posterAlternatives??[])].filter((url):url is string=>!!url)} alt={item.name}/></span>
+          <span className="tsugi-watch-search-result-art" aria-hidden="true"><Artwork src={watchPosterSources(item,posterPattern)} alt={item.name}/></span>
           <span className="tsugi-watch-search-result-copy">
             <strong data-ui="watch-search-result-title">{item.name}</strong>
             {(item.releaseInfo||item.tmdbRating!=null)&&<small>{item.releaseInfo}{item.releaseInfo&&item.tmdbRating!=null?' · ':''}{item.tmdbRating!=null&&<>{'★ '}{item.tmdbRating.toFixed(1)}</>}</small>}
@@ -211,7 +212,7 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
               {row.page.nextSkip!==null&&<button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,row.page!.nextSkip!)}><Trans>Next page</Trans></button>}
               {row.error&&<button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,row.skip)}><Trans>Retry</Trans></button>}
           </div>}>
-            {row?.page?.items.map(item=><PosterCard key={item.id} title={item.name} image={item.poster?[item.poster,...(item.posterAlternatives??[])]:null} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item,target.source.sourceId)}/>)}
+            {row?.page?.items.map(item=><PosterCard key={item.id} title={item.name} image={watchPosterSources(item,posterPattern)} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item,target.source.sourceId)}/>)}
           </MediaRow>
           {row?.page&&row.page.items.length>0&&<small>{target.source.manifest.name} · {target.catalog.mediaType==='movie'?t`Movies`:target.catalog.mediaType==='series'?t`Series`:t`Anime`}</small>}
         </section>;

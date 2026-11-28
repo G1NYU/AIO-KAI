@@ -1,4 +1,6 @@
 import React from 'react';
+import { WatchPosterSettings } from './watch-poster-settings';
+import { readPosterPattern, writePosterPattern, watchPosterSources } from '@/lib/watch-poster-pattern';
 import { StremioAccountImport, importFailureText, manifestFailureText } from './stremio-account-import';
 import { MdblistSettings } from './mdblist-settings';
 import { WatchSetupGate,TmdbSettings } from './watch-setup-gate';
@@ -55,7 +57,7 @@ function feedback(reason: unknown) {
     default: return t`The request could not be confirmed. Refresh the installed list before retrying an installation or change.`;
   }
 }
-type WatchPane = 'hubs'|'home'|'discover'|'playback'|'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'tmdb'|'history'|'favorites'|'queue'|'refract'|'anime'|'anime-import';
+type WatchPane = 'hubs'|'home'|'discover'|'playback'|'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'artwork'|'mdblist'|'tmdb'|'history'|'favorites'|'queue'|'refract'|'anime'|'anime-import';
 
 export function StremioAddonSettings({workspace=false,initialProfileId,onProfileSelected,onHubSelected,onPlay,returnedPlayback,historyActive=false,setupConnections=false,initialPane='addons',openServer}:{initialProfileId?:number;onProfileSelected?:(id:number|undefined)=>void;onHubSelected?:(pane:'home'|'anime')=>void;workspace?:boolean;openServer?:()=>void;onPlay?:(playback:WatchPlayback)=>void;returnedPlayback?:WatchPlayback|null;historyActive?:boolean;setupConnections?:boolean;initialPane?:WatchEntryPane}={}){
   const desktopArea=useDesktopArea();
@@ -74,6 +76,8 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const [deleteId,setDeleteId]=React.useState(0);
   const [deleteName,setDeleteName]=React.useState('');
   const profileId=profileState?.activeProfileId;
+  const [posterRevision,setPosterRevision]=React.useState(0);
+  const posterPattern=React.useMemo(()=>readPosterPattern(profileId),[profileId,posterRevision]);
   const activeProfile=profileState?.profiles.find(p=>p.profileId===profileId);
   const deleteTarget=profileState?.profiles.find(p=>p.profileId===deleteId&&p.profileId!==profileId);
   const [importActive,setImportActive]=React.useState(false);
@@ -541,6 +545,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     ['manual',t`Add addon`,'add'],
     ['order',t`Source order`,'order'],
     ['tmdb',t`TMDB`,'mdblist'],
+    ['artwork',t`Artwork`,'settings'],
     ['mdblist',t`MDBList`,'mdblist'],
     ['anime-import',t`MyAnimeList XML`,'anime'],
     ['refract',t`Refract`,'refract'],
@@ -599,7 +604,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       {onPlay&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('home')}><Trans>Back to streaming hub</Trans></button>}
     </nav>}
     {!workspace&&<h3 id={titleId}><Trans>Stremio addons</Trans></h3>}
-    {workspace&&onPlay&&profileReady&&profileId!==undefined&&(pane==='home'||pane==='discover')&&<WatchCatalogueBoard key={JSON.stringify([profileId,pane,boardSearch])} initialQuery={boardSearch} searchMount={searchMount} profileId={profileId} sources={sources} busy={busy} run={run} active={historyActive} paused={!!title} includeHistory={pane==='home'} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} openAddons={()=>void selectPane('addons')}/>}
+    {workspace&&onPlay&&profileReady&&profileId!==undefined&&(pane==='home'||pane==='discover')&&<WatchCatalogueBoard key={JSON.stringify([profileId,pane,boardSearch])} initialQuery={boardSearch} searchMount={searchMount} profileId={profileId} posterPattern={posterPattern} sources={sources} busy={busy} run={run} active={historyActive} paused={!!title} includeHistory={pane==='home'} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} openAddons={()=>void selectPane('addons')}/>}
     {workspace&&onPlay&&pane==='playback'&&<section className="min-w-0" data-ui="watch-playback-settings"><WatchPlaybackSettings/></section>}
     {show('profile')&&<>
     <p><Trans>Each local profile has its own addons, without an AIOStreams connection. Browse catalogues and select supported direct HTTPS streams in Watch.</Trans></p>
@@ -690,12 +695,13 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     {workspace&&(pane==='favorites'||pane==='queue')&&!title&&<section className="tsugi-watch-collection" data-ui="watch-collection">
       <h3>{pane==='favorites'?t`Favorites`:t`Your queue`}</h3>
       {!collections?<p role="status"><Trans>Loading your library…</Trans></p>:collections[pane].length===0?<p className="tsugi-watch-muted">{pane==='favorites'?t`Save the titles you love from their details page.`:t`Add movies and series to watch next from their details page.`}</p>:<div className="tsugi-watch-collection-grid">{collections[pane].map(item=><div key={JSON.stringify([item.mediaType,item.id])}>
-        <PosterCard title={item.name} image={item.poster??null} disabled={busy} onClick={()=>void openTitle(item)}/>
+        <PosterCard title={item.name} image={watchPosterSources(item,posterPattern)} disabled={busy} onClick={()=>void openTitle(item)}/>
         <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void toggleCollection(pane,item)}><Trans>Remove</Trans></button>
       </div>)}</div>}
     </section>}
     {workspace&&pane==='history'&&historyActive&&profileReady&&profileId!==undefined&&<WatchHistory key={profileId} profileId={profileId} busy={busy} run={run} open={openHistory} removed={clearTitle}/>}
-    {workspace&&(pane==='anime'||pane==='anime-import')&&profileReady&&profileId!==undefined&&<MalAnimeLibrary key={profileId+':'+pane} profileId={profileId} sources={sources} busy={busy} historyActive={pane==='anime'&&historyActive} setupOnly={!onPlay||pane==='anime-import'} detailOpen={!!title} searchMount={searchMount} run={run} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} clearTitle={clearTitle} openAddons={()=>void selectPane('addons')}/>}
+    {workspace&&(pane==='anime'||pane==='anime-import')&&profileReady&&profileId!==undefined&&<MalAnimeLibrary key={profileId+':'+pane} profileId={profileId} posterPattern={posterPattern} sources={sources} busy={busy} historyActive={pane==='anime'&&historyActive} setupOnly={!onPlay||pane==='anime-import'} detailOpen={!!title} searchMount={searchMount} run={run} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} clearTitle={clearTitle} openAddons={()=>void selectPane('addons')}/>}
+    {workspace&&pane==='artwork'&&profileReady&&profileId!==undefined&&<WatchPosterSettings key={profileId} pattern={posterPattern} onSave={pattern=>{if(writePosterPattern(profileId,pattern))setPosterRevision(value=>value+1);}}/>}
     {workspace&&pane==='tmdb'&&profileReady&&profileId!==undefined&&<TmdbSettings key={profileId} profileId={profileId}/>}
     {workspace&&pane==='mdblist'&&profileReady&&profileId!==undefined&&<MdblistSettings key={profileId} profileId={profileId} openTitle={item=>void openTitle(item)}/>}
     {workspace&&pane==='refract'&&(historyActive||setupConnections)&&profileReady&&profileId!==undefined&&<RefractSettings key={profileId} profileId={profileId} busy={busy} run={run}/>}
@@ -703,7 +709,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       <div className="tsugi-watch-title-hero" data-has-backdrop={!!(cinema?.background||details?.background||title.background||details?.poster||title.poster)||undefined}>
         <button type="button" className="tsugi-read-action tsugi-watch-close-title" disabled={busy} onClick={closeTitle}><Trans>Close title</Trans></button>
         {(cinema?.background||details?.background||title.background||details?.poster||title.poster)&&<div className="tsugi-watch-title-backdrop" aria-hidden="true"><Artwork eager src={[cinema?.background,details?.background,title.background,details?.poster,title.poster,...(title.posterAlternatives??[])].filter((value):value is string=>!!value)} alt=""/></div>}
-        <div className="tsugi-watch-title-art"><Artwork src={[details?.poster,title.poster,...(title.posterAlternatives??[])].filter((value):value is string=>!!value)} alt={title.name}/></div>
+        <div className="tsugi-watch-title-art"><Artwork src={watchPosterSources({...title,identities:[...(title.identities??[]),...(cinema?.identities??[]),...(cinema?[cinema.id]:[])],imdbId:cinema?.imdbId??title.imdbId},posterPattern,details?.poster??cinema?.poster)} alt={title.name}/></div>
         <div className="tsugi-watch-title-copy">
           {cinema?.tagline&&<p className="tsugi-watch-tagline">{cinema.tagline}</p>}
           <h4 className="tsugi-watch-title-name">{cinema?.logo?<span className="tsugi-watch-title-logo-frame"><Artwork eager src={cinema.logo} alt={details?.name??title.name} className="tsugi-watch-title-logo"/></span>:details?.name??title.name}</h4>
