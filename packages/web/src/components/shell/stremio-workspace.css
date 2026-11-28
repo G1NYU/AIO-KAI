@@ -257,7 +257,10 @@
 
 /* Non-desktop fallback retains the toolbar. Desktop Watch uses the existing flat rail. */
 :root[data-host='desktop'] .tsugi-watch-shared-rail :is(.tsugi-watch-rail-search,.tsugi-watch-rail-actions){margin-block-start:8px}
-.tsugi-watch-rail-search:empty{display:none}
+.tsugi-watch-rail-search:empty,.tsugi-watch-rail-refresh:empty{display:none}
+:root[data-host='desktop'] .tsugi-watch-shared-rail .tsugi-watch-rail-refresh:not(:empty){display:flex;gap:0;margin:0;padding:0}
+.tsugi-watch-profile-form{display:grid;gap:12px;min-width:0;align-items:start}
+.tsugi-watch-profile-form>button{justify-self:start;max-width:100%}
 :root[data-host='desktop'] .tsugi-watch-shared-rail .tsugi-watch-rail-search [data-ui='watch-search-trigger'][aria-expanded='true']{color:var(--tsugi-accent)}
 .tsugi-watch-hub-header:has(>.tsugi-watch-header-search){display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,1.6fr) auto;gap:16px 24px;align-items:center}
 @media(max-width:1200px){.tsugi-watch-hub-header:has(>.tsugi-watch-header-search){grid-template-columns:minmax(0,1fr) auto}.tsugi-watch-header-search{grid-column:1/-1;grid-row:2}}

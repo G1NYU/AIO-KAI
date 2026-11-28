@@ -24,7 +24,7 @@ type Target={key:string;source:AddonSource;catalog:AddonSource['manifest']['cata
 type Row={page?:CatalogPage;error?:boolean;loading?:boolean;skip:number;pageSkip?:number;repeated?:boolean};
 type Props={
   profileId:number;posterPattern?:string;sources:AddonSource[];busy:boolean;active:boolean;paused:boolean;
-  scope?:Scope;includeHistory?:boolean;seriesDiscovery?:boolean;initialQuery?:string;searchMount?:HTMLElement|null;searchOnly?:boolean;run(work:()=>Promise<void>):Promise<void>;
+  scope?:Scope;includeHistory?:boolean;seriesDiscovery?:boolean;initialQuery?:string;searchMount?:HTMLElement|null;refreshMount?:HTMLElement|null;searchOnly?:boolean;run(work:()=>Promise<void>):Promise<void>;
   openTitle(item:Item,sourceId?:number):void;openHistory?(progress:WatchProgress):void;openAddons():void;
 };
 const BATCH=6;
@@ -250,7 +250,7 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
   </>;
 }
 
-export function WatchCatalogueBoard({scope='all',includeHistory=false,seriesDiscovery=false,initialQuery='',searchMount,searchOnly=false,...props}:Props){
+export function WatchCatalogueBoard({scope='all',includeHistory=false,seriesDiscovery=false,initialQuery='',searchMount,refreshMount,searchOnly=false,...props}:Props){
   const [query,setQuery]=React.useState(initialQuery);
   const [submitted,setSubmitted]=React.useState(initialQuery);
   const [searchOpen,setSearchOpen]=React.useState(!!initialQuery);
@@ -271,13 +271,12 @@ export function WatchCatalogueBoard({scope='all',includeHistory=false,seriesDisc
   const searchLabel=seriesDiscovery?t`Search TVmaze series`:scope==='all'?t`Search movies & series`:t`Search anime`;
   const railSearch=searchMount?.dataset.ui==='watch-rail-search';
   const refreshLabel=seriesDiscovery?t`Refresh schedules`:t`Refresh catalogues`;
-  const actions=<>
-    <button type="button" data-ui="watch-search-trigger" className={railSearch?'tsugi-watch-nav-item':'tsugi-watch-search-trigger'} title={searchLabel} aria-label={searchLabel} aria-haspopup="dialog" aria-expanded={searchOpen} aria-controls={dialogId} disabled={props.busy} onClick={()=>setSearchOpen(true)}><MovieGlyph name="search"/><span>{railSearch?<Trans>Search</Trans>:searchLabel}</span></button>
-    {!searchOnly&&<button type="button" className={railSearch?'tsugi-watch-nav-item':'tsugi-read-action'} title={refreshLabel} aria-label={refreshLabel} disabled={props.busy} onClick={()=>setRevision(r=>r+1)}>{railSearch&&<MovieGlyph name="refresh"/>}<span>{railSearch?<Trans>Refresh</Trans>:refreshLabel}</span></button>}
-  </>;
-  const toolbar=railSearch?actions:<div className="tsugi-watch-board-toolbar">{actions}</div>;
+  const searchButton=<button type="button" data-ui="watch-search-trigger" className={railSearch?'tsugi-watch-nav-item':'tsugi-watch-search-trigger'} title={searchLabel} aria-label={searchLabel} aria-haspopup="dialog" aria-expanded={searchOpen} aria-controls={dialogId} disabled={props.busy} onClick={()=>setSearchOpen(true)}><MovieGlyph name="search"/><span>{railSearch?<Trans>Search</Trans>:searchLabel}</span></button>;
+  const refreshButton=!searchOnly&&<button type="button" className={railSearch?'tsugi-watch-nav-item':'tsugi-read-action'} title={refreshLabel} aria-label={refreshLabel} disabled={props.busy} onClick={()=>setRevision(r=>r+1)}>{railSearch&&<MovieGlyph name="refresh"/>}<span>{railSearch?<Trans>Refresh</Trans>:refreshLabel}</span></button>;
+  const toolbar=railSearch?searchButton:<div className="tsugi-watch-board-toolbar">{searchButton}{refreshButton}</div>;
   return <section className="tsugi-watch-board" data-ui="watch-catalogue-board" data-discovery-provider={seriesDiscovery?'tvmaze':undefined} data-search-only={searchOnly||undefined} hidden={props.paused} inert={props.paused}>
     {!props.paused&&(searchMount?createPortal(toolbar,searchMount):searchMount===undefined?toolbar:null)}
+    {!props.paused&&railSearch&&refreshMount&&refreshButton&&createPortal(refreshButton,refreshMount)}
     {!searchOnly&&scope==='all'&&!props.sources.some(s=>s.enabled&&s.manifest.resources.includes('stream'))&&<p className="tsugi-watch-muted"><Trans>Browse titles now. Connect streaming addons in Settings to watch them.</Trans> <button type="button" className="tsugi-read-action" disabled={props.busy} onClick={props.openAddons}><Trans>Manage addons</Trans></button></p>}
     {!searchOnly&&seriesDiscovery?<SeriesDiscovery key={props.profileId+':'+revision} active={props.active&&!props.paused&&!searchOpen} busy={props.busy} posterPattern={props.posterPattern} openTitle={props.openTitle}/>:!searchOnly&&<CatalogueRows key={JSON.stringify([props.profileId,scope,revision,homeTargets.map(row=>row.key)])} {...props} paused={props.paused||searchOpen} targets={homeTargets} search="" scope={scope} includeHistory={includeHistory}/>} 
     <dialog ref={dialog} id={dialogId} className="tsugi-watch-search-dialog" aria-label={t`Search titles`} onCancel={e=>{e.preventDefault();setSearchOpen(false);}} onClick={e=>{if(e.target===e.currentTarget)setSearchOpen(false);}}>

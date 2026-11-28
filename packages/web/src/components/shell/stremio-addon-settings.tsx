@@ -65,6 +65,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const [autoPlayFirst]=useSetting(settings.playback.autoPlayFirst);
   const [boardSearch,setBoardSearch]=React.useState('');
   const [searchMount,setSearchMount]=React.useState<HTMLDivElement|null>(null);
+  const [refreshMount,setRefreshMount]=React.useState<HTMLDivElement|null>(null);
   const [entered,setEntered]=React.useState(false);
   const [pane,setPane]=React.useState<WatchPane>(initialPane);
   React.useEffect(()=>{if(entered&&(pane==='home'||pane==='anime'))onHubSelected?.(pane);},[entered,pane,onHubSelected]);
@@ -74,12 +75,14 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const [profileReady,setProfileReady]=React.useState(false);
   const [setupVerified,setSetupVerified]=React.useState<number>();
   const [profileName,setProfileName]=React.useState('');
+  const [renameName,setRenameName]=React.useState('');
   const [deleteId,setDeleteId]=React.useState(0);
   const [deleteName,setDeleteName]=React.useState('');
   const profileId=profileState?.activeProfileId;
   const [posterRevision,setPosterRevision]=React.useState(0);
   const posterPattern=React.useMemo(()=>readPosterPattern(profileId),[profileId,posterRevision]);
   const activeProfile=profileState?.profiles.find(p=>p.profileId===profileId);
+  React.useEffect(()=>{setRenameName(activeProfile?.name??'');},[profileId,activeProfile?.name]);
   const deleteTarget=profileState?.profiles.find(p=>p.profileId===deleteId&&p.profileId!==profileId);
   const [importActive,setImportActive]=React.useState(false);
   const [url,setUrl]=React.useState('');
@@ -234,6 +237,15 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   async function changeProfile(action:ProfileMutation,enter=false){
     if(flight.current||!profileState)return;
     await run(async()=>{
+      if(action.kind==='profile-rename'){
+        // A rename changes only the stored display name, not the active
+        // profile, its source registry or verified connection setup.
+        const result=await mutateAddonProfile(action);
+        if(!mounted.current)return;
+        setProfileState(result);
+        setNotice(t`Profile renamed.`);
+        return;
+      }
       const previous=clearReview();
       if(previous)await cancelAddonReview(previous.profileId,previous.reviewId).catch(()=>{});
       setSetupVerified(undefined);setProfileReady(false);setSources([]);choose(null);
@@ -508,6 +520,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   async function selectPane(next:WatchPane){
     if(flight.current||pane===next)return;
     const previous=clearReview();
+    if(next==='profile')setRenameName(activeProfile?.name??'');
     setImportActive(false);choose(null);setBoardSearch('');setPane(next);
     if(previous)await run(async()=>{await cancelAddonReview(previous.profileId,previous.reviewId);});
   }
@@ -645,6 +658,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     </nav>
       <div ref={desktopArea?setSearchMount:undefined} className="tsugi-watch-nav tsugi-rail-local tsugi-watch-rail-search" data-ui="watch-rail-search"/>
       <div className="tsugi-watch-nav tsugi-rail-local tsugi-watch-rail-actions" data-ui="watch-rail-actions">
+        <div ref={desktopArea?setRefreshMount:undefined} className="tsugi-watch-nav tsugi-rail-local tsugi-watch-rail-refresh" data-ui="watch-rail-refresh"/>
         <button type="button" className="tsugi-watch-nav-item" title={t`Streaming hubs`} aria-label={t`Streaming hubs`} disabled={busy} onClick={()=>void selectPane('hubs')}><MovieGlyph name="grid"/><span><Trans>Streaming hubs</Trans></span></button>
         <button type="button" className="tsugi-watch-nav-item" title={t`Switch profile`} aria-label={t`Switch profile`} disabled={busy} onClick={()=>void backToProfiles()}><MovieGlyph name="people"/><span><Trans>Switch profile</Trans></span></button>
       </div>
@@ -655,7 +669,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       {onPlay&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('home')}><Trans>Back to streaming hub</Trans></button>}
     </nav>}
     {!workspace&&<h3 id={titleId}><Trans>Stremio addons</Trans></h3>}
-    {workspace&&onPlay&&profileReady&&profileId!==undefined&&(pane==='home'||pane==='discover')&&<WatchCatalogueBoard key={JSON.stringify([profileId,pane,boardSearch])} initialQuery={boardSearch} searchMount={searchMount} profileId={profileId} posterPattern={posterPattern} sources={sources} busy={busy} run={run} active={historyActive} paused={!!title} includeHistory={pane==='home'} seriesDiscovery={pane==='discover'} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} openAddons={()=>void selectPane('addons')}/>}
+    {workspace&&onPlay&&profileReady&&profileId!==undefined&&(pane==='home'||pane==='discover')&&<WatchCatalogueBoard key={JSON.stringify([profileId,pane,boardSearch])} initialQuery={boardSearch} searchMount={searchMount} refreshMount={refreshMount} profileId={profileId} posterPattern={posterPattern} sources={sources} busy={busy} run={run} active={historyActive} paused={!!title} includeHistory={pane==='home'} seriesDiscovery={pane==='discover'} openTitle={(item,sourceId)=>void openTitle(item,sourceId)} openHistory={openHistory} openAddons={()=>void selectPane('addons')}/>}
     {workspace&&onPlay&&pane==='playback'&&<section className="min-w-0" data-ui="watch-playback-settings"><WatchPlaybackSettings/></section>}
     {show('profile')&&<>
     <p><Trans>Each local profile has its own addons, without an AIOStreams connection. Browse catalogues and select supported direct HTTPS streams in Watch.</Trans></p>
@@ -666,11 +680,14 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
         <label><Trans>Active addon profile</Trans><select aria-label={t`Active addon profile`} className="tsugi-menu-select w-full" value={profileId} disabled={busy} onChange={e=>void changeProfile({kind:'profile-switch',profileId:Number(e.target.value)})}>
           {profileState.profiles.map(p=><option key={p.profileId} value={p.profileId}>{p.name}</option>)}
         </select></label>
-        <label><Trans>Profile name</Trans><input aria-label={t`Profile name`} className="tsugi-read-input w-full min-w-0" autoComplete="off" maxLength={64} value={profileName} disabled={busy} onChange={e=>setProfileName(e.target.value)}/></label>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className="tsugi-read-action" disabled={busy||!profileName.trim()||profileState.profiles.length>=6} onClick={()=>void changeProfile({kind:'profile-create',name:profileName})}><Trans>Create profile</Trans></button>
-          <button type="button" className="tsugi-read-action" disabled={busy||!profileName.trim()} onClick={()=>void changeProfile({kind:'profile-rename',profileId:activeProfile.profileId,name:profileName})}><Trans>Rename active profile</Trans></button>
-        </div>
+        <form className="tsugi-watch-profile-form" data-ui="watch-rename-profile" onSubmit={e=>{e.preventDefault();const name=renameName.trim();if(!busy&&name&&name!==activeProfile.name)void changeProfile({kind:'profile-rename',profileId:activeProfile.profileId,name});}}>
+          <label><Trans>Profile name</Trans><input aria-label={t`Profile name`} className="tsugi-read-input w-full min-w-0" autoComplete="off" required maxLength={64} value={renameName} disabled={busy} onChange={e=>setRenameName(e.target.value)}/></label>
+          <button type="submit" className="tsugi-read-action tsugi-series-primary" disabled={busy||!renameName.trim()||renameName.trim()===activeProfile.name}><Trans>Rename active profile</Trans></button>
+        </form>
+        {profileState.profiles.length<6&&<form className="tsugi-watch-profile-form" data-ui="watch-create-profile" onSubmit={e=>{e.preventDefault();if(!busy&&profileName.trim())void changeProfile({kind:'profile-create',name:profileName});}}>
+          <label><Trans>New profile name</Trans><input aria-label={t`New profile name`} className="tsugi-read-input w-full min-w-0" autoComplete="off" required maxLength={64} value={profileName} disabled={busy} onChange={e=>setProfileName(e.target.value)}/></label>
+          <button type="submit" className="tsugi-read-action" disabled={busy||!profileName.trim()}><Trans>Create profile</Trans></button>
+        </form>}
         {profileState.profiles.length>1&&<details>
           <summary><Trans>Delete an inactive profile</Trans></summary>
           <div className="space-y-2">

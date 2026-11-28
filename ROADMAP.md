@@ -51,8 +51,14 @@
 ## F2 — Watch chrome cleanup (maintainer screenshots, 2026-11-28)
 
 - [ ] Remove generic explanatory subtitles under Movies & TV and Series hub; retain profile context, provider attribution and real title metadata.
-- [ ] Move Home, Discover and Anime search into the existing flat shared sidebar below Settings; retain refresh, keyboard focus, scoped search, hub switching and profile actions. Keep hero artwork and close-title behavior unobstructed on details; leave non-desktop fallback intact.
+- [ ] Move Home, Discover and Anime search into the existing flat shared sidebar below Settings; keep Refresh, Streaming hubs and Switch profile adjacent in one utility group. Retain keyboard focus, scoped search, hub switching and profile actions. Keep hero artwork and close-title behavior unobstructed on details; leave non-desktop fallback intact.
 - [ ] Verify populated home/series/anime, detail, compact rail and existing search-to-episode-to-stream browser flows; include in the next verified candidate.
+
+## F3 — Rename Default Watch profile and package v0.1.3 test installer
+
+- [ ] Prefill active profile's name in its own rename form, separate from creating profiles. Rename Default (ID 1) in place without re-running setup or changing addons, account links, history, collections or active selection. Preserve native validation and show errors on duplicate names.
+- [ ] Verify native snapshot equality except display name, persistence across reopen and real browser badge/management/media navigation; run F1/F2 regressions in the combined build.
+- [ ] Build a separately versioned v0.1.3 Windows setup EXE through existing CI, test both installation scopes and checksum round-trip. Do not publish until maintainer confirms live manga global search with installed extensions.
 
 ## Streaming hub architecture correction
 

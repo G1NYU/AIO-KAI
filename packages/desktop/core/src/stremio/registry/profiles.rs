@@ -499,6 +499,32 @@ mod tests {
         assert!(Profiles::decode(&serde_json::to_vec(&old).unwrap()).is_ok());
     }
     #[test]
+    fn default_profile_rename_preserves_identity_and_saved_registry(){
+        let mut p=Profiles::default();
+        let source=stage(&mut p,1);
+        p.execute(scoped(1,Action::Install{review_id:source})).unwrap();
+        let progress=serde_json::from_value::<Action>(json!({
+            "kind":"watch-record","progress":{"mediaType":"series","itemId":"tt123","videoId":"tt123:1:2",
+                "title":"Fixture series","episodeTitle":"Second episode","positionMs":45000,"durationMs":120000,"completed":false}
+        })).unwrap();
+        p.execute(scoped(1,progress)).unwrap();
+        let sources=p.execute(scoped(1,Action::List)).unwrap();
+        let history=p.execute(scoped(1,Action::WatchHistory)).unwrap();
+        let before:Value=serde_json::from_slice(&p.encode().unwrap()).unwrap();
+        let renamed=p.execute(Action::ProfileRename{profile_id:1,name:" Cinema home ".into()}).unwrap();
+        assert_eq!(renamed["activeProfileId"],1);
+        assert_eq!(renamed["profiles"][0]["profileId"],1);
+        assert_eq!(renamed["profiles"][0]["name"],"Cinema home");
+        let after:Value=serde_json::from_slice(&p.encode().unwrap()).unwrap();
+        let mut expected=before;
+        expected["profiles"][0]["name"]=json!("Cinema home");
+        assert_eq!(after,expected,"only the persisted display name changes");
+        let mut restored=Profiles::decode(&p.encode().unwrap()).unwrap();
+        assert_eq!(restored.list(),renamed);
+        assert_eq!(restored.execute(scoped(1,Action::List)).unwrap(),sources);
+        assert_eq!(restored.execute(scoped(1,Action::WatchHistory)).unwrap(),history);
+    }
+    #[test]
     fn profile_names_limits_and_deletion_require_exact_inactive_target(){
         let mut p=Profiles::default();
         assert_eq!(p.execute(Action::ProfileCreate{name:"default".into()}),Err("duplicate-profile"));

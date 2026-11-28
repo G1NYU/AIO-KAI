@@ -74,7 +74,13 @@ export function installStremioFixture(initializeStartup=true){
     switch(raw.kind){
       case 'profile-list':return emit(profileState());
       case 'profile-create':f.profiles.push({profileId:++f.sequence,name:raw.name,sources:[],history:[],mdblistConnected:false,refract:emptyRefract()});return emit(profileState());
-      case 'profile-rename':f.profiles.find(p=>p.profileId===raw.profileId).name=raw.name;return emit(profileState());
+      case 'profile-rename':{
+        const target=f.profiles.find(p=>p.profileId===raw.profileId),name=raw.name.trim();
+        if(!target)return emit(null,'profile-changed');
+        if(!name||Array.from(name).length>64||/[\x00-\x1f\x7f]/.test(name))return emit(null,'invalid-profile-name');
+        if(f.profiles.some(p=>p!==target&&p.name.toLowerCase()===name.toLowerCase()))return emit(null,'duplicate-profile');
+        target.name=name;return emit(profileState());
+      }
       case 'profile-switch':f.active=raw.profileId;f.pending=null;f.import=null;f.mediaReview=null;f.streamReviews=[];f.mediaGrant=null;return emit(profileState());
       case 'profile-remove':{
         const target=f.profiles.find(p=>p.profileId===raw.profileId);
@@ -552,9 +558,11 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       assert.equal(await search.count(),1);
       assert.equal(await search.getAttribute('aria-haspopup'),'dialog');
       assert.equal(await search.locator('[data-movie-glyph="search"]').count(),1);
-      assert.equal(await slot.locator('button').count(),refreshLabel?2:1,'only the current hub search and optional refresh are shown');
-      if(refreshLabel)assert.equal(await slot.getByRole('button',{name:refreshLabel,exact:true}).count(),1);
+      assert.equal(await slot.locator('button').count(),1,'one scoped search action');
       const utility=rail.locator('[data-ui="watch-rail-actions"]');
+      if(refreshLabel)await utility.getByRole('button',{name:refreshLabel,exact:true}).waitFor();
+      assert.deepEqual(await utility.locator('button').evaluateAll(nodes=>nodes.map(node=>node.getAttribute('aria-label'))),[...(refreshLabel?[refreshLabel]:[]),'Streaming hubs','Switch profile'],'refresh, streaming hubs and profile switching form one adjacent group');
+      assert.ok(await utility.locator('button').evaluateAll(nodes=>nodes.every((node,index)=>index===0||node.getBoundingClientRect().top-nodes[index-1].getBoundingClientRect().bottom<=12)),'utility rows have ordinary rail spacing');
       for(const label of ['Streaming hubs','Switch profile']){
         assert.equal(await utility.getByRole('button',{name:label,exact:true}).count(),1);
         assert.equal(await watch.getByRole('button',{name:label,exact:true}).count(),1,'single desktop action: '+label);
@@ -1298,7 +1306,8 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await row.getByRole('button',{name:'Disable',exact:true}).waitFor();
     const profiles=panel.locator('[data-ui="stremio-profile-management"]');
     const profileName=profiles.getByLabel('Profile name',{exact:true});
-    await profileName.fill('Second');
+    assert.equal(await profileName.inputValue(),'Default');
+    await profiles.getByLabel('New profile name',{exact:true}).fill('Second');
     await profiles.getByRole('button',{name:'Create profile',exact:true}).click();
     const active=profiles.getByRole('combobox',{name:'Active addon profile',exact:true});
     await active.locator('option').filter({hasText:'Second'}).waitFor({state:'attached'});
@@ -1308,6 +1317,12 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await inspect();
     await review.getByRole('button',{name:'Install into profile'}).click();
     const secondRow=panel.locator('[data-stremio-source-id="5"]');
+    await secondRow.waitFor();
+    assert.equal(await profileName.inputValue(),'Second');
+    await profileName.fill('Default');
+    await profiles.getByRole('button',{name:'Rename active profile',exact:true}).click();
+    await panel.getByRole('alert').filter({hasText:'A profile already uses that name.'}).waitFor();
+    assert.equal(await profileName.inputValue(),'Default','duplicate-name failure retains the draft');
     await secondRow.waitFor();
     await profileName.fill('Renamed');
     await profiles.getByRole('button',{name:'Rename active profile',exact:true}).click();
@@ -1882,7 +1897,28 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await remembered.click();
     await watch.locator('[data-ui="stremio-profile-management"]').waitFor();
     assert.equal(await watch.getByLabel('Active addon profile',{exact:true}).inputValue(),'1');
-    console.log('PASS: Watch profile survives media navigation and sidebar badge opens management.');
+    const rename=watch.locator('[data-ui="watch-rename-profile"]');
+    const nameField=rename.getByRole('textbox',{name:'Profile name',exact:true});
+    assert.equal(await nameField.inputValue(),'Default','original profile is editable and prefilled');
+    const beforeRename=await firstLaunch.evaluate(()=>{const f=window.__stremioFixture,p=f.profiles.find(p=>p.profileId===1);return {start:f.calls.length,active:f.active,sources:p.sources.map(s=>s.sourceId),history:p.history.length};});
+    await nameField.fill('Cinema home');
+    await nameField.press('Enter');
+    await remembered.getByText('Cinema home',{exact:true}).waitFor();
+    assert.equal(await watch.getByLabel('Active addon profile',{exact:true}).inputValue(),'1');
+    assert.equal(await watch.locator('[data-ui="watch-profile-picker"]').count(),0);
+    const afterRename=await firstLaunch.evaluate(start=>{const f=window.__stremioFixture,p=f.profiles.find(p=>p.profileId===1);return {calls:f.calls.slice(start),active:f.active,sources:p.sources.map(s=>s.sourceId),history:p.history.length};},beforeRename.start);
+    assert.deepEqual(afterRename.calls.filter(a=>a.kind.startsWith('profile-')&&a.kind!=='profile-request'),[{kind:'profile-rename',profileId:1,name:'Cinema home'}]);
+    assert.equal(afterRename.active,beforeRename.active);
+    assert.deepEqual(afterRename.sources,beforeRename.sources);
+    assert.equal(afterRename.history,beforeRename.history);
+    assert.equal(afterRename.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='watch-setup-status'),false,'rename must not restart connection setup');
+    if(screenshotDir)await firstLaunch.screenshot({path:join(screenshotDir,'watch-default-profile-renamed.png'),animations:'disabled'});
+    await watch.getByRole('button',{name:'All media',exact:true}).click();
+    await firstLaunch.locator('[data-page="desktop-landing"]').waitFor();
+    await firstLaunch.getByRole('button',{name:'Movies & TV',exact:true}).first().click();
+    await remembered.getByText('Cinema home',{exact:true}).waitFor();
+    assert.equal(await watch.locator('[data-ui="watch-profile-picker"]').count(),0);
+    console.log('PASS: Default renamed in place; exact profile ID, sources, history and navigation persist without setup restart.');
     console.log('First launch profile and account import entry and optional skip passed');
   }finally{await firstLaunch.close();}
 }
