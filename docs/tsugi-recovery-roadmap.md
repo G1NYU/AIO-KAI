@@ -141,3 +141,7 @@ Presentation acceptance clarified by maintainer: while typing Family Guy, show a
 | P5.2 | Packaging and stable publication gates unchanged | Blocked until P0–P4 and P5.1 have complete evidence; no accepted EXE or stable publication |
 
 Keep the acceptance checkboxes open. The remaining live verification uses the exact revision and protected credentials on the Windows device, following [watch-live-acceptance.md](watch-live-acceptance.md). Do not use an old stable binary to validate the new source, introduce a trusted-bridge bypass, or mark fixture artwork/audio as live playback.
+
+### 2026-11-28 — Six additional annotated screenshots
+
+Six new annotated Windows captures supplement the original 16-image review. See [the updated screenshot matrix](windows-ui-review.md) for exact filenames, requirements and outstanding evidence. Addressed shared Watch header/banner/form spacing, the flat Settings rule being limited to server Movies, and inherited alternating grey installed-addon rows; added targeted browser assertions and screenshots. Returning Home minimalist cards and removed marked slogans/footer already exist in current source, but need final visual re-verification. No claim of full Harbor parity or app-wide visual acceptance. CI and physical Windows checks remain outstanding. Continue full-app spacing and settings comparison, actual title/resume artwork verification and remaining P0–P5 acceptance before packaging.

@@ -3202,9 +3202,9 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 :root[data-host='desktop'] :is(.tsugi-reading-list-header,.tsugi-library-section-head) { padding:10px 12px; }
 :root[data-host='desktop'] .tsugi-settings-sheet > .border-t { padding:20px 0; background:transparent; }
 
-/* Movies navigation and settings: surface-free labels/icons.
-   The sidebar itself stays opaque, but individual icons and settings labels
-   never become alternating grey tiles. Preserve visible keyboard focus. */
+/* Shared desktop video settings and Movies navigation: surface-free labels/icons.
+   Both server-backed Movies and standalone Watch reuse these Settings components.
+   Preserve visible keyboard focus without alternating grey tiles. */
 :root[data-host='desktop'] .tsugi-video-shell[data-navigation='sidebar'] [data-ui='sidebar'] .UI-VerticalMenu__item {
   background:transparent!important;
   background-image:none!important;
@@ -3220,7 +3220,7 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   outline:2px solid var(--tsugi-focus);
   outline-offset:2px;
 }
-:root[data-host='desktop'] .tsugi-video-shell [data-page='settings'] :is(
+:root[data-host='desktop'] :is(.tsugi-video-shell [data-page='settings'],[data-ui='watch-playback-settings']) :is(
   [data-ui='settings-card-body'],
   [data-ui='settings-tab-group'],
   [data-ui='settings-card-item'],
@@ -3232,14 +3232,14 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   box-shadow:none!important;
   backdrop-filter:none!important;
 }
-:root[data-host='desktop'] .tsugi-video-shell [data-page='settings'] [data-ui='settings-tab']:is([data-state='active'],[aria-current='page']) {
+:root[data-host='desktop'] :is(.tsugi-video-shell [data-page='settings'],[data-ui='watch-playback-settings']) [data-ui='settings-tab']:is([data-state='active'],[aria-current='page']) {
   color:var(--tsugi-accent)!important;
   font-weight:650;
 }
-:root[data-host='desktop'] .tsugi-video-shell [data-page='settings'] [data-ui='settings-tab']:is(:hover,:focus-visible) {
+:root[data-host='desktop'] :is(.tsugi-video-shell [data-page='settings'],[data-ui='watch-playback-settings']) [data-ui='settings-tab']:is(:hover,:focus-visible) {
   color:var(--tsugi-ink);
 }
-:root[data-host='desktop'] .tsugi-video-shell [data-page='settings'] [data-ui='settings-tab']:focus-visible {
+:root[data-host='desktop'] :is(.tsugi-video-shell [data-page='settings'],[data-ui='watch-playback-settings']) [data-ui='settings-tab']:focus-visible {
   outline:2px solid var(--tsugi-focus);
   outline-offset:-2px;
 }

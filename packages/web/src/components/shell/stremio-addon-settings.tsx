@@ -545,15 +545,15 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   }
   return <section className={workspace?onPlay?'tsugi-watch-workspace tsugi-watch-hub':'tsugi-app-general tsugi-watch-workspace tsugi-watch-configuration':'tsugi-app-general'} data-ui="stremio-addon-settings" data-watch-pane={pane} aria-labelledby={titleId}>
     {workspace&&!hubChooser&&<header className={onPlay&&!inSettings?'tsugi-watch-hub-header':'tsugi-watch-workspace-banner'} style={{'--tsugi-watch-art':"url('/design/shared/hero-train.webp')"} as React.CSSProperties}>
-      <div><TsugiBrand className="tsugi-watch-header-brand"/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}>{pane==='anime'?<Trans>Anime</Trans>:pane==='home'||pane==='discover'||pane==='history'?<Trans>Movies &amp; TV</Trans>:<Trans>Your addon stack.</Trans>}</h3>{(pane==='home'||pane==='discover')?<p><Trans>Watch from your connected catalogues and streaming addons.</Trans></p>:pane!=='anime'&&<p><Trans>Bring your sources home.</Trans></p>}</div>
-      <div className="flex flex-wrap gap-2">
+      <div className="tsugi-watch-heading-copy"><TsugiBrand className="tsugi-watch-header-brand"/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}>{pane==='anime'?<Trans>Anime</Trans>:pane==='home'||pane==='discover'||pane==='history'?<Trans>Movies &amp; TV</Trans>:<Trans>Your addon stack.</Trans>}</h3>{(pane==='home'||pane==='discover')?<p><Trans>Watch from your connected catalogues and streaming addons.</Trans></p>:pane!=='anime'&&<p><Trans>Bring your sources home.</Trans></p>}</div>
+      <div className="tsugi-watch-header-actions">
         {onPlay&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('hubs')}><MovieGlyph name="grid"/> <Trans>Streaming hubs</Trans></button>}
         <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void backToProfiles()}><MovieGlyph name="people"/> <Trans>Switch profile</Trans></button>
       </div>
     </header>}
     {hubChooser&&<section className="tsugi-watch-destinations" data-ui="watch-hub-picker" aria-labelledby={titleId}>
       <header className="tsugi-watch-workspace-banner" style={{'--tsugi-watch-art':"url('/design/shared/hero-neon.webp')"} as React.CSSProperties}>
-        <div><TsugiBrand/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}><Trans>Choose your streaming hub</Trans></h3><p><Trans>Browse movies, series and anime using the sources you choose.</Trans></p></div>
+        <div className="tsugi-watch-heading-copy"><TsugiBrand/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}><Trans>Choose your streaming hub</Trans></h3><p><Trans>Browse movies, series and anime using the sources you choose.</Trans></p></div>
         <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void backToProfiles()}><Trans>Switch profile</Trans></button>
       </header>
       <div className="tsugi-watch-destination-grid">
@@ -594,7 +594,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     {show('profile')&&<>
     <p><Trans>Each local profile has its own addons, without an AIOStreams connection. Browse catalogues and select supported direct HTTPS streams in Watch.</Trans></p>
     <p><Trans>Configured links are protected by your Windows account and excluded from portable backups. Local profiles are not password-protected from other people using this Windows account. Only contact addon hosts you trust.</Trans></p>
-    <div className="space-y-3" data-ui="stremio-profile-management">
+    <div className="tsugi-watch-form-stack" data-ui="stremio-profile-management">
       <h4><Trans>Addon profiles</Trans></h4>
       {profileState&&activeProfile&&<>
         <label><Trans>Active addon profile</Trans><select className="tsugi-menu-select w-full" value={profileId} disabled={busy} onChange={e=>void changeProfile({kind:'profile-switch',profileId:Number(e.target.value)})}>
@@ -622,7 +622,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     </>}
     {show('stremio','nuvio')&&profileReady&&profileId!==undefined&&<StremioAccountImport key={workspace?profileId+':'+pane:profileId} fixedProvider={workspace?(pane==='nuvio'?'nuvio':'stremio'):undefined} profileId={profileId} busy={busy} run={run} onActive={setImportActive} onConnect={()=>{clearReview();setImportReport(null);}} onSources={result=>{updateSources(result.sources,profileId);setImportReport({profileId,result});if(workspace&&onPlay)setPane('home');}}/>}
     {show('manual')&&<><h4><Trans>Add a manifest</Trans></h4>
-    <form className="space-y-2" onSubmit={e=>{e.preventDefault();void inspect();}}>
+    <form className="tsugi-watch-form-stack" onSubmit={e=>{e.preventDefault();void inspect();}}>
       <label><Trans>Configured manifest URL</Trans><input className="tsugi-read-input w-full min-w-0" type="password" autoComplete="off" spellCheck={false} maxLength={16384} value={url} required disabled={manualBlocked} onChange={e=>{setUrl(e.target.value);setConsent(false);}}/></label>
       <label className="flex items-start gap-2"><input type="checkbox" checked={consent} disabled={manualBlocked} onChange={e=>setConsent(e.target.checked)}/><Trans>I trust this addon host and want Tsugi to contact it.</Trans></label>
       <button type="submit" className="tsugi-read-action" disabled={manualBlocked||!url.trim()||!consent}><Trans>Review addon</Trans></button>
@@ -648,9 +648,9 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('nuvio')}><Trans>Import from Nuvio</Trans></button>
     </div>}
     {workspace&&pane==='order'&&<p><Trans>Sources are tried in this order. Use the arrows to change their priority.</Trans></p>}
-    <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void refreshProfiles()}><Trans>Refresh installed addons</Trans></button>
+    <button type="button" className="tsugi-read-action tsugi-watch-refresh" disabled={busy} onClick={()=>void refreshProfiles()}><Trans>Refresh installed addons</Trans></button>
     {profileReady&&!sources.length&&<p><Trans>No addons installed for this profile.</Trans></p>}
-    {sources.map((s,index)=><div key={s.sourceId} data-stremio-source-id={s.sourceId} className="tsugi-read-row flex-wrap">
+    {sources.map((s,index)=><div key={s.sourceId} data-stremio-source-id={s.sourceId} className="tsugi-watch-addon-row">
       <div className="min-w-0 flex-1"><span className="break-words">{s.manifest.name}</span><small className="block">{s.manifest.version} · {s.enabled?t`Enabled`:t`Disabled`}</small></div>
       <div className="flex flex-wrap gap-2">
         <button type="button" className="tsugi-read-action" disabled={busy||!s.enabled||!s.manifest.catalogs.length} onClick={()=>choose({sourceId:s.sourceId,catalogIndex:0})}><Trans>Browse catalogues</Trans></button>
