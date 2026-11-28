@@ -110,8 +110,10 @@ jobs:
           EOF
           cd accepted
           gh release create "$RELEASE_TAG" Tsugi-windows-x64-setup.exe SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target "$RELEASE_COMMIT" --title "TSUGI $RELEASE_TAG — Windows Installer" --notes-file ../notes.md --draft
-          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets,isDraft,targetCommitish > draft.json
-          jq -e --arg digest "sha256:$APPROVED_SHA256" --arg commit "$RELEASE_COMMIT" '.isDraft and .targetCommitish==$commit and ([.assets[].name]|sort)==["SHA256SUMS.txt","Tsugi-windows-x64-setup.exe"] and any(.assets[]; .name=="Tsugi-windows-x64-setup.exe" and .digest==$digest)' draft.json >/dev/null
+          # Check raw REST asset digests instead of relying on CLI JSON projections.
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq -e --arg tag "$RELEASE_TAG" '[.[]|select(.tag_name==$tag)]|if length==1 then .[0] else error("Expected one draft") end' > draft.json
+          checksum_digest="sha256:$(sha256sum SHA256SUMS.txt | cut -d' ' -f1)"
+          jq -e --arg digest "sha256:$APPROVED_SHA256" --arg checksum "$checksum_digest" --arg commit "$RELEASE_COMMIT" '.draft==true and .prerelease==false and .target_commitish==$commit and ([.assets[].name]|sort)==["SHA256SUMS.txt","Tsugi-windows-x64-setup.exe"] and all(.assets[]; .state=="uploaded") and any(.assets[]; .name=="Tsugi-windows-x64-setup.exe" and .digest==$digest) and any(.assets[]; .name=="SHA256SUMS.txt" and .digest==$checksum)' draft.json >/dev/null
           gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
           gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" | jq -e --arg commit "$RELEASE_COMMIT" '.object.type=="commit" and .object.sha==$commit' >/dev/null
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json url,isDraft,isPrerelease,tagName

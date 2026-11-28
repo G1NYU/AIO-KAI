@@ -65,6 +65,13 @@ function Remove-TestInstall {
 try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [IO.Compression.ZipFile]::ExtractToDirectory($zip, $expected)
+    $portableFixture = Join-Path $root 'Protected portable folder'
+    New-Item -ItemType Directory -Path $portableFixture | Out-Null
+    'Portable fixture, do not overwrite' | Set-Content -LiteralPath (Join-Path $portableFixture '.portable') -Encoding ascii
+    $blockedArgs = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR="' + $portableFixture + '"'
+    $blocked = Start-Process -FilePath $setup -ArgumentList $blockedArgs -PassThru -Wait
+    if ($blocked.ExitCode -eq 0 -or (Test-Path -LiteralPath (Join-Path $portableFixture 'current/Tsugi.exe')) -or (Test-Path $registry)) { throw 'Setup did not protect an existing portable folder' }
+    if ((Get-Content -LiteralPath (Join-Path $portableFixture '.portable') -Raw).Trim() -cne 'Portable fixture, do not overwrite') { throw 'Portable marker changed' }
     Install-Test $target
     Assert-Payload
     New-Item -ItemType Directory -Path $data -Force | Out-Null
