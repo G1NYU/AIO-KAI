@@ -44,8 +44,15 @@
 .tsugi-watch-workspace-banner {
   grid-column:1/-1; min-height:180px; padding:24px; display:flex; align-items:flex-end; gap:16px;
   border-radius:var(--tsugi-radius-panel);
-  background:linear-gradient(90deg,var(--tsugi-canvas),color-mix(in srgb,var(--tsugi-canvas) 32%,transparent)),var(--tsugi-watch-art) center/cover;
+  position:relative;isolation:isolate;overflow:hidden;
+  background:var(--tsugi-canvas);
 }
+.tsugi-watch-workspace-banner::before {
+  content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:linear-gradient(90deg,var(--tsugi-canvas),color-mix(in srgb,var(--tsugi-canvas) 32%,transparent)),var(--tsugi-watch-art) center/cover;
+  filter:blur(var(--tsugi-artwork-blur,2px));transform:scale(1.025);
+}
+.tsugi-watch-workspace[data-watch-pane='anime']>.tsugi-watch-workspace-banner::before {display:none;}
 .tsugi-watch-workspace-banner h3 { font-size:clamp(1.5rem,3vw,2rem); margin:0; }
 .tsugi-watch-workspace-banner { justify-content:space-between; flex-wrap:wrap; }
 .tsugi-watch-heading-copy { display:grid; align-content:start; gap:8px; min-width:0; max-width:72ch; }
@@ -210,7 +217,7 @@
 .tsugi-watch-title-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px}
 .tsugi-watch-title-actions button{display:inline-flex;align-items:center;gap:8px;border-radius:999px;min-height:44px;padding:10px 17px;font-weight:650}
 .tsugi-watch-title-actions svg{width:18px;height:18px}
-.tsugi-watch-title-secondary{background:color-mix(in srgb,var(--tsugi-surface) 75%,transparent);backdrop-filter:blur(8px)}
+.tsugi-watch-title-secondary{background:color-mix(in srgb,var(--tsugi-surface) 75%,transparent);backdrop-filter:none}
 .tsugi-watch-title-secondary[aria-pressed="true"]{border-color:var(--tsugi-accent);color:var(--tsugi-accent)}
 .tsugi-watch-collection{display:grid;gap:20px}
 .tsugi-watch-collection h3{font-size:28px;font-weight:650}
@@ -324,9 +331,8 @@
 .tsugi-addon-logo>svg{width:22px;height:22px}
 
 /* Original line-etched Watch art: a separate composition for each destination. */
-.tsugi-watch-destinations .tsugi-watch-workspace-banner { background-position:center,center 62%; }
+.tsugi-watch-destinations .tsugi-watch-workspace-banner::before { background-position:center,center 62%; }
 .tsugi-watch-destinations .tsugi-watch-destination-art::after {
   background:linear-gradient(0deg,color-mix(in srgb,var(--tsugi-canvas) 60%,transparent),transparent 65%);
 }
 .tsugi-watch-destinations .tsugi-watch-destination-art img { object-position:center; }
-.tsugi-watch-title-secondary { backdrop-filter:blur(var(--tsugi-soft-blur,6px)); }

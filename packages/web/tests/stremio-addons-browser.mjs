@@ -472,7 +472,11 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       const img=hubPicker.locator('[data-watch-destination="'+destination+'"] img');
       assert.equal(await img.getAttribute('src'),'/design/watch/watch-'+asset+'.webp');
       await img.evaluate(node=>node.decode());
+      assert.equal(await img.evaluate(node=>getComputedStyle(node).filter),'blur(2px)');
+      assert.equal(await hubPicker.locator('[data-watch-destination="'+destination+'"] svg').evaluate(node=>getComputedStyle(node).filter),'none');
     }
+    assert.equal(await hubPicker.locator('header').evaluate(node=>getComputedStyle(node,'::before').filter),'blur(2px)');
+    assert.equal(await hubPicker.locator('header').evaluate(node=>getComputedStyle(node).filter),'none');
     const banner=await hubPicker.locator('header').evaluate(node=>getComputedStyle(node).getPropertyValue('--tsugi-watch-art'));
     assert.ok(banner.includes('/design/watch/watch-hero.webp'));
     await page.evaluate(async()=>{const img=new Image();img.src='/design/watch/watch-hero.webp';await img.decode();});

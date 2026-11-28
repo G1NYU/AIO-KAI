@@ -56,7 +56,7 @@ export async function verifyUpNextBrowser({browser,origin,installDesktopFixture}
     });
     assert.ok(layout.gap<=20&&layout.headerGap<=20&&layout.listGap<=20&&!layout.overflow,JSON.stringify(layout));
     assert.equal(layout.border,'0px');
-    assert.equal(layout.blur,'blur(6px)');
+    assert.equal(layout.blur,'none','Up Next does not blur the interface behind it');
     assert.equal(await row('Disconnected music fixture').getByRole('button',{name:'Play again',exact:true}).isEnabled(),false);
     await row('Resume PDF fixture').getByRole('button',{name:'Hide Resume PDF fixture',exact:true}).click();
     assert.equal(await row('Resume PDF fixture').count(),0);

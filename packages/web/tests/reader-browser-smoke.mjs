@@ -340,6 +340,7 @@ try {
   const welcomeHero=landing.locator('[data-ui="tsugi-world-hero"] img');
   await welcomeHero.evaluate(image => image.decode());
   assert.equal(await welcomeHero.getAttribute('src'),'/design/launch/launch-purple.jpg');
+  assert.equal(await welcomeHero.evaluate(image=>getComputedStyle(image).filter),'blur(2px)','purple wallpaper receives only the slight illustration finish');
   assert.equal(await landing.locator('.tsugi-world-card').count(), 4);
   const welcomeArt=await landing.locator('.tsugi-world-hero img').evaluateAll(images=>Promise.all(images.map(async image=>{await image.decode();return image.getAttribute('src');})));
   assert.equal(welcomeArt.length,1);
@@ -362,6 +363,7 @@ try {
   assert.equal(await favoriteMusic.getAttribute('aria-pressed'), 'true');
   await onboarding.locator('.tsugi-intro-art img').evaluate(image=>image.decode());
   assert.equal(await onboarding.locator('.tsugi-intro-art img').getAttribute('src'),'/design/launch/personalization-room.webp');
+  assert.equal(await onboarding.locator('.tsugi-intro-art img').evaluate(image=>getComputedStyle(image).filter),'blur(2px)');
   assert.equal(await onboarding.locator('.tsugi-world-choices img').count(),0,'no repeated card artwork during personalization');
   assert.ok(await onboarding.locator('.tsugi-intro-art img').evaluate(image=>image.naturalWidth>0));
   await page.emulateMedia({reducedMotion:'reduce'});
@@ -626,7 +628,7 @@ try {
     assert.ok(await item.evaluate(button=>{const text=button.querySelector('span'),icon=button.querySelector('svg'),a=text.getBoundingClientRect(),b=icon.getBoundingClientRect(),r=button.getBoundingClientRect();return getComputedStyle(text).display!=='none'&&parseFloat(getComputedStyle(text).fontSize)>0&&a.width>0&&a.left>=b.right&&a.right<=r.right+1;}),'visible sidebar label next to icon: '+label);
   }
   const homeArtwork=landing.locator('.tsugi-world-card img');
-  assert.ok(await homeArtwork.evaluateAll(images=>images.length===4&&images.every(image=>getComputedStyle(image).filter.includes('blur(14px)'))),'all returning-home card artwork is heavily blurred');
+  assert.ok(await homeArtwork.evaluateAll(images=>images.length===4&&images.every(image=>getComputedStyle(image).filter.includes('blur(2px)'))),'all returning-home card artwork has only a slight blur');
   assert.ok(await landing.locator('.tsugi-world-card-copy,.tsugi-world-card-top').evaluateAll(nodes=>nodes.every(node=>getComputedStyle(node).filter==='none')),'category copy and icons stay sharp');
   assert.deepEqual(await homeArtwork.evaluateAll(images=>Promise.all(images.map(async image=>{await image.decode();return image.getAttribute('src');}))),expectedWorldArtwork,'each returning-home world has distinct dark artwork');
   assert.equal(await page.locator('html').getAttribute('class').then(value => value.includes('tsugi-desktop-boot')), true);

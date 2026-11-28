@@ -3472,20 +3472,14 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 :root[data-host='desktop'] dialog.tsugi-settings-chrome[data-addon-manager]{width:min(920px,94vw)}
 :root[data-host='desktop'] dialog.tsugi-settings-chrome>header>button{flex:none}
 
-/* The final desktop glass pass is deliberately restrained. Only the backdrop
-   behind transient controls is softened; text, covers and playback stay sharp. */
-:root[data-host='desktop'] { --tsugi-soft-blur:6px; }
-:root[data-host='desktop'] dialog.tsugi-global-settings::backdrop {
-  background:rgb(0 0 0 / 52%); backdrop-filter:blur(var(--tsugi-soft-blur));
+/* Brand illustration finish: only bundled decorative artwork is softened.
+   This is not a glass/overlay effect and does not target provider artwork,
+   posters, album covers, reader pages, logos, controls or text. */
+:root[data-host='desktop'] { --tsugi-artwork-blur:2px; }
+:root[data-host='desktop'] :is(.tsugi-world-hero,.tsugi-intro-art,.tsugi-hero-artwork,.tsugi-watch-destination-art) > img[src^='/design/'] {
+  filter:blur(var(--tsugi-artwork-blur));
+  scale:1.025;
 }
-:root[data-host='desktop'] .tsugi-settings-backdrop { backdrop-filter:blur(var(--tsugi-soft-blur)); }
-@supports (backdrop-filter:blur(6px)) {
-  :root[data-host='desktop'] .tsugi-mini-queue-panel {
-    background:color-mix(in srgb,var(--tsugi-surface) 94%,transparent);
-    backdrop-filter:blur(var(--tsugi-soft-blur));
-  }
-}
-@media(prefers-reduced-transparency:reduce) {
-  :root[data-host='desktop'] dialog.tsugi-global-settings::backdrop,
-  :root[data-host='desktop'] :is(.tsugi-settings-backdrop,.tsugi-mini-queue-panel) { backdrop-filter:none; }
+:root[data-host='desktop'] .tsugi-settings-backdrop {
+  backdrop-filter:none; -webkit-backdrop-filter:none;
 }

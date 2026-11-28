@@ -227,7 +227,7 @@
 .kura-unavailable p { font-size:13px; color:var(--tsugi-muted); line-height:1.7; }
 
 .kura-page .kura-import-review { width:min(560px,calc(100vw - 32px)); max-width:calc(100vw - 32px); max-height:calc(100dvh - 60px); padding:26px; border:0; border-radius:var(--kura-radius); background:var(--tsugi-surface); color:var(--tsugi-ink); }
-.kura-page .kura-import-review::backdrop { background:rgba(7,9,12,.78); backdrop-filter:blur(7px); }
+.kura-page .kura-import-review::backdrop { background:rgba(7,9,12,.78); backdrop-filter:none; }
 .kura-page .kura-import-review > header { padding:0; margin-bottom:22px; border:0; display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
 .kura-page .kura-import-review h2 { font-family:var(--tsugi-font); font-size:22px; font-weight:500; line-height:1.3; margin-top:6px; }
 .kura-import-review > header > button { flex:none; font-size:11px; }

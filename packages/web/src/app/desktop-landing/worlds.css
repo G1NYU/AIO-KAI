@@ -44,9 +44,9 @@
 .tsugi-world-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(10px,1.4vw,20px)}
 .tsugi-world-card{box-sizing:border-box;min-width:0;min-height:clamp(185px,23vh,245px);display:flex;flex-direction:column;justify-content:space-between;gap:36px;padding:17px;border:0;text-align:left}
 .tsugi-world-card::before{background:linear-gradient(0deg,rgba(7,12,20,.97),rgba(9,15,23,.64) 40%,rgba(9,15,23,.12) 95%)}
-.tsugi-world-card>img{object-position:center;transition:filter .18s}
+.tsugi-world-card>img{object-position:center;transition:filter .18s;filter:blur(var(--tsugi-artwork-blur,2px));transform:scale(1.025)}
 /* Original atlas crops, not the near-identical city/character hero placeholders. */
-.tsugi-world-card:hover>img{filter:brightness(1.14)}
+.tsugi-world-card:hover>img{filter:blur(var(--tsugi-artwork-blur,2px)) brightness(1.14)}
 .tsugi-world-card-top,.tsugi-world-card-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .tsugi-world-card-top svg{width:23px;height:23px;filter:drop-shadow(0 2px 5px #000)}
 .tsugi-world-card-top [lang='ja']{font-size:20px;text-shadow:0 2px 8px #000}
@@ -111,8 +111,7 @@
 .tsugi-worlds[data-view='welcome'] .tsugi-world-hero::before{background:linear-gradient(90deg,#0a1018d9,#0a101878 50%,#0a101840),linear-gradient(0deg,#0a1018a6,transparent 70%)}
 .tsugi-worlds[data-view='home'] .tsugi-world-hero>img{object-position:center 64%}
 
-/* Returning Home uses the original four artworks as soft colour fields.
- * Scale the image only, keeping its blur within the clipped card and leaving
- * the centered text, Japanese character and icon fully sharp. */
-.tsugi-worlds[data-view='home'] .tsugi-world-card>img{filter:blur(14px) brightness(.82);transform:scale(1.24)}
-.tsugi-worlds[data-view='home'] .tsugi-world-card:is(:hover,:focus-visible)>img{filter:blur(14px) brightness(.98)}
+/* Keep the original illustration detail with only the shared soft finish.
+ * The centered text, Japanese character and icon remain fully sharp. */
+.tsugi-worlds[data-view='home'] .tsugi-world-card>img{filter:blur(var(--tsugi-artwork-blur,2px)) brightness(.82)}
+.tsugi-worlds[data-view='home'] .tsugi-world-card:is(:hover,:focus-visible)>img{filter:blur(var(--tsugi-artwork-blur,2px)) brightness(.98)}
