@@ -302,6 +302,15 @@ jobs:
         with:
           name: tsugi-aria2-corresponding-source
           path: stage/current/vault-tools/source
+      - name: Verify assembled launcher artwork against the validated checkout
+        run: |
+          foreach ($name in @('launch-purple.jpg','world-hero.webp','world-video.webp','world-music.webp','world-read.webp','world-vault.webp')) {
+            $source = Join-Path 'packages/web/public/design/launch' $name
+            $staged = Join-Path 'stage/current/web/design/launch' $name
+            if (-not (Test-Path -LiteralPath $source -PathType Leaf) -or -not (Test-Path -LiteralPath $staged -PathType Leaf)) { throw "Missing launcher artwork: $name" }
+            if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -cne (Get-FileHash -LiteralPath $staged -Algorithm SHA256).Hash) { throw "Staged launcher artwork mismatch: $name" }
+          }
+          Write-Host 'PASS: all six launcher assets match the validated source checkout.'
       - name: Verify assembled managed Vault engine and corresponding source
         run: |
           $root = (Resolve-Path stage).Path
@@ -356,6 +365,11 @@ jobs:
           Internet access is required once for this setup. No CMD is needed.
 
           Movies & TV, Music, Read and Vault run in the same Tsugi application.
+          Discover is exclusively powered by TVmaze schedules and series search.
+          Connected addons still supply video streams; TVmaze needs no API key.
+          Home includes labeled navigation and blurred category artwork. The
+          profile chooser fits regular desktop windows; movie, TV and anime
+          detail pages use the extended artwork layout.
           Read, Music and Vault include the integrated visual redesign.
           Kitsu and Nekos provide optional decorative hero images. Fallback
           artwork and fonts are bundled for offline use; local artwork can be
@@ -412,7 +426,9 @@ jobs:
           Third-party reading extensions execute with your account permissions:
           install only trusted publishers. Signatures are not independently verified.
           This is a portable release ZIP, not an installer.
-          Physical Windows desktop and real-source acceptance testing are pending.
+          Prior recovery build accepted by the maintainer on physical Windows.
+          This final candidate still needs live acceptance of the latest changes.
+          Discord Rich Presence remains an optional, unverified live integration.
           '@ | Set-Content -Path stage/README-TEST.txt -Encoding utf8
           # Record the exact checkout, rather than asking testers to infer it
           # from the artifact name or the repository's moving branch.
@@ -441,7 +457,7 @@ jobs:
             foreach ($required in @('.portable', 'current/Tsugi.exe', 'current/music-tools/yt-dlp.exe', 'current/music-tools/deno.exe', 'current/read-launcher/TsugiReadLauncher.class', 'current/read-launcher/fetch-read-tools.ps1', 'current/web/index.html', 'LICENSE', 'README-TEST.txt', 'BUILD-INFO.json')) {
               if ($required -notin $names) { throw "Unified artifact missing $required" }
             }
-            foreach ($asset in @('yomi/hero-torii.webp','oto/hero-yuna.webp','kura/hero-kura.webp','shared/hero-neon.webp','shared/hero-train.webp','anime/hero-kagezora.webp','anime/art-neon.webp','anime/art-torii.webp','anime/art-train.webp')) {
+            foreach ($asset in @('yomi/hero-torii.webp','oto/hero-yuna.webp','kura/hero-kura.webp','shared/hero-neon.webp','shared/hero-train.webp','anime/hero-kagezora.webp','anime/art-neon.webp','anime/art-torii.webp','anime/art-train.webp','launch/launch-purple.jpg','launch/world-hero.webp','launch/world-video.webp','launch/world-music.webp','launch/world-read.webp','launch/world-vault.webp')) {
               if ("current/web/design/$asset" -notin $names) { throw "Redesign artwork missing $asset" }
             }
             foreach ($font in @('amanojaku','interface-regular','interface-medium','interface-semibold','noto-jp')) {
