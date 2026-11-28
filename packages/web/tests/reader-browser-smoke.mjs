@@ -1039,6 +1039,10 @@ try {
   assert.ok((await music.locator('.tsugi-music-workspace').boundingBox()).width > 2200, 'wide desktop music workspace uses the canvas beside the labelled sidebar');
   await musicSettings.getByRole('button', { name: 'Addon store', exact: true }).click();
   await musicSettings.getByRole('heading', { name: 'Eclipse community addon store', exact: true }).waitFor();
+  const sourceTabs = await musicSettings.locator('.tsugi-source-tabs > button').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundColor));
+  assert.ok(sourceTabs.length === 2 && sourceTabs.every(color => ['transparent', 'rgba(0, 0, 0, 0)'].includes(color)), 'Music source categories are unboxed');
+  const storeSurfaces = await musicSettings.locator('.tsugi-source-addon').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundColor));
+  assert.ok(storeSurfaces.length > 0 && storeSurfaces.every(color => ['transparent', 'rgba(0, 0, 0, 0)'].includes(color)), 'addon store metadata has no decorative cards');
   await capture('10-addon-store');
   await musicSettings.getByRole('button', { name: /Installed sources/ }).click();
   await musicSettings.getByRole('heading', { name: 'Connect a music source', exact: true }).waitFor();
@@ -1223,6 +1227,7 @@ try {
   await selectedVaultQueue.getByText('second.mp3',{exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>window.__readerFixture.vaultRequests[1].jobs.length),3);
   await selectedVaultQueue.getByText('Transfer settings',{exact:true}).click();
+  assert.ok(['transparent', 'rgba(0, 0, 0, 0)'].includes(await selectedVaultQueue.locator('.tsugi-vault-transfer-settings > summary').evaluate(node => getComputedStyle(node).backgroundColor)), 'transfer settings disclosure uses the same unboxed settings label treatment');
   for (const width of [1440,2560,1664,1024,800]) {
     await page.setViewportSize({width,height:900});
     const sizing=await selectedVaultQueue.locator('.tsugi-dashboard-panel').filter({has:page.getByText('Transfer settings',{exact:true})}).evaluate(panel=>{

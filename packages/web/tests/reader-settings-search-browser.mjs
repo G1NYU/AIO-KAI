@@ -40,8 +40,8 @@ export async function verifyReaderSettingsSearchBrowser({ browser, origin, insta
   const clear = async () => { await settings.getByRole('button', { name: 'Clear settings search', exact: true }).click(); await frames(); };
   const surfaces = async () => {
     assert.deepEqual(await groups(), ['size', 'wheel']);
-    // Content wrappers and clickable checkbox labels have different purposes.
-    // Check the wrappers without removing the toggle row's interaction cues.
+    // The maintainer requires unboxed settings labels. Preserve the actual
+    // checkbox, temporary hover/focus feedback, and all persistence checks.
     await assertUnframedGroups(settings.locator('.tsugi-reader-setting-group[data-reader-setting]'), 'Reader settings content groups');
     const borders = await settings.locator('[data-reader-setting]').evaluateAll(rows => rows.map(row => {
       const style = getComputedStyle(row);
@@ -50,7 +50,12 @@ export async function verifyReaderSettingsSearchBrowser({ browser, origin, insta
     assert.ok(borders.every(widths => widths.every(width => width === '0px')), 'settings groups and toggle rows have no separator rules');
     const toggle = settings.locator('label.tsugi-reader-setting-toggle[data-reader-setting="wheel"]');
     assert.equal(await toggle.getByRole('checkbox').count(), 1, 'the retained surface belongs to a single interactive setting');
-    assert.ok(!['transparent', 'rgba(0, 0, 0, 0)'].includes(await toggle.evaluate(node => getComputedStyle(node).backgroundColor)), 'the interactive toggle retains its row surface');
+    await page.mouse.move(1, 1);
+    await search().focus();
+    await frames();
+    assert.ok(['transparent', 'rgba(0, 0, 0, 0)'].includes(await toggle.evaluate(node => getComputedStyle(node).backgroundColor)), 'the resting toggle label has no decorative row band');
+    const categorySurfaces = await settings.locator('.tsugi-read-subnav > button').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundColor));
+    assert.ok(categorySurfaces.length > 0 && categorySurfaces.every(color => ['transparent', 'rgba(0, 0, 0, 0)'].includes(color)), 'Reader settings categories have no boxed labels');
   };
   try {
     await page.addInitScript({ content: `(${installDesktopFixture.toString()})();(${installReaderSettingsSearchFixture.toString()})();` });

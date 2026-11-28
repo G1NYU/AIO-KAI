@@ -3218,6 +3218,75 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 :root[data-host='desktop'] :is(.tsugi-reading-list-header,.tsugi-library-section-head) { padding:10px 12px; }
 :root[data-host='desktop'] .tsugi-settings-sheet > .border-t { padding:20px 0; background:transparent; }
 
+
+/* Settings labels are not data-table bands. Use the same flat presentation
+   in Reader/extension, music-source and transfer settings. Interactive fields
+   retain their own surfaces; hover/focus is temporary, not a permanent stripe. */
+:root[data-host='desktop'] :is(
+  .tsugi-read-settings .tsugi-read-row,
+  .tsugi-reader-setting-toggle,
+  [data-ui='source-settings'] [data-control-id],
+  .tsugi-source-sheet .tsugi-source-row,
+  .tsugi-source-sheet .tsugi-source-addon,
+  .tsugi-vault-transfer-settings > summary
+) {
+  background:transparent!important;
+  background-image:none!important;
+  box-shadow:none!important;
+  border-radius:0;
+}
+:root[data-host='desktop'] :is(
+  .tsugi-read-settings button.tsugi-read-row,
+  .tsugi-reader-setting-toggle,
+  [data-ui='source-settings'] [data-control-id],
+  .tsugi-source-sheet .tsugi-source-row
+) { padding-inline:8px; }
+:root[data-host='desktop'] :is(
+  .tsugi-read-settings button.tsugi-read-row:not(:disabled),
+  .tsugi-reader-setting-toggle:not(:has(input:disabled)),
+  [data-ui='source-settings'] [data-control-id]:has(:is(input,select):not(:disabled)),
+  .tsugi-source-sheet .tsugi-source-row
+):is(:hover,:focus-within) {
+  background:var(--tsugi-row-hover)!important;
+}
+:root[data-host='desktop'] .tsugi-source-sheet .tsugi-source-row[data-active='true'] strong {
+  color:var(--tsugi-accent);
+}
+:root[data-host='desktop'] .tsugi-source-sheet .tsugi-source-tabs {
+  padding-inline:0;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+:root[data-host='desktop'] :is(
+  .tsugi-reader-settings-content .tsugi-read-subnav > button,
+  .tsugi-source-sheet .tsugi-source-tabs > button
+) {
+  background:transparent!important;
+  box-shadow:none!important;
+  border-radius:0;
+}
+:root[data-host='desktop'] :is(
+  .tsugi-reader-settings-content .tsugi-read-subnav > button[aria-current='page'],
+  .tsugi-source-sheet .tsugi-source-tabs > button[aria-pressed='true']
+) {
+  color:var(--tsugi-accent)!important;
+  font-weight:650;
+}
+:root[data-host='desktop'] :is(
+  .tsugi-reader-settings-content .tsugi-read-subnav > button,
+  .tsugi-source-sheet .tsugi-source-tabs > button,
+  .tsugi-read-settings button.tsugi-read-row,
+  .tsugi-vault-transfer-settings > summary
+):focus-visible {
+  outline:2px solid var(--tsugi-focus);
+  outline-offset:2px;
+}
+:root[data-host='desktop'] .tsugi-vault-transfer-settings > summary {
+  padding-inline:0;
+  font-size:12px;
+  color:var(--tsugi-ink);
+}
+
 /* Shared desktop video settings and Movies navigation: surface-free labels/icons.
    Both server-backed Movies and standalone Watch reuse these Settings components.
    Preserve visible keyboard focus without alternating grey tiles. */

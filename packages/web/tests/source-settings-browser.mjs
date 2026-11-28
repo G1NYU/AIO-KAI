@@ -132,6 +132,11 @@ export async function verifySourceSettingsBrowser({ browser, origin, installDesk
     assert.equal(await control('Confirm original option').isChecked(), true);
     assert.equal(await control('Image quality').inputValue(), '1');
     assert.equal(await control('Disabled original option').isDisabled(), true);
+    await page.mouse.move(1, 1);
+    await settings.getByRole('button', { name: 'Close', exact: true }).focus();
+    await frames();
+    const controlSurfaces = await settings.locator('[data-control-id]').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundColor));
+    assert.ok(controlSurfaces.length >= 5 && controlSurfaces.every(color => ['transparent', 'rgba(0, 0, 0, 0)'].includes(color)), 'source setting controls have no permanent alternating row bands');
     const unsupported = settings.locator('[data-control-id]').filter({ hasText: 'Text entry unavailable' });
     await unsupported.waitFor();
     assert.equal(await unsupported.locator('input,select,textarea').count(), 0, 'unsupported text settings cannot expose an editable credential field');
