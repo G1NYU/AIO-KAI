@@ -67,6 +67,32 @@ fn summary(row:&Value,kind:&str)->Option<Value>{
         "poster":image(&row["poster_path"],"w500"),"background":image(&row["backdrop_path"],"w1280"),"description":clean(&row["overview"],4096),
         "releaseInfo":date,"tmdbRating":rating(&row["vote_average"]),"identities":[tmdb_id(kind,id)]}))
 }
+fn enrich_credits(item:&mut Value,row:&Value){
+    let mut seen=std::collections::HashSet::new();
+    let cast:Vec<Value>=row["credits"]["cast"].as_array().into_iter().flatten().filter_map(|person|{
+        let id=number(&person["id"])?;let name=clean(&person["name"],128)?;
+        if !seen.insert(id){return None;}
+        Some(json!({"id":id,"name":name,"character":clean(&person["character"],256),"portrait":image(&person["profile_path"],"w185")}))
+    }).take(24).collect();
+    item["castMembers"]=json!(cast);
+    let roles:[(&str,&[&str]);6]=[
+        ("director",&["Director"]),("writer",&["Writer","Screenplay","Story","Teleplay"]),
+        ("producer",&["Producer","Executive Producer"]),("cinematography",&["Director of Photography"]),
+        ("music",&["Original Music Composer"]),("editor",&["Editor"])
+    ];
+    let mut credits=Vec::new();
+    for (role,jobs) in roles{
+        let mut names_seen=std::collections::HashSet::new();
+        let names:Vec<String>=row["credits"]["crew"].as_array().into_iter().flatten()
+            .filter(|person|person["job"].as_str().is_some_and(|job|jobs.contains(&job)))
+            .filter_map(|person|clean(&person["name"],128)).filter(|name|names_seen.insert(name.clone())).take(8).collect();
+        if !names.is_empty(){credits.push(json!({"role":role,"names":names}));}
+    }
+    let creators:Vec<String>=row["created_by"].as_array().into_iter().flatten().filter_map(|person|clean(&person["name"],128)).take(8).collect();
+    if !creators.is_empty(){credits.push(json!({"role":"creator","names":creators}));}
+    item["crewCredits"]=json!(credits);
+    item["tagline"]=json!(clean(&row["tagline"],256));
+}
 impl Connection{
     fn request(&self,path:&str,query:&[(&str,String)])->Result<Value>{
         get(self.key.as_deref().ok_or("tmdb-auth")?,path,query)
@@ -100,6 +126,7 @@ impl Connection{
         item["logo"]=json!(row["images"]["logos"].as_array().and_then(|rows|rows.iter().find_map(|r|image(&r["file_path"],"w500"))));
         item["genres"]=json!(row["genres"].as_array().into_iter().flatten().filter_map(|r|clean(&r["name"],80)).take(16).collect::<Vec<_>>());
         item["cast"]=json!(row["credits"]["cast"].as_array().into_iter().flatten().filter_map(|r|clean(&r["name"],128)).take(12).collect::<Vec<_>>());
+        enrich_credits(&mut item,&row);
         item["runtime"]=json!(row["runtime"].as_u64().or_else(||row["episode_run_time"].as_array().and_then(|a|a.first()).and_then(Value::as_u64)).filter(|n|*n>0&&*n<=1440));
         Ok(json!({"item":item}))
     }
@@ -125,6 +152,16 @@ mod tests{
         assert!(summary(&json!({"id":1,"title":"Hidden","adult":true}),"movie").is_none());
         let row=summary(&json!({"id":123,"name":"Series","backdrop_path":"/scene.jpg"}),"tv").unwrap();
         assert_eq!(row["id"],"tmdb:tv:123");
+    }
+    #[test]
+    fn credits_keep_verified_portraits_and_roles(){
+        let mut item=json!({});
+        enrich_credits(&mut item,&json!({"tagline":"A verified tagline","credits":{"cast":[{"id":1,"name":"Actor","character":"Lead","profile_path":"/face.jpg"},{"id":1,"name":"Duplicate"},{"id":2,"name":"Second","profile_path":"https://private.example/key"}],"crew":[{"name":"Director","job":"Director"},{"name":"Writer","job":"Screenplay"},{"name":"Writer","job":"Story"}]}}));
+        assert_eq!(item["castMembers"].as_array().unwrap().len(),2);
+        assert_eq!(item["castMembers"][0]["portrait"],"https://image.tmdb.org/t/p/w185/face.jpg");
+        assert!(item["castMembers"][1]["portrait"].is_null());
+        assert_eq!(item["crewCredits"][1]["names"],json!(["Writer"]));
+        assert_eq!(item["tagline"],"A verified tagline");
     }
     const FIXTURE:&str="00000000000000000000000000000000";
     #[test]

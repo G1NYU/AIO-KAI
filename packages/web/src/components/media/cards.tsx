@@ -381,6 +381,7 @@ export interface PosterCardProps {
   favourite?: boolean;
   /** Episodes left to watch, for a show. */
   unwatched?: number;
+  badge?: React.ReactNode;
   progress?: number | null;
   className?: string;
   /** Played over the poster while the card is hovered or focused. */
@@ -436,6 +437,7 @@ export function PosterCard(props: PosterCardProps) {
           className="absolute inset-0 bg-black/20 opacity-0 transition-opacity [transition-duration:250ms] group-hover/poster:opacity-100 group-focus-visible/poster:opacity-100"
         />
         {watched && <WatchedMark />}
+        {props.badge&&<span data-ui="poster-card-badge" className="pointer-events-none absolute bottom-2 end-2 z-[2] rounded-md bg-black/80 px-1.5 py-0.5 text-xs font-semibold text-white">{props.badge}</span>}
         {!watched && !!unwatched && (
           <span
             data-ui="unwatched-count"

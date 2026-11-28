@@ -36,7 +36,8 @@ export function parsePublicAnime(value:unknown,films=false):Item[]{
     const [poster,...posterAlternatives]=[...new Set([webp.large_image_url,jpg.large_image_url,webp.image_url,jpg.image_url].map(publicAddonPoster).filter((url):url is string=>!!url))];
     const description=text(item.synopsis,4096);
     seen.add(id);
-    return [{id:'mal:'+id,mediaType:type==='Movie'?'movie':'series',name,...(poster?{poster}:{}),...(posterAlternatives.length?{posterAlternatives}:{}),...(description?{description}:{})}];
+    const malRating=typeof item.score==='number'&&Number.isFinite(item.score)&&item.score>0&&item.score<=10?item.score:undefined;
+    return [{id:'mal:'+id,mediaType:type==='Movie'?'movie':'series',name,malRating,...(poster?{poster}:{}),...(posterAlternatives.length?{posterAlternatives}:{}),...(description?{description}:{})}];
   });
 }
 async function load(feed:Feed,signal:AbortSignal):Promise<Item[]>{
@@ -88,8 +89,8 @@ export function PublicAnimeDiscovery({filmsOnly=false,seasonal=false,active,busy
   React.useEffect(()=>{if(active&&onFeatured&&rows.airing?.length)onFeatured(rows.airing.slice(0,4));},[active,onFeatured,rows.airing]);
   return <section className="space-y-6" data-ui="anime-public-discovery">
     {feeds.filter(feed=>rows[feed]?.length!==0).map(feed=><div key={feed}>
-      <MediaRow shape="poster" title={feed==='airing'?t`Airing now`:feed==='popular'?t`Popular anime`:feed==='films'?t`Anime films`:feed==='romance'?t`Romance anime`:t`Upcoming season`} loading={!rows[feed]&&!errors.includes(feed)}>
-        {rows[feed]?.map(item=><PosterCard key={item.id} title={item.name} image={item.poster?[item.poster,...(item.posterAlternatives??[])]:null} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item)}/>)}
+      <MediaRow contained shape="poster" title={feed==='airing'?t`Airing now`:feed==='popular'?t`Popular anime`:feed==='films'?t`Anime films`:feed==='romance'?t`Romance anime`:t`Upcoming season`} loading={!rows[feed]&&!errors.includes(feed)}>
+        {rows[feed]?.map(item=><PosterCard key={item.id} title={item.name} badge={item.malRating!==undefined?<><Trans>MAL</Trans> {item.malRating.toFixed(1)}</>:undefined} image={item.poster?[item.poster,...(item.posterAlternatives??[])]:null} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item)}/>)}
       </MediaRow>
       {errors.includes(feed)&&<p className="text-sm text-[--muted]"><Trans>Public anime catalogue unavailable.</Trans> <button type="button" className="tsugi-read-action" onClick={()=>{setErrors([]);setRetry(n=>n+1);}}><Trans>Retry</Trans></button></p>}
     </div>)}

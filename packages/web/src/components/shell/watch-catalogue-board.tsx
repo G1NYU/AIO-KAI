@@ -69,7 +69,7 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
   const [tmdb,setTmdb]=React.useState<Item[]>([]);
   const [tmdbPending,setTmdbPending]=React.useState(!!search);
   const checkedAliases=React.useRef(new Set<string>());
-  const [featuredMetadata,setFeaturedMetadata]=React.useState<TmdbTitle|null>(null);
+  const [featuredResolved,setFeaturedResolved]=React.useState<{key:string;title:TmdbTitle}|null>(null);
   const inFlight=React.useRef(new Set<string>());
   const [rows,setRows]=React.useState<Record<string,Row>>({});
   const [stopped,setStopped]=React.useState(false);
@@ -130,7 +130,9 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
   const featuredItems=visible.flatMap(target=>rows[target.key]?.page?.items.slice(0,2).map(item=>({target,item}))??[]).filter(row=>row.item.background||row.item.poster).slice(0,8);
   const featured=featuredItems[heroIndex%Math.max(1,featuredItems.length)];
   const featuredId=featured?.item.id,featuredType=featured?.item.mediaType;
-  React.useEffect(()=>{setFeaturedMetadata(null);if(!active||paused||!featuredId||!featuredType)return;let current=true;void loadTmdbTitle(profileId,featuredType,featuredId).then(item=>{if(current)setFeaturedMetadata(item);}).catch(()=>{});return ()=>{current=false;};},[profileId,active,paused,featuredId,featuredType]);
+  const featureKey=JSON.stringify([profileId,featuredId,featuredType]);
+  const featuredMetadata=featuredResolved?.key===featureKey?featuredResolved.title:null;
+  React.useEffect(()=>{if(!active||paused||!includeHistory||!featuredId||!featuredType)return;let current=true;void loadTmdbTitle(profileId,featuredType,featuredId).then(item=>{if(current)setFeaturedResolved({key:featureKey,title:item});}).catch(()=>{});return ()=>{current=false;};},[profileId,active,paused,includeHistory,featuredId,featuredType,featureKey]);
   React.useEffect(()=>{
     if(!search||!active||paused||scope!=='all')return;
     const addonItems=Object.values(rows).flatMap(row=>row.page?.items??[]);
@@ -160,13 +162,14 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
       </BackdropFrame>
       <div className="tsugi-watch-featured-copy">
         <small><Trans>Featured</Trans> · {featured.target.catalog.name}</small>
-        <h2>{featuredMetadata?.name??featured.item.name}</h2>
+        <h2>{featuredMetadata?.logo?<span className="tsugi-watch-featured-logo"><Artwork eager src={featuredMetadata.logo} alt={featuredMetadata.name}/></span>:featuredMetadata?.name??featured.item.name}</h2>
+        {featuredMetadata&&<div className="tsugi-watch-featured-meta">{featuredMetadata.releaseInfo&&<span>{featuredMetadata.releaseInfo.slice(0,4)}</span>}{featuredMetadata.tmdbRating!==undefined&&<span className="tsugi-watch-rating"><Trans>TMDB</Trans> {featuredMetadata.tmdbRating.toFixed(1)}/10</span>}{featuredMetadata.runtime&&<span>{featuredMetadata.runtime} <Trans>min</Trans></span>}</div>}
         {(featuredMetadata?.description||featured.item.description)&&<p className="line-clamp-3">{featuredMetadata?.description??featured.item.description}</p>}
         <div className="flex flex-wrap items-center gap-2"><Button intent="white" className="rounded-full" disabled={busy} onClick={()=>openTitle(featured.item,featured.target.source.sourceId)}><Trans>View title</Trans></Button>{featuredItems.length>1&&<><button type="button" className="tsugi-read-action" aria-label={t`Previous featured title`} disabled={busy} onClick={()=>setHeroIndex(i=>(i+featuredItems.length-1)%featuredItems.length)}>‹</button><span>{heroIndex%featuredItems.length+1} / {featuredItems.length}</span><button type="button" className="tsugi-read-action" aria-label={t`Next featured title`} disabled={busy} onClick={()=>setHeroIndex(i=>(i+1)%featuredItems.length)}>›</button></>}</div>
       </div>
     </section>}
     {includeHistory&&continuing.length>0&&<section className="tsugi-watch-shelf" data-ui="watch-continue-shelf">
-      <MediaRow id={profileId+':watch-resume'} title={t({id:'Continue watching',message:'Continue watching'})} shape="wide">
+      <MediaRow contained id={profileId+':watch-resume'} title={t({id:'Continue watching',message:'Continue watching'})} shape="wide">
         {continuing.map(({progress:p})=><WideCard key={JSON.stringify([p.mediaType,p.itemId,p.videoId])} onClick={()=>{if(!busy)openHistory?.(p);}} image={resumeArt(p)} title={p.title} subtitle={p.episodeTitle??undefined} progress={100*p.positionMs/p.durationMs}/>)}
       </MediaRow>
     </section>}
@@ -203,7 +206,7 @@ function CatalogueRows({profileId,targets,busy,active,paused,run,openTitle,openA
       {populated.map(target=>{
         const row=rows[target.key];
         return <section className="tsugi-watch-shelf" key={target.key} data-ui="watch-catalogue-shelf">
-          <MediaRow id={profileId+':'+target.key} shape="poster" title={target.source.sourceId===0?(target.catalog.id==='top'?(target.catalog.mediaType==='movie'?t`Popular movies`:t`Popular series`):(target.catalog.mediaType==='movie'?t`Featured movies`:t`Featured series`)):target.catalog.name} loading={!!row?.loading&&!row.page||!row&&!stopped} action={row?.page&&<div className="flex flex-wrap gap-2">
+          <MediaRow contained id={profileId+':'+target.key} shape="poster" title={target.source.sourceId===0?(target.catalog.id==='top'?(target.catalog.mediaType==='movie'?t`Popular movies`:t`Popular series`):(target.catalog.mediaType==='movie'?t`Featured movies`:t`Featured series`)):target.catalog.name} loading={!!row?.loading&&!row.page||!row&&!stopped} action={row?.page&&<div className="flex flex-wrap gap-2">
               {row.skip>0&&<button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,0)}><Trans>First page</Trans></button>}
               {row.page.nextSkip!==null&&<button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,row.page!.nextSkip!)}><Trans>Next page</Trans></button>}
               {row.error&&<button type="button" className="tsugi-read-action" disabled={busy||!canRequest||row.loading} onClick={()=>void load(target,row.skip)}><Trans>Retry</Trans></button>}

@@ -274,3 +274,14 @@
 .tsugi-watch-optional-action{align-self:start;max-width:min(100%,42rem);font-size:13px;color:var(--tsugi-muted)}
 .tsugi-watch-optional-action>summary{cursor:pointer;min-height:32px;display:list-item;width:max-content;max-width:100%;font-weight:550}
 .tsugi-watch-optional-action[open]{padding:8px 0 12px}
+
+/* Watch metadata uses the same gutters and type hierarchy as the hero. */
+.tsugi-watch-credits{grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:20px 32px;border:0;padding-block:16px}
+.tsugi-watch-credits h5{font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.09em;color:var(--tsugi-muted);margin-bottom:5px}
+.tsugi-watch-credits p{font-size:14px;line-height:1.6}
+.tsugi-watch-cast-card{min-width:0;display:grid;align-content:start;gap:5px;font-size:13px}
+.tsugi-watch-cast-portrait{position:relative;aspect-ratio:2/3;overflow:hidden;border-radius:var(--tsugi-radius-art);background:var(--tsugi-surface)}
+.tsugi-watch-cast-card strong,.tsugi-watch-cast-card small{overflow-wrap:anywhere}
+.tsugi-watch-cast-card small{color:var(--tsugi-muted)}
+.tsugi-watch-tagline{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--tsugi-muted)}
+.tsugi-watch-rating{font-weight:650;font-variant-numeric:tabular-nums}

@@ -26,7 +26,7 @@ export const publicCinemeta:AddonSource={
 export interface AddonReview { reviewId: number; manifest: AddonManifest }
 export interface CatalogPage {
   sourceId: number; mediaType: string; catalogId: string;
-  items: { id: string; name: string; mediaType: string; poster?: string; posterAlternatives?:string[]; description?: string; background?: string; imdbId?: string; identities?:string[]; releaseInfo?:string; tmdbRating?:number; logo?:string }[]; sourceCount: number; nextSkip: number | null;
+  items: { id: string; name: string; mediaType: string; poster?: string; posterAlternatives?:string[]; description?: string; background?: string; imdbId?: string; identities?:string[]; releaseInfo?:string; tmdbRating?:number; malRating?:number; logo?:string }[]; sourceCount: number; nextSkip: number | null;
 }
 export type Mutation = { kind: 'install'; reviewId: number } | { kind: 'set-enabled'; sourceId: number; enabled: boolean }
   | { kind: 'move'; sourceId: number; position: number } | { kind: 'remove'; sourceId: number };
@@ -221,11 +221,36 @@ function parseTmdbItem(value:unknown):MetadataItem{
 }
 function tmdbRating(value:unknown){return typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=10?value:undefined;}
 export async function searchTmdb(profileId:number,query:string){return array((await scoped(profileId,{kind:'tmdb-search',query})).items,60,parseTmdbItem);}
-export type TmdbTitle=MetadataItem&{tmdbId:number;genres?:string[];cast?:string[];runtime?:number};
+export type TmdbCastMember={id:number;name:string;character?:string;portrait?:string};
+const tmdbCrewRoles=['director','writer','producer','cinematography','music','editor','creator'] as const;
+export type TmdbCrewRole=typeof tmdbCrewRoles[number];
+export type TmdbCrewCredit={role:TmdbCrewRole;names:string[]};
+export type TmdbTitle=MetadataItem&{tmdbId:number;genres?:string[];cast?:string[];castMembers?:TmdbCastMember[];crewCredits?:TmdbCrewCredit[];tagline?:string;runtime?:number};
+function castMembers(value:unknown):TmdbCastMember[]|undefined{
+  if(!Array.isArray(value))return undefined;
+  const seen=new Set<number>();
+  return value.slice(0,24).flatMap(entry=>{
+    if(!entry||typeof entry!=='object'||Array.isArray(entry))return [];
+    const row=entry as Record<string,unknown>,id=row.id,name=optionalDisplay(row.name,128);
+    if(typeof id!=='number'||!Number.isSafeInteger(id)||id<1||id>9999999999||!name||seen.has(id))return [];
+    seen.add(id);
+    return [{id,name,character:optionalDisplay(row.character,256),portrait:publicAddonPoster(row.portrait)}];
+  });
+}
+function crewCredits(value:unknown):TmdbCrewCredit[]|undefined{
+  if(!Array.isArray(value))return undefined;
+  const seen=new Set<TmdbCrewRole>();
+  return value.slice(0,7).flatMap(entry=>{
+    if(!entry||typeof entry!=='object'||Array.isArray(entry))return [];
+    const row=entry as Record<string,unknown>,role=row.role as TmdbCrewRole,names=optionalDisplayList(row.names,8,128);
+    if(!tmdbCrewRoles.includes(role)||seen.has(role)||!names?.length)return [];
+    seen.add(role);return [{role,names}];
+  });
+}
 export async function loadTmdbTitle(profileId:number,mediaType:string,itemId:string):Promise<TmdbTitle>{
   const row=obj((await scoped(profileId,{kind:'tmdb-title',mediaType,itemId})).item),item=parseTmdbItem(row),tmdbId=integer(row.tmdbId,1,9999999999);
   if(Number(item.id.split(':').at(-1))!==tmdbId)return fail();
-  return {...item,tmdbId,genres:optionalDisplayList(row.genres,16,80),cast:optionalDisplayList(row.cast,12,128),runtime:row.runtime==null?undefined:integer(row.runtime,1,1440)};
+  return {...item,tmdbId,genres:optionalDisplayList(row.genres,16,80),cast:optionalDisplayList(row.cast,12,128),castMembers:castMembers(row.castMembers),crewCredits:crewCredits(row.crewCredits),tagline:optionalDisplay(row.tagline,256),runtime:row.runtime==null?undefined:integer(row.runtime,1,1440)};
 }
 export type TmdbEpisode={episode:number;name?:string;description?:string;thumbnail?:string;runtime?:number;tmdbRating?:number};
 export async function loadTmdbSeason(profileId:number,tmdbId:number,season:number):Promise<TmdbEpisode[]>{

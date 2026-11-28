@@ -238,7 +238,7 @@ export function installStremioFixture(initializeStartup=true){
         {id:'tmdb:tv:90024',mediaType:'series',name:'Unrelated series',poster:'https://image.tmdb.org/t/p/w500/unrelated.jpg'}
       ]:[]});
       case 'tmdb-title':
-        if(f.boardFixture&&a.itemId==='tt90002')return reply({item:{id:'tmdb:tv:90002',tmdbId:90002,mediaType:'series',name:'Fixture anime series',imdbId:'tt90002',poster:'https://image.tmdb.org/t/p/w500/anime.jpg',background:'https://image.tmdb.org/t/p/w1280/anime.jpg',description:'A synthetic series used for layout verification.',releaseInfo:'2024',tmdbRating:8.4}});
+        if(f.boardFixture&&a.itemId==='tt90002')return reply({item:{id:'tmdb:tv:90002',tmdbId:90002,mediaType:'series',name:'Fixture anime series',imdbId:'tt90002',genres:['Drama','Animation'],tagline:'A fixture tagline',castMembers:[{id:1,name:'Fixture Actor',character:'Lead role',portrait:'https://image.tmdb.org/t/p/w185/person.jpg'},{id:2,name:'Another actor'}],crewCredits:[{role:'director',names:['Fixture Director']},{role:'writer',names:['Fixture Writer']}],poster:'https://image.tmdb.org/t/p/w500/anime.jpg',background:'https://image.tmdb.org/t/p/w1280/anime.jpg',description:'A synthetic series used for layout verification.',releaseInfo:'2024',tmdbRating:8.4}});
         return emit(null,'tmdb-not-found');
       case 'tmdb-season':return reply({tmdbId:a.tmdbId,season:a.season,episodes:a.tmdbId===90002&&a.season===1?[{episode:1,thumbnail:'https://image.tmdb.org/t/p/w500/episode-one.jpg',runtime:24,tmdbRating:8.5},{episode:2,thumbnail:'https://image.tmdb.org/t/p/w500/episode-two.jpg',description:'A synopsis supplied by TMDB.',runtime:25,tmdbRating:8.2}]:[]});
       case 'begin-stream-options':
@@ -360,7 +360,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await page.route('https://images.metahub.space/background/**',route=>route.fulfill({contentType:'image/webp',body:heroImage,headers:{'access-control-allow-origin':'*'}}));
     await page.route('https://api.tenrai.org/v1/**',route=>{
       const films=new URL(route.request().url()).searchParams.get('type')==='movie';
-      return route.fulfill({json:{data:[{mal_id:90004,title:films?'Public anime film fixture':'Public anime discovery fixture',type:films?'Movie':'TV',rating:'PG-13 - Teens 13 or older',images:{webp:{large_image_url:missingDiscoveryPoster},jpg:{image_url:discoveryPoster}},synopsis:'Independent discovery without addon installation.'}]},headers:{'access-control-allow-origin':'*'}});
+      return route.fulfill({json:{data:[{mal_id:90004,title:films?'Public anime film fixture':'Public anime discovery fixture',type:films?'Movie':'TV',rating:'PG-13 - Teens 13 or older',score:8.6,images:{webp:{large_image_url:missingDiscoveryPoster},jpg:{image_url:discoveryPoster}},synopsis:'Independent discovery without addon installation.'}]},headers:{'access-control-allow-origin':'*'}});
     });
     await page.addInitScript({content:'('+installDesktopFixture.toString()+')();('+installStremioFixture.toString()+')();('+function(){
       const f=window.__stremioFixture;f.boardFixture=true;f.sequence=110;
@@ -611,6 +611,12 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await animeSearchDialog.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Fixture anime series');
     await animeSearchDialog.locator('[data-search-kind="series"]').getByRole('button',{name:'Fixture anime series',exact:true}).click();
     assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='browse-catalog'&&a.action.catalogId==='anime'&&a.action.extras.search==='Fixture anime series')));
+    await item.locator('[data-rating-source="tmdb"]').filter({hasText:'8.4'}).waitFor();
+    await item.getByText('Fixture Writer',{exact:true}).waitFor();
+    await item.getByText('Lead role',{exact:true}).waitFor();
+    await assertArtwork(item.locator('[data-ui="watch-cast-card"]').first());
+    await item.getByText('A fixture tagline',{exact:true}).waitFor();
+    
     const season=item.getByRole('combobox',{name:'Select season',exact:true});
     await season.selectOption('0');
     await item.locator('[data-video-id="tt90002:0:1"]').waitFor();
@@ -783,6 +789,10 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.ok(animeFonts.every(font=>/^Interface(?:,|$)/.test(font.family)&&font.weight>=600&&font.weight<=750),'Anime Hub uses the same Interface font as Movies & TV: '+JSON.stringify(animeFonts));
     const featuredHero=watch.locator('.tsugi-anime-hero[data-feature-id="mal:90004"]');
     await featuredHero.waitFor();
+    await publicPoster.locator('[data-ui="poster-card-badge"]').filter({hasText:'MAL 8.6'}).waitFor();
+    const heroRect=await featuredHero.boundingBox();
+    const posterRails=await watch.locator('[data-ui="media-row"][data-shape="poster"][data-contained]').evaluateAll(rows=>rows.filter(row=>row.getBoundingClientRect().width>0).map(row=>({left:row.getBoundingClientRect().left,right:row.getBoundingClientRect().right})));
+    assert.ok(heroRect&&posterRails.length>0&&posterRails.every(row=>Math.abs(row.left-heroRect.x)<=2&&Math.abs(row.right-heroRect.x-heroRect.width)<=2),'Anime poster rails align with the hero gutters');
     await page.waitForFunction(()=>{const hero=document.querySelector('.tsugi-anime-hero[data-feature-id="mal:90004"]');const a=hero?.querySelector('img.tsugi-anime-title-art'),b=hero?.querySelector('.tsugi-anime-feature-poster img');return a?.complete&&b?.complete&&a.naturalWidth>0&&b.naturalWidth>0&&a.currentSrc===b.currentSrc;});
     assert.equal(await featuredHero.locator('[data-ui="landscape-artwork-controls"]').count(),0,'a title never shares a decorative rotating background');
     assert.equal(await featuredHero.locator('.tsugi-anime-hero-controls').count(),0,'one featured title needs no 1/1 carousel controls');

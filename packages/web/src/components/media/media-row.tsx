@@ -256,6 +256,7 @@ function NativeRow({
   onEnd,
   onView,
   count,
+  contained,
   children,
 }: {
   restoreKey: string | undefined;
@@ -265,6 +266,7 @@ function NativeRow({
   onView?: (first: number, last: number) => void;
   /** How many cards, so new ones are watched too. */
   count: number;
+  contained: boolean;
   children: React.ReactNode;
 }) {
   const ref = React.useRef<HTMLDivElement>(null);
@@ -358,7 +360,8 @@ function NativeRow({
       className={cn(
         CarouselAnatomy.content(),
         // Room for a focused card's ring, which the scroller clips; the row pads its start.
-        'relative -mb-1.5 -me-4 -ms-1.5 pb-1.5 lg:-me-10',
+        'relative -mb-1.5 -ms-1.5 pb-1.5',
+        !contained && '-me-4 lg:-me-10',
         // TV rows move only with focus, so they just clip: a scroller is a
         // layer of its own, rebuilt with every frame's layers.
         !currentHost().tv &&
@@ -406,6 +409,7 @@ export function MediaRow({
   startIndex,
   action,
   rowRef,
+  contained = false,
   children,
 }: {
   id?: string;
@@ -424,6 +428,8 @@ export function MediaRow({
   startIndex?: number;
   action?: React.ReactNode;
   rowRef?: React.Ref<HTMLElement>;
+  /** Keep the trailing gutter aligned with the section above. */
+  contained?: boolean;
   children?: React.ReactNode;
 }) {
   const restoreKey = useEntryKey(id);
@@ -466,7 +472,7 @@ export function MediaRow({
     ...(!loading && loadingMore ? skeletons(4) : []),
   ];
   const head = (
-    <div className="-me-4 flex items-center justify-between gap-3 pe-4 lg:-me-10">
+    <div className={cn('flex items-center justify-between gap-3', !contained && '-me-4 pe-4 lg:-me-10')}>
       {title ? (
         <h2
           data-ui="media-row-title"
@@ -495,6 +501,7 @@ export function MediaRow({
       data-ui="media-row"
       data-row={id}
       data-shape={shape}
+      data-contained={contained||undefined}
       data-nav-group
       data-nav-box
       data-nav-resume
@@ -509,6 +516,7 @@ export function MediaRow({
             onEnd={onEndReached}
             onView={onView}
             count={cards.length}
+            contained={contained}
           >
             {cards}
           </NativeRow>
@@ -524,7 +532,7 @@ export function MediaRow({
           {head}
           {/* Embla counts the last card's margin as the row's end gap. */}
           <CarouselContent
-            contentClass="-mb-1.5 -me-4 -ms-1.5 pb-1.5 lg:-me-10"
+            contentClass={cn('-mb-1.5 -ms-1.5 pb-1.5',!contained&&'-me-4 lg:-me-10')}
             className="mt-3 ps-1.5 [&>*:last-child]:me-4"
           >
             {cards}

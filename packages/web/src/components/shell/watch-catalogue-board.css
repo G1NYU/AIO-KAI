@@ -142,3 +142,7 @@
 .tsugi-watch-header-search .tsugi-watch-search-trigger span{font-size:14px;margin:0;overflow-wrap:anywhere}
 .tsugi-watch-header-search .tsugi-read-action{flex:none;min-height:44px}
 @media(max-width:760px){.tsugi-watch-header-search .tsugi-watch-board-toolbar{flex-wrap:wrap}.tsugi-watch-header-search .tsugi-watch-search-trigger{flex-basis:100%}}
+
+.tsugi-watch-featured-logo{position:relative;display:block;width:min(340px,60vw);height:clamp(64px,8vw,100px)}
+.tsugi-watch-featured-logo img{object-fit:contain;object-position:left center}
+.tsugi-watch-featured-meta{display:flex;flex-wrap:wrap;align-items:center;gap:12px;color:var(--tsugi-muted);font-size:13px}

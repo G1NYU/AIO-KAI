@@ -8,6 +8,7 @@ import { RefractSettings, RefractWatchlist } from './refract-settings';
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { TsugiIcon } from '@/components/tsugi-icons';
 import { MovieGlyph } from '@/components/movie-icons';
+import { MediaRow } from '@/components/media/media-row';
 import { Artwork, PosterCard } from '@/components/media/cards';
 import { TsugiRail } from './tsugi-rail';
 import { rememberWatchArtwork } from '@/lib/hosts/shell/watch-artwork';
@@ -475,6 +476,10 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   React.useEffect(()=>{setCinema(null);if(profileId===undefined||!titleKey||!titleKind)return;let current=true;void loadTmdbTitle(profileId,titleKind,titleImdb??titleKey).then(item=>{if(current)setCinema(item);}).catch(()=>{});return ()=>{current=false;};},[profileId,titleKey,titleKind,titleImdb]);
   const selectedSeason=seasonChoice!==null&&seasons.includes(seasonChoice)?seasonChoice:selectedVideo?seasonOf(selectedVideo):seasons.find(s=>s!=='0'&&s!=='other')??seasons[0]??'other';
   const cinemaId=cinema?.tmdbId,cinemaRuntime=cinema?.runtime;
+  const creditLabels={director:t`Directed by`,writer:t`Writers`,producer:t`Producers`,cinematography:t`Cinematography`,music:t`Music`,editor:t`Editor`,creator:t`Created by`};
+  const credits=cinema?.crewCredits??[];
+  const genres=cinema?.genres?.length?cinema.genres:details?.genres;
+  const castNames=cinema?.cast?.length?cinema.cast:details?.cast;
   React.useEffect(()=>{setSeasonArt([]);if(profileId===undefined||!cinemaId||cinema?.mediaType!=='series'||!/^\d+$/.test(selectedSeason))return;let current=true;void loadTmdbSeason(profileId,cinemaId,Number(selectedSeason)).then(items=>{if(current)setSeasonArt(items);}).catch(()=>{});return ()=>{current=false;};},[profileId,cinemaId,cinema?.mediaType,selectedSeason]);
   const seasonVideos=videos.filter(v=>seasonOf(v)===selectedSeason).sort((a,b)=>(a.episode??Number.MAX_SAFE_INTEGER)-(b.episode??Number.MAX_SAFE_INTEGER));
   React.useEffect(()=>{
@@ -700,15 +705,17 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
         {(cinema?.background||details?.background||title.background||details?.poster||title.poster)&&<div className="tsugi-watch-title-backdrop" aria-hidden="true"><Artwork eager src={[cinema?.background,details?.background,title.background,details?.poster,title.poster,...(title.posterAlternatives??[])].filter((value):value is string=>!!value)} alt=""/></div>}
         <div className="tsugi-watch-title-art"><Artwork src={[details?.poster,title.poster,...(title.posterAlternatives??[])].filter((value):value is string=>!!value)} alt={title.name}/></div>
         <div className="tsugi-watch-title-copy">
+          {cinema?.tagline&&<p className="tsugi-watch-tagline">{cinema.tagline}</p>}
           <h4 className="tsugi-watch-title-name">{cinema?.logo?<span className="tsugi-watch-title-logo-frame"><Artwork eager src={cinema.logo} alt={details?.name??title.name} className="tsugi-watch-title-logo"/></span>:details?.name??title.name}</h4>
           <div className="tsugi-watch-title-meta">
             <span>{isWatchMovie(title.mediaType)?t`Movie`:title.mediaType==='anime'?t`Anime`:t`Series`}</span>
             {(details?.releaseInfo||cinema?.releaseInfo)&&<span>{details?.releaseInfo??cinema?.releaseInfo?.slice(0,4)}</span>}
             {details?.imdbRating!==undefined&&<span><Trans>IMDb</Trans> {details.imdbRating.toFixed(1)}/10</span>}
-            {cinema?.tmdbRating!==undefined&&<span><Trans>TMDB</Trans> {cinema.tmdbRating.toFixed(1)}/10</span>}
+            {cinema?.tmdbRating!==undefined&&<span className="tsugi-watch-rating" data-rating-source="tmdb"><Trans>TMDB</Trans> {cinema.tmdbRating.toFixed(1)}/10</span>}
+            {title.malRating!==undefined&&<span className="tsugi-watch-rating"><Trans>MAL</Trans> {title.malRating.toFixed(1)}/10</span>}
             {details?.runtime?<span>{details.runtime}</span>:cinema?.runtime?<span><Trans>{cinemaRuntime} min</Trans></span>:null}
           </div>
-          {details?.genres?.length? <p className="tsugi-watch-muted">{details.genres.join(' · ')}</p>:null}
+          {genres?.length? <p className="tsugi-watch-muted">{genres.join(' · ')}</p>:null}
           {(cinema?.description||details?.description||title.description)&&<p className="break-words">{cinema?.description??details?.description??title.description}</p>}
           {automatic&&<div className="tsugi-watch-title-actions">
             {(videoId||seasonVideos[0])&&<button type="button" data-ui="watch-play-title" className="tsugi-read-action tsugi-series-primary" disabled={busy} onClick={()=>selectVideo(videoId||seasonVideos[0].id)}>{resumeMs>0?<Trans>Resume</Trans>:<Trans>Play</Trans>}</button>}
@@ -720,10 +727,13 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
           </div>}
         </div>
       </div>
-      {(details?.cast?.length||details?.directors?.length)?<section className="tsugi-watch-credits" data-ui="watch-title-credits">
-        {details.directors?.length?<div><h5><Trans>Directed by</Trans></h5><p>{details.directors.join(', ')}</p></div>:null}
-        {details.cast?.length?<div><h5><Trans>Cast</Trans></h5><p>{details.cast.join(', ')}</p></div>:null}
-      </section>:null}
+      {(credits.length>0||!!details?.directors?.length)&&<section className="tsugi-watch-credits" data-ui="watch-title-credits">
+        {!credits.some(credit=>credit.role==='director')&&!!details?.directors?.length&&<div><h5><Trans>Directed by</Trans></h5><p>{details.directors.join(', ')}</p></div>}
+        {credits.map(credit=><div key={credit.role}><h5>{creditLabels[credit.role]}</h5><p>{credit.names.join(', ')}</p></div>)}
+      </section>}
+      {cinema?.castMembers?.length?<MediaRow contained shape="poster" title={t`Cast`} itemClass="basis-[8rem] sm:basis-[9rem] lg:basis-[10rem]">
+        {cinema.castMembers.map(person=><article key={person.id} data-ui="watch-cast-card" className="tsugi-watch-cast-card"><div className="tsugi-watch-cast-portrait"><Artwork src={person.portrait??null} alt={person.name}/></div><strong>{person.name}</strong>{person.character&&<small>{person.character}</small>}</article>)}
+      </MediaRow>:!!castNames?.length&&<section className="tsugi-watch-credits"><div><h5><Trans>Cast</Trans></h5><p>{castNames.join(', ')}</p></div></section>}
       {resumeMatch?.episodeTitle&&<p>{resumeMatch.episodeTitle}</p>}
       {resumeMs>0&&<p><Trans>Saved playback position:</Trans> {watchTime(resumeMs)}</p>}
       {automatic&&<div className="flex flex-wrap gap-2"><button type="button" className="tsugi-read-action" disabled={busy} onClick={searchTitleInAddons}><Trans>Search this title across addons</Trans></button>{desktopArea?.openServerSearch&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>desktopArea.openServerSearch?.(title.name)}><Trans>Find on AIOStreams / media server</Trans></button>}</div>}
