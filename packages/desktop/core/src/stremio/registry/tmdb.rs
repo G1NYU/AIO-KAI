@@ -85,6 +85,59 @@ fn related_titles(row:&Value,kind:&str,id:u64)->Vec<Value>{
     }
     Vec::new()
 }
+// TMDB / JustWatch listings are informational, not addon stream handles.
+// Return bounded, public presentation fields only; omit upstream links.
+fn safe_context_label(value:&Value,max:usize)->Option<String>{
+    let label=clean(value,max)?;
+    let lower=label.to_ascii_lowercase();
+    if label.contains("://")||["token=","password=","apikey=","api_key="].iter().any(|marker|lower.contains(marker)){return None;}
+    Some(label)
+}
+fn watch_regions(row:&Value)->Result<Vec<Value>>{
+    let regions=row["results"].as_object().ok_or("tmdb-response")?;
+    let mut result=Vec::new();
+    for (country,entry) in regions.iter().take(250){
+        if country.len()!=2||!country.bytes().all(|b|b.is_ascii_uppercase()){continue;}
+        let mut modes=serde_json::Map::new();
+        let mut any=false;
+        for mode in ["flatrate","free","ads","rent","buy"]{
+            let mut seen=std::collections::HashSet::new();
+            let providers:Vec<_>=entry[mode].as_array().into_iter().flatten().take(100).filter_map(|provider|{
+                let id=number(&provider["provider_id"])?;
+                let name=safe_context_label(&provider["provider_name"],128)?;
+                if !seen.insert(id){return None;}
+                Some(json!({"id":id,"name":name,"logo":image(&provider["logo_path"],"w92")}))
+            }).take(12).collect();
+            any|=!providers.is_empty();
+            modes.insert(mode.to_owned(),json!(providers));
+        }
+        if any{result.push(json!({"country":country,"providers":modes}));}
+    }
+    Ok(result)
+}
+fn collection_context(row:&Value,collection_id:u64,current_id:u64)->Result<Value>{
+    if number(&row["id"])!=Some(collection_id){return Err("tmdb-response");}
+    let name=safe_context_label(&row["name"],256).ok_or("tmdb-response")?;
+    let parts=row["parts"].as_array().ok_or("tmdb-response")?;
+    // A collection is shown only when the selected movie is actually a member.
+    let is_movie=|entry:&Value|entry["media_type"].as_str().map_or(true,|kind|kind=="movie")&&entry["adult"].as_bool()!=Some(true);
+    if !parts.iter().take(500).any(|part|is_movie(part)&&number(&part["id"])==Some(current_id)){return Err("tmdb-response");}
+    let mut seen=std::collections::HashSet::from([current_id]);
+    let mut items:Vec<_>=parts.iter().take(500).filter_map(|entry|{
+        if !is_movie(entry){return None;}
+        let id=number(&entry["id"])?;
+        if seen.contains(&id){return None;}
+        // The collection endpoint may use name instead of title.
+        let mut normalized=entry.clone();
+        if normalized["title"].as_str().is_none(){normalized["title"]=entry["name"].clone();}
+        let item=summary(&normalized,"movie")?;
+        seen.insert(id);
+        Some(item)
+    }).collect();
+    items.sort_by(|a,b|a["releaseInfo"].as_str().unwrap_or("9999-99-99").cmp(b["releaseInfo"].as_str().unwrap_or("9999-99-99")).then_with(||a["id"].as_str().cmp(&b["id"].as_str())));
+    items.truncate(60);
+    Ok(json!({"collectionId":collection_id,"tmdbId":current_id,"name":name,"items":items}))
+}
 fn enrich_credits(item:&mut Value,row:&Value){
     let mut seen=std::collections::HashSet::new();
     let cast:Vec<Value>=row["credits"]["cast"].as_array().into_iter().flatten().filter_map(|person|{
@@ -141,6 +194,7 @@ impl Connection{
         let imdb=row["external_ids"]["imdb_id"].as_str().filter(|s|s.strip_prefix("tt").is_some_and(|n|!n.is_empty()&&n.len()<=12&&n.bytes().all(|b|b.is_ascii_digit())));
         if let Some(imdb)=imdb{item["imdbId"]=json!(imdb);item["identities"]=json!([tmdb_id(kind,id),imdb]);}
         item["tmdbId"]=json!(id);
+        if kind=="movie"{item["collectionId"]=json!(number(&row["belongs_to_collection"]["id"]));}
         item["logo"]=json!(row["images"]["logos"].as_array().and_then(|rows|rows.iter().find_map(|r|image(&r["file_path"],"w500"))));
         item["genres"]=json!(row["genres"].as_array().into_iter().flatten().filter_map(|r|clean(&r["name"],80)).take(16).collect::<Vec<_>>());
         item["cast"]=json!(row["credits"]["cast"].as_array().into_iter().flatten().filter_map(|r|clean(&r["name"],128)).take(12).collect::<Vec<_>>());
@@ -148,6 +202,18 @@ impl Connection{
         item["related"]=json!(related_titles(&row,kind,id));
         item["runtime"]=json!(row["runtime"].as_u64().or_else(||row["episode_run_time"].as_array().and_then(|a|a.first()).and_then(Value::as_u64)).filter(|n|*n>0&&*n<=1440));
         Ok(json!({"item":item}))
+    }
+    pub(super) fn watch_providers(&self,media_type:&str,id:u64)->Result<Value>{
+        let kind=kind(media_type)?;
+        if id==0||id>9_999_999_999{return Err("invalid-resource");}
+        let row=self.request(&format!("{kind}/{id}/watch/providers"),&[])?;
+        if number(&row["id"])!=Some(id){return Err("tmdb-response");}
+        Ok(json!({"tmdbId":id,"mediaType":media_type,"regions":watch_regions(&row)?}))
+    }
+    pub(super) fn collection(&self,collection_id:u64,current_id:u64)->Result<Value>{
+        if collection_id==0||collection_id>9_999_999_999||current_id==0||current_id>9_999_999_999{return Err("invalid-resource");}
+        let row=self.request(&format!("collection/{collection_id}"),&[])?;
+        collection_context(&row,collection_id,current_id)
     }
     pub(super) fn season(&self,id:u64,season:u32)->Result<Value>{
         if id==0||id>9_999_999_999||season>1000{return Err("invalid-resource");}
@@ -163,6 +229,41 @@ impl Connection{
 #[cfg(test)]
 mod tests{
     use super::*;
+    #[test]
+    fn watch_regions_preserve_country_and_mode_without_private_links(){
+        let data=json!({"results":{"BE":{"link":"https://example.invalid/private?token=private-fixture","flatrate":[
+            {"provider_id":7,"provider_name":"Example Plus","logo_path":"/logo.png"},
+            {"provider_id":7,"provider_name":"Duplicate"},
+            {"provider_id":8,"provider_name":"Example Rental","logo_path":"https://example.invalid/private"},
+            {"provider_id":9,"provider_name":"token=private-fixture"}],"rent":[{"provider_id":7,"provider_name":"Example Plus"}]},
+            "US":{"buy":[{"provider_id":10,"provider_name":"Example Store"}]},
+            "bad":{"free":[{"provider_id":1,"provider_name":"Invalid country"}]},"FR":{"free":[]}}});
+        let regions=watch_regions(&data).unwrap();
+        assert_eq!(regions.len(),2);
+        let be=regions.iter().find(|region|region["country"]=="BE").unwrap();
+        assert_eq!(be["providers"]["flatrate"].as_array().unwrap().len(),2);
+        assert_eq!(be["providers"]["flatrate"][0]["logo"],"https://image.tmdb.org/t/p/w92/logo.png");
+        assert!(be["providers"]["flatrate"][1]["logo"].is_null());
+        assert_eq!(be["providers"]["rent"][0]["id"],7);
+        assert!(!json!(regions).to_string().contains("private-fixture"));
+        assert!(watch_regions(&json!({"results":[]})).is_err());
+    }
+    #[test]
+    fn collection_requires_membership_and_orders_only_distinct_movies(){
+        let row=json!({"id":10,"name":"Example franchise","parts":[
+            {"id":1,"title":"Current","media_type":"movie"},
+            {"id":3,"title":"Later","release_date":"2020-01-01"},
+            {"id":2,"name":"Earlier","media_type":"movie","release_date":"2000-01-01","poster_path":"/early.jpg"},
+            {"id":2,"title":"Duplicate"},{"id":4,"title":"Series","media_type":"tv"},
+            {"id":5,"title":"Adult","adult":true},{"id":6,"title":"Undated"}]});
+        let result=collection_context(&row,10,1).unwrap();
+        assert_eq!(result["name"],"Example franchise");
+        let ids:Vec<_>=result["items"].as_array().unwrap().iter().map(|item|item["id"].as_str().unwrap()).collect();
+        assert_eq!(ids,vec!["tmdb:movie:2","tmdb:movie:3","tmdb:movie:6"]);
+        assert_eq!(result["items"][0]["name"],"Earlier");
+        assert!(collection_context(&row,10,99).is_err());
+        assert!(collection_context(&row,11,1).is_err());
+    }
     #[test]
     fn metadata_rejects_private_image_paths_and_wrong_kinds(){
         assert_eq!(image(&json!("/cover.jpg"),"w500").as_deref(),Some("https://image.tmdb.org/t/p/w500/cover.jpg"));

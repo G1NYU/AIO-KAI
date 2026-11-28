@@ -6,6 +6,7 @@ import { MdblistSettings } from './mdblist-settings';
 import { WatchSetupGate,TmdbSettings } from './watch-setup-gate';
 import { MalAnimeLibrary } from './mal-anime-library';
 import { WatchCatalogueBoard } from './watch-catalogue-board';
+import { WatchTitleContext } from './watch-title-context';
 import { RefractSettings, RefractWatchlist } from './refract-settings';
 import { TsugiBrand } from '@/components/tsugi-brand';
 import { TsugiIcon } from '@/components/tsugi-icons';
@@ -747,13 +748,13 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     {workspace&&pane==='mdblist'&&profileReady&&profileId!==undefined&&<MdblistSettings key={profileId} profileId={profileId} openTitle={item=>void openTitle(item)}/>}
     {workspace&&pane==='refract'&&(historyActive||setupConnections)&&profileReady&&profileId!==undefined&&<RefractSettings key={profileId} profileId={profileId} busy={busy} run={run}/>}
     {workspace&&title&&<section ref={detailRef} tabIndex={-1} className={automatic?'space-y-3 tsugi-watch-detail':'space-y-3'} data-ui="watch-item-details">
-      <div className="tsugi-watch-title-hero" data-has-backdrop={!!(cinema?.background||details?.background||title.background||details?.poster||title.poster)||undefined}>
+      <div className="tsugi-watch-title-hero" data-has-backdrop={!!(cinema?.background||details?.background||title.background||cinema?.poster||details?.poster||title.poster)||undefined}>
         <button type="button" className="tsugi-read-action tsugi-watch-close-title" disabled={busy} onClick={closeTitle}><Trans>Close title</Trans></button>
-        {(cinema?.background||details?.background||title.background||details?.poster||title.poster)&&<div className="tsugi-watch-title-backdrop" aria-hidden="true"><Artwork eager src={[cinema?.background,details?.background,title.background,details?.poster,title.poster,...(title.posterAlternatives??[])].filter((value):value is string=>!!value)} alt=""/></div>}
+        {(cinema?.background||details?.background||title.background||cinema?.poster||details?.poster||title.poster)&&<div className="tsugi-watch-title-backdrop" aria-hidden="true"><Artwork eager src={[cinema?.background,details?.background,title.background,cinema?.poster,details?.poster,title.poster,...(title.posterAlternatives??[])].filter((value):value is string=>!!value)} alt=""/></div>}
         <div className="tsugi-watch-title-art"><Artwork src={watchPosterSources({...title,identities:[...(title.identities??[]),...(cinema?.identities??[]),...(cinema?[cinema.id]:[])],imdbId:cinema?.imdbId??title.imdbId},posterPattern,details?.poster??cinema?.poster)} alt={title.name}/></div>
         <div className="tsugi-watch-title-copy">
           {cinema?.tagline&&<p className="tsugi-watch-tagline">{cinema.tagline}</p>}
-          <h4 className="tsugi-watch-title-name">{cinema?.logo?<span className="tsugi-watch-title-logo-frame"><Artwork eager src={cinema.logo} alt={details?.name??title.name} className="tsugi-watch-title-logo"/></span>:details?.name??title.name}</h4>
+          <h4 className="tsugi-watch-title-name">{cinema?.logo?<span className="tsugi-watch-title-logo-frame"><Artwork eager src={cinema.logo} alt={details?.name??title.name} standIn={<span className="tsugi-watch-featured-logo-fallback">{details?.name??title.name}</span>} className="tsugi-watch-title-logo"/></span>:details?.name??title.name}</h4>
           <div className="tsugi-watch-title-meta">
             <span>{isWatchMovie(title.mediaType)?t`Movie`:title.mediaType==='anime'?t`Anime`:t`Series`}</span>
             {(details?.releaseInfo||cinema?.releaseInfo)&&<span>{details?.releaseInfo??cinema?.releaseInfo?.slice(0,4)}</span>}
@@ -802,6 +803,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
           {cinema.related.map(item=><PosterCard key={item.id} title={item.name} image={watchPosterSources(item,posterPattern)} subtitle={item.releaseInfo?.slice(0,4)} badge={item.tmdbRating!==undefined&&item.tmdbRating>0?<><Trans>TMDB</Trans> {item.tmdbRating.toFixed(1)}</>:undefined} disabled={busy} onClick={()=>void openTitle(item,undefined,true)}/>)}
         </MediaRow>
       </section>}
+      {automatic&&cinema&&profileId!==undefined&&<WatchTitleContext key={JSON.stringify([profileId,title.mediaType,title.id,cinema.tmdbId])} profileId={profileId} cinema={cinema} posterPattern={posterPattern} busy={busy} openTitle={item=>void openTitle(item,undefined,true)}/>}
       {automatic&&<div className="flex flex-wrap gap-2"><button type="button" className="tsugi-read-action" disabled={busy} onClick={searchTitleInAddons}><Trans>Search this title across addons</Trans></button>{desktopArea?.openServerSearch&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>desktopArea.openServerSearch?.(title.name)}><Trans>Find on AIOStreams / media server</Trans></button>}</div>}
       {onPlay&&profileReady&&profileId!==undefined&&['movie','series'].includes(title.mediaType)&&<RefractWatchlist key={JSON.stringify([profileId,title.mediaType,title.id])} profileId={profileId} mediaType={title.mediaType} itemId={title.id} busy={busy} run={run}/>}
       <details className="tsugi-watch-provider-details"><summary><Trans>Metadata sources</Trans></summary><div className="flex flex-wrap gap-2">{sources.filter(s=>s.enabled&&s.manifest.resources.includes('meta')).map(s=><button key={s.sourceId} type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void readMetadata(title,s.sourceId)}><Trans>Details</Trans> · {s.manifest.name}</button>)}</div></details>

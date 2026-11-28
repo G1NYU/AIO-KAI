@@ -27,7 +27,7 @@ type Flight={controller:AbortController;promise:Promise<string|undefined>;users:
 const cached=new Map<number,{url?:string;expires:number}>();
 const pending=new Map<number,Flight>();
 let tail:Promise<unknown>=Promise.resolve(),lastRequest=0;
-function cover(malId:number,signal:AbortSignal):Promise<string|undefined>{
+export function cover(malId:number,signal:AbortSignal):Promise<string|undefined>{
   if(signal.aborted||!Number.isSafeInteger(malId)||malId<1||malId>2147483647)return Promise.resolve(undefined);
   const hit=cached.get(malId);
   if(hit&&hit.expires>Date.now())return Promise.resolve(hit.url);

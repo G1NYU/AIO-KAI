@@ -1,6 +1,34 @@
 import { describe, expect, it } from 'vitest';
 import { rankCatalogueSearch, searchAliasTargets } from '../src/lib/hosts/shell/watch-search';
 
+import { chooseWatchFeatured,watchCountryFromLocales,watchResumePresentation } from '../src/lib/hosts/shell/watch-presentation';
+
+describe('Watch presentation',()=>{
+  const candidate=(id:number,mediaType:string,sourceId=1)=>({sourceId,target:sourceId,item:{id:'tt'+id,name:'Title '+id,mediaType,poster:'poster'}});
+  it('reserves a real series slide, keeps canonical route, and limits the carousel',()=>{
+    const movies=Array.from({length:10},(_,index)=>candidate(index+1,'movie'));
+    const series=candidate(22,'series',2);
+    const duplicate={...series,sourceId:3,target:3};
+    const slides=chooseWatchFeatured([...movies,series,duplicate]);
+    expect(slides).toHaveLength(8);
+    expect(slides.filter(slide=>slide.kind==='series')).toHaveLength(1);
+    expect(slides.find(slide=>slide.kind==='series')?.target).toBe(2);
+    expect(slides[0].item.id).toBe('tt1');
+    expect(chooseWatchFeatured([{...series,item:{...series.item,poster:undefined}}])).toEqual([]);
+  });
+  it('uses exact season/episode and clamps progress without inventing duration',()=>{
+    const progress={mediaType:'series',itemId:'tt42',videoId:'tt42:2:7',title:'Series',episodeTitle:'Episode',positionMs:45000,durationMs:120000,completed:false};
+    expect(watchResumePresentation(progress)).toEqual({numbers:{season:2,episode:7},percent:37.5,remainingMinutes:2});
+    expect(watchResumePresentation({...progress,videoId:'opaque',durationMs:0})).toEqual({numbers:undefined,percent:undefined,remainingMinutes:undefined});
+    expect(watchResumePresentation({...progress,mediaType:'movie',positionMs:130000})).toEqual({numbers:undefined,percent:100,remainingMinutes:undefined});
+  });
+  it('never guesses a country from a language alone',()=>{
+    expect(watchCountryFromLocales(['fr','nl-BE'])).toBe('BE');
+    expect(watchCountryFromLocales(['zh-Hant-TW'])).toBe('TW');
+    expect(watchCountryFromLocales(['en','fr'])).toBe('');
+  });
+});
+
 describe('Watch catalogue search',()=>{
   const item=(id:string,name:string,mediaType='movie',imdbId?:string,poster?:string)=>({id,name,mediaType,imdbId,poster});
   const candidate=(sourceId:number,row:ReturnType<typeof item>)=>({sourceId,target:sourceId,item:row});

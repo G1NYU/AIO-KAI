@@ -23,6 +23,8 @@ pub(super) enum ReadKind{
     TmdbSearch{query:String},
     TmdbTitle{media_type:String,item_id:String},
     TmdbSeason{tmdb_id:u64,season:u32},
+    TmdbWatchProviders{media_type:String,tmdb_id:u64},
+    TmdbCollection{collection_id:u64,tmdb_id:u64},
 }
 
 pub(super) fn catalog_response(page:&CatalogPage,source_id:u32,media_type:&str,catalog_id:&str)->Value{
@@ -87,6 +89,8 @@ impl Pool{
                 ReadKind::TmdbSearch{query}=>profiles.and_then(|p|p.browse_tmdb(profile_id)).map(|tmdb|Box::new(move||tmdb.search(&query)) as Box<dyn FnOnce()->Result<Value>+Send>),
                 ReadKind::TmdbTitle{media_type,item_id}=>profiles.and_then(|p|p.browse_tmdb(profile_id)).map(|tmdb|Box::new(move||tmdb.title(&media_type,&item_id)) as Box<dyn FnOnce()->Result<Value>+Send>),
                 ReadKind::TmdbSeason{tmdb_id,season}=>profiles.and_then(|p|p.browse_tmdb(profile_id)).map(|tmdb|Box::new(move||tmdb.season(tmdb_id,season)) as Box<dyn FnOnce()->Result<Value>+Send>),
+                ReadKind::TmdbWatchProviders{media_type,tmdb_id}=>profiles.and_then(|p|p.browse_tmdb(profile_id)).map(|tmdb|Box::new(move||tmdb.watch_providers(&media_type,tmdb_id)) as Box<dyn FnOnce()->Result<Value>+Send>),
+                ReadKind::TmdbCollection{collection_id,tmdb_id}=>profiles.and_then(|p|p.browse_tmdb(profile_id)).map(|tmdb|Box::new(move||tmdb.collection(collection_id,tmdb_id)) as Box<dyn FnOnce()->Result<Value>+Send>),
             };
             let work=match work{Ok(work)=>work,Err(error)=>{respond(emit,request,Err(error));continue;}};
             let (tx,rx)=mpsc::sync_channel(1);
@@ -109,6 +113,8 @@ mod tests{
         assert!(changes_scope(&Action::ProfileSwitch{profile_id:2}));
         assert!(changes_scope(&Action::ProfileRequest{profile_id:1,action:Box::new(Action::Remove{source_id:3})}));
         assert!(!changes_scope(&Action::ProfileRequest{profile_id:1,action:Box::new(Action::WatchHistory)}));
+        assert!(!changes_scope(&Action::ProfileRequest{profile_id:1,action:Box::new(Action::TmdbWatchProviders{media_type:"movie".into(),tmdb_id:7})}));
+        assert!(!changes_scope(&Action::ProfileRequest{profile_id:1,action:Box::new(Action::TmdbCollection{collection_id:8,tmdb_id:7})}));
         assert!(!changes_scope(&Action::ProfileRequest{profile_id:1,action:Box::new(Action::PrepareMedia{review_id:3,option_index:0,start_ms:0})}));
     }
 }

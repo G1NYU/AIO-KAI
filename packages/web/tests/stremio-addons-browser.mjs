@@ -226,6 +226,11 @@ export function installStremioFixture(initializeStartup=true){
         if(f.boardFixture&&source?.sourceId===103&&a.itemId==='tmdb:90007')return reply({sourceId:103,metadata:{id:a.itemId,mediaType:'movie',name:'Fixture alias movie',description:null,videos:[{id:a.itemId,name:'Fixture alias movie',season:null,episode:null}],identities:['tt90007','tmdb:90007']}});
         if(a.sourceId===0&&f.boardFixture&&a.itemId==='tt90003')return reply({sourceId:0,metadata:{id:a.itemId,mediaType:'movie',name:'Public movie fixture',description:'Public metadata without a catalogue addon.',videos:[]}});
         if(a.sourceId===0&&f.boardFixture&&a.itemId==='kitsu:90004'&&a.mediaType==='series')return reply({sourceId:0,metadata:{id:a.itemId,mediaType:'series',name:'Public anime discovery fixture',description:'Public mapped anime metadata.',videos:[{id:'kitsu:90004:1',name:'Episode one',season:1,episode:1},{id:'kitsu:90004:2',name:'Episode two',season:1,episode:2}]}});
+        if(f.boardFixture&&a.itemId==='tmdb:movie:90008')return emit(null,'unsupported-resource');
+        if(f.boardFixture&&a.itemId==='tt90008'){
+          if(a.sourceId!==0)return emit(null,'unsupported-resource');
+          return reply({sourceId:0,metadata:{id:a.itemId,mediaType:'movie',name:'Fixture franchise sequel',description:'A separate franchise movie.',videos:[{id:a.itemId,name:'Fixture franchise sequel',season:null,episode:null}]}});
+        }
         if(f.boardFixture&&a.itemId==='tmdb:tv:90025')return emit(null,'unsupported-resource');
         if(f.boardFixture&&a.itemId==='tt90025'){
           if(a.sourceId!==0)return emit(null,'unsupported-resource');
@@ -243,9 +248,13 @@ export function installStremioFixture(initializeStartup=true){
         {id:'tmdb:tv:90024',mediaType:'series',name:'Unrelated series',poster:'https://image.tmdb.org/t/p/w500/unrelated.jpg'}
       ]:[]});
       case 'tmdb-title':
+        if(f.boardFixture&&['tt90001','tmdb:movie:90001','tmdb:90001'].includes(a.itemId))return reply({item:{id:'tmdb:movie:90001',tmdbId:90001,mediaType:'movie',name:'Fixture cinema film',imdbId:'tt90001',collectionId:99001,poster:'https://image.tmdb.org/t/p/w500/cinema.jpg',background:'https://image.tmdb.org/t/p/w1280/cinema.jpg',tmdbRating:8.1,releaseInfo:'2024'}});
+        if(f.boardFixture&&['tt90008','tmdb:movie:90008'].includes(a.itemId))return reply({item:{id:'tmdb:movie:90008',tmdbId:90008,mediaType:'movie',name:'Fixture franchise sequel',imdbId:'tt90008',poster:'https://image.tmdb.org/t/p/w500/sequel.jpg',releaseInfo:'2025'}});
         if(f.boardFixture&&a.itemId==='tt90002')return reply({item:{id:'tmdb:tv:90002',tmdbId:90002,mediaType:'series',name:'Fixture anime series',imdbId:'tt90002',genres:['Drama','Animation'],tagline:'A fixture tagline',castMembers:[{id:1,name:'Fixture Actor',character:'Lead role',portrait:'https://image.tmdb.org/t/p/w185/person.jpg'},{id:2,name:'Another actor'}],crewCredits:[{role:'director',names:['Fixture Director']},{role:'writer',names:['Fixture Writer']}],related:[{id:'tmdb:tv:90002',mediaType:'series',name:'Current title',poster:'https://image.tmdb.org/t/p/w500/anime.jpg'},{id:'tmdb:tv:90025',mediaType:'series',name:'Related fixture series',poster:'https://image.tmdb.org/t/p/w500/related.jpg',tmdbRating:7.7,releaseInfo:'2023'},{id:'tmdb:tv:90025',mediaType:'series',name:'Duplicate fixture',poster:'https://image.tmdb.org/t/p/w500/related.jpg'},{id:'invalid',mediaType:'series',name:'Malformed fixture'},{id:'tmdb:movie:90026',mediaType:'movie',name:'Wrong-kind fixture',poster:'https://image.tmdb.org/t/p/w500/wrong.jpg'}],poster:'https://image.tmdb.org/t/p/w500/anime.jpg',background:'https://image.tmdb.org/t/p/w1280/anime.jpg',description:'A synthetic series used for layout verification.',releaseInfo:'2024',tmdbRating:8.4}});
         if(f.boardFixture&&['tmdb:tv:90025','tt90025'].includes(a.itemId))return reply({item:{id:'tmdb:tv:90025',tmdbId:90025,mediaType:'series',name:'Related fixture series',imdbId:'tt90025',identities:['tmdb:tv:90025','tt90025'],poster:'https://image.tmdb.org/t/p/w500/related.jpg',description:'A separate related title.',tmdbRating:7.7}});
         return emit(null,'tmdb-not-found');
+      case 'tmdb-watch-providers':return reply({mediaType:a.mediaType,tmdbId:a.tmdbId,regions:f.boardFixture&&a.tmdbId===90001?[{country:'BE',providers:{flatrate:[{id:11,name:'Fixture Plus',logo:'https://image.tmdb.org/t/p/w92/provider.png'}],rent:[{id:12,name:'Fixture Rental'}]}},{country:'US',providers:{buy:[{id:13,name:'Fixture Store'}]}}]:[]});
+      case 'tmdb-collection':return reply({collectionId:a.collectionId,tmdbId:a.tmdbId,name:'Fixture franchise',items:f.boardFixture&&a.collectionId===99001&&a.tmdbId===90001?[{id:'tmdb:movie:90008',mediaType:'movie',name:'Fixture franchise sequel',poster:'https://image.tmdb.org/t/p/w500/sequel.jpg',releaseInfo:'2025'},{id:'tmdb:movie:90008',mediaType:'movie',name:'Duplicate'},{id:'tmdb:movie:90001',mediaType:'movie',name:'Current'},{id:'tmdb:tv:90009',mediaType:'series',name:'Wrong type'}]:[]});
       case 'tmdb-season':return reply({tmdbId:a.tmdbId,season:a.season,episodes:a.tmdbId===90002&&a.season===1?[{episode:1,thumbnail:'https://image.tmdb.org/t/p/w500/episode-one.jpg',runtime:24,tmdbRating:8.5},{episode:2,thumbnail:'https://image.tmdb.org/t/p/w500/episode-two.jpg',description:'A synopsis supplied by TMDB.',runtime:25,tmdbRating:8.2}]:[]});
       case 'begin-stream-options':
       case 'all-stream-options':{
@@ -422,6 +431,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const cachedResume=board.locator('[data-ui="watch-continue-shelf"] [data-ui="wide-card"]').filter({hasText:'Saved fallback fixture'});
     await cachedResume.waitFor();
     await cachedResume.scrollIntoViewIfNeeded();
+    await cachedResume.locator('[data-ui="wide-card-time"]').filter({hasText:'2 min left'}).waitFor();
     await page.waitForFunction(card=>Array.from(card.querySelectorAll('img')).some(image=>image.complete&&image.naturalWidth>0),await cachedResume.elementHandle());
     await assertArtwork(cachedResume);
     assert.ok(missingResumeRequests>0&&availableResumeRequests>0,'persisted resume artwork falls back after a failed first URL');
@@ -444,6 +454,17 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='browse-catalog')));
     assert.equal(await board.getByText('Disabled films',{exact:true}).count(),0);
     assert.equal(await watch.getByRole('heading',{name:'Installed addons',exact:true}).count(),0);
+    const featuredHero=board.locator('[data-ui="hero"]');
+    const seriesSlide=featuredHero.getByRole('button',{name:'Show Fixture anime series',exact:true});
+    await seriesSlide.waitFor();
+    await seriesSlide.click();
+    await featuredHero.getByRole('heading',{name:'Fixture anime series',exact:true}).waitFor();
+    assert.equal(await seriesSlide.getAttribute('aria-current'),'true');
+    await assertArtwork(featuredHero.locator('[data-ui="backdrop-frame"]'));
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-tv-carousel.png'),animations:'disabled'});
+    const filmSlide=featuredHero.getByRole('button',{name:'Show Fixture cinema film',exact:true});
+    await filmSlide.click();
+    await featuredHero.getByRole('heading',{name:'Fixture cinema film',exact:true}).waitFor();
     if(screenshotDir){await mkdir(screenshotDir,{recursive:true});await board.locator('[data-ui="hero"]').scrollIntoViewIfNeeded();await page.screenshot({path:join(screenshotDir,'watch-content-board.png'),animations:'disabled'});}
     await film.click();
     const item=watch.locator('[data-ui="watch-item-details"]');
@@ -466,6 +487,27 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.ok(await page.evaluate(()=>!!document.elementFromPoint(Math.floor(window.innerWidth/2),20)?.closest('[data-page="direct-watch"]')),'Watch scroll region preserves its opaque window strip');
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-movie-details.png'),animations:'disabled'});
     assert.equal(await groups.count(),0);
+    const availability=item.locator('[data-ui="watch-availability"]');
+    const region=availability.getByRole('combobox',{name:'Availability region',exact:true});
+    await region.selectOption('BE');
+    await availability.getByText('Fixture Plus',{exact:true}).waitFor();
+    await availability.getByText('Fixture Rental',{exact:true}).waitFor();
+    await region.selectOption('US');
+    await availability.getByText('Fixture Store',{exact:true}).waitFor();
+    assert.equal(await availability.getByText('Fixture Plus',{exact:true}).count(),0);
+    await region.selectOption('BE');
+    const franchise=item.locator('[data-ui="watch-franchise"]');
+    const sequel=franchise.getByRole('button',{name:'Fixture franchise sequel',exact:true});
+    await sequel.waitFor();
+    assert.equal(await franchise.locator('[data-ui="poster-card"]').count(),1);
+    await assertArtwork(sequel);
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-franchise.png'),animations:'disabled'});
+    await sequel.click();
+    await item.getByRole('heading',{name:'Fixture franchise sequel',exact:true}).waitFor();
+    assert.equal(await groups.count(),0);
+    await item.getByRole('button',{name:'Close title',exact:true}).click();
+    await film.click();
+    await item.locator('[data-ui="watch-play-title"]').waitFor();
     await item.getByRole('button',{name:'Add to favorites',exact:true}).click();
     await item.getByRole('button',{name:'Favorited',exact:true}).waitFor();
     await item.getByRole('button',{name:'Add to queue',exact:true}).click();

@@ -1,5 +1,12 @@
 # TSUGI visual acceptance ledger
 
+## 2026-11-28 - P3 cinematic metadata implementation candidate
+
+- Base: `b4be9b6933436efc7eb32d97353ee64147f85779`. Latest integrated CI failed at the Family Guy search poster; native checks passed. Apply the pending formatter/artwork repair before the P3 candidate.
+- P3 adds a stable manually controlled featured carousel with movie and series representation, exact resume episode labels and remaining time, public MAL/Kitsu artwork fallback, region-specific TMDB/JustWatch availability and exact TMDB movie collection members. Existing stream grants, source ordering and collection actions remain unchanged. Optional metadata runs in the read-only native browse pool.
+- References: RE-Harbor `02593b5572595970cc9420582a9e13c607c64e52`, `src/components/hero-carousel.tsx`, `src/components/continue-card.tsx`, `src/views/detail.tsx`; independent adaptation using existing TSUGI artwork, MediaRow and WideCard. Manual navigation preserves focus; no automatic rotation. TMDB collection membership covers movie franchises only, not guessed series/anime relations. No new API key.
+- Added native parser, web presentation and integrated fixture regressions. Sixteen isolated presentation assertions passed, and both new TypeScript modules transpiled. Both patches applied to reconstructed source contexts verified against the base commit. Full typecheck, lint, native and browser CI, actual regional availability and Windows rendered acceptance remain open. No P3 acceptance checkmark, package marker or release.
+
 Checkpoint 2026-11-28. **Not accepted for packaging.** This is a living coverage record for [P0–P5](tsugi-recovery-roadmap.md), the [mandatory visual standard](tsugi-visual-standard.md), and [all 22 screenshot annotations and written feedback](windows-ui-review.md). Record actual renders, interactions, source revisions and remaining evidence; do not turn a green build or an overview of screenshots into a visual sign-off.
 
 ## Evidence and reference identity

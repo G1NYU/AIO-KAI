@@ -143,6 +143,20 @@
 .tsugi-watch-header-search .tsugi-read-action{flex:none;min-height:44px}
 @media(max-width:760px){.tsugi-watch-header-search .tsugi-watch-board-toolbar{flex-wrap:wrap}.tsugi-watch-header-search .tsugi-watch-search-trigger{flex-basis:100%}}
 
+/* Cinematic, title-specific slide with a stable reading surface and real controls. */
+.tsugi-watch-featured{min-height:clamp(340px,40vw,560px);min-width:0}
+.tsugi-watch-featured-art::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--tsugi-surface) 0%,color-mix(in srgb,var(--tsugi-surface) 74%,transparent) 34%,transparent 85%),linear-gradient(0deg,var(--tsugi-surface),transparent 68%)}
+[dir='rtl'] .tsugi-watch-featured-art::after{background:linear-gradient(270deg,var(--tsugi-surface) 0%,color-mix(in srgb,var(--tsugi-surface) 74%,transparent) 34%,transparent 85%),linear-gradient(0deg,var(--tsugi-surface),transparent 68%)}
+.tsugi-watch-featured-copy{min-width:0;max-width:min(650px,90%)}
+.tsugi-watch-featured-nav,.tsugi-watch-featured-pips{display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-width:0;max-width:100%}
+.tsugi-watch-featured-nav>button{min-width:40px;min-height:40px}
+.tsugi-watch-featured-pips>button{display:grid;place-items:center;min-width:34px;min-height:36px;padding:0;border-radius:999px;background:transparent;color:var(--tsugi-muted)}
+.tsugi-watch-featured-pips>button>span{width:7px;height:7px;border-radius:999px;background:currentColor;opacity:.7}
+.tsugi-watch-featured-pips>button[aria-current='true']{color:var(--tsugi-accent)}
+.tsugi-watch-featured-pips>button[aria-current='true']>span{width:20px;opacity:1}
+.tsugi-watch-featured-pips>button:hover{color:var(--tsugi-ink)}
+.tsugi-watch-featured-logo-fallback{display:flex;align-items:center;min-height:100%;overflow-wrap:anywhere}
+@media(max-width:760px){.tsugi-watch-featured{min-height:clamp(300px,75vw,420px)}.tsugi-watch-featured-copy{max-width:100%}.tsugi-watch-featured-art::after,[dir='rtl'] .tsugi-watch-featured-art::after{background:linear-gradient(0deg,var(--tsugi-surface),color-mix(in srgb,var(--tsugi-surface) 65%,transparent) 50%,transparent)}}
 .tsugi-watch-featured-logo{position:relative;display:block;width:min(340px,60vw);height:clamp(64px,8vw,100px)}
 .tsugi-watch-featured-logo img{object-fit:contain;object-position:left center}
 .tsugi-watch-featured-meta{display:flex;flex-wrap:wrap;align-items:center;gap:12px;color:var(--tsugi-muted);font-size:13px}

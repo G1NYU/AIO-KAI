@@ -282,6 +282,17 @@
 .tsugi-watch-cast-card{min-width:0;display:grid;align-content:start;gap:5px;font-size:13px}
 .tsugi-watch-cast-portrait{position:relative;aspect-ratio:2/3;overflow:hidden;border-radius:var(--tsugi-radius-art);background:var(--tsugi-surface)}
 .tsugi-watch-cast-card strong,.tsugi-watch-cast-card small{overflow-wrap:anywhere}
+/* Informational availability uses existing palette and flat settings controls. */
+.tsugi-watch-availability{min-width:0;display:grid;gap:12px;padding-block:16px}
+.tsugi-watch-availability-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.tsugi-watch-availability-heading>select{max-width:100%;min-width:min(100%,180px)}
+.tsugi-watch-availability-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:16px 24px}
+.tsugi-watch-availability-groups>div{min-width:0}
+.tsugi-watch-availability-groups h5{font-size:12px;font-weight:650;color:var(--tsugi-muted);margin-bottom:8px}
+.tsugi-watch-availability-groups ul{display:flex;flex-direction:column;gap:8px}
+.tsugi-watch-availability-groups li{display:flex;align-items:center;gap:10px;min-width:0;font-size:13px;overflow-wrap:anywhere}
+.tsugi-watch-availability-groups li img{width:32px;height:32px;object-fit:contain;border-radius:6px;flex:none}
+.tsugi-watch-availability>p{font-size:12px;line-height:1.5}
 .tsugi-watch-cast-card small{color:var(--tsugi-muted)}
 .tsugi-watch-tagline{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--tsugi-muted)}
 .tsugi-watch-rating{font-weight:650;font-variant-numeric:tabular-nums}

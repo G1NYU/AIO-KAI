@@ -13,6 +13,7 @@ import { publicCinemeta, loadAddonCatalog, listWatchHistory, searchTmdb, loadTmd
 import { rankCatalogueSearch, searchAliasTargets } from '@/lib/hosts/shell/watch-search';
 import './watch-catalogue-board.css';
 import { useResumeArtwork } from '@/lib/hosts/shell/watch-artwork';
+import { chooseWatchFeatured, watchResumePresentation } from '@/lib/hosts/shell/watch-presentation';
 
 type Item=CatalogPage['items'][number];
 type Scope='all'|'anime'|'anime-films';
@@ -127,9 +128,11 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
     return ()=>window.clearTimeout(timer);
   },[active,paused,busy,stopped,rows,limit,targets,includeHistory,history,historyFailed,profileId,run,search]);
 
-  const [heroIndex,setHeroIndex]=React.useState(0);
-  const featuredItems=visible.flatMap(target=>rows[target.key]?.page?.items.slice(0,2).map(item=>({target,item}))??[]).filter(row=>row.item.background||row.item.poster).slice(0,8);
-  const featured=featuredItems[heroIndex%Math.max(1,featuredItems.length)];
+  const [heroKey,setHeroKey]=React.useState<string>();
+  const featuredItems=includeHistory?chooseWatchFeatured(visible.flatMap(target=>rows[target.key]?.page?.items.slice(0,2).map(item=>({target,item,sourceId:target.source.sourceId}))??[])):[];
+  const heroIndex=Math.max(0,featuredItems.findIndex(row=>row.key===heroKey));
+  const featured=featuredItems[heroIndex],displayedKey=featured?.key;
+  React.useEffect(()=>{if(displayedKey&&displayedKey!==heroKey)setHeroKey(displayedKey);},[displayedKey,heroKey]);
   const featuredId=featured?.item.id,featuredType=featured?.item.mediaType;
   const featureKey=JSON.stringify([profileId,featuredId,featuredType]);
   const featuredMetadata=featuredResolved?.key===featureKey?featuredResolved.title:null;
@@ -156,22 +159,33 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
   const populated=visible.filter(target=>(rows[target.key]?.page?.items.length??0)>0);
   const continuing=history?.filter(row=>!row.progress.completed&&row.progress.positionMs>0).slice(0,12)??[];
   const resumeArt=useResumeArtwork(profileId,includeHistory?continuing.map(row=>row.progress):[]);
+  const featuredYear=(featuredMetadata?.releaseInfo??featured?.item.releaseInfo)?.slice(0,4);
+  const featuredRating=featuredMetadata?.tmdbRating??featured?.item.tmdbRating;
+  const featuredRuntime=featuredMetadata?.runtime;
   return <>
-    {includeHistory&&featured&&<section data-ui="hero" className="tsugi-watch-featured">
+    {includeHistory&&featured&&<section data-ui="hero" className="tsugi-watch-featured" aria-label={t`Featured movies and series`}>
       <BackdropFrame className="pointer-events-none tsugi-watch-featured-art">
-        <Artwork eager src={[featuredMetadata?.background,featured.item.background,featured.item.poster].filter((value):value is string=>!!value)} alt="" className={featuredMetadata?.background||featured.item.background?'tsugi-watch-featured-backdrop':'tsugi-watch-featured-poster'}/>
+        <Artwork key={featured.key} eager src={[featuredMetadata?.background,featured.item.background,featuredMetadata?.poster,featured.item.poster,...(featured.item.posterAlternatives??[])].filter((value):value is string=>!!value)} alt="" className={featuredMetadata?.background||featured.item.background?'tsugi-watch-featured-backdrop':'tsugi-watch-featured-poster'}/>
       </BackdropFrame>
       <div className="tsugi-watch-featured-copy">
         <small><Trans>Featured</Trans> · {featured.target.catalog.name}</small>
-        <h2>{featuredMetadata?.logo?<span className="tsugi-watch-featured-logo"><Artwork eager src={featuredMetadata.logo} alt={featuredMetadata.name}/></span>:featuredMetadata?.name??featured.item.name}</h2>
-        {featuredMetadata&&<div className="tsugi-watch-featured-meta">{featuredMetadata.releaseInfo&&<span>{featuredMetadata.releaseInfo.slice(0,4)}</span>}{featuredMetadata.tmdbRating!==undefined&&<span className="tsugi-watch-rating"><Trans>TMDB</Trans> {featuredMetadata.tmdbRating.toFixed(1)}/10</span>}{featuredMetadata.runtime&&<span>{featuredMetadata.runtime} <Trans>min</Trans></span>}</div>}
+        <h2>{featuredMetadata?.logo?<span className="tsugi-watch-featured-logo"><Artwork key={featuredMetadata.logo} eager src={featuredMetadata.logo} alt={featuredMetadata.name} standIn={<span className="tsugi-watch-featured-logo-fallback">{featuredMetadata.name}</span>}/></span>:featuredMetadata?.name??featured.item.name}</h2>
+        <div className="tsugi-watch-featured-meta"><span>{featured.kind==='series'?t`Series`:featured.kind==='movie'?t`Movie`:t`Anime`}</span>{featuredYear&&<span>{featuredYear}</span>}{featuredRating!==undefined&&featuredRating>0&&<span className="tsugi-watch-rating"><Trans>TMDB</Trans> {featuredRating.toFixed(1)}/10</span>}{featuredRuntime&&<span><Trans>{featuredRuntime} min</Trans></span>}{!!featuredMetadata?.genres?.length&&<span>{featuredMetadata.genres.slice(0,3).join(' · ')}</span>}</div>
         {(featuredMetadata?.description||featured.item.description)&&<p className="line-clamp-3">{featuredMetadata?.description??featured.item.description}</p>}
-        <div className="flex flex-wrap items-center gap-2"><Button intent="white" className="rounded-full" disabled={busy} onClick={()=>openTitle(featured.item,featured.target.source.sourceId)}><Trans>View title</Trans></Button>{featuredItems.length>1&&<><button type="button" className="tsugi-read-action" aria-label={t`Previous featured title`} disabled={busy} onClick={()=>setHeroIndex(i=>(i+featuredItems.length-1)%featuredItems.length)}>‹</button><span>{heroIndex%featuredItems.length+1} / {featuredItems.length}</span><button type="button" className="tsugi-read-action" aria-label={t`Next featured title`} disabled={busy} onClick={()=>setHeroIndex(i=>(i+1)%featuredItems.length)}>›</button></>}</div>
+        <Button intent="white" className="rounded-full" disabled={busy} onClick={()=>openTitle(featured.item,featured.target.source.sourceId)}><Trans>View title</Trans></Button>
+        {featuredItems.length>1&&<div data-ui="watch-featured-nav" className="tsugi-watch-featured-nav" role="group" aria-label={t`Featured titles`}>
+          <button type="button" className="tsugi-read-action" aria-label={t`Previous featured title`} disabled={busy} onClick={()=>setHeroKey(featuredItems[(heroIndex+featuredItems.length-1)%featuredItems.length].key)}>‹</button>
+          <div className="tsugi-watch-featured-pips">{featuredItems.map((entry,index)=>{const name=entry.item.name;return <button type="button" key={entry.key} title={name} aria-label={t`Show ${name}`} aria-current={index===heroIndex?'true':undefined} disabled={busy} onClick={()=>setHeroKey(entry.key)}><span aria-hidden="true"/></button>;})}</div>
+          <button type="button" className="tsugi-read-action" aria-label={t`Next featured title`} disabled={busy} onClick={()=>setHeroKey(featuredItems[(heroIndex+1)%featuredItems.length].key)}>›</button>
+        </div>}
       </div>
     </section>}
     {includeHistory&&continuing.length>0&&<section className="tsugi-watch-shelf" data-ui="watch-continue-shelf">
       <MediaRow contained id={profileId+':watch-resume'} title={t({id:'Continue watching',message:'Continue watching'})} shape="wide">
-        {continuing.map(({progress:p})=><WideCard key={JSON.stringify([p.mediaType,p.itemId,p.videoId])} onClick={()=>{if(!busy)openHistory?.(p);}} image={resumeArt(p)} title={p.title} subtitle={p.episodeTitle??undefined} progress={100*p.positionMs/p.durationMs}/>)}
+        {continuing.map(({progress:p})=>{const {numbers,percent,remainingMinutes}=watchResumePresentation(p);const season=numbers?.season,episode=numbers?.episode;
+          const episodeCode=season!==undefined&&episode!==undefined?t`S${season} E${episode}`:undefined;
+          const subtitle=[episodeCode,p.episodeTitle].filter(Boolean).join(' · ')||undefined;
+          return <WideCard key={JSON.stringify([p.mediaType,p.itemId,p.videoId])} onClick={()=>{if(!busy)openHistory?.(p);}} image={resumeArt(p)} title={p.title} subtitle={subtitle} progress={percent} metaOnArtwork meta={remainingMinutes!==undefined?<Trans>{remainingMinutes} min left</Trans>:undefined}/>;})}
       </MediaRow>
     </section>}
     {includeHistory&&historyFailed&&<p className="tsugi-watch-muted"><Trans>Watch history could not be loaded.</Trans> <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>setHistoryFailed(false)}><Trans>Retry</Trans></button></p>}

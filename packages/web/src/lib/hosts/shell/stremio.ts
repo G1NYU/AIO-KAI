@@ -47,7 +47,7 @@ type WatchCollectionAction={kind:'watch-collections'}|{kind:'watch-collection-se
 type WatchHistoryAction={kind:'watch-history'}|{kind:'watch-record';progress:WatchProgress;viewingId?:string}|({kind:'watch-remove'}&Pick<WatchProgress,'mediaType'|'itemId'|'videoId'>);
 type RefractAction={kind:'refract-threshold';percent:number|null}|{kind:'watch-complete';mediaType:string;itemId:string;videoId:string;updatedAt:number}|{kind:'refract-status'}|{kind:'refract-connect';key:string}|{kind:'refract-enable';enabled:boolean}|{kind:'refract-disconnect';discardPending:boolean}|{kind:'refract-sync'}|{kind:'refract-watchlist';mediaType:string;itemId:string;add:boolean};
 type MalAnimeAction={kind:'mal-anime-list'}|{kind:'mal-anime-import';entries:MalEntry[]}|{kind:'mal-anime-remove';malId:number}|{kind:'mal-anime-match';malId:number;sourceId:number;mediaType:string;itemId:string}|{kind:'mal-anime-unmatch';malId:number};
-type TmdbAction={kind:'tmdb-search';query:string}|{kind:'tmdb-title';mediaType:string;itemId:string}|{kind:'tmdb-season';tmdbId:number;season:number};
+type TmdbAction={kind:'tmdb-search';query:string}|{kind:'tmdb-title';mediaType:string;itemId:string}|{kind:'tmdb-season';tmdbId:number;season:number}|{kind:'tmdb-watch-providers';mediaType:string;tmdbId:number}|{kind:'tmdb-collection';collectionId:number;tmdbId:number};
 type SetupAction={kind:'watch-setup-status'}|{kind:'tmdb-connect';key:string}|{kind:'tmdb-disconnect'};
 type Action = Mutation | CatalogAction | ImportAction | ItemAction | MdblistAction | SetupAction | TmdbAction | WatchCollectionAction | WatchHistoryAction | RefractAction | MalAnimeAction | { kind: 'list' } | { kind: 'review'; url: string } | { kind: 'cancel-review'; reviewId: number };
 export type RemoteAddonProfile={profileIndex:number;name:string;usesPrimaryAddons:boolean;locked:boolean};
@@ -225,7 +225,7 @@ export type TmdbCastMember={id:number;name:string;character?:string;portrait?:st
 const tmdbCrewRoles=['director','writer','producer','cinematography','music','editor','creator'] as const;
 export type TmdbCrewRole=typeof tmdbCrewRoles[number];
 export type TmdbCrewCredit={role:TmdbCrewRole;names:string[]};
-export type TmdbTitle=MetadataItem&{tmdbId:number;genres?:string[];cast?:string[];castMembers?:TmdbCastMember[];crewCredits?:TmdbCrewCredit[];related?:MetadataItem[];tagline?:string;runtime?:number};
+export type TmdbTitle=MetadataItem&{tmdbId:number;genres?:string[];cast?:string[];castMembers?:TmdbCastMember[];crewCredits?:TmdbCrewCredit[];related?:MetadataItem[];collectionId?:number;tagline?:string;runtime?:number};
 function castMembers(value:unknown):TmdbCastMember[]|undefined{
   if(!Array.isArray(value))return undefined;
   const seen=new Set<number>();
@@ -264,7 +264,52 @@ function relatedTmdbItems(value:unknown,current:MetadataItem):MetadataItem[]{
 export async function loadTmdbTitle(profileId:number,mediaType:string,itemId:string):Promise<TmdbTitle>{
   const row=obj((await scoped(profileId,{kind:'tmdb-title',mediaType,itemId})).item),item=parseTmdbItem(row),tmdbId=integer(row.tmdbId,1,9999999999);
   if(Number(item.id.split(':').at(-1))!==tmdbId)return fail();
-  return {...item,tmdbId,genres:optionalDisplayList(row.genres,16,80),cast:optionalDisplayList(row.cast,12,128),castMembers:castMembers(row.castMembers),crewCredits:crewCredits(row.crewCredits),related:relatedTmdbItems(row.related,item),tagline:optionalDisplay(row.tagline,256),runtime:row.runtime==null?undefined:integer(row.runtime,1,1440)};
+  const collectionId=item.mediaType==='movie'&&typeof row.collectionId==='number'&&Number.isSafeInteger(row.collectionId)&&row.collectionId>0&&row.collectionId<=9999999999?row.collectionId:undefined;
+  return {...item,tmdbId,collectionId,genres:optionalDisplayList(row.genres,16,80),cast:optionalDisplayList(row.cast,12,128),castMembers:castMembers(row.castMembers),crewCredits:crewCredits(row.crewCredits),related:relatedTmdbItems(row.related,item),tagline:optionalDisplay(row.tagline,256),runtime:row.runtime==null?undefined:integer(row.runtime,1,1440)};
+}
+// Read-only, exact-title metadata. These rows are never playable stream URLs.
+const availabilityModes=['flatrate','free','ads','rent','buy'] as const;
+export type TmdbAvailabilityMode=typeof availabilityModes[number];
+export type TmdbWatchProvider={id:number;name:string;logo?:string};
+export type TmdbRegionAvailability={country:string;providers:Record<TmdbAvailabilityMode,TmdbWatchProvider[]>};
+export type TmdbCollection={name:string;items:MetadataItem[]};
+function watchProviderRows(value:unknown):TmdbWatchProvider[]{
+  if(!Array.isArray(value))return [];
+  const seen=new Set<number>();
+  return value.slice(0,12).flatMap(entry=>{
+    try{
+      const row=obj(entry),id=integer(row.id,1,9999999999),name=optionalDisplay(row.name,128);
+      if(!name||seen.has(id)||/apikey=|api_key=/i.test(name))return [];
+      seen.add(id);
+      return [{id,name,logo:publicAddonPoster(row.logo)}];
+    }catch{return [];}
+  });
+}
+export async function loadTmdbWatchProviders(profileId:number,mediaType:string,tmdbId:number):Promise<TmdbRegionAvailability[]>{
+  const v=await scoped(profileId,{kind:'tmdb-watch-providers',mediaType,tmdbId});
+  if(v.tmdbId!==tmdbId||v.mediaType!==mediaType||!Array.isArray(v.regions)||v.regions.length>250)return fail();
+  const seen=new Set<string>();
+  return v.regions.flatMap(entry=>{
+    try{
+      const row=obj(entry),country=row.country;
+      if(typeof country!=='string'||!(/^[A-Z]{2}$/).test(country)||seen.has(country))return [];
+      const groups=obj(row.providers);
+      const providers=Object.fromEntries(availabilityModes.map(mode=>[mode,watchProviderRows(groups[mode])])) as Record<TmdbAvailabilityMode,TmdbWatchProvider[]>;
+      if(!availabilityModes.some(mode=>providers[mode].length))return [];
+      seen.add(country);
+      return [{country,providers}];
+    }catch{return [];}
+  });
+}
+export async function loadTmdbCollection(profileId:number,collectionId:number,tmdbId:number):Promise<TmdbCollection>{
+  const v=await scoped(profileId,{kind:'tmdb-collection',collectionId,tmdbId});
+  const name=optionalDisplay(v.name,256);
+  if(v.collectionId!==collectionId||v.tmdbId!==tmdbId||!name||!Array.isArray(v.items)||v.items.length>60)return fail();
+  const seen=new Set(['tmdb:movie:'+tmdbId]);
+  const items=v.items.flatMap(entry=>{
+    try{const item=parseTmdbItem(entry);if(item.mediaType!=='movie'||seen.has(item.id))return [];seen.add(item.id);return [item];}catch{return [];}
+  });
+  return {name,items};
 }
 export type TmdbEpisode={episode:number;name?:string;description?:string;thumbnail?:string;runtime?:number;tmdbRating?:number};
 export async function loadTmdbSeason(profileId:number,tmdbId:number,season:number):Promise<TmdbEpisode[]>{
