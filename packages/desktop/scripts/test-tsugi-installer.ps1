@@ -72,7 +72,11 @@ try {
     Install-Test $target
     Assert-Payload
     if ((Get-Content -LiteralPath $sentinel -Raw).Trim() -cne 'Preserve personal data') { throw 'Upgrade modified user data' }
+    $managedRuntime = Join-Path $target 'current/read-tools'
+    New-Item -ItemType Directory -Path $managedRuntime | Out-Null
+    'Managed runtime fixture' | Set-Content -LiteralPath (Join-Path $managedRuntime 'installer-smoke.txt')
     Remove-TestInstall
+    if (Test-Path -LiteralPath $managedRuntime) { throw 'Uninstall left the app-managed reader runtime' }
     if ((Test-Path -LiteralPath (Join-Path $target 'current/Tsugi.exe')) -or (Test-Path -LiteralPath (Join-Path $target '.tsugi-installed')) -or (Test-Path $registry) -or (Test-Path $shortcut) -or (Test-Path $desktopShortcut)) { throw 'Uninstaller left registered program files or shortcuts' }
     if ((Get-Content -LiteralPath $sentinel -Raw).Trim() -cne 'Preserve personal data') { throw 'Uninstall modified user data' }
     Write-Host "PASS: selectable install folder ($target), exact program files, native probes, shortcuts, upgrade and uninstall with preserved personal data."

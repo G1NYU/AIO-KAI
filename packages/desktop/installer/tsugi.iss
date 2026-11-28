@@ -56,6 +56,11 @@ Name: "{userprograms}\TSUGI\Uninstall TSUGI"; Filename: "{uninstallexe}"
 [Run]
 Filename: "{app}\current\Tsugi.exe"; Description: "Launch TSUGI"; Flags: nowait postinstall skipifsilent
 
+; Only the application-managed, separately downloaded runtime is untracked.
+; Never remove %LOCALAPPDATA%\TSUGI or the user's media/download directories.
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}\current\read-tools"
+
 [Code]
 function ContainsFiles(Directory: String): Boolean;
 var

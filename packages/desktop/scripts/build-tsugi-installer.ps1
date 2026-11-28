@@ -40,8 +40,8 @@ choose a writable local folder on any drive.
 
 Upgrading in the same folder preserves user data. Uninstall from Windows
 Settings or the Start menu. The uninstaller leaves user data and downloads
-alone. A separately downloaded reading runtime may remain in the old program
-folder; remove it manually only when you no longer need that runtime.
+alone. The separately downloaded Java/server program runtime is removed with
+the application, not the personal reading data.
 To move the program to another drive, uninstall the program first, then
 reinstall in the new folder; your user data stays in its original location.
 

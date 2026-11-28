@@ -1,0 +1,117 @@
+name: Publish accepted Tsugi Windows installer
+
+on:
+  push:
+    branches: [feature/tsugi-read-runtime]
+    paths:
+      - '.github/tsugi-approved-installer.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tsugi-installer-publication
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: contains(github.event.head_commit.message, '[publish tsugi installer]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Verify explicit approval and successful installer run
+        id: approved
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, re
+          a = json.load(open(".github/tsugi-approved-installer.json", encoding="utf-8"))
+          assert set(a) == {"tag","commit","run_id","artifact_id","sha256"}
+          assert a["tag"] == "v0.1.2"
+          assert re.fullmatch(r"[0-9a-f]{40}",a["commit"])
+          assert re.fullmatch(r"[0-9a-f]{64}",a["sha256"])
+          for key in ("run_id","artifact_id"):
+              assert isinstance(a[key], str) and re.fullmatch(r"[1-9][0-9]{0,19}",a[key])
+          with open(os.environ["GITHUB_OUTPUT"],"a") as out:
+              for k,v in a.items(): print(f"{k}={v}", file=out)
+          PY
+          run_id=$(jq -r .run_id .github/tsugi-approved-installer.json)
+          commit=$(jq -r .commit .github/tsugi-approved-installer.json)
+          artifact_id=$(jq -r .artifact_id .github/tsugi-approved-installer.json)
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > verified-run.json
+          jq -e --arg commit "$commit" '.head_sha==$commit and .head_branch=="feature/tsugi-read-runtime" and .name=="Unified Tsugi Windows Build" and .status=="completed" and .conclusion=="success"' verified-run.json >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts?per_page=100" > verified-artifacts.json
+          jq -e --arg id "$artifact_id" '[.artifacts[] | select((.id|tostring)==$id and .name=="Tsugi-Windows-x64-Setup" and .expired==false)]|length==1' verified-artifacts.json >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" | jq -e '[.jobs[]|select(.name=="installer" and .conclusion=="success")]|length==1' >/dev/null
+      - uses: actions/download-artifact@v5
+        with:
+          artifact-ids: ${{ steps.approved.outputs.artifact_id }}
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.approved.outputs.run_id }}
+          path: accepted
+      - name: Verify accepted bytes and publish the installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.approved.outputs.tag }}
+          RELEASE_COMMIT: ${{ steps.approved.outputs.commit }}
+          APPROVED_SHA256: ${{ steps.approved.outputs.sha256 }}
+          APPROVED_RUN: ${{ steps.approved.outputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          p=Path("accepted")
+          assert {x.name for x in p.iterdir()} == {"Tsugi-windows-x64-setup.exe","SHA256SUMS.txt","INSTALLER-INFO.json"}
+          info=json.loads((p/"INSTALLER-INFO.json").read_text(encoding="utf-8-sig"))
+          assert info["repository"]==os.environ["GITHUB_REPOSITORY"]
+          assert info["commit"]==os.environ["RELEASE_COMMIT"] and info["run_id"]==os.environ["APPROVED_RUN"]
+          assert info["tag"]==os.environ["RELEASE_TAG"] and info["architecture"]=="windows-x64"
+          with (p/"Tsugi-windows-x64-setup.exe").open("rb") as f:
+              assert f.read(2)==b"MZ"
+              f.seek(0)
+              digest=hashlib.file_digest(f,"sha256").hexdigest()
+          assert digest==info["installer_sha256"]==os.environ["APPROVED_SHA256"]
+          assert (p/"SHA256SUMS.txt").read_text().strip()==digest+"  Tsugi-windows-x64-setup.exe"
+          PY
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release exists; refusing to overwrite." >&2; exit 1
+          fi
+          tags=$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/$RELEASE_TAG")
+          if jq -e --arg ref "refs/tags/$RELEASE_TAG" 'any(.[]; .ref==$ref)' <<<"$tags" >/dev/null; then
+            echo "Tag exists; refusing to overwrite." >&2; exit 1
+          fi
+          cat > notes.md <<EOF
+          TSUGI v0.1.2 — Windows x64 installer
+
+          - Automatic addon-customized posters and optional profile-specific artwork overrides.
+          - Compatible MAL/anime catalogues preserve source identities and ordering.
+          - TVmaze Discover includes Korean dramas, more genres and regional schedules.
+          - Refined Up Next layout and original minimalist streaming-hub illustrations with subtle artwork-only blur.
+          - Standard Windows setup, selectable writable drive/folder, Start menu shortcuts, optional desktop shortcut and uninstaller.
+
+          Download **Tsugi-windows-x64-setup.exe**, verify its SHA-256 against SHA256SUMS.txt, and run the installer. No ZIP extraction is required.
+          This installer is unsigned; Windows may show a warning. Previous portable builds retain their separate data. Keep the original folder and use supported backup/restore features to migrate personal data.
+          Installed TSUGI keeps personal data under %LOCALAPPDATA%\\TSUGI. In-place upgrades and uninstall preserve that data. Read downloads its verified runtime directly from upstream on first setup.
+
+          Validation: https://github.com/$GITHUB_REPOSITORY/actions/runs/$APPROVED_RUN
+          Application source: $RELEASE_COMMIT
+          License: AGPL-3.0; bundled tools retain their licenses and notices.
+          EOF
+          cd accepted
+          gh release create "$RELEASE_TAG" Tsugi-windows-x64-setup.exe SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target "$RELEASE_COMMIT" --title "TSUGI $RELEASE_TAG — Windows Installer" --notes-file ../notes.md --draft
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets,isDraft,targetCommitish > draft.json
+          jq -e --arg digest "sha256:$APPROVED_SHA256" --arg commit "$RELEASE_COMMIT" '.isDraft and .targetCommitish==$commit and ([.assets[].name]|sort)==["SHA256SUMS.txt","Tsugi-windows-x64-setup.exe"] and any(.assets[]; .name=="Tsugi-windows-x64-setup.exe" and .digest==$digest)' draft.json >/dev/null
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" | jq -e --arg commit "$RELEASE_COMMIT" '.object.type=="commit" and .object.sha==$commit' >/dev/null
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json url,isDraft,isPrerelease,tagName
