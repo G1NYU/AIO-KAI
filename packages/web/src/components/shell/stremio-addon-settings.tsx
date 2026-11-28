@@ -468,6 +468,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
   const videos=details?.videos??[];
   const seasons=[...new Set(videos.map(seasonOf))].sort((a,b)=>a==='other'?1:b==='other'?-1:Number(a)-Number(b));
   const selectedVideo=videos.find(v=>v.id===videoId);
+  const streamSeason=selectedVideo?.season,streamEpisode=selectedVideo?.episode;
   const titleKey=title?.id,titleKind=title?.mediaType,titleImdb=title?.imdbId;
   React.useEffect(()=>{setCinema(null);if(profileId===undefined||!titleKey||!titleKind)return;let current=true;void loadTmdbTitle(profileId,titleKind,titleImdb??titleKey).then(item=>{if(current)setCinema(item);}).catch(()=>{});return ()=>{current=false;};},[profileId,titleKey,titleKind,titleImdb]);
   const selectedSeason=seasonChoice!==null&&seasons.includes(seasonChoice)?seasonChoice:selectedVideo?seasonOf(selectedVideo):seasons.find(s=>s!=='0'&&s!=='other')??seasons[0]??'other';
@@ -744,7 +745,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
         <div className="tsugi-watch-stream-background" aria-hidden="true"><Artwork eager src={[seasonArt.find(e=>e.episode===selectedVideo?.episode&&String(selectedVideo?.season)===selectedSeason)?.thumbnail,selectedVideo?.thumbnail,cinema?.background,details?.background,title.background,details?.poster,title.poster,...(title.posterAlternatives??[])].filter((value):value is string=>!!value)} alt=""/></div>
         <div className="tsugi-watch-stream-inner" data-ui="watch-stream-groups">
           <header className="tsugi-watch-stream-header"><button ref={streamBack} type="button" className="tsugi-read-action" disabled={busy} onClick={closeStreams}>← <Trans>Back</Trans></button><button type="button" className="tsugi-read-action" disabled={busy} onClick={refreshStreams}><Trans>Refresh streams</Trans></button></header>
-          <div className="tsugi-watch-stream-intro">{selectedVideo&&!isWatchMovie(title.mediaType)&&<p className="tsugi-watch-muted" data-ui="watch-stream-context">{details?.name??title.name}{selectedVideo.season!=null&&selectedVideo.episode!=null&&<> · <Trans>S{selectedVideo.season} E{selectedVideo.episode}</Trans></>}</p>}<h2>{selectedVideo&&!isWatchMovie(title.mediaType)?selectedVideo.name:details?.name??title.name}</h2>{selectedVideo?.description&&<p>{selectedVideo.description}</p>}</div>
+          <div className="tsugi-watch-stream-intro">{selectedVideo&&!isWatchMovie(title.mediaType)&&<p className="tsugi-watch-muted" data-ui="watch-stream-context">{details?.name??title.name}{streamSeason!=null&&streamEpisode!=null&&<> · <Trans>S{streamSeason} E{streamEpisode}</Trans></>}</p>}<h2>{selectedVideo&&!isWatchMovie(title.mediaType)?selectedVideo.name:details?.name??title.name}</h2>{selectedVideo?.description&&<p>{selectedVideo.description}</p>}</div>
           <h3><Trans>Available sources</Trans></h3>
           {streamPending!==null&&<p role="status" className="tsugi-watch-muted">{streamPending<0?<Trans>Finding streams from your addons…</Trans>:<Trans>{streamPending} providers still loading…</Trans>}</p>}
           {streamGroups&&streamPending===null&&streamGroups.every(group=>group.error==='unsupported-resource')&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>{closeStreams();void selectPane('addons');}}><Trans>Manage addons</Trans></button>}
