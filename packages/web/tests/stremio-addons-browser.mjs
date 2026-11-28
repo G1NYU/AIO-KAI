@@ -31,7 +31,13 @@ export function installStremioFixture(initializeStartup=true){
     return true;
   };
   host.subscribe=listener=>{listeners.add(listener);const remove=subscribe(listener);return()=>{listeners.delete(listener);remove();};};
+  let fullscreen=false;
   host.send=message=>{
+    if(message.type==='fullscreen'){
+      fullscreen=message.value??!fullscreen;
+      queueMicrotask(()=>f.emitPlayer({type:'fullscreen',value:fullscreen}));
+      return;
+    }
     if(message.type==='presence'||message.type==='discord-configure')f.presenceMessages.push(structuredClone(message));
     if(message.type==='stremio-consume-grant'){
       const grant=f.mediaGrant;f.mediaGrant=null;f.mediaCalls.push({type:message.type,grantId:message.grantId});
@@ -762,8 +768,29 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await groups.getByRole('button',{name:'Play',exact:true}).first().click();
     const player=watch.locator('[data-ui="direct-watch-player"]');
     await player.locator('[data-ui="player-controls"]:not([data-loading])').waitFor();
+    const assertUnobstructedVideo=async(mode)=>{
+      const geometry=await watch.evaluate(root=>{
+        const r=root.querySelector('[data-ui="direct-watch-player"]').getBoundingClientRect();
+        const style=getComputedStyle(root);
+        return {strip:parseFloat(style.borderTopWidth),left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:innerWidth,height:innerHeight,background:style.backgroundColor};
+      });
+      assert.equal(geometry.strip,0,mode+' has no opaque browsing strip');
+      assert.equal(geometry.background,'rgba(0, 0, 0, 0)',mode+' leaves the native video surface visible');
+      assert.ok(Math.abs(geometry.left)<=1&&Math.abs(geometry.top)<=1&&Math.abs(geometry.right-geometry.width)<=1&&Math.abs(geometry.bottom-geometry.height)<=1,mode+' fills viewport: '+JSON.stringify(geometry));
+    };
+    await assertUnobstructedVideo('Windowed playback');
     await player.hover();
     assert.equal(await player.locator('[data-ui="player-top-bar"]').count(),1);
+    await player.getByRole('button',{name:'Full screen',exact:true}).click();
+    await player.getByRole('button',{name:'Exit full screen',exact:true}).waitFor({state:'visible'});
+    await page.setViewportSize({width:1920,height:1080});
+    await assertUnobstructedVideo('Fullscreen playback');
+    await player.hover();
+    await player.getByRole('button',{name:'Exit full screen',exact:true}).click();
+    await player.getByRole('button',{name:'Full screen',exact:true}).waitFor({state:'visible'});
+    await page.setViewportSize({width:1600,height:900});
+    await assertUnobstructedVideo('Restored windowed playback');
+    await player.hover();
     await player.getByRole('button',{name:'Audio',exact:true}).click();
     await page.locator('[data-ui="player-menu"][data-name="audio"] [data-ui="player-menu-item"]').filter({hasText:'Japanese audio'}).click();
     await page.waitForFunction(()=>window.__stremioFixture.mediaCalls.some(m=>m.type==='player-set'&&m.audio==='2'));
@@ -799,6 +826,8 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.hover();
     await player.getByRole('button',{name:'Back',exact:true}).click();
     await player.waitFor({state:'detached'});
+    assert.ok(await watch.evaluate(root=>parseFloat(getComputedStyle(root).borderTopWidth)>=40),'opaque browsing strip restored after playback');
+    console.log('PASS: direct player fills windowed/fullscreen viewport without opaque top strip; browsing chrome returns.');
     await item.getByRole('button',{name:'Close title',exact:true}).click();
     const resumedCard=board.locator('[data-ui="watch-continue-shelf"] [data-ui="wide-card"]').filter({hasText:'Fixture cinema film'});
     await resumedCard.waitFor();

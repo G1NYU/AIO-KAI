@@ -4,6 +4,11 @@
 /* A viewport-contained scroller prevents browsing content from sliding beneath
  * the fixed native controls. The shared fixed rail and player stay unchanged. */
 :root[data-host='desktop'] .tsugi-direct-watch {box-sizing:border-box;height:100dvh;overflow-y:auto;border-block-start:max(40px,var(--tsugi-window-strip,40px)) solid var(--tsugi-canvas,#101014);padding-block-start:24px;scroll-padding-block-start:8px;}
+/* The native video surface already fills the window beneath the webview.
+ * The opaque browsing strip must never paint over direct playback, even
+ * during loading, pause, or a fullscreen transition. Keep the browsing
+ * scroll geometry and native resize/drag controls unchanged. */
+:root[data-host='desktop'] .tsugi-direct-watch:has(> [data-ui='direct-watch-player']) {border-block-start:0;}
 .tsugi-direct-watch>div>header {margin-bottom:24px;}
 .tsugi-direct-watch .tsugi-watch-picker {min-height:min(72vh,780px);}
 .tsugi-direct-watch .tsugi-watch-content {min-width:0;}

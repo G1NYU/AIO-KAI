@@ -1,3 +1,7 @@
+## 2026-11-28 — Final playback top-strip correction
+
+User reported an opaque black strip along the top of Direct Watch playback in both windowed and fullscreen modes, with a paused Black Clover screenshot. Source inspection traced it to the Watch browsing container's 40px border (watch.css), which remained painted while DirectPlayer used the fixed full-viewport native mpv surface below the webview. The fix scopes border removal to a mounted direct-watch-player child; catalogue chrome and native hit-testing remain unchanged. Browser fixture exercises actual fullscreen button IPC with simulated native state, two viewport sizes, playback geometry, transparent container and restoration on Back. Does not crop or stretch video or change aspect-ratio preferences. Real Windows playback remains the acceptance check. Combined with the previously staged installer changes for one test build. Public release remains gated on acceptance of the resulting installer.
+
 ## 2026-11-28 — v0.1.2 approved application; selectable-drive installer
 
 Maintainer accepted the application at 0cb5331e1b0eda19cbc3d07a781c228a8b26fda4, successful run 46146534343 and portable artifact 15263803940 (ZIP SHA-256 1ea0d8da27d0a79b86cbfaf856de51ea1fb7445bfd55f0f885607b33026632af), then requested a conventional selectable-drive installer instead of a portable public release. No media/UI/artwork changes. A small native installed-mode adaptation requires a new validated executable.
