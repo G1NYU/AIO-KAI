@@ -257,12 +257,7 @@
 :root[data-host='desktop'] .oto-player:not([data-stage='imported']) .tsugi-player-shell { padding:var(--tsugi-window-strip,36px) 0 20px; }
 :root[data-host='desktop'] .oto-player .tsugi-player-hud { position:relative; min-height:66px; padding:12px 4.5vw; gap:24px; }
 :root[data-host='desktop'] .oto-player:not([data-stage='imported']) .tsugi-player-hud { padding-inline:var(--oto-stage-inset); }
-.oto-player .tsugi-player-brand { position:absolute; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:2px; color:var(--tsugi-ink); pointer-events:none; }
-.oto-player .tsugi-player-signature { gap:6px; }
-.oto-player .tsugi-player-signature > svg { width:26px; height:26px; }
-:root[data-host='desktop'] .oto-player .tsugi-player-signature .tsugi-brand-wordmark { width:54px; }
-.oto-player .tsugi-player-section { max-width:110px; color:var(--tsugi-muted); font-size:9px; font-weight:500; line-height:1.4; text-align:center; overflow-wrap:anywhere; }
-.oto-player .oto-player-context { position:absolute; left:calc(50% + 90px); max-width:25%; text-align:start; }
+.oto-player .oto-player-context { position:absolute; left:50%; transform:translateX(-50%); max-width:40%; text-align:center; }
 :root[data-host='desktop'] .oto-player .tsugi-native-stage { min-height:0; padding:clamp(24px,5vh,56px) var(--oto-stage-inset) 32px; gap:var(--oto-stage-gap); grid-template-columns:minmax(0,640px) minmax(0,640px); justify-content:center; align-content:start; }
 :root[data-host='desktop'] .oto-player .tsugi-stage-artwork { width:min(100%,calc(100dvh - 240px)); max-width:640px; }
 :root[data-host='desktop'] .oto-player .tsugi-junction-art { border:0; border-radius:14px; box-shadow:0 22px 64px rgba(0,0,0,.2); }
@@ -504,6 +499,52 @@
   :root[data-host='desktop'] .oto-player .tsugi-native-stage:is([data-layout='junction'],[data-layout='nocturne']) .tsugi-junction-content { padding:18px; }
   :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-lyrics-open='true'] .tsugi-junction-content { padding:0; }
 }
+/* Restore the three native compositions without changing the shared lyrics
+   workspace, transport, imported templates or the desktop design tokens. */
+:root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='default'][data-lyrics-open='false'] {
+  grid-template-columns:minmax(0,560px); justify-items:center; align-content:safe center;
+  gap:10px; padding-block:12px 14px;
+}
+:root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='default'][data-lyrics-open='false'] .tsugi-stage-artwork {
+  width:min(100%,76vw,36dvh,440px,max(180px,calc(100dvh - 640px)));
+}
+:root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='default'][data-lyrics-open='false'] .tsugi-stage-artwork > .mt-5 { margin-top:8px; }
+:root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='default'][data-lyrics-open='false'] .tsugi-junction-content { gap:10px; }
+:root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='default'][data-lyrics-open='false'] :is(.oto-listening-heading,.tsugi-stage-lyrics) { text-align:center; }
+:root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='default'][data-lyrics-open='false'] .tsugi-track-title { font-size:clamp(26px,2.2vw,36px); }
+:root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='default'][data-lyrics-open='false'] .oto-listening-transport { display:flex; flex-direction:column; gap:12px; }
+:root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='default'][data-lyrics-open='false'] .oto-listening-transport > * { margin-block:0; }
+
+@media(min-width:761px) {
+  /* Junction retains the generous, balanced album-and-controls workspace. */
+  :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='junction'][data-lyrics-open='false'] {
+    grid-template-columns:minmax(0,760px) minmax(0,680px); align-content:safe center; align-items:center;
+    padding-inline:clamp(24px,4vw,64px); padding-block:24px;
+  }
+  :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='junction'][data-lyrics-open='false'] .tsugi-stage-artwork { width:min(100%,calc(100dvh - 240px)); max-width:760px; }
+  /* Nocturne is a cinematic, bottom-aligned composition, not a second Junction. */
+  :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='nocturne'][data-lyrics-open='false'] {
+    grid-template-columns:minmax(0,280px) minmax(0,640px); align-items:end; align-content:end;
+    padding-block:24px clamp(24px,6vh,76px);
+  }
+  :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='nocturne'][data-lyrics-open='false'] .tsugi-stage-artwork { width:min(100%,32dvh,280px); }
+  :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='nocturne'][data-lyrics-open='false'] .tsugi-junction-content { padding:0; }
+  :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='nocturne'][data-lyrics-open='false'] .tsugi-track-title { font-size:clamp(28px,3vw,44px); }
+}
+@media(min-width:761px) and (max-height:800px) {
+  /* Compact centered pair keeps the transport in view on a short desktop. */
+  :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='default'][data-lyrics-open='false'] {
+    grid-template-columns:minmax(0,240px) minmax(0,520px); align-content:center; gap:32px;
+  }
+  :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='default'][data-lyrics-open='false'] .tsugi-stage-artwork { width:min(100%,34dvh,240px); }
+  :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='junction'][data-lyrics-open='false'] .tsugi-stage-artwork { width:min(100%,calc(100dvh - 210px)); }
+  :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='nocturne'][data-lyrics-open='false'] { padding-bottom:24px; }
+}
+@media(max-width:760px) {
+  :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='default'][data-lyrics-open='false'] { align-content:start; }
+  :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='nocturne'][data-lyrics-open='false'] .tsugi-stage-artwork { width:min(100%,62vw,28dvh,240px); }
+}
+
 @media(prefers-reduced-motion:reduce) {
   .tsugi-oto .tsugi-music-tile .tsugi-discovery-cover,.oto-player .oto-lyric-line { transition:none; }
   .tsugi-oto .tsugi-music-tile:hover .tsugi-discovery-cover { transform:none; }

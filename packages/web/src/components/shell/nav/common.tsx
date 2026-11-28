@@ -12,7 +12,7 @@ export function Logo() {
       className="mb-4 flex w-full justify-center p-4 pb-0"
     >
       {currentHost().name === 'desktop'
-        ? <TsugiBrand markOnly />
+        ? <TsugiBrand />
         : <BrandLogo className="max-h-[60px] max-w-[90px] object-contain p-4" />}
     </div>
   );

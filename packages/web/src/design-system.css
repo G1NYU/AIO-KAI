@@ -55,8 +55,7 @@
   cursor:pointer;
   text-align:center;
 }
-:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-signature { gap:10px; }
-:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-signature > svg { width:32px; height:32px; }
+:root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-signature { justify-content:center; width:100%; }
 :root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-signature .tsugi-brand-wordmark { width:70px; }
 .tsugi-rail-context { max-width:100%; color:var(--tsugi-muted); font-size:11px; font-weight:500; line-height:1.4; overflow-wrap:anywhere; }
 :root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-workspace { width:100%; scrollbar-width:thin; scrollbar-color:var(--tsugi-panel) transparent; }
@@ -167,7 +166,7 @@
   :root[data-host='desktop'] { --tsugi-rail-width:58px; --tsugi-rail-control:40px; --tsugi-rail-icon:20px; --tsugi-page-gap:14px; }
   :root[data-host='desktop'] .tsugi-desktop-rail { padding:calc(var(--tsugi-window-strip) + 10px) 7px 10px; gap:10px; }
   :root[data-host='desktop'] .tsugi-desktop-rail > .tsugi-rail-brand { min-height:44px; margin-bottom:0!important; padding:0; }
-  :root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-signature .tsugi-brand-wordmark,
+  :root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-signature .tsugi-brand-wordmark { display:inline-block; width:40px; }
   .tsugi-rail-context { display:none; }
   :root[data-host='desktop'] .tsugi-desktop-rail .tsugi-rail-signature { gap:0; }
   :root[data-host='desktop'] .tsugi-desktop-rail :is(.tsugi-rail-local,.tsugi-rail-footer) > button { min-height:40px; height:40px; padding:0; gap:0; justify-content:center; font-size:0; }

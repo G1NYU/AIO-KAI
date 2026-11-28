@@ -4,7 +4,6 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 
 import { BrushDownload, BrushSettings } from '@/components/tsugi-icons';
-import { TsugiBrand } from '@/components/tsugi-brand';
 import { TrackDownload } from './track-download';
 import type { EclipseTrack } from '@/lib/music/eclipse';
 import { parsePlayerTemplate } from '@/lib/music/player-template';
@@ -295,7 +294,6 @@ export function MusicPlayer({ p }: { p: MusicPlayerProps }) {
                 aria-label={t`Minimise player`} onClick={() => p.onExpanded(false)}>
                 <FiChevronDown aria-hidden className="text-2xl" />
               </button>
-              <div className="tsugi-player-brand"><TsugiBrand className="tsugi-player-signature" /><span className="tsugi-player-section"><Trans>Music</Trans></span></div>
               {showHeader && (
                 <div className="oto-player-context min-w-0 text-center">
                   <p className="text-xs font-semibold uppercase tracking-widest text-[--tsugi-muted]">

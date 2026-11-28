@@ -651,7 +651,17 @@ try {
     })),'returning-home card copy stays centered');
     await landing.locator('.tsugi-world-hero img').evaluate(image => image.decode());
   };
+  const assertCenteredWordmark = async rail => {
+    const signature = rail.locator('.tsugi-rail-signature');
+    await signature.waitFor({ state: 'visible' });
+    assert.equal(await signature.locator('svg').count(), 0, 'sidebar has no brush seal');
+    const wordmark = signature.locator('.tsugi-brand-wordmark');
+    await wordmark.waitFor({ state: 'visible' });
+    const [a, b] = await Promise.all([rail.boundingBox(), wordmark.boundingBox()]);
+    assert.ok(a && b && b.width > 0 && Math.abs(a.x + a.width / 2 - b.x - b.width / 2) <= 2, 'lettering is centered in the shared rail');
+  };
   await assertLauncherGeometry();
+  await assertCenteredWordmark(landing.locator('.tsugi-world-shared-rail'));
   const wordmarkAsset = await landing.locator('.tsugi-world-shared-rail .tsugi-rail-signature .tsugi-brand-wordmark').evaluate(async node => {
     const mask = getComputedStyle(node, '::before').maskImage;
     const url = mask.match(/^url\(["']?(.*?)["']?\)$/)?.[1];
@@ -668,10 +678,12 @@ try {
   await capture('01-launcher-wide');
   await page.setViewportSize({ width: 440, height: 700 });
   assert.ok(await landing.evaluate(node => node.scrollWidth <= node.clientWidth + 1), 'compact illustrated home has no horizontal overflow');
+  await assertCenteredWordmark(landing.locator('.tsugi-world-shared-rail'));
   await page.setViewportSize({ width: 1440, height: 900 });
   await landing.locator('.tsugi-world-card[data-world="vault"]').click();
   const vault = page.locator('[data-page="vault"]');
   await vault.waitFor();
+  await assertCenteredWordmark(vault.locator('[data-ui="tsugi-desktop-rail"]'));
   assert.equal(await vault.locator('[data-ui="tsugi-desktop-rail"] [aria-current="page"]').getAttribute('aria-label'), 'Vault');
   assert.equal(await vault.locator('.tsugi-landscape-fallback').count(), 0);
   const glyphs=await vault.locator('[data-ui="tsugi-desktop-rail"] button[aria-label]').evaluateAll(nodes=>nodes.flatMap(node=>{
@@ -797,6 +809,7 @@ try {
     return { width: Math.round(rect.width), top: Math.round(rect.y), controls, font: getComputedStyle(node).fontFamily, border: getComputedStyle(node).borderInlineEndWidth, separatorsHidden: rules.every(rule=>getComputedStyle(rule).display==='none') };
   });
   await rail.waitFor({ state: 'visible' });
+  await assertCenteredWordmark(rail);
   const readRailGeometry = await railGeometry(rail);
   assert.equal(readRailGeometry.width, 208);
   assert.equal(readRailGeometry.border, '0px');
@@ -1033,6 +1046,7 @@ try {
   const music = page.locator('[data-page="music"]');
   await music.waitFor({ state: 'visible' });
   await page.setViewportSize({ width: 2560, height: 1440 });
+  await assertCenteredWordmark(music.locator('[data-ui="tsugi-desktop-rail"]'));
   const musicRailGeometry = await railGeometry(music.locator('[data-ui="tsugi-desktop-rail"]'));
   assert.deepEqual(musicRailGeometry, readRailGeometry, 'Music and Read share sidebar width, control sizing and typography; footer height follows the live player');
   const musicSettings = music.getByRole('dialog', { name: 'Music sources' });
@@ -1337,6 +1351,7 @@ try {
   await music.getByRole('button', { name: 'Expand player', exact: true }).click();
   const expanded = music.getByRole('dialog', { name: 'Now playing', exact: true });
   await expanded.waitFor();
+  assert.equal(await expanded.locator('.tsugi-player-brand, [data-ui="tsugi-brand"], .tsugi-brand-wordmark').count(), 0, 'native expanded player has no branding');
   await expanded.locator('canvas[data-mode="wave"]').waitFor();
   await expanded.locator('img[src*="tsugi-fixture=w544-h544"]').waitFor();
   await page.waitForFunction(() => [...document.querySelectorAll('.tsugi-player-dialog img')].some(img => img.src.includes('tsugi-fixture=w544-h544') && img.complete && img.naturalWidth === 544 && img.naturalHeight === 544));
@@ -1361,10 +1376,22 @@ try {
     assert.equal(await stage.getByRole('button', { name: 'Next track', exact: true }).count(), 1);
     assert.equal(await stage.getByRole('button', { name: 'Previous track', exact: true }).count(), 1);
     const columns = await stage.evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').length);
-    assert.equal(columns, 2);
-    const geometry = await stage.evaluate(node => ({ width: node.getBoundingClientRect().width, art: node.querySelector('.tsugi-junction-art').getBoundingClientRect().width, viewport: innerWidth }));
+    assert.equal(columns, layout === 'default' ? 1 : 2);
+    const geometry = await stage.evaluate(node => {
+      const art = node.querySelector('.tsugi-junction-art').getBoundingClientRect();
+      const content = node.querySelector('.tsugi-junction-content').getBoundingClientRect();
+      return { width: node.getBoundingClientRect().width, art: art.width, artHeight: art.height, artX: art.x, artBottom: art.bottom, contentX: content.x, contentY: content.y, contentWidth: content.width, viewport: innerWidth };
+    });
     assert.ok(geometry.width >= geometry.viewport * .96, 'native stage fills the viewport');
-    assert.ok(geometry.art >= 440, 'native stage displays a large cover');
+    assert.ok(Math.abs(geometry.art - geometry.artHeight) <= 1, 'native artwork remains square');
+    if (layout === 'default') {
+      assert.ok(geometry.art >= 200 && geometry.art <= 440 && geometry.contentY >= geometry.artBottom, 'Default uses a stacked cover and controls');
+      assert.ok(Math.abs(geometry.artX + geometry.art / 2 - geometry.contentX - geometry.contentWidth / 2) <= 2, 'Default centers the listening composition');
+    } else if (layout === 'junction') {
+      assert.ok(geometry.art >= 440 && geometry.contentX >= geometry.artX + geometry.art + 24, 'Junction retains a large split workspace');
+    } else {
+      assert.ok(geometry.art >= 200 && geometry.art <= 280 && geometry.contentX >= geometry.artX + geometry.art + 24, 'Nocturne uses smaller artwork against its cinematic backdrop');
+    }
     await stage.locator('canvas[data-ui="tsugi-pixel-matrix"]').waitFor();
     assert.equal(await stage.locator('.tsugi-nocturne-backdrop').count(), layout === 'nocturne' ? 1 : 0);
     if (layout === 'default') {
@@ -1384,6 +1411,8 @@ try {
       await stage.getByRole('region', { name: 'Playback queue', exact: true }).waitFor();
       await capture('08-expanded-queue');
       await stage.getByRole('button', { name: 'Close queue', exact: true }).click();
+    }
+    if (layout !== 'default') {
       await page.setViewportSize({ width: 2560, height: 1440 });
       const wide = await stage.evaluate(node => {
         const art = node.querySelector('.tsugi-junction-art').getBoundingClientRect();
@@ -1391,11 +1420,12 @@ try {
         const bounds = node.getBoundingClientRect();
         return { art: { width: art.width, height: art.height, left: art.left, right: art.right }, content: { left: content.left, right: content.right }, stage: { left: bounds.left, right: bounds.right }, viewport: innerWidth, scroll: node.scrollWidth, client: node.clientWidth };
       });
-      assert.ok(wide.art.width >= 620 && wide.art.width <= 700, 'wide OTO stage retains the supplied design\'s balanced artwork scale');
+      if (layout === 'junction') assert.ok(wide.art.width >= 700 && wide.art.width <= 760, 'wide Junction retains the balanced large artwork scale');
+      else assert.ok(wide.art.width >= 240 && wide.art.width <= 280, 'wide Nocturne retains its compact foreground cover');
       assert.ok(Math.abs(wide.art.width - wide.art.height) <= 1, 'wide artwork remains square');
       assert.ok(wide.content.left - wide.art.right >= 24, 'wide artwork and listening controls remain distinct columns');
       assert.ok(wide.art.left >= wide.stage.left && wide.content.right <= wide.stage.right + 1 && wide.stage.right <= wide.viewport && wide.scroll <= wide.client + 1, 'wide player content fits without horizontal clipping');
-      await capture('08-expanded-nocturne-wide');
+      await capture('08-expanded-' + layout + '-wide');
       await page.setViewportSize({ width: 1440, height: 900 });
     }
     await capture('08-expanded-' + layout);

@@ -73,7 +73,6 @@ export function FirstBootAppearance({onProfileSelected,revisit=0,watchRevisit=0,
     <div className="tsugi-intro-content">
     <header>
       <div className="tsugi-onboarding-title">
-        <TsugiBrand markOnly />
         <div><h2 id="tsugi-onboarding-title">{step==='addons'?<Trans>Set up your addon profile</Trans>:<Trans>Make Tsugi yours</Trans>}</h2><p>{step==='addons'?<Trans>Choose a profile and arrange your sources.</Trans>:<Trans>Movies, anime, music, stories and downloads — one space for what you love.</Trans>}</p></div>
       </div>
     </header>

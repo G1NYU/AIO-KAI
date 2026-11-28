@@ -88,12 +88,13 @@ export async function verifyMusicPlayerLayoutBrowser({ browser, origin, installD
     await music.getByRole('button', { name: 'Expand player', exact: true }).click();
     const expanded = music.getByRole('dialog', { name: 'Now playing', exact: true });
     const stage = expanded.locator('[data-ui="tsugi-junction"]');
+    assert.equal(await expanded.locator('.tsugi-player-brand, [data-ui="tsugi-brand"], .tsugi-brand-wordmark').count(), 0, 'expanded player is free of redundant branding');
     await expanded.getByText('Audio-reactive dot wave', { exact: true }).waitFor();
     await page.waitForFunction(() => window.__playerLayoutAnalysers.some(analyser => { const samples = new Uint8Array(analyser.fftSize); analyser.getByteTimeDomainData(samples); return analyser.context.state === 'running' && samples.some(value => Math.abs(value - 128) > 3); }));
     await page.evaluate(() => document.fonts.ready);
     const geometry = () => expanded.evaluate(node => {
       const rect = selector => { const r = node.querySelector(selector).getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom }; };
-      return { art: rect('.tsugi-junction-art'), content: rect('.tsugi-junction-content'), hud: rect('.tsugi-player-hud'), transport: rect('.oto-transport'), timeline: rect('.oto-timeline'), actions: rect('.tsugi-stage-actions'), next: rect('.oto-up-next'), width: innerWidth, height: innerHeight, scrollWidth: node.scrollWidth, scrollHeight: node.scrollHeight, clientHeight: node.clientHeight };
+      return { columns: getComputedStyle(node.querySelector('.tsugi-native-stage')).gridTemplateColumns.split(' ').length, stage: rect('.tsugi-native-stage'), artwork: rect('.tsugi-stage-artwork'), art: rect('.tsugi-junction-art'), content: rect('.tsugi-junction-content'), hud: rect('.tsugi-player-hud'), transport: rect('.oto-transport'), timeline: rect('.oto-timeline'), actions: rect('.tsugi-stage-actions'), next: rect('.oto-up-next'), width: innerWidth, height: innerHeight, scrollWidth: node.scrollWidth, scrollHeight: node.scrollHeight, clientHeight: node.clientHeight };
     });
     const titleSpacing = async (selector = '.tsugi-track-title') => {
       await page.waitForFunction(selector => {
@@ -144,14 +145,35 @@ export async function verifyMusicPlayerLayoutBrowser({ browser, origin, installD
       await capture(`50-player-${layout}-2048`);
       console.log('PLAYER GEOMETRY', layout, JSON.stringify({ ...box, title }));
       assert.ok(box.content.width <= 680, `${layout}: listening controls have a bounded measure`);
-      assert.ok(box.content.x - box.art.right >= 24 && box.content.x - box.art.right <= 96, `${layout}: art and controls stay grouped at wide widths`);
-      assert.ok(Math.min(box.art.y, box.content.y) - box.hud.bottom <= 80, `${layout}: composition follows the header without an excessive void`);
+      assert.equal(box.columns, layout === 'default' ? 1 : 2, `${layout}: native composition has its own column structure`);
+      if (layout === 'default') {
+        assert.ok(box.art.width >= 340 && box.art.width <= 440 && box.content.y >= box.artwork.bottom, 'Default stacks a compact cover above the controls');
+        assert.ok(Math.abs(box.art.x + box.art.width / 2 - box.content.x - box.content.width / 2) <= 2, 'Default is centered');
+        assert.equal(await stage.locator('.oto-listening-heading').evaluate(node => getComputedStyle(node).textAlign), 'center');
+      } else {
+        assert.ok(box.content.x - box.art.right >= 24 && box.content.x - box.art.right <= 120, `${layout}: cover and controls are distinct, grouped columns`);
+        if (layout === 'junction') {
+          assert.ok(box.art.width >= 500, 'Junction uses a generous square cover');
+        } else {
+          assert.ok(box.art.width >= 240 && box.art.width <= 280, 'Nocturne uses a compact cover');
+          assert.ok(Math.abs(box.artwork.bottom - box.content.bottom) <= 2, 'Nocturne aligns cover and controls at the bottom');
+          const backdrop = stage.locator('.tsugi-nocturne-backdrop img');
+          await backdrop.waitFor();
+          await page.waitForFunction(() => { const img = document.querySelector('.tsugi-nocturne-backdrop img'); return img?.complete && img.naturalWidth > 0; });
+          assert.ok(await backdrop.evaluate(img => { const panel = img.parentElement; const rect = panel.getBoundingClientRect(); return getComputedStyle(panel).position === 'fixed' && Number(getComputedStyle(img).opacity) > 0 && rect.width >= innerWidth - 9 && rect.height >= innerHeight - 1; }), 'Nocturne has a visible full-window artwork backdrop');
+        }
+      }
+      if (layout !== 'nocturne') {
+        const center = (Math.min(box.artwork.y, box.content.y) + Math.max(box.artwork.bottom, box.content.bottom)) / 2;
+        assert.ok(Math.abs(center - (box.stage.y + box.stage.bottom) / 2) <= 20, `${layout}: artwork and controls are centered within the available stage`);
+        assert.equal(await stage.locator('.tsugi-nocturne-backdrop').count(), 0);
+      }
       assert.ok(Math.abs(box.art.width - box.art.height) < 1, `${layout}: artwork stays square`);
       assert.ok(box.scrollWidth <= box.width + 1 && box.scrollHeight <= box.clientHeight + 1, `${layout}: normal desktop controls fit without scrolling`);
       assert.ok(Math.abs((box.transport.x + box.transport.width / 2) - (box.timeline.x + box.timeline.width / 2)) <= 1, `${layout}: transport and timeline share a center`);
       assert.ok(box.actions.y - box.transport.bottom <= 28 && box.next.y - box.actions.bottom <= 28, `${layout}: related controls keep a consistent rhythm`);
     }
-    console.log('PASS: all three built-in players keep artwork, title and controls unframed, bounded and aligned at 2048×1124.');
+    console.log('PASS: distinct Default, Junction and Nocturne compositions retain unframed, aligned controls at 2048×1124.');
     await chooseLayout('default');
     await page.setViewportSize({ width: 1440, height: 900 });
     const desktop = await geometry();
@@ -166,7 +188,22 @@ export async function verifyMusicPlayerLayoutBrowser({ browser, origin, installD
     assert.ok(short.next.bottom <= short.height - 12 && short.transport.bottom <= short.height, 'Short desktop retains the transport, utilities and Up next in the viewport');
     assert.ok(short.scrollWidth <= short.width + 1, 'Short desktop has no horizontal overflow');
     console.log('PASS: 1440×900 and 1440×680 keep the listening controls together and visible.');
+    for (const layout of ['junction', 'nocturne']) {
+      await chooseLayout(layout);
+      const compact = await geometry();
+      assert.equal(compact.columns, 2, `${layout}: short desktop preserves the two-column composition`);
+      assert.ok(compact.next.bottom <= compact.height - 12 && compact.transport.bottom <= compact.height && compact.scrollWidth <= compact.width + 1, `${layout}: short desktop keeps controls and Up next visible`);
+      await capture(`52-player-short-${layout}`);
+    }
     await page.setViewportSize({ width: 440, height: 900 });
+    for (const layout of ['default', 'junction', 'nocturne']) {
+      await chooseLayout(layout);
+      const narrow = await geometry();
+      assert.equal(narrow.columns, 1, `${layout}: narrow player stacks artwork and controls`);
+      assert.ok(narrow.content.y >= narrow.artwork.bottom && narrow.scrollWidth <= narrow.width + 1, `${layout}: stacked content fits without horizontal overflow`);
+      await capture(`53-player-narrow-${layout}`);
+    }
+    await chooseLayout('default');
     assert.equal(await stage.evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').length), 1, 'Narrow player stacks artwork and controls');
     assert.ok((await geometry()).scrollWidth <= 441, 'Narrow player has no horizontal overflow');
     await titleSpacing();
