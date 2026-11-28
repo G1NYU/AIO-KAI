@@ -365,7 +365,7 @@ try {
   await favoriteMusic.click();
   assert.equal(await favoriteMusic.getAttribute('aria-pressed'), 'true');
   await onboarding.locator('.tsugi-intro-art img').evaluate(image=>image.decode());
-  assert.equal(await onboarding.locator('.tsugi-intro-art img').getAttribute('src'),'/design/launch/personalization-room.webp');
+  assert.equal(await onboarding.locator('.tsugi-intro-art img').getAttribute('src'),'/design/launch/launch-purple.jpg');
   assert.equal(await onboarding.locator('.tsugi-intro-art img').evaluate(image=>getComputedStyle(image).filter),'blur(2px)');
   assert.equal(await onboarding.locator('.tsugi-world-choices img').count(),0,'no repeated card artwork during personalization');
   assert.ok(await onboarding.locator('.tsugi-intro-art img').evaluate(image=>image.naturalWidth>0));
@@ -391,6 +391,11 @@ try {
   await landing.getByRole('heading', { name: 'Welcome, Fixture.', exact: true }).waitFor();
   await landing.getByRole('button', { name: 'Introduction', exact: true }).click();
   await onboarding.waitFor({ state: 'visible' });
+  const revisitedArtwork=onboarding.locator('.tsugi-intro-art img');
+  await revisitedArtwork.evaluate(image=>image.decode());
+  assert.equal(await revisitedArtwork.getAttribute('src'),'/design/launch/launch-purple.jpg','manual Introduction reuses the approved purple wallpaper');
+  assert.ok(await revisitedArtwork.evaluate(image=>image.naturalWidth>0&&image.naturalHeight>0),'purple personalization wallpaper loaded');
+  await capture('00-revisited-introduction');
   await page.setViewportSize({ width:440, height:500 });
   assert.ok(await onboarding.evaluate(node=>node.scrollWidth<=node.clientWidth+1),'compact introduction does not overflow horizontally');
   await onboarding.getByRole('button',{name:'Skip for now',exact:true}).click();
