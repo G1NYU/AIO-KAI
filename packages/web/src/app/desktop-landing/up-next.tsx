@@ -56,17 +56,18 @@ export function UpNext({open, onClose}: {open:boolean; onClose:()=>void}) {
   return <dialog ref={dialog} className="tsugi-global-settings tsugi-up-next" data-ui="tsugi-up-next" aria-labelledby="tsugi-up-next-title"
     onCancel={event=>{event.preventDefault();onClose();}}>
     <header className="flex items-start justify-between gap-4">
-      <div><h2 id="tsugi-up-next-title"><Trans>Up next</Trans></h2><p><Trans>Pick up where you left off. Your original libraries keep your progress.</Trans></p></div>
+      <div><h2 id="tsugi-up-next-title"><Trans>Up next</Trans></h2><p><Trans>Pick up where you left off.</Trans></p></div>
       <button type="button" className="tsugi-read-action" onClick={onClose}><Trans>Close</Trans></button>
     </header>
     <div className="tsugi-up-next-tools">
       <button type="button" className="tsugi-read-action" onClick={()=>setRevision(value=>value+1)}><Trans>Refresh</Trans></button>
       {hidden.size>0 && <button type="button" className="tsugi-read-action" onClick={resetHidden}><Trans>Show hidden</Trans></button>}
+      {!!actions?.openManga && !canManga && <button type="button" className="tsugi-read-action" onClick={()=>{onClose();actions.openManga?.();}}><Trans>Set up Manga to continue reading</Trans></button>}
     </div>
     {(books.status==='loading'||manga.status==='loading') && <p role="status"><Trans>Checking your libraries…</Trans></p>}
     {books.status==='error' && <p role="status"><Trans>Books could not be loaded. Refresh to try again.</Trans></p>}
     {manga.status==='error' && <p role="status"><Trans>Manga history could not be loaded. Refresh to try again.</Trans></p>}
-    {!!actions?.openManga && !canManga && <button type="button" className="tsugi-read-action" onClick={()=>{onClose();actions.openManga?.();}}><Trans>Set up Manga to continue reading</Trans></button>}
+
     <div className="tsugi-up-next-list">
       {rows.map(row=>{ const { title, page } = row; return <article key={resumeKey(row.target)} className="tsugi-up-next-row">
         <div className="min-w-0">
@@ -85,12 +86,12 @@ export function UpNext({open, onClose}: {open:boolean; onClose:()=>void}) {
           <button type="button" className="tsugi-read-action" aria-label={t`Hide ${title}`} onClick={()=>hide(row)}><Trans>Hide</Trans></button>
         </div>
       </article>; })}
-      {!rows.length && books.status!=='loading' && manga.status!=='loading' && <p><Trans>No recent items are available. Start reading or listening to build this list.</Trans></p>}
+      {!rows.length && books.status!=='loading' && manga.status!=='loading' && <p className="tsugi-up-next-empty"><Trans>Start reading or listening to see your recent items here.</Trans></p>}
       <article className="tsugi-up-next-row">
-        <div><small className="tsugi-up-next-type"><Trans>Movies & TV</Trans></small><h3><Trans>Continue watching</Trans></h3><p><Trans>Your video profile owns watch history. Open Movies & TV to see its current resume list.</Trans></p></div>
-        <button type="button" className="tsugi-read-action" onClick={()=>{onClose();actions?.openVideo();navigate(to.home);}}><Trans>Open Movies & TV</Trans></button>
+        <div className="min-w-0"><small className="tsugi-up-next-type"><Trans>Movies & TV</Trans></small><h3><Trans>Continue watching</Trans></h3><p><Trans>Resume from your active video profile.</Trans></p></div>
+        <div className="tsugi-up-next-actions"><button type="button" className="tsugi-read-action" onClick={()=>{onClose();actions?.openVideo();navigate(to.home);}}><Trans>Open Movies & TV</Trans></button></div>
       </article>
     </div>
-    <p className="tsugi-up-next-note"><Trans>Hiding an item only hides this shortcut during this session. It does not delete your history or downloads.</Trans></p>
+    <p className="tsugi-up-next-note"><Trans>Progress stays in your libraries. Hiding a shortcut never deletes history or downloads.</Trans></p>
   </dialog>;
 }

@@ -47,6 +47,16 @@ export async function verifyUpNextBrowser({browser,origin,installDesktopFixture}
     await row('Tsugi Original Fixture').getByText('Page 3',{exact:true}).waitFor();
     await row('Resume PDF fixture').waitFor();
     await row('Resume music fixture').waitFor();
+    const layout=await dialog.evaluate(node=>{
+      const header=node.querySelector('header'),tools=node.querySelector('.tsugi-up-next-tools'),list=node.querySelector('.tsugi-up-next-list');
+      return {gap:parseFloat(getComputedStyle(node).gap),headerGap:tools.getBoundingClientRect().top-header.getBoundingClientRect().bottom,
+        listGap:list.getBoundingClientRect().top-tools.getBoundingClientRect().bottom,
+        border:getComputedStyle(list.querySelector('article')).borderBottomWidth,blur:getComputedStyle(node,'::backdrop').backdropFilter,
+        overflow:node.scrollWidth>node.clientWidth+1};
+    });
+    assert.ok(layout.gap<=20&&layout.headerGap<=20&&layout.listGap<=20&&!layout.overflow,JSON.stringify(layout));
+    assert.equal(layout.border,'0px');
+    assert.equal(layout.blur,'blur(6px)');
     assert.equal(await row('Disconnected music fixture').getByRole('button',{name:'Play again',exact:true}).isEnabled(),false);
     await row('Resume PDF fixture').getByRole('button',{name:'Hide Resume PDF fixture',exact:true}).click();
     assert.equal(await row('Resume PDF fixture').count(),0);

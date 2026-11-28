@@ -334,6 +334,10 @@ export function installStremioFixture(initializeStartup=true){
           if(!catalogue)return emit(null,'unsupported-resource');
           if(a.catalogId==='broken')return emit(null,'request');
           if(a.catalogId==='empty')return reply({sourceId:a.sourceId,mediaType:a.mediaType,catalogId:a.catalogId,items:[],sourceCount:0,nextSkip:null});
+          if(a.catalogId==='mal.airing')return reply({sourceId:a.sourceId,mediaType:a.mediaType,catalogId:a.catalogId,items:[
+            {id:'mal:123',mediaType:'anime.series',name:'MAL airing series fixture',poster:'https://image.tmdb.org/t/p/w342/anime.jpg'},
+            {id:'mal:456',mediaType:'anime.movie',name:'MAL airing film fixture',poster:'https://image.tmdb.org/t/p/w342/anime.jpg'}
+          ],sourceCount:2,nextSkip:null});
           const items=a.extras.search?(a.catalogId==='films'?[
             {id:'tmdb:90001',imdbId:'tt90001',mediaType:'movie',name:'Fixture cinema film',poster:'https://image.tmdb.org/t/p/w342/cinema.jpg'},
             {id:'local:9',mediaType:'movie',name:'Another film'},
@@ -341,7 +345,7 @@ export function installStremioFixture(initializeStartup=true){
           ]:a.catalogId==='duplicate-search'?[
             {id:'tt90001',mediaType:'movie',name:'Fixture cinema film'},
             {id:'tt90005',mediaType:'movie',name:'Fixture cinema film sequel'}
-          ]:a.catalogId==='anime'&&a.extras.search.toLowerCase()==='fixture anime series'?[{id:'tt90002',mediaType:'series',name:'Fixture anime series',poster:'https://image.tmdb.org/t/p/w342/anime.jpg'}]:[]):a.mediaType==='series'?[{id:'tt90002',mediaType:'series',name:'Fixture anime series',poster:'https://image.tmdb.org/t/p/w342/anime.jpg'}]:[{id:'tt90001',mediaType:'movie',name:'Fixture cinema film',poster:'https://image.tmdb.org/t/p/w342/cinema.jpg',background:'https://image.tmdb.org/t/p/w780/cinema.jpg'}];
+          ]:a.catalogId==='anime'&&a.extras.search.toLowerCase()==='fixture anime series'?[{id:'tt90002',mediaType:'series',name:'Fixture anime series',poster:'https://image.tmdb.org/t/p/w342/anime.jpg'}]:[]):a.mediaType==='series'?[{id:'tt90002',mediaType:'series',name:'Fixture anime series',poster:'https://image.tmdb.org/t/p/w342/anime.jpg'}]:[{id:'tt90001',mediaType:'movie',name:'Fixture cinema film',poster:'https://image.tmdb.org/t/p/w342/cinema.jpg',addonPoster:'http://tsugi-addon-art.localhost/poster/'+'a'.repeat(32),background:'https://image.tmdb.org/t/p/w780/cinema.jpg'}];
           return reply({sourceId:a.sourceId,mediaType:a.mediaType,catalogId:a.catalogId,items,sourceCount:items.length,nextSkip:null});
         }
         if(!profile.sources.some(s=>s.sourceId===a.sourceId&&s.enabled)||a.catalogId!=='search'||a.mediaType!=='movie'||a.extras.search!=='original')return emit(null,'invalid-extras');
@@ -389,6 +393,10 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       return route.fulfill({contentType:'image/webp',body,headers:{'access-control-allow-origin':'*'}});
     });
     await page.route('https://images.metahub.space/background/**',route=>route.fulfill({contentType:'image/webp',body:heroImage,headers:{'access-control-allow-origin':'*'}}));
+    let addonArtRequests=0;
+    await page.route('http://tsugi-addon-art.localhost/poster/**',route=>{
+      addonArtRequests++;return route.fulfill({contentType:'image/webp',body:posterImage,headers:{'access-control-allow-origin':'*','cache-control':'no-store'}});
+    });
     const tvmazeRequests=[];
     let tvmazeSearchUnavailable=false;
     const tvmazePoster='https://static.tvmaze.com/uploads/images/medium_portrait/1/90021.jpg';
@@ -398,6 +406,10 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       tvmazeRequests.push(url.pathname);
       if(tvmazeSearchUnavailable&&url.pathname==='/search/shows')return route.fulfill({status:503,body:'unavailable',headers:{'access-control-allow-origin':'*'}});
       const show={id:21,name:'Family Guy',type:'Animation',genres:['Comedy'],externals:{imdb:'tt90021'},image:{medium:tvmazePoster},premiered:'1999-01-31'};
+      if(url.pathname==='/shows')return route.fulfill({json:[show,
+        {...show,id:22,name:'Korean drama fixture',type:'Scripted',language:'Korean',genres:['Drama','Romance'],network:{country:{code:'KR'}},externals:{imdb:'tt90022'}},
+        {...show,id:23,name:'Crime and thriller fixture',type:'Scripted',genres:['Crime','Thriller','Mystery','Action'],externals:{imdb:'tt90023'}}
+      ],headers:{'access-control-allow-origin':'*'}});
       const row=url.pathname==='/schedule/web'?{_embedded:{show}}:{show};
       return route.fulfill({json:[row,row,{show:{...show,name:'Unmapped series',externals:{imdb:null}}}],headers:{'access-control-allow-origin':'*'}});
     });
@@ -412,7 +424,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       const catalog=(id,mediaType,name,extras=[])=>({id,mediaType,name,extras});
       const searchExtra={name:'search',required:false,options:[],optionsLimit:null};
       f.profiles[0].sources=[
-        addon(101,'Catalogue only',['catalog','meta'],[catalog('films','movie','Popular films',[searchExtra]),catalog('anime','series','Trending anime',[searchExtra]),catalog('broken','movie','Unavailable catalogue'),catalog('empty','movie','Empty catalogue'),catalog('duplicate-search','movie','More films',[{...searchExtra,required:true}])]),
+        addon(101,'Catalogue only',['catalog','meta'],[catalog('films','movie','Popular films',[searchExtra]),catalog('anime','series','Trending anime',[searchExtra]),catalog('mal.airing','anime','MAL Airing Now'),catalog('broken','movie','Unavailable catalogue'),catalog('empty','movie','Empty catalogue'),catalog('duplicate-search','movie','More films',[{...searchExtra,required:true}])]),
         addon(102,'Streaming only',['stream']),
         addon(103,'Metadata only',['meta']),
         addon(104,'Failed stream addon',['stream']),
@@ -454,13 +466,29 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await profilePicker.getByRole('button',{name:'Cancel',exact:true}).click();
     await page.setViewportSize({width:1600,height:900});
     await profilePicker.getByRole('button',{name:'Default 5 addons',exact:true}).click();
-    await watch.locator('[data-ui="watch-hub-picker"] [data-watch-destination="standalone"]').click();
+    const hubPicker=watch.locator('[data-ui="watch-hub-picker"]');
+    await hubPicker.waitFor();
+    for(const [destination,asset] of [['aio','aio'],['standalone','movies'],['anime','anime']]){
+      const img=hubPicker.locator('[data-watch-destination="'+destination+'"] img');
+      assert.equal(await img.getAttribute('src'),'/design/watch/watch-'+asset+'.webp');
+      await img.evaluate(node=>node.decode());
+    }
+    const banner=await hubPicker.locator('header').evaluate(node=>getComputedStyle(node).getPropertyValue('--tsugi-watch-art'));
+    assert.ok(banner.includes('/design/watch/watch-hero.webp'));
+    await page.evaluate(async()=>{const img=new Image();img.src='/design/watch/watch-hero.webp';await img.decode();});
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-minimalist-hubs.png'),animations:'disabled'});
+    await hubPicker.locator('[data-watch-destination="standalone"]').click();
     const board=watch.locator('[data-ui="watch-catalogue-board"]');
     const film=board.locator('[data-ui="poster-card"][aria-label="Fixture cinema film"]');
     await film.waitFor();
     assert.equal(await board.locator('[data-ui="media-row"]').count()>0,true);
     assert.equal(await film.getAttribute('data-ui'),'poster-card');
     await assertArtwork(film);
+    assert.ok(addonArtRequests>0,'the imported addon poster is requested without an override');
+    const malRow=board.locator('[data-ui="watch-catalogue-shelf"]').filter({hasText:'MAL Airing Now'});
+    await malRow.getByRole('button',{name:'MAL airing series fixture',exact:true}).waitFor();
+    assert.equal(await malRow.getByRole('button',{name:'MAL airing film fixture',exact:true}).count(),1);
+    assert.equal(await malRow.locator('[data-ui="poster-card"]').first().getAttribute('aria-label'),'MAL airing series fixture');
     const customUrl='https://btttr.cc/poster/imdb/poster-default/tt90001.jpg';
     let customRequests=0;
     await page.route('https://btttr.cc/**',route=>{if(route.request().url()===customUrl)customRequests++;return route.fulfill({status:404});});
@@ -509,7 +537,8 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.equal(await board.getByText('No titles returned by this catalogue.',{exact:true}).count(),0);
     assert.equal(await board.getByText('Empty catalogue',{exact:true}).count(),0);
     assert.equal(await board.getByText('Unavailable catalogue',{exact:true}).count(),0);
-    assert.equal(await board.getByText(/^\d+ catalogues$/).count(),0,'provider counts and empty/error shelves do not appear in browsing');
+    await board.getByRole('button',{name:'Retry Unavailable catalogue',exact:true}).waitFor();
+    assert.equal(await board.getByText(/^\d+ catalogues$/).count(),0,'provider counts and empty shelves do not appear in browsing');
     assert.ok(await page.evaluate(()=>window.__stremioFixture.catalogPeak>=2));
     assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='browse-catalog')));
     assert.equal(await board.getByText('Disabled films',{exact:true}).count(),0);
@@ -548,7 +577,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.equal(await board.getAttribute('data-discovery-provider'),'tvmaze');
     const discovery=board.locator('[data-ui="series-discovery"]');
     const feeds=discovery.locator('[data-ui="series-discovery-feed"]');
-    for(const feed of ['streaming-today','streaming-tomorrow','broadcast-us','broadcast-gb']){
+    for(const feed of ['streaming-today','streaming-tomorrow','broadcast-us','broadcast-gb','broadcast-ca','broadcast-au']){
       const row=discovery.locator('[data-ui="series-discovery-feed"][data-feed="'+feed+'"]');
       await row.getByRole('button',{name:'Family Guy',exact:true}).waitFor();
       assert.equal(await row.getByRole('button',{name:'Family Guy',exact:true}).count(),1);
@@ -558,7 +587,11 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.equal(await discovery.getByRole('button',{name:'Unmapped series',exact:true}).count(),0);
     await assertArtwork(feeds.first().getByRole('button',{name:'Family Guy',exact:true}));
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-tvmaze-discovery.png'),animations:'disabled'});
-    assert.ok(tvmazeRequests.includes('/schedule')&&tvmazeRequests.includes('/schedule/web'));
+    const korean=discovery.locator('[data-ui="series-discovery-category"][data-category="korean-dramas"]');
+    await korean.getByRole('button',{name:'Korean drama fixture',exact:true}).waitFor();
+    await discovery.locator('[data-category="crime"]').getByRole('button',{name:'Crime and thriller fixture',exact:true}).waitFor();
+    await discovery.locator('[data-category="thriller"]').getByRole('button',{name:'Crime and thriller fixture',exact:true}).waitFor();
+    assert.ok(tvmazeRequests.includes('/schedule')&&tvmazeRequests.includes('/schedule/web')&&tvmazeRequests.includes('/shows'));
     await watch.locator('.tsugi-watch-header-search').getByRole('button',{name:'Search TVmaze series',exact:true}).click();
     const tvmazeSearch=board.getByRole('searchbox',{name:'Search TVmaze series',exact:true});
     tvmazeSearchUnavailable=true;

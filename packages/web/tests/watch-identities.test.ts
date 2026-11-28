@@ -44,6 +44,13 @@ describe('public Watch poster patterns',()=>{
     expect(customPosterUrl(BETTER_POSTERS_PATTERN,{id:'mal:123',mediaType:'series'})).toBeUndefined();
     expect(watchPosterSources({...film,id:'private-id'},BETTER_POSTERS_PATTERN)).toEqual([film.poster]);
   });
+  it('prefers an addon artwork capability by default and retains it as the optional override fallback',()=>{
+    const addonPoster='http://tsugi-addon-art.localhost/poster/'+'a'.repeat(32);
+    const item={...film,addonPoster};
+    expect(watchPosterSources(item)).toEqual([addonPoster,film.poster]);
+    expect(watchPosterSources(item,BETTER_POSTERS_PATTERN)).toEqual(['https://btttr.cc/poster/imdb/poster-default/tt1234567.jpg',addonPoster,film.poster]);
+    expect(watchPosterSources(item,undefined,'https://image.tmdb.org/t/p/w500/enriched.jpg')).toEqual([addonPoster,film.poster,'https://image.tmdb.org/t/p/w500/enriched.jpg']);
+  });
   it('rejects credentials, untrusted origins, static titles and unsupported placeholders',()=>{
     for(const pattern of [BETTER_POSTERS_PATTERN+'?token=secret',BETTER_POSTERS_PATTERN.replace('btttr.cc','evil.example'),BETTER_POSTERS_PATTERN.replace('https:','http:'),BETTER_POSTERS_PATTERN.replace('{imdb_id}','tt123'),POSTERS_PLUS_PATTERN+'&api_key=secret',POSTERS_PLUS_PATTERN.replace('{id}','{password}'),POSTERS_PLUS_PATTERN.replace('postersplus.cc','user@postersplus.cc')])expect(validatePosterPattern(pattern)).toBeUndefined();
     expect(validatePosterPattern(BETTER_POSTERS_PATTERN+'?lang=fr&rs=TM')).toBeDefined();

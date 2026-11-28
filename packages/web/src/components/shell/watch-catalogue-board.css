@@ -165,3 +165,14 @@
 .tsugi-watch-board .tsugi-watch-featured{background:var(--tsugi-canvas)}
 .tsugi-watch-board .tsugi-watch-featured-art::after{background:linear-gradient(180deg,var(--tsugi-canvas) 0%,color-mix(in srgb,var(--tsugi-canvas) 48%,transparent) 18%,transparent 45%),linear-gradient(0deg,var(--tsugi-canvas),transparent 55%),linear-gradient(90deg,var(--tsugi-canvas),color-mix(in srgb,var(--tsugi-canvas) 62%,transparent) 40%,transparent 90%)}
 [dir='rtl'] .tsugi-watch-board .tsugi-watch-featured-art::after{background:linear-gradient(180deg,var(--tsugi-canvas) 0%,color-mix(in srgb,var(--tsugi-canvas) 48%,transparent) 18%,transparent 45%),linear-gradient(0deg,var(--tsugi-canvas),transparent 55%),linear-gradient(270deg,var(--tsugi-canvas),color-mix(in srgb,var(--tsugi-canvas) 62%,transparent) 40%,transparent 90%)}
+
+.tsugi-watch-search-dialog::backdrop { backdrop-filter:blur(var(--tsugi-soft-blur,6px)); }
+@supports (backdrop-filter:blur(6px)) {
+  .tsugi-watch-header-search .tsugi-watch-search-trigger {
+    background:color-mix(in srgb,var(--tsugi-surface) 94%,transparent);
+    backdrop-filter:blur(var(--tsugi-soft-blur,6px));
+  }
+}
+@media(prefers-reduced-transparency:reduce) {
+  .tsugi-watch-search-dialog::backdrop,.tsugi-watch-header-search .tsugi-watch-search-trigger { backdrop-filter:none; }
+}

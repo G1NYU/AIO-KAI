@@ -322,3 +322,11 @@
 .tsugi-addon-logo{display:inline-flex;flex:0 0 36px;width:36px;height:36px;align-items:center;justify-content:center;color:var(--tsugi-muted);overflow:hidden}
 .tsugi-addon-logo>img{width:100%;height:100%;object-fit:contain}
 .tsugi-addon-logo>svg{width:22px;height:22px}
+
+/* Original line-etched Watch art: a separate composition for each destination. */
+.tsugi-watch-destinations .tsugi-watch-workspace-banner { background-position:center,center 62%; }
+.tsugi-watch-destinations .tsugi-watch-destination-art::after {
+  background:linear-gradient(0deg,color-mix(in srgb,var(--tsugi-canvas) 60%,transparent),transparent 65%);
+}
+.tsugi-watch-destinations .tsugi-watch-destination-art img { object-position:center; }
+.tsugi-watch-title-secondary { backdrop-filter:blur(var(--tsugi-soft-blur,6px)); }

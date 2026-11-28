@@ -18,7 +18,8 @@ fn allowed(origin:&Url,raw:&str)->Option<Url>{
     if url.scheme()!="https"||!url.username().is_empty()||url.password().is_some()||url.fragment().is_some()||
         !host.contains('.')||host.ends_with(".local")||host.ends_with(".localhost")||host.ends_with('.') {return None;}
     let parts:Vec<_>=url.path_segments()?.collect();
-    let own=url.origin()==origin.origin()&&parts.iter().any(|p|matches!(*p,"poster"|"posters"));
+    let own=url.origin()==origin.origin()&&(parts.iter().any(|p|matches!(*p,"poster"|"posters"))||
+        parts.last().is_some_and(|p|[".jpg",".jpeg",".png",".webp"].iter().any(|ext|p.ends_with(ext))));
     // Only explicitly supported public poster endpoints may cross origins.
     let known=url.port().is_none()&&match host{
         "postersplus.cc"=>url.path()=="/poster",
@@ -75,7 +76,10 @@ pub fn load(token:&str)->Option<(&'static str,Vec<u8>)>{
         }
         if response.status()!=200{return None;}
         let bytes=read_bounded(response.into_body().into_reader(),MAX_IMAGE).ok()?;
-        return Some((raster_mime(&bytes)?,bytes));
+        let mime=raster_mime(&bytes)?;
+        // Never complete a stale request after its profile/source scope changed.
+        if !entries().lock().ok()?.iter().any(|entry|entry.token==token&&entry.created.elapsed()<TTL){return None;}
+        return Some((mime,bytes));
     }
     None
 }
@@ -95,6 +99,8 @@ mod tests{
             assert!(allowed(&endpoint,raw).is_none());
         }
         assert!(load("not-a-handle").is_none());
+        clear();
+        assert!(load(cap.rsplit('/').next().unwrap()).is_none());
         assert!(raster_mime(b"<svg/>").is_none());
         assert_eq!(raster_mime(b"\xff\xd8\xff"),Some("image/jpeg"));
     }

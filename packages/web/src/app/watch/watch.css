@@ -64,7 +64,7 @@
   :root[data-host='desktop'] .tsugi-direct-watch .tsugi-watch-detail .tsugi-watch-title-hero[data-has-backdrop]{border-radius:0}
 }
 .tsugi-direct-watch .tsugi-watch-detail .tsugi-watch-title-backdrop::before{
-  content:'';position:absolute;inset:55% 0 0;z-index:1;backdrop-filter:blur(12px);mask-image:linear-gradient(transparent,#000 92%);pointer-events:none
+  content:'';position:absolute;inset:55% 0 0;z-index:1;backdrop-filter:blur(var(--tsugi-soft-blur,6px));mask-image:linear-gradient(transparent,#000 92%);pointer-events:none
 }
 .tsugi-direct-watch .tsugi-watch-detail .tsugi-watch-title-backdrop::after{
   z-index:2;background:linear-gradient(180deg,var(--tsugi-canvas) 0%,color-mix(in srgb,var(--tsugi-canvas) 60%,transparent) 17%,transparent 45%),linear-gradient(0deg,var(--tsugi-canvas) 0%,transparent 64%),linear-gradient(90deg,var(--tsugi-canvas),color-mix(in srgb,var(--tsugi-canvas) 70%,transparent) 28%,transparent 95%)

@@ -603,7 +603,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     choose(null);setBoardSearch(name);setPane('home');
   }
   return <section className={workspace?onPlay?'tsugi-watch-workspace tsugi-watch-hub':'tsugi-app-general tsugi-watch-workspace tsugi-watch-configuration':'tsugi-app-general'} data-ui="stremio-addon-settings" data-watch-pane={pane} aria-labelledby={titleId}>
-    {workspace&&!hubChooser&&<header className={onPlay&&!inSettings?'tsugi-watch-hub-header':'tsugi-watch-workspace-banner'} style={{'--tsugi-watch-art':"url('/design/shared/hero-train.webp')"} as React.CSSProperties}>
+    {workspace&&!hubChooser&&<header className={onPlay&&!inSettings?'tsugi-watch-hub-header':'tsugi-watch-workspace-banner'} style={{'--tsugi-watch-art':"url('/design/watch/watch-hero.webp')"} as React.CSSProperties}>
       <div className="tsugi-watch-heading-copy"><TsugiBrand className="tsugi-watch-header-brand"/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}>{pane==='anime'?<Trans>Anime</Trans>:pane==='discover'?<Trans>Series hub</Trans>:pane==='home'||pane==='history'?<Trans>Movies &amp; TV</Trans>:<Trans>Your addon stack.</Trans>}</h3>{pane==='discover'?<p><Trans>Series discovery and search by TVmaze. Connected addons provide playback.</Trans></p>:pane==='home'?<p><Trans>Watch from your connected catalogues and streaming addons.</Trans></p>:pane!=='anime'&&<p><Trans>Bring your sources home.</Trans></p>}</div>
       {onPlay&&profileReady&&!title&&['home','discover','anime'].includes(pane)&&<div ref={setSearchMount} className="tsugi-watch-header-search"/>}
       <div className="tsugi-watch-header-actions">
@@ -612,21 +612,21 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       </div>
     </header>}
     {hubChooser&&<section className="tsugi-watch-destinations" data-ui="watch-hub-picker" aria-labelledby={titleId}>
-      <header className="tsugi-watch-workspace-banner" style={{'--tsugi-watch-art':"url('/design/shared/hero-neon.webp')"} as React.CSSProperties}>
+      <header className="tsugi-watch-workspace-banner" style={{'--tsugi-watch-art':"url('/design/watch/watch-hero.webp')"} as React.CSSProperties}>
         <div className="tsugi-watch-heading-copy"><TsugiBrand/><p><Trans>Watch profile</Trans> / {activeProfile?.name}</p><h3 id={titleId}><Trans>Choose your streaming hub</Trans></h3><p><Trans>Browse movies, series and anime using the sources you choose.</Trans></p></div>
         <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void backToProfiles()}><Trans>Switch profile</Trans></button>
       </header>
       <div className="tsugi-watch-destination-grid">
         <button type="button" className="tsugi-watch-destination" data-watch-destination="aio" disabled={busy||!openServer} onClick={openServer}>
-          <span className="tsugi-watch-destination-art"><img src="/design/shared/hero-train.webp" alt="" decoding="async"/><MovieGlyph name="tv"/></span>
+          <span className="tsugi-watch-destination-art"><img src="/design/watch/watch-aio.webp" alt="" decoding="async"/><MovieGlyph name="tv"/></span>
           <strong><Trans>AIOStreams</Trans></strong><small><Trans>Requires a configured AIOStreams or media server connection.</Trans></small>
         </button>
         <button type="button" className="tsugi-watch-destination" data-watch-destination="standalone" disabled={busy} onClick={()=>void selectPane('home')}>
-          <span className="tsugi-watch-destination-art"><img src="/design/shared/hero-neon.webp" alt="" decoding="async"/><MovieGlyph name="home"/></span>
+          <span className="tsugi-watch-destination-art"><img src="/design/watch/watch-movies.webp" alt="" decoding="async"/><MovieGlyph name="home"/></span>
           <strong><Trans>Movies &amp; TV</Trans></strong><small><Trans>Browse without addons. Watch with Stremio, Nuvio or individual addons.</Trans></small>
         </button>
         <button type="button" className="tsugi-watch-destination" data-watch-destination="anime" disabled={busy} onClick={()=>void selectPane('anime')}>
-          <span className="tsugi-watch-destination-art"><img src="/design/anime/hero-kagezora.webp" alt="" decoding="async"/><MovieGlyph name="anime"/></span>
+          <span className="tsugi-watch-destination-art"><img src="/design/watch/watch-anime.webp" alt="" decoding="async"/><MovieGlyph name="anime"/></span>
           <strong><Trans>Anime Hub</Trans></strong><small><Trans>Explore anime and films. No account or addon needed to browse.</Trans></small>
         </button>
       </div>

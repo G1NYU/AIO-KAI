@@ -110,9 +110,10 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
           // An empty next page must not remove a populated shelf or its back path.
           return {...old,[target.key]:{page:{...previous,nextSkip:null},skip:old[target.key]?.pageSkip??0,pageSkip:old[target.key]?.pageSkip??0}};
         }
-        const ids=new Set(previous?.items.map(i=>i.id));
-        const fresh=page.items.filter(item=>!ids.has(item.id));
-        const repeated=skip>0&&!!previous&&page.items.length>0&&(search?fresh.length===0:JSON.stringify(previous.items.map(i=>i.id))===JSON.stringify(page.items.map(i=>i.id)));
+        const identity=(item:Item)=>JSON.stringify([item.mediaType,item.id]);
+        const ids=new Set(previous?.items.map(identity));
+        const fresh=page.items.filter(item=>!ids.has(identity(item)));
+        const repeated=skip>0&&!!previous&&page.items.length>0&&(search?fresh.length===0:JSON.stringify(previous.items.map(identity))===JSON.stringify(page.items.map(identity)));
         const items=search&&skip>0&&previous?[...previous.items,...fresh]:page.items;
         return {...old,[target.key]:{page:{...page,items,nextSkip:repeated?null:page.nextSkip},skip,pageSkip:skip,repeated}};
       });

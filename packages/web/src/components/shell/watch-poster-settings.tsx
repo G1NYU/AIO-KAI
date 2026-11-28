@@ -14,7 +14,7 @@ export function WatchPosterSettings({pattern,onSave}:{pattern?:string;onSave(pat
   }
   return <section className="tsugi-watch-section" data-ui="watch-poster-settings">
     <h4><Trans>Poster artwork</Trans></h4>
-    <p className="tsugi-watch-muted"><Trans>Choose a public poster provider for this Watch profile. Only the public title identity is sent to the provider. Original artwork remains the fallback.</Trans></p>
+    <p className="tsugi-watch-muted"><Trans>Addon-provided posters are used automatically, including supported customized artwork. Optionally choose a public poster provider to override them for this Watch profile.</Trans></p>
     <div className="flex flex-wrap gap-2">
       <button type="button" className="tsugi-read-action" aria-pressed={!pattern} onClick={()=>save('')}><Trans>Original artwork</Trans></button>
       <button type="button" className="tsugi-read-action" onClick={()=>{setDraft(POSTERS_PLUS_PATTERN);setError(false);}}><Trans>PostersPlus</Trans></button>
