@@ -541,7 +541,44 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       return Math.abs(r.left-side.right)<=3&&Math.abs(r.right-(bounds.left+root.clientLeft+root.clientWidth))<=3&&r.top>=0;
     }),'home feature reaches the rail and content edges');
     assert.equal(await board.locator('[data-ui="watch-catalogue-shelf"]>small').count(),0);
+    async function assertWatchRailChrome(searchLabel, refreshLabel) {
+      const rail=watch.locator('.tsugi-watch-shared-rail');
+      const header=watch.locator('.tsugi-watch-hub>header');
+      assert.equal(await header.locator('.tsugi-watch-heading-copy>p').count(),1,'masthead retains only the profile context, not helper copy');
+      assert.equal(await header.locator('button,.tsugi-watch-header-search').count(),0,'no search or actions obstruct the desktop masthead');
+      const slot=rail.locator('[data-ui="watch-rail-search"]');
+      const search=slot.getByRole('button',{name:searchLabel,exact:true});
+      await search.waitFor();
+      assert.equal(await search.count(),1);
+      assert.equal(await search.getAttribute('aria-haspopup'),'dialog');
+      assert.equal(await search.locator('[data-movie-glyph="search"]').count(),1);
+      assert.equal(await slot.locator('button').count(),refreshLabel?2:1,'only the current hub search and optional refresh are shown');
+      if(refreshLabel)assert.equal(await slot.getByRole('button',{name:refreshLabel,exact:true}).count(),1);
+      const utility=rail.locator('[data-ui="watch-rail-actions"]');
+      for(const label of ['Streaming hubs','Switch profile']){
+        assert.equal(await utility.getByRole('button',{name:label,exact:true}).count(),1);
+        assert.equal(await watch.getByRole('button',{name:label,exact:true}).count(),1,'single desktop action: '+label);
+      }
+      await search.scrollIntoViewIfNeeded();
+      assert.ok(await search.evaluate(node=>{
+        const a=node.getBoundingClientRect(),b=node.closest('.tsugi-watch-shared-rail').getBoundingClientRect();
+        return a.left>=b.left-1&&a.right<=b.right+1&&a.width>0&&a.height>=32&&getComputedStyle(node).borderTopWidth==='0px';
+      }),'search is a flat, contained sidebar control');
+      return search;
+    }
+    await assertWatchRailChrome('Search movies & series','Refresh catalogues');
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-edge-to-edge-hero.png'),animations:'disabled'});
+    await page.setViewportSize({width:720,height:720});
+    const compactSearch=await assertWatchRailChrome('Search movies & series','Refresh catalogues');
+    await compactSearch.click();
+    const compactDialog=page.getByRole('dialog',{name:'Search titles',exact:true});
+    await compactDialog.waitFor();
+    assert.ok(await compactDialog.getByRole('searchbox',{name:'Search across addons',exact:true}).evaluate(node=>node===document.activeElement),'sidebar opens focused search on compact rail');
+    await page.keyboard.press('Escape');
+    await compactDialog.waitFor({state:'hidden'});
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-rail-search-compact.png'),animations:'disabled'});
+    await page.setViewportSize({width:1600,height:900});
+    console.log('PASS: compact and full-width Watch rail own search and profile/hub actions without obstructing the hero.');
     assert.equal(await watch.locator('.tsugi-watch-nav').getByRole('button',{name:/Stremio|Nuvio|Add addon/}).count(),0);
     await page.waitForFunction(()=>{const f=window.__stremioFixture;return f.catalogPending===0&&['broken','empty'].every(id=>f.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='browse-catalog'&&a.action.catalogId===id));});
     assert.equal(await board.getByText('This catalogue is unavailable.',{exact:true}).count(),0);
@@ -581,11 +618,18 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       assert.ok(Math.abs(layout.top-layout.rootTop)<=3,label+' hero begins beneath native title strip: '+JSON.stringify(layout));
       assert.ok(layout.headerBottom<layout.closeTop&&layout.closeBottom<=layout.copyTop&&layout.closeReachable,label+' masthead, close and title copy remain separate: '+JSON.stringify(layout));
       assert.ok(layout.blur.includes('blur'),label+' bottom blur applied');
+      const header=watch.locator('.tsugi-watch-hub>header');
+      assert.equal(await header.locator('button,.tsugi-watch-header-search').count(),0,label+' detail artwork has no header actions');
+      assert.equal(await header.locator('.tsugi-watch-heading-copy>p').count(),1,label+' only profile context remains');
+      const actions=watch.locator('.tsugi-watch-shared-rail [data-ui="watch-rail-actions"]');
+      assert.equal(await actions.getByRole('button',{name:'Streaming hubs',exact:true}).count(),1);
+      assert.equal(await actions.getByRole('button',{name:'Switch profile',exact:true}).count(),1);
     }
     const discoverCallsStart=await page.evaluate(()=>window.__stremioFixture.calls.length);
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Discover',exact:true}).click();
     await watch.getByRole('heading',{name:'Series hub',exact:true}).waitFor();
     assert.equal(await board.getAttribute('data-discovery-provider'),'tvmaze');
+    await assertWatchRailChrome('Search TVmaze series','Refresh schedules');
     const discovery=board.locator('[data-ui="series-discovery"]');
     const feeds=discovery.locator('[data-ui="series-discovery-feed"]');
     for(const feed of ['streaming-today','streaming-tomorrow','broadcast-us','broadcast-gb','broadcast-ca','broadcast-au']){
@@ -603,7 +647,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await discovery.locator('[data-category="crime"]').getByRole('button',{name:'Crime and thriller fixture',exact:true}).waitFor();
     await discovery.locator('[data-category="thriller"]').getByRole('button',{name:'Crime and thriller fixture',exact:true}).waitFor();
     assert.ok(tvmazeRequests.includes('/schedule')&&tvmazeRequests.includes('/schedule/web')&&tvmazeRequests.includes('/shows'));
-    await watch.locator('.tsugi-watch-header-search').getByRole('button',{name:'Search TVmaze series',exact:true}).click();
+    await watch.locator('[data-ui="watch-rail-search"]').getByRole('button',{name:'Search TVmaze series',exact:true}).click();
     const tvmazeSearch=board.getByRole('searchbox',{name:'Search TVmaze series',exact:true});
     tvmazeSearchUnavailable=true;
     await tvmazeSearch.fill('provider unavailable fixture');
@@ -845,7 +889,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await page.keyboard.press('Escape');
     await groups.waitFor({state:'detached'});
     await item.getByRole('button',{name:'Close title',exact:true}).click();
-    await watch.locator('.tsugi-watch-header-search').getByRole('button',{name:'Search movies & series',exact:true}).click();
+    await watch.locator('[data-ui="watch-rail-search"]').getByRole('button',{name:'Search movies & series',exact:true}).click();
     await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Fixture cinema film');
     const results=board.locator('[data-ui="watch-search-results"]');
     await results.getByRole('button',{name:'Fixture cinema film sequel',exact:true}).waitFor();
@@ -898,7 +942,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await page.keyboard.press('Escape');
     await groups.waitFor({state:'detached'});
     await item.getByRole('button',{name:'Close title',exact:true}).click();
-    await watch.locator('.tsugi-watch-header-search').getByRole('button',{name:'Search movies & series',exact:true}).click();
+    await watch.locator('[data-ui="watch-rail-search"]').getByRole('button',{name:'Search movies & series',exact:true}).click();
     await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('family guy');
     await seriesResults.getByRole('button',{name:'Family Guy',exact:true}).click();
     await item.getByRole('heading',{name:'Family Guy',exact:true}).waitFor();
@@ -920,7 +964,8 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     console.log('PASS: ordinary TV search opens exact episode stream selector with multiline formatter layout.');
     await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Anime Hub',exact:true}).click();
     const anime=watch.locator('[data-ui="mal-anime-library"]');
-    await watch.locator('.tsugi-watch-header-search').getByRole('button',{name:'Search anime',exact:true}).click();
+    await assertWatchRailChrome('Search anime');
+    await watch.locator('[data-ui="watch-rail-search"]').getByRole('button',{name:'Search anime',exact:true}).click();
     const animeSearchDialog=page.getByRole('dialog',{name:'Search titles',exact:true});
     await animeSearchDialog.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Fixture anime series');
     await animeSearchDialog.locator('[data-search-kind="series"]').getByRole('button',{name:'Fixture anime series',exact:true}).click();
@@ -1168,7 +1213,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.equal(await watch.getByText('No matching catalogues',{exact:true}).count(),0);
     await watch.evaluate(node=>node.scrollTo({top:0,left:0,behavior:'instant'}));
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-anime-populated.png'),animations:'disabled'});
-    await watch.locator('.tsugi-watch-header-search').getByRole('button',{name:'Search anime',exact:true}).click();
+    await watch.locator('[data-ui="watch-rail-search"]').getByRole('button',{name:'Search anime',exact:true}).click();
     const animeSearch=page.getByRole('dialog',{name:'Search titles',exact:true});
     await animeSearch.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Public anime discovery fixture');
     const animeResult=animeSearch.locator('[data-ui="watch-search-results"]').getByRole('button',{name:'Public anime discovery fixture',exact:true});

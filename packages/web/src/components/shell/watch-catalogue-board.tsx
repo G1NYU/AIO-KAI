@@ -269,10 +269,13 @@ export function WatchCatalogueBoard({scope='all',includeHistory=false,seriesDisc
   const homeTargets=React.useMemo(()=>seriesDiscovery?[]:catalogueTargets(props.sources,scope,'all',''),[props.sources,scope,seriesDiscovery]);
   const targets=React.useMemo(()=>seriesDiscovery?[]:catalogueTargets(props.sources,scope,kind,submitted),[props.sources,scope,kind,submitted,seriesDiscovery]);
   const searchLabel=seriesDiscovery?t`Search TVmaze series`:scope==='all'?t`Search movies & series`:t`Search anime`;
-  const toolbar=<div className="tsugi-watch-board-toolbar">
-    <button type="button" className="tsugi-watch-search-trigger" aria-label={searchLabel} aria-haspopup="dialog" aria-expanded={searchOpen} aria-controls={dialogId} disabled={props.busy} onClick={()=>setSearchOpen(true)}><MovieGlyph name="search"/><span>{searchLabel}</span></button>
-    {!searchOnly&&<button type="button" className="tsugi-read-action" disabled={props.busy} onClick={()=>setRevision(r=>r+1)}>{seriesDiscovery?<Trans>Refresh schedules</Trans>:<Trans>Refresh catalogues</Trans>}</button>}
-  </div>;
+  const railSearch=searchMount?.dataset.ui==='watch-rail-search';
+  const refreshLabel=seriesDiscovery?t`Refresh schedules`:t`Refresh catalogues`;
+  const actions=<>
+    <button type="button" data-ui="watch-search-trigger" className={railSearch?'tsugi-watch-nav-item':'tsugi-watch-search-trigger'} title={searchLabel} aria-label={searchLabel} aria-haspopup="dialog" aria-expanded={searchOpen} aria-controls={dialogId} disabled={props.busy} onClick={()=>setSearchOpen(true)}><MovieGlyph name="search"/><span>{railSearch?<Trans>Search</Trans>:searchLabel}</span></button>
+    {!searchOnly&&<button type="button" className={railSearch?'tsugi-watch-nav-item':'tsugi-read-action'} title={refreshLabel} aria-label={refreshLabel} disabled={props.busy} onClick={()=>setRevision(r=>r+1)}>{railSearch&&<MovieGlyph name="refresh"/>}<span>{railSearch?<Trans>Refresh</Trans>:refreshLabel}</span></button>}
+  </>;
+  const toolbar=railSearch?actions:<div className="tsugi-watch-board-toolbar">{actions}</div>;
   return <section className="tsugi-watch-board" data-ui="watch-catalogue-board" data-discovery-provider={seriesDiscovery?'tvmaze':undefined} data-search-only={searchOnly||undefined} hidden={props.paused} inert={props.paused}>
     {!props.paused&&(searchMount?createPortal(toolbar,searchMount):searchMount===undefined?toolbar:null)}
     {!searchOnly&&scope==='all'&&!props.sources.some(s=>s.enabled&&s.manifest.resources.includes('stream'))&&<p className="tsugi-watch-muted"><Trans>Browse titles now. Connect streaming addons in Settings to watch them.</Trans> <button type="button" className="tsugi-read-action" disabled={props.busy} onClick={props.openAddons}><Trans>Manage addons</Trans></button></p>}
@@ -288,7 +291,7 @@ export function WatchCatalogueBoard({scope='all',includeHistory=false,seriesDisc
         {scope==='all'&&!seriesDiscovery&&<div className="tsugi-search-kind" aria-label={t`Media type`}>
           {([{value:'all',label:t`All titles`},{value:'series',label:t`Series`},{value:'movie',label:t`Movies`},{value:'anime',label:t`Anime`}] as const).map(({value,label})=><button type="button" key={value} aria-pressed={kind===value} onClick={()=>setKind(value)}>{label}</button>)}
         </div>}
-        {submitted?<CatalogueRows key={JSON.stringify([props.profileId,scope,kind,submitted,targets.map(row=>row.key)])} {...props} openTitle={(item,sourceId)=>{setSearchOpen(false);props.openTitle(item,sourceId);}} targets={targets} search={submitted} scope={scope} kind={kind} seriesDiscovery={seriesDiscovery} includeHistory={false}/>:<p className="tsugi-watch-search-hint"><Trans>Find your next favorite. Results appear as you type.</Trans></p>}
+        {submitted?<CatalogueRows key={JSON.stringify([props.profileId,scope,kind,submitted,targets.map(row=>row.key)])} {...props} openTitle={(item,sourceId)=>{setSearchOpen(false);props.openTitle(item,sourceId);}} targets={targets} search={submitted} scope={scope} kind={kind} seriesDiscovery={seriesDiscovery} includeHistory={false}/>:null}
       </div>}
     </dialog>
   </section>;

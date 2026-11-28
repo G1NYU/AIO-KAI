@@ -44,8 +44,15 @@
 
 ## F1 — Post-release Reader global search regression (priority hotfix)
 
-- [ ] Restore global search after extension installation, regardless of optional extension-management metadata or store listing failures. Use one fresh bounded native source discovery for header and dedicated forms; preserve exact source IDs, all pages, clear empty/error states, retries, progressive results, stop and per-source errors.
-- [ ] Verify real browser navigation, failed discovery retry and >100-source pinned runtime coverage. Confirm live Windows search using the maintainer's installed sources. Preserve v0.1.2 and its release assets; package a separately versioned hotfix after passing gates.
+- [x] Restore global search after extension installation, regardless of optional extension-management metadata or store listing failures. Use one fresh bounded native source discovery for header and dedicated forms; preserve exact source IDs, all pages, clear empty/error states, retries, progressive results, stop and per-source errors.
+- [x] Verify real browser navigation, failed discovery retry and >100-source pinned runtime coverage. Source 421de62; unified CI 46163108686 and pinned runtime smoke 46163108723 passed, including 260 native tests.
+- [ ] Confirm live Windows search using the maintainer's installed sources. Preserve v0.1.2 and its release assets; package a separately versioned hotfix after passing gates.
+
+## F2 — Watch chrome cleanup (maintainer screenshots, 2026-11-28)
+
+- [ ] Remove generic explanatory subtitles under Movies & TV and Series hub; retain profile context, provider attribution and real title metadata.
+- [ ] Move Home, Discover and Anime search into the existing flat shared sidebar below Settings; retain refresh, keyboard focus, scoped search, hub switching and profile actions. Keep hero artwork and close-title behavior unobstructed on details; leave non-desktop fallback intact.
+- [ ] Verify populated home/series/anime, detail, compact rail and existing search-to-episode-to-stream browser flows; include in the next verified candidate.
 
 ## Streaming hub architecture correction
 

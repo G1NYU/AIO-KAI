@@ -11,6 +11,7 @@ const shapes = {
   tv: 'M4 5h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm6 3.5v8l6.5-4Z',
   calendar: 'M5 4h2V2h2v2h6V2h2v2h2a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2Zm0 6v8h14v-8Zm2 2h3v2H7Zm7 0h3v2h-3Z',
   history: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.5 4.5h3v5.1l4 2.3-1.5 2.5-5.5-3.2Z',
+  refresh: 'M19.4 4.6 22 2v8h-8l3.3-3.3A7 7 0 1 0 19 14h3a10 10 0 1 1-2.6-9.4Z',
   list: 'M3 5h3v3H3Zm5 0h13v3H8ZM3 10.5h3v3H3Zm5 0h13v3H8ZM3 16h3v3H3Zm5 0h13v3H8Z',
   people: 'M8.5 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM1 20v-2a7.5 7.5 0 0 1 15 0v2Zm14-16a3.5 3.5 0 0 1 1 6.8 6 6 0 0 0-1-6.8Zm2 9a6 6 0 0 1 6 6v1h-5v-2a9.5 9.5 0 0 0-1-5Z',
   download: 'M10.5 2.5h3v9.3l3.4-3.4 2.1 2.1-7 7-7-7 2.1-2.1 3.4 3.4ZM3 16h3v3h12v-3h3v6H3Z',
@@ -37,7 +38,7 @@ function glyph(name:MovieGlyphName){
 }
 export const MovieIcons={
   home:glyph('home'),discover:glyph('discover'),search:glyph('search'),heart:glyph('heart'),
-  tv:glyph('tv'),calendar:glyph('calendar'),history:glyph('history'),list:glyph('list'),
+  tv:glyph('tv'),calendar:glyph('calendar'),history:glyph('history'),refresh:glyph('refresh'),list:glyph('list'),
   people:glyph('people'),download:glyph('download'),settings:glyph('settings'),grid:glyph('grid'),
   anime:glyph('anime'),addons:glyph('addons'),stremio:glyph('stremio'),nuvio:glyph('nuvio'),
   switch:glyph('switch'),back:glyph('back'),forward:glyph('forward'),
