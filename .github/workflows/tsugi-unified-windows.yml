@@ -505,7 +505,7 @@ jobs:
   installer:
     needs: [package]
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     permissions:
       contents: read
       actions: read
@@ -536,9 +536,12 @@ jobs:
       - name: Build Windows installer from validated payload
         run: |
           ./packages/desktop/scripts/build-tsugi-installer.ps1 -PortableZip payload/Tsugi-windows-x64-test.zip -OutputDir installer-output -Compiler $env:TSUGI_ISCC -Version 0.1.2
-      - name: Verify installation, native tools, upgrade and uninstall
+      - name: Verify current-user installation, native tools, upgrade and uninstall
         run: |
           ./packages/desktop/scripts/test-tsugi-installer.ps1 -Installer installer-output/Tsugi-windows-x64-setup.exe -PortableZip payload/Tsugi-windows-x64-test.zip -Version 0.1.2
+      - name: Verify all-users Program Files installation and Reader preparation
+        run: |
+          ./packages/desktop/scripts/test-tsugi-installer.ps1 -Installer installer-output/Tsugi-windows-x64-setup.exe -PortableZip payload/Tsugi-windows-x64-test.zip -Version 0.1.2 -AllUsers
       - uses: actions/upload-artifact@v7
         id: upload-installer
         with:

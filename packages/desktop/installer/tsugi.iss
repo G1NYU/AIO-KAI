@@ -17,14 +17,16 @@ AppPublisher=TSUGI
 AppPublisherURL=https://github.com/G1NYU/TSUGI
 AppSupportURL=https://github.com/G1NYU/TSUGI/issues
 AppUpdatesURL=https://github.com/G1NYU/TSUGI/releases
-DefaultDirName={localappdata}\Programs\TSUGI
+DefaultDirName={autopf}\TSUGI
 DefaultGroupName=TSUGI
 DisableDirPage=no
 DisableProgramGroupPage=yes
 UsePreviousAppDir=yes
 AllowRootDirectory=no
 AllowUNCPath=no
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
+PrivilegesRequiredOverridesAllowed=dialog commandline
+UsePreviousPrivileges=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\current\Tsugi.exe
@@ -49,17 +51,15 @@ Source: "{#StageDir}\.tsugi-installed"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#StageDir}\README-INSTALL.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{userprograms}\TSUGI\TSUGI"; Filename: "{app}\current\Tsugi.exe"; WorkingDir: "{app}\current"
-Name: "{userdesktop}\TSUGI"; Filename: "{app}\current\Tsugi.exe"; WorkingDir: "{app}\current"; Tasks: desktopicon
-Name: "{userprograms}\TSUGI\Uninstall TSUGI"; Filename: "{uninstallexe}"
+Name: "{autoprograms}\TSUGI\TSUGI"; Filename: "{app}\current\Tsugi.exe"; WorkingDir: "{app}\current"
+Name: "{autodesktop}\TSUGI"; Filename: "{app}\current\Tsugi.exe"; WorkingDir: "{app}\current"; Tasks: desktopicon
+Name: "{autoprograms}\TSUGI\Uninstall TSUGI"; Filename: "{uninstallexe}"
 
 [Run]
-Filename: "{app}\current\Tsugi.exe"; Description: "Launch TSUGI"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\current\Tsugi.exe"; Description: "Launch TSUGI"; Flags: nowait postinstall skipifsilent runasoriginaluser
 
-; Only the application-managed, separately downloaded runtime is untracked.
-; Never remove %LOCALAPPDATA%\TSUGI or the user's media/download directories.
-[UninstallDelete]
-Type: filesandordirs; Name: "{app}\current\read-tools"
+; All installed Reader runtimes and libraries are per-user and deliberately
+; outside the application folder. Do not recursively delete user data.
 
 [Code]
 function ContainsFiles(Directory: String): Boolean;
@@ -96,6 +96,13 @@ var
   Target, Previous: String;
 begin
   Result := '';
+  { Do not silently change the scope of an existing installation. }
+  if (IsAdminInstallMode and RegKeyExists(HKCU64, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\G1NYU.TSUGI.Windows_is1')) or
+     (not IsAdminInstallMode and RegKeyExists(HKLM64, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\G1NYU.TSUGI.Windows_is1')) then
+  begin
+    Result := 'TSUGI is already installed in the other installation mode. Uninstall that copy first; your personal data will be preserved.';
+    Exit;
+  end;
   Target := ExpandConstant('{app}');
   Previous := GetPreviousData('InstallRoot', '');
   if FileExists(AddBackslash(Target) + '.portable') then

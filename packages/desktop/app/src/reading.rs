@@ -53,7 +53,14 @@ pub fn bundled_read_section(args: &Args, web: Option<&Path>) -> bool {
 
 pub fn bundled_runtime_path(args: &Args, web: Option<&Path>) -> Option<PathBuf> {
     let dir = bundled_directory(args, web)?;
-    let runtime = dir.join("read-tools");
+    // Program Files is not writable during ordinary playback. Keep the
+    // downloaded runtime with this Windows user's data in installed mode;
+    // retain the existing adjacent runtime for portable/development copies.
+    let runtime = if crate::installed_root().is_some() {
+        crate::installed_data_dir().join("read-tools")
+    } else {
+        dir.join("read-tools")
+    };
     (runtime_ready(&runtime) || setup_assets(&dir)).then_some(runtime)
 }
 
@@ -68,22 +75,27 @@ pub fn prepare_runtime(runtime: &Path, stopped: &AtomicBool) -> Result<(), &'sta
     if runtime_ready(runtime) { return Ok(()); }
     if stopped.load(Ordering::Acquire) { return Err("Reading setup cancelled."); }
     if runtime.exists() {
-        return Err("Reading runtime folder is incomplete. Keep your data and reinstall the application in a fresh folder.");
+        return Err("Reading runtime folder is incomplete. Keep your reading data and remove only the incomplete read-tools runtime before retrying.");
     }
     let dir = runtime.parent().ok_or("Reading runtime location is missing.")?;
-    if !setup_assets(dir) { return Err("Reading setup files are missing."); }
+    // Always source the fixed setup script and Java launcher from the
+    // installed executable's bundled files, not the writable runtime path.
+    let exe = std::env::current_exe().map_err(|_| "Could not locate reading setup files.")?;
+    let assets = exe.parent().ok_or("Reading setup files are missing.")?;
+    if !setup_assets(assets) { return Err("Reading setup files are missing."); }
+    fs::create_dir_all(dir).map_err(|_| "Could not create the reading runtime parent directory.")?;
     let system = PathBuf::from(std::env::var_os("SystemRoot").ok_or("Windows system directory is unavailable.")?);
     let powershell_dir = system.join("System32/WindowsPowerShell/v1.0");
     let powershell = powershell_dir.join("powershell.exe");
     if !powershell.is_file() { return Err("Windows reading setup component is unavailable."); }
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| "Could not create reading setup directory.")?.as_nanos();
     let stage = dir.join(format!("read-tools-setup-{}-{stamp}", std::process::id()));
-    fs::create_dir(&stage).map_err(|_| "Could not create reading setup directory. Use a writable installation folder.")?;
+    fs::create_dir(&stage).map_err(|_| "Could not create reading setup directory in the runtime location.")?;
     let result = (|| {
         let job = ReadJob::new()?;
         let mut child = Command::new(powershell)
             .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"])
-            .arg(dir.join("read-launcher/fetch-read-tools.ps1"))
+            .arg(assets.join("read-launcher/fetch-read-tools.ps1"))
             .arg("-Destination").arg(&stage)
             .env("PSModulePath", powershell_dir.join("Modules"))
             .current_dir(dir)
@@ -121,7 +133,7 @@ pub fn prepare_runtime(runtime: &Path, stopped: &AtomicBool) -> Result<(), &'sta
         }
         let launcher = stage.join("launcher");
         fs::create_dir(&launcher).map_err(|_| "Could not stage reading launcher.")?;
-        fs::copy(dir.join("read-launcher/TsugiReadLauncher.class"), launcher.join("TsugiReadLauncher.class"))
+        fs::copy(assets.join("read-launcher/TsugiReadLauncher.class"), launcher.join("TsugiReadLauncher.class"))
             .map_err(|_| "Could not stage reading launcher.")?;
         if !runtime_ready(&stage) { return Err("Reading setup did not complete."); }
         // Never replace an existing runtime or touch the reading data.

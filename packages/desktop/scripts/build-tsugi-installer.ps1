@@ -32,18 +32,22 @@ the application and its bundled tools. Preferences, libraries, history,
 backups and default downloads are under %LOCALAPPDATA%\TSUGI.
 The Vault download folder can be changed from the application.
 
-The first Read setup downloads the pinned Java/server runtime from upstream
-into the selected installation's current/read-tools directory. Internet
-access and sufficient free space are required. This runtime is not shipped
-inside the installer. The application is installed for your Windows account;
-choose a writable local folder on any drive.
+Choose Install for all users (administrator approval) to install into
+Program Files or another protected local folder. Install for me only is
+available without elevation and defaults to your user Programs directory.
+Both modes allow a custom suitable local folder on another drive. Start
+TSUGI normally from the shortcut; administrator rights are not required
+for ordinary application use.
+
+Read downloads its verified Java/server runtime into
+%LOCALAPPDATA%\TSUGI\read-tools on first setup, even when TSUGI is installed
+in Program Files. Internet access and sufficient space are required.
 
 Upgrading in the same folder preserves user data. Uninstall from Windows
-Settings or the Start menu. The uninstaller leaves user data and downloads
-alone. The separately downloaded Java/server program runtime is removed with
-the application, not the personal reading data.
-To move the program to another drive, uninstall the program first, then
-reinstall in the new folder; your user data stays in its original location.
+Settings or the Start menu. The uninstaller leaves personal data, downloads
+and the per-user Reader runtime alone. To switch installation mode or move
+the program to another drive, uninstall the existing copy first, then
+reinstall. Your user data stays in its original location.
 
 Previous portable builds keep their own data folders. This installer does
 not copy or delete them. Retain the original and use the supported backup/

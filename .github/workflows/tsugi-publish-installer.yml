@@ -98,11 +98,11 @@ jobs:
           - Compatible MAL/anime catalogues preserve source identities and ordering.
           - TVmaze Discover includes Korean dramas, more genres and regional schedules.
           - Refined Up Next layout and original minimalist streaming-hub illustrations with subtle artwork-only blur.
-          - Standard Windows setup, selectable writable drive/folder, Start menu shortcuts, optional desktop shortcut and uninstaller.
+          - Standard Windows setup: all-users Program Files installation with UAC approval or current-user installation without elevation; selectable local drive/folder, Start menu shortcuts, optional desktop shortcut and uninstaller.
 
           Download **Tsugi-windows-x64-setup.exe**, verify its SHA-256 against SHA256SUMS.txt, and run the installer. No ZIP extraction is required.
           This installer is unsigned; Windows may show a warning. Previous portable builds retain their separate data. Keep the original folder and use supported backup/restore features to migrate personal data.
-          Installed TSUGI keeps personal data under %LOCALAPPDATA%\\TSUGI. In-place upgrades and uninstall preserve that data. Read downloads its verified runtime directly from upstream on first setup.
+          Installed TSUGI keeps personal data under %LOCALAPPDATA%\\TSUGI. In-place upgrades and uninstall preserve that data. Read downloads its verified runtime directly from upstream into the user's local TSUGI data directory on first setup. Uninstall preserves it. Uninstall an older copy before changing installation mode or location.
 
           Validation: https://github.com/$GITHUB_REPOSITORY/actions/runs/$APPROVED_RUN
           Application source: $RELEASE_COMMIT
