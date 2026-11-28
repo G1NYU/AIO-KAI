@@ -1,3 +1,7 @@
+## 2026-11-28 — Measured hero correction
+
+Run 46138736077: native and cache preservation passed; 477 web tests passed. Discover detail at 1600px had left/right edges exactly matching the rail and viewport (208/1592), 0px radius, 12px bottom blur and reachable close button. The measured top was 60px versus the native strip bottom of 40px. Extend the hero only by the measured 20px, retaining the copy baseline and increasing the close inset by 24px to preserve clearance. Keep all measured visual assertions; repeat cumulative CI before packaging.
+
 ## 2026-11-28 — Hero render validation
 
 Run 46138396383: native checks including the WebView2 cache probe passed; web typecheck/lint/build and 477 tests in 45 suites passed. The TVmaze schedule/search browser flow reached the actual selected series and exact episode ID; its composite full-bleed geometry assertion failed without identifying the measured condition. Capture the screenshot before assertions, wait for the close action to be enabled and for layout to settle after instant scroll, and log individual edges, chrome positions, hit testing and blur. Retain every geometry acceptance condition. No package or release until the visual check passes.
