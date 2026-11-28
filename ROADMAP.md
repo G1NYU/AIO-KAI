@@ -1,5 +1,35 @@
 # Tsugi — Music and application polish roadmap
 
+## G — Next development cycle (maintainer scope, 2026-11-28)
+
+This is additive to the existing A1–F5 roadmap, not a replacement or a request to package another EXE now. Preserve shipped features, previous acceptance evidence and outstanding older milestones. Work in independent tested slices; cumulative source CI is required, but package/release markers are reserved for an explicitly requested later build. E4 supporter access and historical chapter-update notifications (issue #2) remain deferred for now. Physical Windows/provider acceptance is a separate gate, not a substitute for automated tests.
+
+| Work item | Existing foundation / cross-reference | Done when |
+| --- | --- | --- |
+| G1 / E2 — Finish Discord Rich Presence | Existing optional native Discord IPC, registered public app identity, privacy/per-media policy, cross-media candidates and reconnect logic. Audit actual behavior before modifying. | Real Windows Discord desktop client shows correct title, episode/track/chapter and timing across direct Watch, Anime, server-backed Watch, Music, manga and books. Defined foreground-video > visible reader > playing background music > browsing priority; clear stale activity on stop, exit and privacy changes, reconnect cleanly; respect opt-out and individual media choices. |
+| G2 / B5 — Automatic Reader tracking | MAL/AniList connections and explicit sync exist; do not replace these or source migration. | Opt-in one-way outbound sync after confirmed chapter completion; linked-title review, visible coalesced retry queue and ambiguous match review. Failed writes retry visibly; stale retries and source migration never silently reduce remote or local progress. Inbound/two-way sync deferred. |
+| G3 / D4 + E1 — Watch live acceptance and version preference | Direct Stremio and server-backed playback shipped; preserve all three Watch paths. E1 remains an independently evaluated playback-layout refactor, not a mandated rewrite. | Real-source manual selection, autoplay, switch version at current position, track/subtitle selection, episode continuation; richer stream badges/filters and explicit preferred-version carry-over across episodes. Clearly show fallback when a preference is unavailable; no silent selection. Record transport/provider limitations and test separately on direct Movies & TV, Anime and server-backed paths. |
+| G4 / C2 — Vault library import completion | Reviewed EPUB/PDF handoff, duplicate warnings and retry already exist. Earlier C2 includes reviewed persistent audio copies; verify actual current import, library persistence and replay before declaring a gap. v0.1.2 advertises comic handoff; inspect CBZ path before reimplementing it. | Verified completed transfers land in selected library, identify already-imported content, retain download on failure, retry without redownload, and support opt-in automatic handoff. Verify real audio/book/CBZ paths, restart, duplicates, interruption and user-selected target. No silent deletion or overwrite. |
+| G5 / E3 — Music live acceptance and cold-start performance | Three distinct Oto layouts passed automated checks and shipped; do not rebuild them. Preserve native YouTube/SoundCloud and ordinary Eclipse behavior. | Physical Windows visual acceptance; measure click-to-audio cold start, replay and next-track latency on supported live providers, then compare seek/rapid-switch and startup reliability before and after any optimization. Record provider, network/device conditions and timings; no unsupported performance claim. E4 supporter access remains deferred pending an approved integration path. |
+| G6 / A1 + A2 + C3 — Recovery, privacy and diagnostics | Scheduled backups, Cicada release notifications and reviewable support summary exist. | Recover mixed-media library after interrupted upgrade using disposable data; exact preview of redacted crash/log export and no automatic upload; app lock with safe local storage/relock/recovery and honest limits (UI access control, not file encryption). Keep release discovery separate from automatic install/rollback; do not claim either until actually implemented and tested. |
+
+### Execution checklist
+
+- [ ] G1.1 Audit current native and web Discord paths and supported contract; cover direct/server video, music, both readers and priority/privacy/lifecycle. Fix proven defects and add regression coverage.
+- [ ] G1.2 Verify live Windows Discord client and reconnect/clear semantics; no tokens or personal data in activity or logs.
+- [ ] G2.1 Implement reviewed, monotonic, opt-in outbound progress sync and durable retry queue; test stale jobs, migration, offline, authorization and duplicate completion. G2.2 live linked-title acceptance.
+- [ ] G3.1 Complete stream metadata/filters and profile-owned preferred version policy with visible fallback. G3.2 real-provider playback matrix and measured E1 experiment if justified.
+- [ ] G4.1 Audit actual current audio/EPUB/PDF/CBZ handoff; verify or close remaining persistent import and automatic handoff gaps. G4.2 real file and interruption acceptance.
+- [ ] G5.1 Gather repeatable live baseline; G5.2 optimize only measured bottlenecks and rerun all playback/layout regression gates.
+- [ ] G6.1 Mixed-media upgrade/recovery tests; G6.2 previewed redacted diagnostic export; G6.3 local app lock and clear threat/compatibility documentation.
+- [ ] Review all G items against automated and live evidence, preserve remaining original roadmap items and only package again when requested.
+
+### F5 — Reader featured poster / hero backdrop (issue #3)
+
+- [x] Enlarge real cover, separate controls and keep title/CTA sharp; blur the decorative layer only, scoped to featured Reader Library.
+- [x] Automated browser and Windows installer gates passed at `985aadde73881a0e87ae068e525e903ea5ee4cc6`, [run 46170353502](https://github.com/G1NYU/TSUGI/actions/runs/46170353502). [Installer artifact 15273841799](https://github.com/G1NYU/TSUGI/actions/runs/46170353502/artifacts/15273841799), [browser previews 15273796828](https://github.com/G1NYU/TSUGI/actions/runs/46170353502/artifacts/15273796828). Download round-trip installer SHA-256: `33e3d29661ca6f4055f2b3e89513292e90f56fc4bec3206747fefaeeb1d76209`.
+- [ ] Physical Windows appearance and public-release verification remain distinct. Preserve exact accepted candidate. Do not restart package just to begin G work.
+
 ## Post-v0.1.2 — next-session priorities (maintainer request, 2026-11-28)
 
 **Reminder for the next TSUGI conversation after public v0.1.2 is verified:** raise the two items below before proposing unrelated features. This is an explicit maintainer reminder, not authorization to start the refactor before release. Preserve the accepted v0.1.2 installer and release artifact. Do not make either item a new release blocker.
@@ -64,8 +94,8 @@
 
 ## F4 — Final Reader search-field visual correction and v0.1.3 publication
 
-- [ ] Make the dedicated and header global search fields visually obvious with a contrasting boundary, existing search icon, readable placeholder, visible focus and accent submit. Preserve existing source search behavior and unboxed result shelves.
-- [ ] Validate empty/focus/populated controls at desktop and compact widths; rerun the full Windows installer workflow and verify artifact identity and checksum.
+- [x] Make the dedicated and header global search fields visually obvious with a contrasting boundary, existing search icon, readable placeholder, visible focus and accent submit. Preserve existing source search behavior and unboxed result shelves.
+- [x] Validate empty/focus/populated controls at desktop and compact widths; rerun the full Windows installer workflow and verify artifact identity and checksum.
 - [ ] Publish the exact validated v0.1.3 installer using the existing gated publication workflow, with v0.1.2 unchanged. Maintainer has approved publication after this final visual correction.
 
 ## Streaming hub architecture correction
