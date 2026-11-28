@@ -1,5 +1,26 @@
 # Tsugi — Music and application polish roadmap
 
+## Post-v0.1.2 — next-session priorities (maintainer request, 2026-11-28)
+
+**Reminder for the next TSUGI conversation after public v0.1.2 is verified:** raise the two items below before proposing unrelated features. This is an explicit maintainer reminder, not authorization to start the refactor before release. Preserve the accepted v0.1.2 installer and release artifact. Do not make either item a new release blocker.
+
+### E1 — Dedicated playback layout (D4 architectural follow-up)
+
+- [ ] Explore a separate playback root/layout, independent of catalogue and browsing containers, on an experimental branch from the published baseline. Inspect the actual playback mounting, fullscreen/window controls and navigation in Harbor/RE-Harbor, Stremio and NuvioDesktop; document the reference revisions and the tradeoffs before deciding whether to merge.
+- [ ] Reuse the existing mpv engine, controller, native grant handling, player controls, subtitles and progress/tracker paths; do not rewrite playback or alter the established TSUGI design. Share the layout across standalone Movies & TV, Anime Hub and AIOStreams/Jellyfin paths where compatible.
+- [ ] Ensure playback occupies the available client surface with no inherited opaque browsing chrome; preserve correct aspect ratio, fullscreen/windowed transitions, PiP where supported, window resizing, controls, focus and keyboard navigation. Preserve the catalogue scroll/search/profile state on return; suspend unnecessary browsing activity where beneficial without losing resume state.
+- [ ] Compare before/after behavior and resource use. Regression checks: open/pause/resume/seek, subtitle and audio selection, version switching, episode continuation, stop/return and history, fullscreen and PiP, error recovery, and all entry paths. Capture comparable browser views and perform live Windows testing before merging. Merge only if measured benefits justify the refactor and no existing behavior regresses.
+
+### E2 — Complete Discord integration and live acceptance (C3 follow-up)
+
+- [ ] Audit the existing optional Discord Rich Presence implementation and app identity, including existing Watch and cross-media activity paths; verify the current supported Discord integration contract. Reuse existing native presence handling rather than creating a competing client.
+- [ ] Make presence work consistently across standalone and server-backed video, Anime Hub, Music, and Reader; optionally support Vault activity only with separate user consent and a privacy-safe presentation. Agree per-media labels/artwork/status before adding extra activity types.
+- [ ] Show accurate title, episode/track/chapter context, artwork where supported, play/pause state and elapsed/remaining timing where appropriate. Define deterministic priority when audio continues during reading/browsing, and clear stale presence on stop, media switch, privacy mode, disconnect, disable and exit.
+- [ ] Keep default opt-out, a global enable/disable, per-media visibility, connection status and clear controls in the existing cohesive settings design. No tokens, private addon/stream URLs, private paths or unapproved personal identifiers in activity. Gracefully handle Discord absent, closed, restarted or disconnected.
+- [ ] Exercise native/bridge/browser regressions and real Windows Discord desktop-client acceptance, including reconnect, rapid media transitions, correct identity/artwork, playback timing, clearing and privacy controls. Fixture success alone is not a completed integration.
+
+**Execution order:** finish the current installer/playback-strip acceptance and publish v0.1.2 only after maintainer approval; then revisit E1 and E2 as the next priorities. E1 is an exploration with a go/no-go merge decision, not a commitment to replace a working architecture. E2 completes and verifies the existing deferred Discord milestone, rather than assuming it was never implemented.
+
 ## Streaming hub architecture correction
 
 ## 2026-11-27 — D4/D5 test beta verified after interrupted chat
