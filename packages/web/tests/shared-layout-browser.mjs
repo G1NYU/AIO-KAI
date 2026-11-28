@@ -133,6 +133,95 @@ async function assertMasthead(page, navigation, label) {
   await assertFitsViewport(page, label);
 }
 
+// Exercise the real appearance controls instead of injecting styles. One
+// representative pairing per built-in palette covers all six accent choices;
+// compare the same settings dialog and rail across actual media transitions.
+const paletteAuditCases = [
+  ['sumi', 'Default', '#0c0d10', 'coral', 'Coral', '#f17960'],
+  ['mocha', 'Mocha', '#11111b', 'blue', 'Blue', '#9ab8ff'],
+  ['matte', 'Matte black', '#08090b', 'silver', 'Silver', '#d5d5dc'],
+  ['aio-dark', 'Ink', '#090d10', 'lavender', 'Lavender', '#b4befe'],
+  ['nightfall', 'Nightfall', '#0c0b10', 'rose', 'Rose', '#e9a0a8'],
+  ['carbon', 'Carbon', '#0b0e0f', 'amber', 'Amber', '#e4ba87'],
+];
+const rgbPaletteColor = hex => 'rgb(' + [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(', ') + ')';
+
+async function verifySharedPaletteBrowser(page, screenshotDir) {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const settings = page.getByRole('dialog', { name: 'App settings', exact: true });
+  const appearance = settings.locator('.tsugi-global-appearance');
+  const openSettings = async rail => {
+    await rail.getByRole('button', { name: 'App settings', exact: true }).click();
+    await settings.waitFor({ state: 'visible' });
+  };
+  const closeSettings = async () => {
+    await settings.getByRole('button', { name: 'Close', exact: true }).click();
+    await settings.waitFor({ state: 'hidden' });
+  };
+  const choose = async ([theme, themeLabel, canvas, accent, accentLabel, accentColor]) => {
+    const paletteButton = appearance.locator('.tsugi-global-palettes').getByRole('button', { name: themeLabel, exact: true });
+    const accentButton = appearance.locator('.tsugi-accent-options').getByRole('button', { name: accentLabel, exact: true });
+    await paletteButton.click();
+    await accentButton.click();
+    await page.waitForFunction(({ theme, accent }) => document.documentElement.dataset.tsugiTheme === theme && document.documentElement.dataset.tsugiAccent === accent, { theme, accent });
+    assert.equal(await paletteButton.getAttribute('aria-pressed'), 'true');
+    assert.equal(await accentButton.getAttribute('aria-pressed'), 'true');
+    const actual = await settings.evaluate(node => {
+      const root = getComputedStyle(document.documentElement), dialog = getComputedStyle(node);
+      return { canvas: root.getPropertyValue('--tsugi-canvas').trim().toLowerCase(), accent: root.getPropertyValue('--tsugi-accent').trim().toLowerCase(), background: dialog.backgroundColor, family: dialog.fontFamily };
+    });
+    assert.equal(actual.canvas, canvas, theme + ': root canvas');
+    assert.equal(actual.accent, accentColor, theme + ': root accent');
+    assert.equal(actual.background, rgbPaletteColor(canvas), theme + ': actual settings material');
+    assert.match(actual.family, /^Interface(?:,|$)/, theme + ': consistent settings typography');
+    await assertUnframedGroups(settings.locator(':scope > :is(.tsugi-app-general,.tsugi-global-appearance,.tsugi-app-about)'), theme + ': unframed settings', 3);
+    await assertFitsViewport(page, theme + ': settings');
+  };
+  const signature = () => settings.evaluate(node => {
+    const field = node.querySelector('.tsugi-app-general select');
+    const style = getComputedStyle(field), dialog = getComputedStyle(node);
+    return { background: dialog.backgroundColor, foreground: dialog.color, family: style.fontFamily, fieldBackground: style.backgroundColor, fieldForeground: style.color, fieldBorder: style.borderTopColor, fieldRadius: style.borderTopLeftRadius, fieldHeight: field.getBoundingClientRect().height, appearance: style.appearance };
+  });
+  let rail = await assertRailGeometry(page, page.locator('[data-page="music"]'), 'Music');
+  await openSettings(rail);
+  const saved = await page.evaluate(() => ({ theme: document.documentElement.dataset.tsugiTheme, accent: document.documentElement.dataset.tsugiAccent }));
+  for (const entry of paletteAuditCases) {
+    await choose(entry);
+    await appearance.scrollIntoViewIfNeeded();
+    if (screenshotDir) await page.screenshot({ path: join(screenshotDir, 'appearance-' + entry[0] + '.png'), animations: 'disabled' });
+  }
+  // Keep a non-default palette through real media transitions. The same
+  // global dialog and equivalent rail controls must not acquire local styles.
+  const alternate = paletteAuditCases[1];
+  await choose(alternate);
+  const reference = await signature();
+  assert.ok(await page.evaluate(async () => (await document.fonts.load('500 14px Interface', 'App settings')).some(face => face.family === 'Interface' && face.status === 'loaded')), 'the settings Interface face is actually loaded');
+  await closeSettings();
+  const railReference = await rail.evaluate(node => getComputedStyle(node).backgroundColor);
+  for (const [area, route] of [['Read', 'read'], ['Vault', 'vault'], ['Music', 'music']]) {
+    await rail.getByRole('button', { name: area, exact: true }).click();
+    rail = await assertRailGeometry(page, page.locator('[data-page="' + route + '"]'), area);
+    assert.equal(await rail.evaluate(node => getComputedStyle(node).backgroundColor), railReference, area + ': shared rail material');
+    await openSettings(rail);
+    assert.deepEqual(await signature(), reference, area + ': equivalent settings field and dialog styling');
+    assert.deepEqual(await page.evaluate(() => [document.documentElement.dataset.tsugiTheme, document.documentElement.dataset.tsugiAccent]), [alternate[0], alternate[3]], area + ': palette and accent survive navigation');
+    if (screenshotDir) await page.screenshot({ path: join(screenshotDir, 'appearance-shared-' + route + '.png'), animations: 'disabled' });
+    await closeSettings();
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  rail = await assertRailGeometry(page, page.locator('[data-page="music"]'), 'Music');
+  await openSettings(rail);
+  await appearance.scrollIntoViewIfNeeded();
+  assert.ok(await settings.evaluate(node => node.scrollWidth <= node.clientWidth + 1), 'narrow alternate-theme settings do not overflow horizontally');
+  if (screenshotDir) await page.screenshot({ path: join(screenshotDir, 'appearance-shared-narrow.png'), animations: 'disabled' });
+  const savedTheme = paletteAuditCases.find(entry => entry[0] === saved.theme);
+  const savedAccent = paletteAuditCases.find(entry => entry[3] === saved.accent);
+  assert.ok(savedTheme && savedAccent, 'fixture has supported saved palette and accent');
+  await choose([...savedTheme.slice(0, 3), ...savedAccent.slice(3)]);
+  await closeSettings();
+  console.log('PASS: six real palette and accent choices; shared rail and settings styling survive Read, Vault and Music navigation; loaded Interface face and narrow settings fit verified.');
+}
+
 export async function verifySharedLayoutBrowser({ browser, origin, installDesktopFixture, screenshotDir }) {
   if (screenshotDir) await mkdir(screenshotDir, { recursive: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'en-GB', reducedMotion: 'reduce' });
@@ -248,6 +337,7 @@ export async function verifySharedLayoutBrowser({ browser, origin, installDeskto
     await assertMasthead(page, setupNavigation, 'Narrow Read setup');
     await setupNavigation.getByRole('button', { name: 'Music', exact: true }).click();
     await music.waitFor({ state: 'visible' });
+    await verifySharedPaletteBrowser(page, screenshotDir);
     assert.deepEqual(errors, [], 'Shared layout transitions have no runtime errors');
     console.log('PASS: shared rails reach the top edge, preserve window drag/maximize/resize bridge actions and inset media states; masthead controls align at wide/narrow widths; Music, Read, Books and App settings headings and artwork groups have no broad background panels.');
   } catch (error) {
