@@ -681,8 +681,33 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
         const previous=nav.getByRole('button',{name:'Previous',exact:true});
         const next=nav.getByRole('button',{name:'Next',exact:true});
         await nav.waitFor({state:'visible'});
-        await page.waitForFunction(el=>{const buttons=el.querySelectorAll('button');return buttons.length===2&&buttons[0].disabled&&!buttons[1].disabled;},await nav.elementHandle());
         await nav.scrollIntoViewIfNeeded();
+        const rowLabel=await row.getAttribute('data-category')??await row.getAttribute('data-feed');
+        const navState=()=>row.evaluate(el=>{
+          const viewport=el.querySelector('.UI-Carousel__content'),track=viewport?.querySelector('.UI-Carousel__innerContent');
+          const first=track?.firstElementChild;
+          return {buttons:[...el.querySelectorAll('[data-ui="media-row-nav"] button')].map(button=>({label:button.getAttribute('aria-label'),disabled:button.disabled})),
+            viewWidth:viewport?.clientWidth,trackWidth:track?.scrollWidth,scrollLeft:viewport?.scrollLeft,
+            firstLeft:first?.getBoundingClientRect().left,trackTransform:track?getComputedStyle(track).transform:null,
+            slides:track?.children.length,windowWidth:window.innerWidth};
+        });
+        console.log('TVMAZE NAV '+rowLabel+' '+width+' '+JSON.stringify(await navState()));
+        // A resize preserves the current free-scroll position, not necessarily
+        // an exact snap. Drive the actual Previous action to the beginning
+        // rather than waiting for a state that may never change on its own.
+        for(let step=0;step<41&&await previous.isEnabled();step++){
+          const before=await firstSlideX(row);
+          await previous.click();
+          await page.waitForFunction(({el,x})=>{
+            const first=el.querySelector('[data-ui="media-row-item"]');
+            const previous=el.querySelector('[data-ui="media-row-nav"] button');
+            return previous?.disabled||first.getBoundingClientRect().left>x+.25;
+          },{el:await row.elementHandle(),x:before},{timeout:5000}).catch(async error=>{
+            throw new Error('TVmaze Previous could not move toward start: '+rowLabel+' '+width+' '+JSON.stringify(await navState()),{cause:error});
+          });
+        }
+        assert.equal(await previous.isDisabled(),true,'Previous is disabled at the start: '+rowLabel+' '+width+' '+JSON.stringify(await navState()));
+        assert.equal(await next.isEnabled(),true,'Next is enabled for overflowing row: '+rowLabel+' '+width+' '+JSON.stringify(await navState()));
         const geometry=await row.evaluate(el=>{
           const rect=el.getBoundingClientRect(),parent=el.closest('[data-ui="series-discovery"]').getBoundingClientRect();
           const board=el.closest('[data-ui="watch-catalogue-board"]').getBoundingClientRect();
@@ -702,7 +727,16 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
         await previous.click();
         await page.waitForFunction(({el,x})=>Math.abs(el.getBoundingClientRect().left-x)<2,{el:await first.elementHandle(),x});
         await page.waitForFunction(el=>el.disabled,await previous.elementHandle());
+        // Let the actual translation settle at the edge before testing the
+        // next viewport; disabled reflects Embla's target, not its animation.
+        await page.waitForFunction(el=>{
+          const matrix=getComputedStyle(el).transform;
+          return matrix==='none'||Math.abs(new DOMMatrixReadOnly(matrix).m41)<.1;
+        },await row.locator('.UI-Carousel__innerContent').elementHandle(),{timeout:5000}).catch(async error=>{
+          throw new Error('TVmaze return animation did not reach start: '+rowLabel+' '+width+' '+JSON.stringify(await navState()),{cause:error});
+        });
         assert.equal(await next.isEnabled(),true,'next available again at start');
+        console.log('PASS: TVmaze '+rowLabel+' arrows at '+width+'px');
       }
       assert.equal(await shortSchedule.locator('[data-ui="media-row-nav"]').count(),0,'short schedule does not need arrows');
     }
