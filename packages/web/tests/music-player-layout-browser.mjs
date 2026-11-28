@@ -179,7 +179,8 @@ export async function verifyMusicPlayerLayoutBrowser({ browser, origin, installD
     await page.setViewportSize({ width: 1440, height: 900 });
     const desktop = await geometry();
     await titleSpacing();
-    assert.ok(desktop.content.width <= 680 && desktop.scrollHeight <= desktop.clientHeight + 1, '1440px desktop composition fits without vertical scrolling');
+    console.log('PLAYER GEOMETRY default-1440', JSON.stringify(desktop));
+    assert.ok(desktop.content.width <= 680 && desktop.scrollHeight <= desktop.clientHeight + 1 && desktop.next.bottom <= desktop.height - 12, '1440px desktop composition fits without vertical scrolling and Up next stays visible: ' + JSON.stringify(desktop));
     await capture('51-player-default-1440');
     await page.setViewportSize({ width: 1440, height: 680 });
     const short = await geometry();

@@ -8,6 +8,8 @@ function installArtworkFixture() {
   if (window.top !== window) return;
   localStorage.setItem('tsugi-onboarding-complete-v1', 'true');
   localStorage.setItem('tsugi-startup-area-v1', JSON.stringify('music'));
+  // Use the deliberately large cover composition for the resolution and retry regressions.
+  localStorage.setItem('tsugi-desktop-player-stage-v1', JSON.stringify({ id: 'junction', imported: null }));
   localStorage.setItem('tsugi.landscape.local-only', 'true');
   localStorage.setItem('aiostreams-desktop-music-remember-v1', 'true');
   localStorage.setItem('aiostreams-desktop-music-sources-v1', JSON.stringify([
@@ -99,8 +101,10 @@ export async function verifyMusicArtworkBrowser({ browser, origin, installDeskto
       return image?.complete && image.naturalWidth >= Math.min(2048, Math.ceil(image.getBoundingClientRect().width * devicePixelRatio));
     });
     const density = await expanded.locator('img.tsugi-junction-art').evaluate(image => ({ width: image.getBoundingClientRect().width, decoded: image.naturalWidth, dpr: devicePixelRatio }));
+    assert.equal(await expanded.getAttribute('data-stage'), 'junction');
     assert.equal(density.dpr, 2);
-    assert.ok(density.decoded > 1024, 'large player requests more than its old fixed1024px cap on a dense display');
+    assert.ok(density.width > 512, 'large Junction cover actually needs more than 1024 physical pixels');
+    assert.ok(density.decoded > 1024 && density.decoded >= Math.min(2048, Math.ceil(density.width * density.dpr)), 'large player requests sufficient density beyond its old fixed 1024px cap');
     const beforeShrink = requests.length;
     await page.setViewportSize({ width: 390, height: 844 });
     await decoded(density.decoded, density.decoded);

@@ -506,7 +506,8 @@
   gap:10px; padding-block:12px 14px;
 }
 :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='default'][data-lyrics-open='false'] .tsugi-stage-artwork {
-  width:min(100%,76vw,36dvh,440px,max(180px,calc(100dvh - 640px)));
+  /* Reserve space for the real header, track metadata, transport, utilities and queue preview. */
+  width:min(100%,76vw,36dvh,440px,max(180px,calc(100dvh - 700px)));
 }
 :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='default'][data-lyrics-open='false'] .tsugi-stage-artwork > .mt-5 { margin-top:8px; }
 :root[data-host='desktop'] .oto-player .tsugi-native-stage[data-layout='default'][data-lyrics-open='false'] .tsugi-junction-content { gap:10px; }
