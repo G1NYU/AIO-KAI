@@ -459,6 +459,9 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.ok(await page.evaluate(()=>!!document.elementFromPoint(Math.floor(window.innerWidth/2),20)?.closest('.tsugi-watch-stream-page')),'previous page cannot show through the title-bar strip');
     const filterWidths=await groups.locator('[data-ui="watch-version-filters"] > label > select').evaluateAll(nodes=>nodes.map(node=>({width:node.getBoundingClientRect().width,available:node.closest('[data-ui="watch-version-filters"]').clientWidth})));
     assert.ok(filterWidths.length>=7&&filterWidths.every(({width,available})=>width>=Math.min(192,available)-1),'desktop stream filters reserve enough room for the option label');
+    assert.ok(Math.max(...filterWidths.map(f=>f.width))-Math.min(...filterWidths.map(f=>f.width))<=1,'stream filter columns retain equal widths on the final row');
+    assert.ok(await groups.locator('[data-ui="watch-version-filters"] > label > select').evaluateAll(nodes=>nodes.every(node=>{const s=getComputedStyle(node);return s.appearance==='auto'&&parseFloat(s.borderTopWidth)>=1&&node.getBoundingClientRect().height>=42;})),'stream selects retain native dropdown affordances and control boundaries');
+    assert.equal(await streamPage.locator('[data-ui="watch-stream-context"]').count(),0,'movie selector does not repeat the movie title as an eyebrow');
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-stream-selector.png'),animations:'disabled'});
     await groups.getByText('This addon could not return streams. Other sources remain available.',{exact:true}).waitFor();
     assert.equal(await groups.getByRole('button',{name:'Play',exact:true}).count(),2);
@@ -585,8 +588,13 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.ok(await searchDialog.evaluate(node=>node.scrollWidth<=node.clientWidth+1),'only result rows, not the whole search dialog, scroll horizontally');
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-search-overlay-narrow.png'),animations:'disabled'});
     await page.setViewportSize({width:1600,height:900});
+    await searchDialog.getByRole('button',{name:'Clear search',exact:true}).click();
+    const clearedSearch=searchDialog.getByRole('searchbox',{name:'Search across addons',exact:true});
+    assert.equal(await clearedSearch.inputValue(),'');
+    assert.ok(await clearedSearch.evaluate(node=>node===document.activeElement),'clear returns keyboard focus to the search field');
+    assert.equal(await searchDialog.getByRole('button',{name:'Clear search',exact:true}).count(),0);
     console.log('PASS: TMDB title search places the exact series match first and separates related movies below it.');
-    await board.getByRole('searchbox',{name:'Search across addons',exact:true}).fill('Fixture alias movie');
+    await clearedSearch.fill('Fixture alias movie');
     await results.getByRole('button',{name:'Fixture alias movie',exact:true}).click();
     await item.locator('[data-ui="watch-play-title"]').click();
     await groups.getByRole('button',{name:'Play',exact:true}).first().waitFor();
@@ -1382,6 +1390,13 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await watch.evaluate(node=>node.scrollTo({top:0,left:0,behavior:'instant'}));
     const narrow=await watch.evaluate(node=>({scrollWidth:node.scrollWidth,clientWidth:node.clientWidth,nav:node.querySelector('.tsugi-watch-nav').getBoundingClientRect().width,content:node.querySelector('.tsugi-watch-content').getBoundingClientRect().width}));
     assert.ok(narrow.scrollWidth<=narrow.clientWidth+2,`Watch workspace overflow: ${JSON.stringify(narrow)}`);
+    const settingsNav=watch.locator('[data-ui="watch-settings-navigation"]');
+    const narrowTabs=await settingsNav.evaluate(node=>({height:node.clientHeight,width:node.clientWidth,scroll:node.scrollWidth}));
+    assert.ok(narrowTabs.height<=80&&narrowTabs.scroll>narrowTabs.width,'narrow settings navigation is one scrollable row rather than a viewport-tall stack');
+    const finalTab=settingsNav.getByRole('button',{name:'Profile settings',exact:true});
+    await finalTab.focus();
+    assert.ok(await settingsNav.evaluate(node=>Math.abs(node.scrollLeft)>0),'keyboard focus brings later settings tabs into view');
+    await settingsNav.getByRole('button',{name:'Your addons',exact:true}).focus();
     // The shared rail hides the legacy outer header; measure the visible workspace instead.
     const visibleHeader=watch.locator('[data-ui="stremio-addon-settings"] > header');
     await visibleHeader.waitFor({state:'visible'});

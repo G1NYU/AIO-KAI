@@ -257,3 +257,11 @@
 .tsugi-watch-title-hero[data-has-backdrop]>.tsugi-watch-close-title{position:absolute;inset-block-start:20px;inset-inline-end:20px;z-index:2;background:var(--tsugi-canvas);color:var(--tsugi-ink);border-color:var(--tsugi-line)}
 .tsugi-watch-title-hero[data-has-backdrop]{padding-block-start:max(76px,4vw)}
 :root[data-host='desktop'] .tsugi-watch-hub:has(.tsugi-watch-shared-rail)>.tsugi-watch-content{padding-inline:0}
+
+/* A settings banner is contextual chrome, not another catalogue hero. */
+:root[data-host='desktop'] .tsugi-watch-hub:has(>.tsugi-watch-content[data-watch-settings])>.tsugi-watch-workspace-banner{min-height:136px;padding:20px 24px;align-items:center}
+@media(max-width:760px){
+  :root[data-host='desktop'] .tsugi-watch-hub:has(>.tsugi-watch-content[data-watch-settings])>.tsugi-watch-workspace-banner{padding:16px;align-items:flex-start}
+  :root[data-host='desktop'] .tsugi-watch-settings-nav{flex-wrap:nowrap;max-width:100%;min-width:0;overflow-x:auto;scrollbar-width:thin;padding:4px 3px 12px;gap:8px}
+  :root[data-host='desktop'] .tsugi-watch-settings-nav > button{flex:none;white-space:nowrap}
+}

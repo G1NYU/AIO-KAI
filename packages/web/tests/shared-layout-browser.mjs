@@ -167,6 +167,8 @@ export async function verifySharedLayoutBrowser({ browser, origin, installDeskto
     await rail.getByRole('button', { name: 'App settings', exact: true }).click();
     const settings = page.getByRole('dialog', { name: 'App settings', exact: true });
     await assertUnframedGroups(settings.locator(':scope > :is(.tsugi-app-general,.tsugi-global-appearance,.tsugi-app-about)'), 'App settings section wrappers', 3);
+    const selectStyles=await settings.locator('.tsugi-app-general select:not([multiple],[size])').evaluateAll(nodes=>nodes.map(node=>{const s=getComputedStyle(node);return {appearance:s.appearance,border:parseFloat(s.borderTopWidth),height:node.getBoundingClientRect().height,font:s.fontFamily};}));
+    assert.ok(selectStyles.length>=3&&selectStyles.every(s=>s.appearance==='auto'&&s.border>=1&&s.height>=42&&/^Interface(?:,|$)/.test(s.font)),'global settings selects retain the same native field treatment as local settings: '+JSON.stringify(selectStyles));
     if (screenshotDir) await page.screenshot({ path: join(screenshotDir, '44-app-settings-unframed.png'), animations: 'disabled' });
     await settings.getByRole('button', { name: 'Close', exact: true }).click();
     await rail.getByRole('button', { name: 'Music', exact: true }).click();

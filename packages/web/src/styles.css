@@ -3287,16 +3287,69 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
   color:var(--tsugi-ink);
 }
 
-/* Stream filter labels must fit their native select, rather than squeeze seven
-   controls into one row and clip option text. The same list is used in-player. */
-:root[data-host='desktop'] [data-ui='watch-version-filters'] > label {
-  flex:1 1 min(12rem,100%);
-  min-width:min(12rem,100%);
+/* Shared settings controls retain a visible boundary and native dropdown affordance.
+   Flatten surrounding labels/rows, not interactive fields. Native select semantics,
+   keyboard behavior and the saved palette remain unchanged across workspaces. */
+:root[data-host='desktop'] :is(select.tsugi-menu-select,select.tsugi-read-input):not([multiple],[size]) {
+  appearance:auto;
+  -webkit-appearance:auto;
 }
+:root[data-host='desktop'] :is(
+  .tsugi-global-settings,.tsugi-settings-sheet,.tsugi-chapter-settings,
+  .tsugi-reader-settings-content,.tsugi-vault-transfer-settings,
+  .tsugi-watch-content[data-watch-settings],[data-ui='watch-version-filters']
+) select:not([multiple],[size]) {
+  appearance:auto;
+  -webkit-appearance:auto;
+  background:var(--tsugi-surface);
+  color:var(--tsugi-ink);
+  border:1px solid var(--tsugi-line);
+  border-radius:var(--tsugi-radius-control);
+  min-height:42px;
+  padding:8px 12px;
+  font-size:14px;
+  line-height:1.45;
+  box-sizing:border-box;
+  max-width:100%;
+}
+:root[data-host='desktop'] :is(
+  .tsugi-global-settings,.tsugi-settings-sheet,.tsugi-chapter-settings,
+  .tsugi-reader-settings-content,.tsugi-vault-transfer-settings,
+  .tsugi-watch-content[data-watch-settings],[data-ui='watch-version-filters']
+) select:disabled { opacity:.55; cursor:not-allowed; }
+:root[data-host='desktop'] dialog.tsugi-global-settings {
+  background:var(--tsugi-canvas);
+  border:1px solid var(--tsugi-line);
+  border-radius:var(--tsugi-radius-panel);
+  color:var(--tsugi-ink);
+}
+:root[data-host='desktop'] dialog.tsugi-global-settings > header > .tsugi-read-action {
+  min-height:42px;
+  padding:10px 14px;
+  border:1px solid var(--tsugi-line);
+  border-radius:var(--tsugi-radius-control);
+  background:transparent;
+  color:var(--tsugi-ink);
+  font-size:14px;
+}
+:root[data-host='desktop'] dialog.tsugi-global-settings > header > .tsugi-read-action:hover:not(:disabled) {
+  background:var(--tsugi-wash);
+}
+
+/* Equal-width columns keep the final filter row aligned with the first row.
+   The same native selects are used for the standalone and in-player lists. */
+:root[data-host='desktop'] [data-ui='watch-version-filters'] {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(min(12rem,100%),1fr));
+  gap:12px;
+  align-items:end;
+}
+:root[data-host='desktop'] [data-ui='watch-version-filters'] > label { min-width:0; }
 :root[data-host='desktop'] [data-ui='watch-version-filters'] > label > select {
   max-width:100%;
   min-width:0;
 }
+:root[data-host='desktop'] [data-ui='watch-version-filters'] > :is(div,p) { grid-column:1/-1; }
 
 /* Shared desktop video settings and Movies navigation: surface-free labels/icons.
    Both server-backed Movies and standalone Watch reuse these Settings components.

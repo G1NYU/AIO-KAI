@@ -137,6 +137,8 @@ export async function verifySourceSettingsBrowser({ browser, origin, installDesk
     await frames();
     const controlSurfaces = await settings.locator('[data-control-id]').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundColor));
     assert.ok(controlSurfaces.length >= 5 && controlSurfaces.every(color => ['transparent', 'rgba(0, 0, 0, 0)'].includes(color)), 'source setting controls have no permanent alternating row bands');
+    const choiceStyle=await control('Image quality').evaluate(node=>{const s=getComputedStyle(node),dialog=getComputedStyle(node.closest('dialog'));return {appearance:s.appearance,border:parseFloat(s.borderTopWidth),background:s.backgroundColor,dialog:dialog.backgroundColor,height:node.getBoundingClientRect().height,font:s.fontFamily};});
+    assert.ok(choiceStyle.appearance==='auto'&&choiceStyle.border>=1&&choiceStyle.background!==choiceStyle.dialog&&choiceStyle.height>=42&&/^Interface(?:,|$)/.test(choiceStyle.font),'flat source settings preserve a recognizable native choice field and shared type: '+JSON.stringify(choiceStyle));
     const unsupported = settings.locator('[data-control-id]').filter({ hasText: 'Text entry unavailable' });
     await unsupported.waitFor();
     assert.equal(await unsupported.locator('input,select,textarea').count(), 0, 'unsupported text settings cannot expose an editable credential field');
