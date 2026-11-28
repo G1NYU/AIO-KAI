@@ -30,7 +30,7 @@ describe('Watch presentation',()=>{
 });
 
 describe('Watch catalogue search',()=>{
-  const item=(id:string,name:string,mediaType='movie',imdbId?:string,poster?:string)=>({id,name,mediaType,imdbId,poster});
+  const item=(id:string,name:string,mediaType='movie',imdbId?:string,poster?:string,addonPoster?:string)=>({id,name,mediaType,imdbId,poster,addonPoster});
   const candidate=(sourceId:number,row:ReturnType<typeof item>)=>({sourceId,target:sourceId,item:row});
   it('ranks exact and prefix titles, excluding unrelated matches',()=>{
     const rows=[candidate(1,item('local:1','Another film')),candidate(1,item('tt2','Example film sequel')),candidate(1,item('tt1','Éxample Film'))];
@@ -44,7 +44,7 @@ describe('Watch catalogue search',()=>{
   });
   it('merges explicit IMDb matches while preserving the canonical provider route and artwork',()=>{
     const addonPoster='http://tsugi-addon-art.localhost/poster/0123456789abcdef0123456789abcdef';
-    const rows=[candidate(2,{...item('tmdb:42','Example','movie','tt42','poster'),addonPoster}),candidate(3,item('tt42','Example'))];
+    const rows=[candidate(2,item('tmdb:42','Example','movie','tt42','poster',addonPoster)),candidate(3,item('tt42','Example'))];
     const result=rankCatalogueSearch(rows,'Example');
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({sourceId:3,target:3,item:{id:'tt42',poster:'poster',addonPoster}});
