@@ -65,3 +65,10 @@ Original 16 annotations and written feedback remain individually tracked in the 
 ### Stream filter geometry follow-up — 2026-11-28
 
 - Full-size 6101e392 stream-selector capture showed clipped default audio-format and cache-status select text. Shared desktop filter labels now reserve 12rem where space allows and wrap to the available width instead of compressing seven controls into one row. This applies to standalone and in-player versions; selected values, provider filters and playback callbacks unchanged. Added width regression alongside existing narrow overflow and functional filtering tests. New rendered verification pending.
+
+
+### Connected Movies rail verification — 2026-11-28
+
+- 4e63e2eb / [run 46099277458](https://github.com/G1NYU/TSUGI/actions/runs/46099277458) completed successfully: 467 web tests, lint/typecheck/build, all browser regressions, Windows compile/native/cache checks. Existing connected Movies home/title route, navigation ordering, shared playback preference, settings index geometry, cross-media switching, keyboard/short-window and narrow account routes passed.
+- Downloaded [artifact 15245256464](https://github.com/G1NYU/TSUGI/actions/runs/46099277458/artifacts/15245256464), SHA-256 77d088ad6168334451986fddaf37ea16d2d8b2f55318193c627b6447c1420c84; ZIP CRCs verified, 139 PNGs. Reviewed six connected Movies home/settings/short/narrow/account previews side by side. Shared rail, unboxed labels and titlebar/content alignment visible; narrow mode retains the functional bottom navigation. Fixture art and appearance are not native Windows acceptance.
+- Full-size 6101e392 Watch search, episode list, stream selector, profile and playback-settings captures inspected separately. The search-label clipping and stream-filter clipping findings are addressed by the subsequent source patches; they require new renders. No further roadmap boxes closed. Stable release untouched.

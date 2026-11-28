@@ -634,7 +634,7 @@ Continue the reliability/recovery roadmap while the user tests the candidate; se
 
 ### Settings cohesion and visual inventory — 2026-11-28
 
-- Read actual Harbor sidebar and backdrop implementation and original streaming-flow/First-Launch/Anime/OTO/KURA HTML. Downloaded and checksum/CRC-verified baseline 136-image archive and current 139-image archive; reviewed baseline thumbnails and selected settings full-size comparisons, and current Watch overview. Added [living visual acceptance ledger](docs/tsugi-visual-audit.md) with routes, exact evidence, sizes, known findings and open states. This is not visual acceptance.
+- Read actual Harbor sidebar and backdrop implementation and original streaming-flow/First-Launch/Anime/OTO/KURA HTML. Downloaded and checksum/CRC-verified baseline 136-image archive and current 139-image archive; reviewed baseline thumbnails and selected settings side-by-side comparisons, and current Watch overview. Added [living visual acceptance ledger](docs/tsugi-visual-audit.md) with routes, exact evidence, sizes, known findings and open states. This is not visual acceptance.
 - Latest complete controlled check: 6101e392 / run 46098622685 green, 467 web tests, browser, build and Windows checks. The connected-server rail repair 4e63e2eb was pushed after that success; its run 46099277458 was pending when this batch was authored.
 - Scoped desktop settings-only flat styles for Reader index/toggle/category rows, source settings controls, Music source categories/metadata rows and Vault transfer disclosure. Keep transient interaction feedback, actual control surfaces and meaningful queue/table bands. Browser tests replace the superseded permanent toggle-background expectation with a flat resting label, while retaining hover/focus, persistence, source review and other behavioral checks. No native/provider/security changes. Current render and CI pending; all P0–P5 acceptance gates remain open.
 
@@ -648,3 +648,10 @@ Continue the reliability/recovery roadmap while the user tests the candidate; se
 ### Stream filter geometry follow-up — 2026-11-28
 
 - Full-size 6101e392 stream-selector capture showed clipped default audio-format and cache-status select text. Shared desktop filter labels now reserve 12rem where space allows and wrap to the available width instead of compressing seven controls into one row. This applies to standalone and in-player versions; selected values, provider filters and playback callbacks unchanged. Added width regression alongside existing narrow overflow and functional filtering tests. New rendered verification pending.
+
+
+### Connected Movies rail verification — 2026-11-28
+
+- 4e63e2eb / [run 46099277458](https://github.com/G1NYU/TSUGI/actions/runs/46099277458) completed successfully: 467 web tests, lint/typecheck/build, all browser regressions, Windows compile/native/cache checks. Existing connected Movies home/title route, navigation ordering, shared playback preference, settings index geometry, cross-media switching, keyboard/short-window and narrow account routes passed.
+- Downloaded [artifact 15245256464](https://github.com/G1NYU/TSUGI/actions/runs/46099277458/artifacts/15245256464), SHA-256 77d088ad6168334451986fddaf37ea16d2d8b2f55318193c627b6447c1420c84; ZIP CRCs verified, 139 PNGs. Reviewed six connected Movies home/settings/short/narrow/account previews side by side. Shared rail, unboxed labels and titlebar/content alignment visible; narrow mode retains the functional bottom navigation. Fixture art and appearance are not native Windows acceptance.
+- Full-size 6101e392 Watch search, episode list, stream selector, profile and playback-settings captures inspected separately. The search-label clipping and stream-filter clipping findings are addressed by the subsequent source patches; they require new renders. No further roadmap boxes closed. Stable release untouched.
