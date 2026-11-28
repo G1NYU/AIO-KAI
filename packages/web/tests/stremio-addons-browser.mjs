@@ -426,6 +426,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const item=watch.locator('[data-ui="watch-item-details"]');
     const groups=page.locator('[data-ui="watch-stream-groups"]');
     await item.locator('[data-ui="watch-play-title"]').waitFor();
+    assert.equal(await item.locator('[data-ui="watch-refract-watchlist"]').count(),0,'disconnected optional tracker is hidden');
     await item.getByText('IMDb 8.6/10',{exact:true}).waitFor();
     await item.getByText('Fixture Director',{exact:true}).waitFor();
     await item.getByText('Fixture Actor',{exact:true}).waitFor();
@@ -1413,6 +1414,16 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     console.log('Watch history, direct Watch Rich Presence, MDBList connection/pagination/isolation and narrow layout passed');
     await watch.getByRole('button',{name:'All media',exact:true}).click();
     await firstLaunch.locator('[data-page="desktop-landing"]').waitFor();
+    await firstLaunch.setViewportSize({width:1600,height:900});
+    await firstLaunch.getByRole('button',{name:'Movies & TV',exact:true}).first().click();
+    const remembered=watch.locator('[data-ui="watch-profile-badge"]');
+    await remembered.waitFor();
+    assert.equal(await watch.locator('[data-ui="watch-profile-picker"]').count(),0,'returning from another category retains the confirmed profile');
+    assert.equal(await remembered.innerText().then(s=>s.trim().endsWith('Default')),true);
+    await remembered.click();
+    await watch.locator('[data-ui="stremio-profile-management"]').waitFor();
+    assert.equal(await watch.getByLabel('Active addon profile',{exact:true}).inputValue(),'1');
+    console.log('PASS: Watch profile survives media navigation and sidebar badge opens management.');
     console.log('First launch profile and account import entry and optional skip passed');
   }finally{await firstLaunch.close();}
 }

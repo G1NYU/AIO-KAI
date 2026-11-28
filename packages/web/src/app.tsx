@@ -189,13 +189,16 @@ function StandaloneContent() {
   const openVault = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(null); setArea('vault'); }, []);
   const openVaultMusic = React.useCallback((track: {id:string;title:string}) => { setResumeTarget(null); setVaultComicTarget(null); setVaultTrack(track); setArea('vault'); }, []);
   const openVideo = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setReadVisited(false); setArea('video'); }, []);
+  // Watch is unmounted when another media section opens. Keep the confirmed
+  // selection in the enclosing session, not the transient Watch component.
   const [initialWatchProfile,setInitialWatchProfile]=React.useState<number>();
   const [watchPane,setWatchPane]=React.useState<WatchEntryPane>('hubs');
-  const openWatchPane=React.useCallback((pane:WatchEntryPane,profileId?:number)=>{setInitialWatchProfile(profileId);setResumeTarget(null);setVaultComicTarget(null);setReadVisited(false);setWatchPane(pane);setArea('watch');},[]);
+  const [watchResumePane,setWatchResumePane]=React.useState<'hubs'|'home'|'anime'>('hubs');
+  const openWatchPane=React.useCallback((pane:WatchEntryPane,profileId?:number)=>{if(profileId!==undefined)setInitialWatchProfile(profileId);setResumeTarget(null);setVaultComicTarget(null);setReadVisited(false);setWatchPane(pane);setArea('watch');},[]);
   const openMovies=React.useCallback((profileId?:number)=>{
     if(moviesEntryArea(!!base,!!appBridge()?.stremioAddons)==='video')openVideo();
-    else openWatchPane('hubs',typeof profileId==='number'&&Number.isSafeInteger(profileId)&&profileId>0?profileId:undefined);
-  },[base,openVideo,openWatchPane]);
+    else openWatchPane(watchResumePane,typeof profileId==='number'&&Number.isSafeInteger(profileId)&&profileId>0?profileId:undefined);
+  },[base,openVideo,openWatchPane,watchResumePane]);
   const openServerSearch=React.useCallback((title:string)=>{openVideo();navigate(to.search(title));},[openVideo]);
   const openWelcome = React.useCallback(() => { setResumeTarget(null); setVaultComicTarget(null); setArea('welcome'); }, []);
   const openVideoDownloads = React.useCallback(() => { openVideo(); navigate(to.downloads); }, [openVideo]);
@@ -319,7 +322,7 @@ function StandaloneContent() {
               <SplashEnd />
             </ServerInfoProvider>
           ) : desktop && area === 'watch' ? (
-            <ServerInfoProvider value={NO_SERVER_INFO}><DirectWatchPage openWelcome={openWelcome} openVideo={openVideo} initialPane={watchPane} initialProfileId={initialWatchProfile} settingsOpen={globalSettings} /><SplashEnd /></ServerInfoProvider>
+            <ServerInfoProvider value={NO_SERVER_INFO}><DirectWatchPage openWelcome={openWelcome} openVideo={openVideo} initialPane={watchPane} initialProfileId={initialWatchProfile} onProfileSelected={setInitialWatchProfile} onHubSelected={setWatchResumePane} settingsOpen={globalSettings} /><SplashEnd /></ServerInfoProvider>
           ) : desktop && area === 'read' && (reading || books) ? (
             <ServerInfoProvider value={NO_SERVER_INFO}>
               {readMode === 'books' ? <BooksPage /> : !readerReady && <ReadSetupPage openBooks={books ? openBooks : undefined} openWelcome={openWelcome} onReady={() => { setReaderReady(true); setReadVisited(true); }} />}

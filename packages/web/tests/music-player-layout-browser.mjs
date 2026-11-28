@@ -28,7 +28,7 @@ export async function verifyMusicPlayerLayoutBrowser({ browser, origin, installD
   const tracks = [
     { id: 'horizon', title: 'Where Is The Horizon', artist: 'Original Artist', album: 'Original Album', duration: 120, artworkURL: art },
     { id: 'without', title: 'Without Me', artist: 'Original Artist', duration: 120, artworkURL: art },
-    { id: 'next', title: 'Following The Evening Light', artist: 'Original Artist', duration: 120, artworkURL: art },
+    { id: 'next', title: 'Following The Evening Light Beyond the Distant Horizon (Album Version)', artist: 'Original Artist', duration: 120, artworkURL: art },
   ];
   const wav = originalTone();
   const cover = '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#4b5968"/><circle cx="740" cy="254" r="135" fill="#e9b68c"/><path d="M0 700L310 340L650 760L1024 430V1024H0Z" fill="#243d48"/><path d="M0 860L460 610L1024 900V1024H0Z" fill="#152b34"/></svg>';
@@ -115,11 +115,13 @@ export async function verifyMusicPlayerLayoutBrowser({ browser, origin, installD
         const label = node.previousElementSibling.getBoundingClientRect();
         const artist = node.nextElementSibling.getBoundingClientRect();
         const inkBottom = lines.at(-1).top + metrics.fontBoundingBoxAscent + metrics.actualBoundingBoxDescent;
-        return { gap: inkTop - label.bottom, artistGap: artist.top - inkBottom, lineGap: parseFloat(style.lineHeight) - metrics.actualBoundingBoxAscent - metrics.actualBoundingBoxDescent, size: parseFloat(style.fontSize), lines: lines.length };
+        return { gap: inkTop - label.bottom, artistGap: artist.top - inkBottom, lineGap: parseFloat(style.lineHeight) - metrics.actualBoundingBoxAscent - metrics.actualBoundingBoxDescent, size: parseFloat(style.fontSize), family: style.fontFamily, weight: Number(style.fontWeight), lines: lines.length };
       });
-      assert.ok(ink.gap >= 12, `Brush title ink clears its label by at least 12px: ${JSON.stringify(ink)}`);
-      assert.ok(ink.artistGap >= 6, `Brush title ink clears the artist below: ${JSON.stringify(ink)}`);
-      assert.ok(ink.lineGap >= ink.size * .07, `Brush title leading separates even the tallest glyphs: ${JSON.stringify(ink)}`);
+      assert.match(ink.family,/^Interface(?:,|$)/,'track titles use the shared sans-serif face');
+      assert.ok(ink.size<=44&&ink.weight>=600&&ink.weight<=750,'track title stays compact and semibold');
+      assert.ok(ink.gap >= 12, `Track title ink clears its label by at least 12px: ${JSON.stringify(ink)}`);
+      assert.ok(ink.artistGap >= 6, `Track title ink clears the artist below: ${JSON.stringify(ink)}`);
+      assert.ok(ink.lineGap >= ink.size * .07, `Track title leading separates the glyphs: ${JSON.stringify(ink)}`);
       return ink;
     };
     const chooseLayout = async layout => {
@@ -197,18 +199,17 @@ export async function verifyMusicPlayerLayoutBrowser({ browser, origin, installD
     await stage.getByRole('button', { name: 'Next track', exact: true }).click();
     await stage.getByRole('heading', { name: tracks[1].title, exact: true }).waitFor();
     const shortTitle = await titleSpacing();
-    assert.equal(shortTitle.lines, 1, 'Short brush title remains one line');
+    assert.equal(shortTitle.lines, 1, 'Short sans-serif title remains one line');
     await capture('54-player-single-line-title');
     await stage.getByRole('button', { name: 'Lyrics', exact: true }).click();
     await stage.getByRole('button', { name: /An original line/ }).waitFor();
     await titleSpacing('.oto-lyrics-track h2');
     await capture('59-lyrics-title-single-line');
     const lyricTitle = stage.locator('.oto-lyrics-track h2');
-    // A translated child can update its text without changing the wrapper's
-    // React props. Exercise that exact DOM update with the loaded brush face.
-    await lyricTitle.evaluate(node => { node.firstChild.textContent = 'Following The Evening Light'; });
+    // The normal heading must remain readable when title text changes.
+    await lyricTitle.evaluate((node,title) => { node.firstChild.textContent = title; }, tracks[2].title);
     const translated = await titleSpacing('.oto-lyrics-track h2');
-    assert.ok(translated.lines > 1, 'Changed child text exercises deep-descender multiline metrics');
+    assert.ok(translated.lines > 1, 'Long changed title wraps rather than overflowing');
     await lyricTitle.evaluate((node, title) => { node.firstChild.textContent = title; }, tracks[1].title);
     await titleSpacing('.oto-lyrics-track h2');
     await stage.getByRole('button', { name: 'Lyrics', exact: true }).click();
@@ -222,7 +223,7 @@ export async function verifyMusicPlayerLayoutBrowser({ browser, origin, installD
     await titleSpacing('.oto-lyrics-track h2');
     await capture('60-lyrics-title-deep-descender');
     await stage.getByRole('button', { name: 'Lyrics', exact: true }).click();
-    console.log('PASS: lyrics title ink clears its source and artist on desktop, short and narrow windows; changed descendant text remeasures the loaded font.');
+    console.log('PASS: lyrics title ink clears its source and artist on desktop, short and narrow windows; long and changed titles use the shared Interface font.');
     await expanded.getByRole('button', { name: 'Minimise player', exact: true }).click();
     await music.getByRole('region', { name: 'Music player', exact: true }).waitFor();
     assert.deepEqual(errors, [], 'Player layout changes raise no browser errors');

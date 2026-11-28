@@ -101,7 +101,16 @@ export function RefractWatchlist({profileId,mediaType,itemId,busy,run}:CommonPro
   const [notice,setNotice]=React.useState('');
   const [error,setError]=React.useState('');
   const mounted=React.useRef(false);
-  React.useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
+  const [connected,setConnected]=React.useState(false);
+  React.useEffect(()=>{
+    mounted.current=true;
+    const unsubscribe=appBridge()?.subscribe(message=>{
+      if(!mounted.current||message.type!=='refract-status-changed'||message.profileId!==profileId||message.error)return;
+      try{setConnected(refractState(message.data).connected);}catch{/* Keep the last confirmed state. */}
+    });
+    void refractStatus(profileId).then(status=>{if(mounted.current)setConnected(status.connected);}).catch(()=>{});
+    return()=>{mounted.current=false;unsubscribe?.();};
+  },[profileId]);
   async function change(add:boolean){
     await run(async()=>{
       setError('');setNotice('');
@@ -111,7 +120,8 @@ export function RefractWatchlist({profileId,mediaType,itemId,busy,run}:CommonPro
       }catch(reason){if(mounted.current)setError(feedback(reason instanceof AddonError?reason.code:'request'));}
     });
   }
-  return <details data-ui="watch-refract-watchlist" className="space-y-2">
+  if(!connected)return null;
+  return <details data-ui="watch-refract-watchlist" className="tsugi-watch-optional-action space-y-2">
     <summary><Trans>Refract watchlist</Trans></summary>
     <p><Trans>Only watchlist membership changes. Existing tracked history, ratings and other library status are protected.</Trans></p>
     <div className="flex flex-wrap gap-2">

@@ -56,13 +56,14 @@ function feedback(reason: unknown) {
 }
 type WatchPane = 'hubs'|'home'|'discover'|'playback'|'addons'|'stremio'|'nuvio'|'manual'|'order'|'profile'|'mdblist'|'tmdb'|'history'|'favorites'|'queue'|'refract'|'anime'|'anime-import';
 
-export function StremioAddonSettings({workspace=false,initialProfileId,onProfileSelected,onPlay,returnedPlayback,historyActive=false,setupConnections=false,initialPane='addons',openServer}:{initialProfileId?:number;onProfileSelected?:(id:number|undefined)=>void;workspace?:boolean;openServer?:()=>void;onPlay?:(playback:WatchPlayback)=>void;returnedPlayback?:WatchPlayback|null;historyActive?:boolean;setupConnections?:boolean;initialPane?:WatchEntryPane}={}){
+export function StremioAddonSettings({workspace=false,initialProfileId,onProfileSelected,onHubSelected,onPlay,returnedPlayback,historyActive=false,setupConnections=false,initialPane='addons',openServer}:{initialProfileId?:number;onProfileSelected?:(id:number|undefined)=>void;onHubSelected?:(pane:'home'|'anime')=>void;workspace?:boolean;openServer?:()=>void;onPlay?:(playback:WatchPlayback)=>void;returnedPlayback?:WatchPlayback|null;historyActive?:boolean;setupConnections?:boolean;initialPane?:WatchEntryPane}={}){
   const desktopArea=useDesktopArea();
   const [autoPlayFirst]=useSetting(settings.playback.autoPlayFirst);
   const [boardSearch,setBoardSearch]=React.useState('');
   const [searchMount,setSearchMount]=React.useState<HTMLDivElement|null>(null);
   const [entered,setEntered]=React.useState(false);
   const [pane,setPane]=React.useState<WatchPane>(initialPane);
+  React.useEffect(()=>{if(entered&&(pane==='home'||pane==='anime'))onHubSelected?.(pane);},[entered,pane,onHubSelected]);
   const [creating,setCreating]=React.useState(false);
   const titleId=React.useId();
   const [profileState,setProfileState]=React.useState<ProfileState|null>(null);
@@ -134,7 +135,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       const state=await listAddonProfiles();
       if(!mounted.current)return;
       await reloadProfiles(state);
-      if(mounted.current&&initialProfileId===state.activeProfileId)setEntered(true);
+      if(mounted.current&&initialProfileId===state.activeProfileId){setEntered(true);onProfileSelected?.(state.activeProfileId);}
     });
     return ()=>{mounted.current=false;stopStreams(true,false);const current=pending.current;pending.current=null;if(current)void cancelAddonReview(current.profileId,current.reviewId).catch(()=>{});};
   },[]);
@@ -200,7 +201,8 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       }
       setProfileName('');setDeleteId(0);setDeleteName('');
       await reloadProfiles(result);
-      if(mounted.current&&enter){setCreating(false);setPane(initialPane);setEntered(true);onProfileSelected?.(result.activeProfileId);}
+      if(mounted.current&&(enter||onPlay&&action.kind==='profile-switch'))onProfileSelected?.(result.activeProfileId);
+      if(mounted.current&&enter){setCreating(false);setPane(initialPane);setEntered(true);}
 
     });
   }
@@ -575,7 +577,7 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       </div>
       <div className="flex flex-wrap gap-2 justify-center"><button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void selectPane('addons')}><MovieGlyph name="settings"/> <Trans>Watch settings</Trans></button></div>
     </section>}
-    {workspace&&onPlay&&!hubChooser&&<TsugiRail area="video" disabled={busy} className="tsugi-watch-shared-rail"><nav className="tsugi-watch-nav tsugi-rail-local" aria-label={t`Watch navigation`} data-ui="watch-hub-navigation">
+    {workspace&&onPlay&&!hubChooser&&<TsugiRail area="video" disabled={busy} className="tsugi-watch-shared-rail" footer={activeProfile&&<button type="button" className="tsugi-watch-profile-badge" data-ui="watch-profile-badge" aria-label={t`Manage Watch profile`} title={activeProfile.name} disabled={busy} onClick={()=>void selectPane('profile')}><span className="tsugi-watch-avatar tsugi-watch-avatar-minimal" data-color={activeProfile.profileId%6} aria-hidden="true">{Array.from(activeProfile.name.trim())[0]?.toUpperCase()??'?'}</span><span>{activeProfile.name}</span></button>}><nav className="tsugi-watch-nav tsugi-rail-local" aria-label={t`Watch navigation`} data-ui="watch-hub-navigation">
       {([
         ['home',t`Home`,'home'],
         ['discover',t`Discover`,'discover'],

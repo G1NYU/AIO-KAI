@@ -13,7 +13,6 @@ import { Timeline, Transport } from './player';
 import type { PlayerPalette } from '@/lib/music/player-theme';
 import { useTrackLyrics } from './use-track-lyrics';
 import { LyricsPanel } from './lyrics-panel';
-import { BrushHeading } from '@/components/brush-heading';
 import { ListeningSpirit } from './player-visuals';
 
 /** A responsive Tsugi composition; imported Studio templates use their own renderer. */
@@ -54,16 +53,16 @@ export function JunctionPlayer({
             <Trans>Up next</Trans> · {next.title}
           </span>}
         </div>
-        {lyricsOpen && <div className="oto-lyrics-track"><p className="oto-overline">{song.album || p.sourceName}</p><BrushHeading as="h2">{song.title}</BrushHeading><p>{song.artist}</p></div>}
+        {lyricsOpen && <div className="oto-lyrics-track"><p className="oto-overline">{song.album || p.sourceName}</p><h2>{song.title}</h2><p>{song.artist}</p></div>}
       </section>
 
       <section className="tsugi-junction-content relative flex min-w-0 flex-col justify-center">
         <header className="oto-listening-heading min-w-0">
           <p className="tsugi-eyebrow"><Trans>Now playing</Trans></p>
           {matrixMode !== 'off' && <p className="tsugi-matrix-label">{p.analyser || p.nativeMeterAvailable ? (matrixMode === 'wave' ? <Trans>Audio-reactive dot wave</Trans> : <Trans>Audio-reactive matrix</Trans>) : matrixMode === 'wave' ? (p.visualizerUnavailable ? <Trans>Audio visualization unavailable for this stream</Trans> : <Trans>Waiting for audio data</Trans>) : <Trans>Ambient matrix</Trans>}</p>}
-          <BrushHeading className="tsugi-track-title mt-5 break-words text-[clamp(2.2rem,4.5vw,4.8rem)] font-semibold leading-[1.07] tracking-[-.055em]">
+          <h1 className="tsugi-track-title mt-5 break-words font-semibold">
             {song.title}
-          </BrushHeading>
+          </h1>
           <p className="mt-4 text-xl font-medium" style={{color:palette.foreground}}>{song.artist}</p>
           <p className="mt-1 truncate text-sm" style={{color:palette.muted}}>{song.album ?? p.sourceName}</p>
         </header>

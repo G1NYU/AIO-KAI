@@ -265,3 +265,12 @@
   :root[data-host='desktop'] .tsugi-watch-settings-nav{flex-wrap:nowrap;max-width:100%;min-width:0;overflow-x:auto;scrollbar-width:thin;padding:4px 3px 12px;gap:8px}
   :root[data-host='desktop'] .tsugi-watch-settings-nav > button{flex:none;white-space:nowrap}
 }
+
+/* Confirmed local profile is available from the shared navigation rail. */
+.tsugi-watch-profile-badge{display:flex;align-items:center;gap:10px;min-height:42px;max-width:100%;min-width:0;padding:6px 8px;text-align:start;color:var(--tsugi-ink);background:transparent}
+.tsugi-watch-profile-badge>.tsugi-watch-avatar{width:30px;height:30px;flex:none;aspect-ratio:1;border-radius:50%;font-size:14px;font-weight:650}
+.tsugi-watch-profile-badge>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:13px}
+.tsugi-watch-profile-badge:hover,.tsugi-watch-profile-badge:focus-visible{color:var(--tsugi-accent)}
+.tsugi-watch-optional-action{align-self:start;max-width:min(100%,42rem);font-size:13px;color:var(--tsugi-muted)}
+.tsugi-watch-optional-action>summary{cursor:pointer;min-height:32px;display:list-item;width:max-content;max-width:100%;font-weight:550}
+.tsugi-watch-optional-action[open]{padding:8px 0 12px}
