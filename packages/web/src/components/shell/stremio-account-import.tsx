@@ -124,6 +124,7 @@ export function StremioAccountImport({profileId,busy,run,onConnect,onSources,onA
   return <div className="space-y-3" data-ui="stremio-account-import">
     <h4>{fixedProvider==='stremio'?<Trans>Connect Stremio</Trans>:fixedProvider==='nuvio'?<Trans>Connect Nuvio</Trans>:<Trans>Import from an account</Trans>}</h4>
     <p><Trans>Connect once to read your Stremio or Nuvio addon list. Tsugi does not save your account password or token, and never changes your external account. Select the addons to import into this local profile.</Trans></p>
+    {provider==='stremio'&&<p><Trans>Stremio import also restores supported unfinished movies and episodes to Continue watching. It does not change your remote library or replace local progress.</Trans></p>}
     {!flow&&<form className="space-y-2" onSubmit={e=>{e.preventDefault();void connect();}}>
       {!fixedProvider&&<label><Trans>Import provider</Trans><select className="tsugi-menu-select w-full" value={provider} disabled={busy} onChange={e=>{setProvider(e.target.value as ImportProvider);setEmail('');setPassword('');}}>
         <option value="stremio"><Trans>Stremio</Trans></option><option value="nuvio"><Trans>Nuvio</Trans></option>

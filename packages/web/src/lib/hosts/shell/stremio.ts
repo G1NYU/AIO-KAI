@@ -39,7 +39,7 @@ type ImportAction = {kind:'import-connect';provider:ImportProvider;email:string;
 type ItemAction = {kind:'metadata';sourceId:number;mediaType:string;itemId:string} | {kind:'item-options';sourceId:number;mediaType:string;videoId:string;subtitles:boolean} | {kind:'all-stream-options';mediaType:string;videoId:string;alternatives?:VideoRoute[]} | {kind:'begin-stream-options';mediaType:string;videoId:string;alternatives?:VideoRoute[]} | {kind:'poll-stream-options'|'cancel-stream-options';queryId:number} | {kind:'retry-stream-options';sourceId:number;mediaType:string;videoId:string} | {kind:'prepare-media';reviewId:number;optionIndex:number;startMs:number};
 type MdblistAction={kind:'mdblist-status'}|{kind:'mdblist-connect';key:string}|{kind:'mdblist-disconnect'}|{kind:'mdblist-lists'}|{kind:'mdblist-page';listId:number;offset:number};
 export type WatchProgress={mediaType:string;itemId:string;videoId:string;title:string;episodeTitle:string|null;positionMs:number;durationMs:number;completed:boolean};
-export type WatchHistoryEntry={progress:WatchProgress;updatedAt:number};
+export type WatchHistoryEntry={progress:WatchProgress;updatedAt:number;importedStremio?:boolean};
 export type WatchCollectionItem=Pick<CatalogPage['items'][number],'id'|'mediaType'|'name'|'poster'|'background'>;
 export type WatchCollection='favorites'|'queue';
 export type WatchCollections=Record<WatchCollection,WatchCollectionItem[]>;
@@ -388,7 +388,7 @@ export async function reviewAddonImport(profileId:number,importId:number,provide
   if(returned.length!==selected.length||returned.some(id=>!selected.includes(id)))return fail();
   return v;
 }
-export type ImportResult={sources:AddonSource[];rejected:ImportReview['rejected'];retryImportId:number|null};
+export type ImportResult={sources:AddonSource[];rejected:ImportReview['rejected'];retryImportId:number|null;historyImport?:{imported:number;unavailable:boolean}};
 function parseImportResult(value:unknown,importId:number):ImportResult{
   const data=obj(value);
   const rejected=array(data.rejected,MAX_ADDON_SOURCES,item=>{
@@ -397,7 +397,8 @@ function parseImportResult(value:unknown,importId:number):ImportResult{
   if(new Set(rejected.map(row=>row.candidateId)).size!==rejected.length)return fail();
   const retryImportId=data.retryImportId===null?null:integer(data.retryImportId,1,0xffffffff);
   if(retryImportId!==null&&(retryImportId!==importId||!rejected.length))return fail();
-  return {sources:sources(data),rejected,retryImportId};
+  const historyImport=data.historyImport===undefined?undefined:obj(data.historyImport);
+  return {sources:sources(data),rejected,retryImportId,...(historyImport?{historyImport:{imported:integer(historyImport.imported,0,100),unavailable:bool(historyImport.unavailable)}}:{})};
 }
 export async function applyAddonImport(profileId:number,importId:number){return parseImportResult(await scoped(profileId,{kind:'import-apply',importId}),importId);}
 export async function retryAddonImport(profileId:number,importId:number){return parseImportResult(await scoped(profileId,{kind:'import-retry',importId}),importId);}
@@ -513,7 +514,7 @@ function watchHistory(v:unknown):WatchHistoryEntry[]{
   const rows=array(obj(v).history,100,value=>{
     const row=obj(value),p=obj(row.progress),durationMs=integer(p.durationMs,1,604800000),positionMs=integer(p.positionMs,0,durationMs),completed=bool(p.completed);
     if(completed&&positionMs!==durationMs)return fail();
-    return {progress:{mediaType:str(p.mediaType,32),itemId:str(p.itemId,512),videoId:str(p.videoId,512),title:str(p.title,512),episodeTitle:p.episodeTitle===null?null:str(p.episodeTitle,512),positionMs,durationMs,completed},updatedAt:integer(row.updatedAt,1,253402300799999)};
+    return {progress:{mediaType:str(p.mediaType,32),itemId:str(p.itemId,512),videoId:str(p.videoId,512),title:str(p.title,512),episodeTitle:p.episodeTitle===null?null:str(p.episodeTitle,512),positionMs,durationMs,completed},updatedAt:integer(row.updatedAt,1,253402300799999),...(row.importedStremio===undefined?{}:{importedStremio:bool(row.importedStremio)})};
   });
   if(new Set(rows.map(({progress:p})=>JSON.stringify([p.mediaType,p.itemId,p.videoId]))).size!==rows.length)return fail();
   return rows;

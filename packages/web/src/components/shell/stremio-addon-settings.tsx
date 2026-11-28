@@ -832,12 +832,13 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
       </div>}
     </section>}
     {busy&&<p role="status"><Trans>Loading sources…</Trans></p>}
+    {importReport&&importReport.profileId===profileId&&importReport.result.historyImport&&<p role="status">{importReport.result.historyImport.unavailable?<Trans>Addon import succeeded, but Stremio watch history was unavailable. Reconnect Stremio to retry.</Trans>:<Trans>{importReport.result.historyImport.imported} Continue watching entries imported from Stremio.</Trans>}</p>}
     {importReport&&importReport.profileId===profileId&&importReport.result.rejected.length>0&&<div className="space-y-2" data-ui="addon-import-report">
       <div role="status">{importReport.result.rejected.map(row=><p key={row.candidateId}>{importFailureText(row)}</p>)}</div>
       {importReport.result.retryImportId!==null&&<button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void run(async()=>{
         const result=await retryAddonImport(importReport.profileId,importReport.result.retryImportId!);
         if(!mounted.current)return;
-        updateSources(result.sources,importReport.profileId);setImportReport({profileId:importReport.profileId,result});
+        updateSources(result.sources,importReport.profileId);setImportReport({profileId:importReport.profileId,result:{...result,historyImport:result.historyImport??importReport.result.historyImport}});
         if(!result.rejected.length)setNotice(t`Failed addons recovered.`);
       })}><Trans>Retry failed addons</Trans></button>}
       <button type="button" className="tsugi-read-action" disabled={busy} onClick={()=>void run(async()=>{

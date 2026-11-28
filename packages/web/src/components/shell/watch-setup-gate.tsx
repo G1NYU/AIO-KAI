@@ -72,9 +72,9 @@ export function WatchSetupGate({profileId,onReady,onBack}:{
   async function imported(result:ImportResult){
     if(!state)return;
     const id=state.profileId,status=await loadWatchSetup(id);
-    if(mounted.current){setState({profileId:id,status});setReport(result);setAccepted(false);}
+    if(mounted.current){setState({profileId:id,status});setReport(old=>({...result,historyImport:result.historyImport??old?.historyImport}));setAccepted(false);}
   }
-  const ready=!loading&&!!state&&(profileId===undefined||state.profileId===profileId)&&state.status.tmdbConnected&&state.status.accountProvider!==null&&(!report?.rejected.length||accepted);
+  const ready=!loading&&!!state&&(profileId===undefined||state.profileId===profileId)&&state.status.tmdbConnected&&state.status.accountProvider!==null&&((!report?.rejected.length&&!report?.historyImport?.unavailable)||accepted);
   React.useEffect(()=>{
     if(!ready||busy||!state||delivered.current)return;
     delivered.current=true;
@@ -93,9 +93,10 @@ export function WatchSetupGate({profileId,onReady,onBack}:{
         </div>
         {!state.status.tmdbConnected?<TmdbKeyForm profileId={state.profileId} busy={busy} run={run} onVerified={status=>{if(mounted.current)setState({profileId:state.profileId,status});}}/>:!ready&&<div className="space-y-3" data-ui="watch-required-account">
           <StremioAccountImport profileId={state.profileId} busy={busy} run={run} onConnect={()=>{setReport(null);setAccepted(false);}} onSources={imported} onActive={ignoreActivity}/>
-          {!!report?.rejected.length&&<div className="space-y-2" role="status">
-            <p>{report.rejected.length} <Trans>addons could not be imported.</Trans></p>
-            <ul>{report.rejected.map(row=><li key={row.candidateId}>{importFailureText(row)}</li>)}</ul>
+          {report?.historyImport&&<p role="status">{report.historyImport.unavailable?<Trans>Stremio watch history is unavailable. Reconnect later to retry, or continue with your imported addons.</Trans>:<Trans>{report.historyImport.imported} Continue watching entries imported from Stremio.</Trans>}</p>}
+          {report&&(report.rejected.length>0||report.historyImport?.unavailable)&&<div className="space-y-2" role="status">
+            {!!report.rejected.length&&<><p>{report.rejected.length} <Trans>addons could not be imported.</Trans></p>
+            <ul>{report.rejected.map(row=><li key={row.candidateId}>{importFailureText(row)}</li>)}</ul></>}
             {report.retryImportId!==null&&<button className="tsugi-read-action" type="button" disabled={busy} onClick={()=>void run(async()=>{await imported(await retryAddonImport(state.profileId,report.retryImportId!));})}><Trans>Retry failed addons</Trans></button>}
             {state.status.accountProvider!==null&&<button className="tsugi-read-action tsugi-series-primary" type="button" disabled={busy} onClick={()=>void run(async()=>{if(report.retryImportId!==null)await cancelAddonImport(state.profileId,report.retryImportId);if(mounted.current)setAccepted(true);})}><Trans>Continue with imported addons</Trans></button>}
           </div>}

@@ -1,5 +1,12 @@
 # TSUGI visual acceptance ledger
 
+## 2026-11-28 — Stremio resume import candidate
+
+- Native read-only `datastoreGet` for `libraryItem` (Stremio core `9d3dee7f58f5a8931039d220a27c4590769231c8`: types/api/request.rs, types/api/response.rs, types/library/library_item.rs and serde tests). Bounded response and separate five-second network budget; no remote write or saved token.
+- Import unfinished ordinary IMDb movie/episode progress only, retaining exact identities, original UTC timestamps and millisecond offsets. Apply only with successful local account addon import. Existing local titles and progress win, no eviction to fit import, no automatic Refract tracking event. Imported entries have an origin marker so Anime Hub remains independent until local playback.
+- Existing history stays readable through default serde fields. Addon manager reports count or failure; initial setup reports library unavailability without requiring successful history retrieval to use imported addons. Tests cover the HTTP request, conversion, merge, import consent boundary, local preservation and browser response.
+- Scope intentionally excludes custom IDs and completed history. Actual account response and Windows playback remain unverified. Run both Windows and browser CI; do not package or tag a release while live acceptance is open.
+
 ## 2026-11-28 — Live portable acceptance: reopen Watch and launcher gates
 
 The maintainer's Windows screenshots from the delivered portable build are authoritative live acceptance evidence. Most selected streams failed before playback; six imported addons were rejected, the global Anime filter returned no results, and several layout corrections remain. Do not treat the preceding synthetic playback checks as live acceptance.

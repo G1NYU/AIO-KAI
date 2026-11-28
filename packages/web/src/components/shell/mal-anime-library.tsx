@@ -74,7 +74,7 @@ export function MalAnimeLibrary({profileId,posterPattern,sources,busy,historyAct
       catalog.extras.every(extra=>!extra.required||extra.name==='search'||extra.name==='skip'));
   const chosen=catalogs.find(row=>row.key===catalogue);
   const matchedIds=new Set(collection?.matches.map(row=>identity(row.mediaType,row.itemId))??[]);
-  const animeHistory=history?.filter(({progress:p})=>p.mediaType==='anime'||matchedIds.has(identity(p.mediaType,p.itemId)))??null;
+  const animeHistory=history?.filter(({progress:p,importedStremio})=>!importedStremio&&(p.mediaType==='anime'||matchedIds.has(identity(p.mediaType,p.itemId))))??null;
   async function reload(){await run(async()=>setCollection(await listMalAnime(profileId)));}
   async function reloadHistory(){await run(async()=>{setHistory(null);setHistory(await listWatchHistory(profileId));});}
   React.useEffect(()=>{

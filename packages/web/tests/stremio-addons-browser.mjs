@@ -203,8 +203,13 @@ export function installStremioFixture(initializeStartup=true){
         if(profile.watchSetup&&f.import.ready.length)profile.watchSetup.accountProvider=f.import.provider;
         const rejected=f.import.provider==='nuvio'?[]:[{candidateId:2,name:'Unavailable fixture',reason:'network'}];
         const retryImportId=rejected.length?f.import.id:null;
+        const historyImport=f.import.provider==='stremio'?{imported:1,unavailable:false}:undefined;
+        if(historyImport&&!profile.history.some(row=>row.progress.itemId==='tt90123'))profile.history.push({
+          progress:{mediaType:'series',itemId:'tt90123',videoId:'tt90123:2:3',title:'Imported continue watching fixture',episodeTitle:null,positionMs:45000,durationMs:120000,completed:false},
+          updatedAt:1704164645000,importedStremio:true
+        });
         if(retryImportId!==null)f.import.phase='retry';else f.import=null;
-        return reply({sources:profile.sources,rejected,retryImportId});
+        return reply({sources:profile.sources,rejected,retryImportId,historyImport});
       }
       case 'import-retry':{
         if(f.import?.id!==a.importId||f.import.phase!=='retry')return emit(null,'expired-review');
@@ -1140,6 +1145,8 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal((await calls()).some(a=>a.kind==='import-review'||a.kind==='import-apply'),false);
     await reviewAccount();
     await panel.getByText('Unavailable fixture · Manifest request failed; check the connection and retry',{exact:true}).waitFor();
+    await panel.getByText('1 Continue watching entries imported from Stremio.',{exact:true}).waitFor();
+    assert.deepEqual(await page.evaluate(()=>window.__stremioFixture.profiles.find(p=>p.profileId===window.__stremioFixture.active).history.find(row=>row.importedStremio)?.progress.videoId),'tt90123:2:3');
     await panel.locator('[data-stremio-source-id]').filter({hasText:'Account film addon'}).waitFor();
     await panel.getByRole('button',{name:'Retry failed addons',exact:true}).click();
     await panel.locator('[data-stremio-source-id]').filter({hasText:'Recovered fixture'}).waitFor();

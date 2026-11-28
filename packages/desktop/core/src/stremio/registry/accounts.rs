@@ -52,7 +52,7 @@ enum Stage {
     Retry { failed:Vec<Failed>, account_order:Vec<Url> },
 }
 #[derive(Clone)]
-pub(super) struct Flow {id:u32,provider:Provider,created:Instant,stage:Stage}
+pub(super) struct Flow {id:u32,provider:Provider,created:Instant,stage:Stage,history:Option<Result<Vec<super::history::Entry>>>}
 impl Flow {
     pub(super) fn expired(&self)->bool {self.created.elapsed()>=REVIEW_TTL}
 }
@@ -117,14 +117,22 @@ fn stremio_candidates(value:&Value)->Result<(Vec<Candidate>,usize)>{
     }
     let skipped=addons.len()-rows.len();Ok((rows,skipped))
 }
-fn stremio_import_at(agent:&ureq::Agent,base:&str,email:&str,password:&str)->Result<(Vec<Candidate>,usize)>{
+fn stremio_library_at(agent:&ureq::Agent,base:&str,key:&str)->Result<Vec<super::history::Entry>>{
+    let value=http(agent,&format!("{base}datastoreGet"),&[],Some(json!({"authKey":key,"collection":"libraryItem","ids":[],"all":true})))?;
+    super::history::stremio_resume(stremio_result(&value)?)
+}
+fn stremio_import_at(agent:&ureq::Agent,base:&str,email:&str,password:&str)->Result<(Vec<Candidate>,usize,Result<Vec<super::history::Entry>>)>{
     credentials(email,password)?;
     // Official Stremio API client login parameters; no social-provider
     // fallback. update:false and no addFromURL avoid account mutation.
     let auth=http(agent,&format!("{base}login"),&[],Some(json!({"email":email,"password":password,"facebook":false})))?;
     let key=token(&stremio_result(&auth)?["authKey"])?;
     let list=http(agent,&format!("{base}addonCollectionGet"),&[],Some(json!({"authKey":key,"update":false})))?;
-    stremio_candidates(&list)
+    let (rows,skipped)=stremio_candidates(&list)?;
+    // A separate short budget: a library outage must not prevent addon login.
+    let history_agent:ureq::Agent=ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(5))).max_redirects(0).build().into();
+    let history=stremio_library_at(&history_agent,base,&key);
+    Ok((rows,skipped,history))
 }
 fn nuvio_profiles(value:&Value)->Result<Vec<RemoteProfile>>{
     let rows=value.as_array().ok_or("account-response")?;
@@ -222,12 +230,12 @@ impl Registry{
     }
     pub(super) fn import_connect(&mut self,provider:Provider,email:&str,password:&str)->Result<Value>{
         self.import=None;self.pending=None;
-        let stage=match provider{
-            Provider::Stremio=>{let (rows,skipped)=stremio_import_at(&agent(),STREMIO,email,password)?;Stage::Candidates{rows,skipped}},
-            Provider::Nuvio=>{let (token,profiles)=nuvio_connect_at(&agent(),NUVIO,NUVIO_PUBLIC_CLIENT,email,password)?;Stage::Nuvio{token,profiles}},
+        let (stage,history)=match provider{
+            Provider::Stremio=>{let (rows,skipped,history)=stremio_import_at(&agent(),STREMIO,email,password)?;(Stage::Candidates{rows,skipped},Some(history))},
+            Provider::Nuvio=>{let (token,profiles)=nuvio_connect_at(&agent(),NUVIO,NUVIO_PUBLIC_CLIENT,email,password)?;(Stage::Nuvio{token,profiles},None)},
         };
         self.sequence=self.sequence.checked_add(1).ok_or("import-limit")?;
-        let flow=Flow{id:self.sequence,provider,created:Instant::now(),stage};
+        let flow=Flow{id:self.sequence,provider,created:Instant::now(),stage,history};
         let data=self.import_view(&flow)?;self.import=Some(flow);Ok(data)
     }
     fn take_import(&mut self,id:u32)->Result<Flow>{
@@ -240,7 +248,7 @@ impl Registry{
         let effective=accessible_profile(&profiles,index)?;
         let (rows,skipped)=nuvio_addons_at(&agent(),NUVIO,NUVIO_PUBLIC_CLIENT,&token,effective)?;
         // Token is dropped as soon as the selected profile has been pulled.
-        let flow=Flow{id,provider:Provider::Nuvio,created:Instant::now(),stage:Stage::Candidates{rows,skipped}};
+        let flow=Flow{id,provider:Provider::Nuvio,created:Instant::now(),stage:Stage::Candidates{rows,skipped},history:None};
         let mut data=self.import_view(&flow)?;
         data["remoteProfile"]=json!(index);data["effectiveProfile"]=json!(effective);
         self.import=Some(flow);Ok(data)
@@ -261,7 +269,7 @@ impl Registry{
         let preview:Vec<_>=ready.iter().map(|row|json!({"candidateId":row.candidate.id,"name":row.candidate.name,
             "host":host(&row.candidate.endpoint),"enabled":row.candidate.enabled,"manifest":summary(&row.manifest)})).collect();
         let rejected=failed.iter().map(Self::import_failure).collect::<Vec<_>>();
-        self.import=Some(Flow{id,provider:flow.provider,created:Instant::now(),stage:Stage::Reviewed{rows:ready,failed,account_order}});
+        self.import=Some(Flow{id,provider:flow.provider,created:Instant::now(),stage:Stage::Reviewed{rows:ready,failed,account_order},history:flow.history});
         Ok(json!({"importId":id,"provider":flow.provider.name(),"phase":"review","ready":preview,"rejected":rejected}))
     }
     fn import_failure(row:&Failed)->Value{
@@ -321,19 +329,29 @@ impl Registry{
             .position(|url| url == &source.endpoint.0).unwrap_or(usize::MAX));
         // A successful authenticated import (including an order-only restore)
         // must match an installed account endpoint. No auth token is persisted.
-        if self.sources.iter().any(|source|account_order.iter().any(|url|url==&source.endpoint.0)){
+        let linked=self.sources.iter().any(|source|account_order.iter().any(|url|url==&source.endpoint.0));
+        let mut history=flow.history;
+        let mut history_report=None;
+        if linked{
             self.account_provider=Some(flow.provider);
+            if let Some(result)=history.take(){
+                history_report=Some(match result{
+                    Ok(rows)=>json!({"imported":self.history.merge_stremio(rows),"unavailable":false}),
+                    Err(_)=>json!({"imported":0,"unavailable":true}),
+                });
+            }
         }
         debug_assert_eq!(self.sequence,end);
         self.pending=None;
         let mut data=self.list();
+        if let Some(report)=history_report{data["historyImport"]=report;}
         data["rejected"]=json!(failed.iter().map(Self::import_failure).collect::<Vec<_>>());
         let can_retry=failed.iter().any(Self::retryable_import_failure);
         data["retryImportId"]=json!(if can_retry{Some(id)}else{None});
         if can_retry{
             // Only failed manifest endpoints remain in volatile native memory.
             // No login token, password or unselected account entries are retried.
-            self.import=Some(Flow{id,provider:flow.provider,created:Instant::now(),stage:Stage::Retry{failed,account_order}});
+            self.import=Some(Flow{id,provider:flow.provider,created:Instant::now(),stage:Stage::Retry{failed,account_order},history});
         }
         Ok(data)
     }
@@ -349,10 +367,11 @@ impl Registry{
         let retained:Vec<_>=failed.iter().filter(|row|!Self::retryable_import_failure(row)).cloned().collect();
         let account_order=account_order.clone();
         let provider=flow.provider;
+        let history=flow.history.clone();
         let (rows,mut failed)=self.review_import_candidates(&chosen,fetch);
         failed.extend(retained);
         failed.sort_by_key(|row|row.candidate.id);
-        self.import=Some(Flow{id,provider,created:Instant::now(),stage:Stage::Reviewed{rows,failed,account_order}});
+        self.import=Some(Flow{id,provider,created:Instant::now(),stage:Stage::Reviewed{rows,failed,account_order},history});
         self.import_apply(id)
     }
     pub(super) fn import_cancel(&mut self,id:u32)->bool{
@@ -388,12 +407,20 @@ mod tests{
         assert!(rows[0].cached_manifest.is_some());
         assert!(rows[1].cached_manifest.is_none());
         let mut registry=Registry::default();
-        registry.import=Some(Flow{id:1,provider:Provider::Stremio,created:Instant::now(),stage:Stage::Candidates{rows,skipped}});
+        let history=super::super::history::stremio_resume(&json!([{
+            "_id":"tt42","type":"movie","name":"Imported fixture","removed":false,"temp":false,
+            "_mtime":"2024-01-02T03:04:05Z","state":{"video_id":"tt42","timeOffset":12000,"duration":60000}
+        }])).unwrap();
+        registry.import=Some(Flow{id:1,provider:Provider::Stremio,created:Instant::now(),history:Some(Ok(history)),stage:Stage::Candidates{rows,skipped}});
+        assert_eq!(registry.history.list()["history"],json!([]));
         let review=registry.import_review(1,vec![1]).unwrap();
+        assert_eq!(registry.history.list()["history"],json!([]));
         assert_eq!(review["ready"][0]["manifest"]["id"],"fixture.cached");
         let applied=registry.import_apply(1).unwrap();
         assert_eq!(applied["sources"][0]["manifest"]["id"],"fixture.cached");
         assert_eq!(registry.setup_status()["accountProvider"],"stremio");
+        assert_eq!(applied["historyImport"],json!({"imported":1,"unavailable":false}));
+        assert_eq!(registry.history.list()["history"][0]["progress"]["positionMs"],12000);
     }
     #[test]
     fn expired_import_budget_uses_cached_manifests_without_new_requests(){
@@ -455,12 +482,12 @@ mod tests{
         let manifest=Manifest::parse(br#"{"id":"fixture","name":"Fixture","version":"1","types":["movie"],"resources":["stream"]}"#).unwrap();
         let one=candidate(1,Endpoint::parse("https://example.org/one/manifest.json").unwrap(),Some("One"),false);
         let two=candidate(2,Endpoint::parse("https://example.org/two/manifest.json").unwrap(),Some("Two"),true);
-        registry.import=Some(Flow{id:10,provider:Provider::Nuvio,created:Instant::now(),stage:Stage::Candidates{rows:vec![one.clone(),two.clone()],skipped:0}});
+        registry.import=Some(Flow{id:10,provider:Provider::Nuvio,created:Instant::now(),history:None,stage:Stage::Candidates{rows:vec![one.clone(),two.clone()],skipped:0}});
         assert_eq!(registry.import_apply(10),Err("expired-review"));
         let existing=Endpoint::parse("https://example.org/existing/manifest.json").unwrap();
         registry.sources.push(Source{id:9,endpoint:existing.clone(),manifest:manifest.clone(),enabled:false});
         let account_order=vec![one.endpoint.0.clone(),existing.0,two.endpoint.0.clone()];
-        registry.import=Some(Flow{id:10,provider:Provider::Nuvio,created:Instant::now(),stage:Stage::Reviewed{account_order,failed:vec![],rows:vec![Prepared{candidate:one,manifest:manifest.clone()},Prepared{candidate:two,manifest}]}});
+        registry.import=Some(Flow{id:10,provider:Provider::Nuvio,created:Instant::now(),history:None,stage:Stage::Reviewed{account_order,failed:vec![],rows:vec![Prepared{candidate:one,manifest:manifest.clone()},Prepared{candidate:two,manifest}]}});
         assert_eq!(registry.import_apply(9),Err("expired-review"));
         let result=registry.import_apply(10).unwrap();
         assert_eq!(result["sources"][0]["sourceId"],11);assert_eq!(result["sources"][0]["enabled"],false);
@@ -476,7 +503,7 @@ mod tests{
         let second=candidate(2,Endpoint::parse("https://example.org/second/manifest.json").unwrap(),Some("Second"),true);
         registry.sources.push(Source{id:9,endpoint:second.endpoint.clone(),manifest:manifest.clone(),enabled:true});
         let account_order=vec![first.endpoint.0.clone(),second.endpoint.0.clone()];
-        registry.import=Some(Flow{id:10,provider:Provider::Stremio,created:Instant::now(),stage:Stage::Reviewed{
+        registry.import=Some(Flow{id:10,provider:Provider::Stremio,created:Instant::now(),history:None,stage:Stage::Reviewed{
             rows:vec![],failed:vec![Failed{candidate:first.clone(),reason:"network"}],account_order}});
         let applied=registry.import_apply(10).unwrap();
         assert_eq!(applied["retryImportId"],10);
@@ -488,10 +515,24 @@ mod tests{
         assert_eq!(retried["sources"][1]["sourceId"],9);
         assert_eq!(registry.import_retry(10),Err("expired-review"));
         registry.sources.reverse();
-        registry.import=Some(Flow{id:12,provider:Provider::Stremio,created:Instant::now(),stage:Stage::Candidates{rows:vec![first,second],skipped:0}});
+        registry.import=Some(Flow{id:12,provider:Provider::Stremio,created:Instant::now(),history:None,stage:Stage::Candidates{rows:vec![first,second],skipped:0}});
         let reviewed=registry.import_review(12,vec![]).unwrap();
         assert_eq!(reviewed["ready"],json!([]));
         assert_eq!(registry.import_apply(12).unwrap()["sources"][0]["sourceId"],11);
+    }
+    #[test]
+    fn stremio_library_http_is_read_only_and_preserves_resume(){
+        let body=br#"{"result":[{"_id":"tt123","type":"series","name":"Example","removed":false,"temp":false,"_mtime":"2024-01-02T03:04:05Z","state":{"video_id":"tt123:2:3","timeOffset":45000,"duration":120000}}]}"#;
+        let (base,server)=crate::test_http::response(200,"application/json",body.to_vec());
+        let rows=stremio_library_at(&agent(),&base,"fixture-token").unwrap();
+        let sent=server.join().unwrap();
+        assert!(sent.starts_with("POST /datastoreGet "));
+        assert!(sent.contains("\"collection\":\"libraryItem\"")&&sent.contains("\"all\":true"));
+        let mut history=super::super::history::History::default();
+        assert_eq!(history.merge_stremio(rows),1);
+        assert_eq!(history.list()["history"][0]["progress"]["videoId"],"tt123:2:3");
+        assert_eq!(history.list()["history"][0]["progress"]["positionMs"],45000);
+        assert!(!history.list().to_string().contains("fixture-token"));
     }
     #[test]
     fn account_http_fixtures_bound_requests_and_refuse_redirects(){
