@@ -1538,8 +1538,13 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     assert.equal(await watch.locator('[data-ui="watch-profile-picker"]').count(),0);
     await watch.locator('[data-ui="watch-hub-picker"] [data-watch-destination="standalone"]').click();
     await watch.getByRole('heading',{name:'Movies & TV',exact:true}).waitFor();
-    const watchGlyphs=await watch.locator('.tsugi-watch-nav [data-movie-glyph]').evaluateAll(nodes=>nodes.map(node=>({name:node.getAttribute('data-movie-glyph'),fill:node.getAttribute('fill'),stroke:node.getAttribute('stroke')})));
-    assert.deepEqual(watchGlyphs.map(g=>g.name),['home','discover','anime','heart','list','history','settings']);assert.ok(watchGlyphs.every(g=>g.fill==='currentColor'&&g.stroke==='none'));
+    // Search and refresh mount through portals after the hub opens.
+    const rail=watch.locator('.tsugi-watch-shared-rail');
+    await rail.locator('[data-ui="watch-rail-search"]').getByRole('button',{name:'Search movies & series',exact:true}).waitFor();
+    await rail.locator('[data-ui="watch-rail-actions"]').getByRole('button',{name:'Refresh catalogues',exact:true}).waitFor();
+    const watchGlyphs=await rail.locator('.tsugi-watch-nav [data-movie-glyph]').evaluateAll(nodes=>nodes.map(node=>({name:node.getAttribute('data-movie-glyph'),fill:node.getAttribute('fill'),stroke:node.getAttribute('stroke')})));
+    assert.deepEqual(watchGlyphs.map(g=>g.name),['home','discover','anime','heart','list','history','settings','search','refresh','grid','people'],'shared rail preserves the original navigation and includes the new search and utility actions in order');
+    assert.ok(watchGlyphs.every(g=>g.fill==='currentColor'&&g.stroke==='none'),'all navigation and utility icons use the same filled monochrome family');
     async function watchSetting(name){
       const nav=watch.locator('[data-ui="watch-settings-navigation"]');
       if(!await nav.isVisible())await watch.locator('.tsugi-watch-nav').getByRole('button',{name:'Settings',exact:true}).click();
