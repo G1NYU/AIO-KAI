@@ -1,3 +1,7 @@
+## 2026-11-28 — Package trigger path correction
+
+The green portable authorization marker in `fadcb3d68d1958724536ab911dc7e0e99a3589b2` was ignored because the existing workflow restricts push paths. Add the relevant external logo ownership/runtime artwork and release-discovery notice to `packages/desktop/THIRD-PARTY.md`, which the workflow watches, and use `[package tsugi]` on this documentation-only commit. The validated runtime and tests are unchanged. No stable publication marker.
+
 ## 2026-11-28 — Green final portable candidate; package for live acceptance
 
 - [CI 46123266187](https://github.com/G1NYU/TSUGI/actions/runs/46123266187), exact source `88a099379940785c4e4b6a4f6d85ed4778dad991`: Windows compile and 253 native tests passed (0 failed, 18 intentionally ignored), WebView2 disk-cache preservation, web typecheck/lint, all 44 web test suites and production build, and cumulative browser smoke passed. Native logo sanitation, shared manifest deadline and work-conserving import pool tests passed. Separate Node check of 17 logo URL fixtures passed.

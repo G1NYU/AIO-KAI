@@ -51,3 +51,9 @@ The corresponding upstream source snapshot at commit `2a13a664edb5314d86bfd7d488
 ## FFmpeg / FFprobe (Windows x64 development ZIP)
 
 Independent local-only executables from FFmpeg revision `38b88335f99e76ed89ff3c93f877fdefce736c13` (8.1.2), built with the LGPL configuration, no GPL/nonfree options and no external codec libraries. Tsugi uses the tools to inspect and decode-check downloaded audio without re-encoding the original file. The corresponding source archive, configuration, license notices and build script accompany the executables in `media-tools/source/`; see `media-tools/SOURCE.txt` and `SHA256SUMS`. No FFmpeg libraries are linked into Tsugi. Additional export formats are not enabled in this candidate.
+
+## External addon identity artwork and release discovery
+
+The Watch account import and installed-addon lists may display public logo artwork declared in a selected Stremio-compatible manifest. These images are retrieved from a restricted set of public HTTPS artwork origins at runtime, not included in the distributed application. Logo and trademark rights remain with the respective addon and service owners; no ownership or endorsement is implied. Unavailable or unsupported artwork uses Tsugi's neutral addon glyph. Configured manifest endpoints and account credentials are not used as renderer artwork URLs.
+
+The Windows release check reads metadata from the official [Tsugi GitHub Releases](https://github.com/G1NYU/TSUGI/releases) page. The application offers a link to the verified stable release; it does not download or overwrite program files automatically.
