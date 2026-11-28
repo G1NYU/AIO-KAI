@@ -1,3 +1,7 @@
+## 2026-11-28 — Public release authorization
+
+The maintainer confirmed authorship and redistribution rights for the supplied purple wallpaper and monochrome landscape, and requested packaging. The final application revision passed run 46139705251; portable validation run 46140704354 is the packaging gate. Use the existing release publisher only after portable validation succeeds, keeping v0.1.0 unchanged. Public v0.1.1 must include the portable ZIP, SHA256SUMS.txt, exact checkout identity and corresponding source notices. Discord Rich Presence remains deferred and live acceptance of the final TVmaze and layout changes remains unverified outside fixtures. README redesign follows release.
+
 ## 2026-11-28 — Final UI acceptance and portable package
 
 Run [46139705251](https://github.com/G1NYU/TSUGI/actions/runs/46139705251) on 18f9a57af5dc8b238e90d62e6fce5d8ce38e6362: Windows native/cache checks passed (256 tests passed, 18 ignored); typecheck, lint, standalone production build, 477 web tests across 45 suites and the full browser interaction suite passed. Inspected the actual synthetic UI screenshots from artifact 15261840708: Home labels and heavy image-only blur, desktop profile chooser and compact creation form, distinct TVmaze discovery, full-bleed details, and multiline stream selection. All five detail geometry assertions passed. No further application code changes are necessary for this packaging attempt.
