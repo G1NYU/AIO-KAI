@@ -584,6 +584,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.ok(await compactDialog.getByRole('searchbox',{name:'Search across addons',exact:true}).evaluate(node=>node===document.activeElement),'sidebar opens focused search on compact rail');
     await page.keyboard.press('Escape');
     await compactDialog.waitFor({state:'hidden'});
+    assert.equal(await compactSearch.getAttribute('aria-expanded'),'false','Escape clears the dialog trigger state');
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-rail-search-compact.png'),animations:'disabled'});
     await page.setViewportSize({width:1600,height:900});
     console.log('PASS: compact and full-width Watch rail own search and profile/hub actions without obstructing the hero.');

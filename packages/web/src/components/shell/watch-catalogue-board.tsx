@@ -279,7 +279,11 @@ export function WatchCatalogueBoard({scope='all',includeHistory=false,seriesDisc
     {!props.paused&&railSearch&&refreshMount&&refreshButton&&createPortal(refreshButton,refreshMount)}
     {!searchOnly&&scope==='all'&&!props.sources.some(s=>s.enabled&&s.manifest.resources.includes('stream'))&&<p className="tsugi-watch-muted"><Trans>Browse titles now. Connect streaming addons in Settings to watch them.</Trans> <button type="button" className="tsugi-read-action" disabled={props.busy} onClick={props.openAddons}><Trans>Manage addons</Trans></button></p>}
     {!searchOnly&&seriesDiscovery?<SeriesDiscovery key={props.profileId+':'+revision} active={props.active&&!props.paused&&!searchOpen} busy={props.busy} posterPattern={props.posterPattern} openTitle={props.openTitle}/>:!searchOnly&&<CatalogueRows key={JSON.stringify([props.profileId,scope,revision,homeTargets.map(row=>row.key)])} {...props} paused={props.paused||searchOpen} targets={homeTargets} search="" scope={scope} includeHistory={includeHistory}/>} 
-    <dialog ref={dialog} id={dialogId} className="tsugi-watch-search-dialog" aria-label={t`Search titles`} onCancel={e=>{e.preventDefault();setSearchOpen(false);}} onClick={e=>{if(e.target===e.currentTarget)setSearchOpen(false);}}>
+    <dialog ref={dialog} id={dialogId} className="tsugi-watch-search-dialog" aria-label={t`Search titles`} onKeyDown={e=>{
+      // Chromium's native search input can consume Escape before the dialog
+      // gets its cancel event. Own it only while focus is in this dialog.
+      if(e.key==='Escape'&&!e.nativeEvent.isComposing){e.preventDefault();e.stopPropagation();setSearchOpen(false);}
+    }} onCancel={e=>{e.preventDefault();setSearchOpen(false);}} onClick={e=>{if(e.target===e.currentTarget)setSearchOpen(false);}}>
       {searchOpen&&<div className="tsugi-watch-search-panel">
         <form className="tsugi-watch-search-bar" onSubmit={e=>{e.preventDefault();setSubmitted(query.trim());}}>
           <MovieGlyph name="search"/>
