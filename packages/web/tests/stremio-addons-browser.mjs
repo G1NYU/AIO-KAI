@@ -418,12 +418,17 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
       tvmazeRequests.push(url.pathname);
       if(tvmazeSearchUnavailable&&url.pathname==='/search/shows')return route.fulfill({status:503,body:'unavailable',headers:{'access-control-allow-origin':'*'}});
       const show={id:21,name:'Family Guy',type:'Animation',genres:['Comedy'],externals:{imdb:'tt90021'},image:{medium:tvmazePoster},premiered:'1999-01-31'};
+      // Populate long, real-shaped rows; a single-poster fixture cannot
+      // reproduce grid intrinsic-width expansion or test navigation arrows.
+      const fillers=Array.from({length:24},(_,i)=>({...show,id:100+i,name:'TVmaze drama fixture '+String(i+1).padStart(2,'0'),type:'Scripted',language:'Korean',genres:['Drama','Romance'],network:{country:{code:'KR'}},externals:{imdb:'tt'+(90100+i)}}));
       if(url.pathname==='/shows')return route.fulfill({json:[show,
         {...show,id:22,name:'Korean drama fixture',type:'Scripted',language:'Korean',genres:['Drama','Romance'],network:{country:{code:'KR'}},externals:{imdb:'tt90022'}},
-        {...show,id:23,name:'Crime and thriller fixture',type:'Scripted',genres:['Crime','Thriller','Mystery','Action'],externals:{imdb:'tt90023'}}
+        {...show,id:23,name:'Crime and thriller fixture',type:'Scripted',genres:['Crime','Thriller','Mystery','Action'],externals:{imdb:'tt90023'}},
+        ...fillers
       ],headers:{'access-control-allow-origin':'*'}});
-      const row=url.pathname==='/schedule/web'?{_embedded:{show}}:{show};
-      return route.fulfill({json:[row,row,{show:{...show,name:'Unmapped series',externals:{imdb:null}}}],headers:{'access-control-allow-origin':'*'}});
+      const web=url.pathname==='/schedule/web';
+      const row=web?{_embedded:{show}}:{show};
+      return route.fulfill({json:[row,row,{show:{...show,name:'Unmapped series',externals:{imdb:null}}},...(web?fillers.map(show=>({_embedded:{show}})):[])],headers:{'access-control-allow-origin':'*'}});
     });
     await page.route('https://api.tenrai.org/v1/**',route=>{
       const films=new URL(route.request().url()).searchParams.get('type')==='movie';
@@ -650,9 +655,47 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.equal(await board.locator('[data-ui="watch-continue-shelf"]').count(),0);
     assert.equal(await discovery.getByRole('button',{name:'Unmapped series',exact:true}).count(),0);
     await assertArtwork(feeds.first().getByRole('button',{name:'Family Guy',exact:true}));
-    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-tvmaze-discovery.png'),animations:'disabled'});
     const korean=discovery.locator('[data-ui="series-discovery-category"][data-category="korean-dramas"]');
     await korean.getByRole('button',{name:'Korean drama fixture',exact:true}).waitFor();
+    const drama=discovery.locator('[data-category="drama"]');
+    const streaming=discovery.locator('[data-feed="streaming-today"]');
+    const shortSchedule=discovery.locator('[data-feed="broadcast-us"]');
+    const firstSlideX=row=>row.locator('[data-ui="media-row-item"]').first().evaluate(el=>el.getBoundingClientRect().left);
+    for(const width of [1600,1024,720]){
+      await page.setViewportSize({width,height:900});
+      for(const [row,other] of [[korean,drama],[streaming,korean]]){
+        const nav=row.locator('[data-ui="media-row-nav"]');
+        const previous=nav.getByRole('button',{name:'Previous',exact:true});
+        const next=nav.getByRole('button',{name:'Next',exact:true});
+        await nav.waitFor({state:'visible'});
+        await page.waitForFunction(el=>{const buttons=el.querySelectorAll('button');return buttons.length===2&&buttons[0].disabled&&!buttons[1].disabled;},await nav.elementHandle());
+        await nav.scrollIntoViewIfNeeded();
+        const geometry=await row.evaluate(el=>{
+          const rect=el.getBoundingClientRect(),parent=el.closest('[data-ui="series-discovery"]').getBoundingClientRect();
+          const board=el.closest('[data-ui="watch-catalogue-board"]').getBoundingClientRect();
+          const nav=el.querySelector('[data-ui="media-row-nav"]').getBoundingClientRect();
+          const viewport=el.querySelector('.UI-Carousel__content'),track=viewport.querySelector('.UI-Carousel__innerContent');
+          return {rowLeft:rect.left,rowRight:rect.right,parentRight:parent.right,boardRight:board.right,navLeft:nav.left,navRight:nav.right,viewWidth:viewport.clientWidth,trackWidth:track.scrollWidth,screen:window.innerWidth};
+        });
+        assert.ok(geometry.parentRight<=geometry.boardRight+2&&geometry.rowRight<=geometry.boardRight+2,'TVmaze shelf remains inside its board: '+JSON.stringify(geometry));
+        assert.ok(geometry.navLeft>=geometry.rowLeft-2&&geometry.navRight<=Math.min(geometry.rowRight+2,geometry.screen),'both arrows are on screen: '+JSON.stringify(geometry));
+        assert.ok(geometry.trackWidth>geometry.viewWidth,'overflow belongs inside the carousel');
+        const x=await firstSlideX(row),otherX=await firstSlideX(other);
+        const first=row.locator('[data-ui="media-row-item"]').first();
+        await next.click();
+        await page.waitForFunction(({el,x})=>el.getBoundingClientRect().left<x-30,{el:await first.elementHandle(),x});
+        assert.equal(await previous.isEnabled(),true,'previous becomes available');
+        assert.ok(Math.abs(await firstSlideX(other)-otherX)<2,'only the selected shelf moves');
+        await previous.click();
+        await page.waitForFunction(({el,x})=>Math.abs(el.getBoundingClientRect().left-x)<2,{el:await first.elementHandle(),x});
+        await page.waitForFunction(el=>el.disabled,await previous.elementHandle());
+        assert.equal(await next.isEnabled(),true,'next available again at start');
+      }
+      assert.equal(await shortSchedule.locator('[data-ui="media-row-nav"]').count(),0,'short schedule does not need arrows');
+    }
+    await page.setViewportSize({width:1600,height:900});
+    await korean.locator('[data-ui="media-row-nav"]').scrollIntoViewIfNeeded();
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-tvmaze-discovery.png'),animations:'disabled'});
     await discovery.locator('[data-category="crime"]').getByRole('button',{name:'Crime and thriller fixture',exact:true}).waitFor();
     await discovery.locator('[data-category="thriller"]').getByRole('button',{name:'Crime and thriller fixture',exact:true}).waitFor();
     assert.ok(tvmazeRequests.includes('/schedule')&&tvmazeRequests.includes('/schedule/web')&&tvmazeRequests.includes('/shows'));

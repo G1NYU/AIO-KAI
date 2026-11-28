@@ -44,7 +44,7 @@ export function SeriesDiscovery({active,busy,posterPattern,openTitle}:{active:bo
     'korean-dramas':t`Korean dramas`,drama:t`Drama`,crime:t`Crime`,thriller:t`Thriller`,comedy:t`Comedy`,
     'science-fiction':t`Science fiction`,fantasy:t`Fantasy`,romance:t`Romance`,action:t`Action`,mystery:t`Mystery`,documentaries:t`Documentaries`
   };
-  return <section className="space-y-6" data-ui="series-discovery" data-provider="tvmaze">
+  return <section className="min-w-0 max-w-full space-y-6" data-ui="series-discovery" data-provider="tvmaze">
     <p className="tsugi-watch-muted"><Trans>Powered by <a href="https://www.tvmaze.com/" target="_blank" rel="noreferrer">TVmaze</a>.</Trans></p>
     {categories&&seriesCategories.filter(category=>categories[category].length>0).map(category=><section key={category} className="tsugi-watch-shelf" data-ui="series-discovery-category" data-category={category}>
       <MediaRow contained shape="poster" title={categoryLabels[category]}>

@@ -1,5 +1,9 @@
 /* Native Watch shares the existing TSUGI palette and artwork scale. */
 .tsugi-watch-board {display:grid;gap:24px;min-width:0;}
+/* TVmaze shelves must fit the board's grid track, not set its intrinsic width.
+ * Keep the shared mouse carousel's arrows available in compact desktop windows. */
+.tsugi-watch-board [data-ui='series-discovery'] :is([data-ui='media-row'],.UI-Carousel__root){min-width:0;max-width:100%;}
+:root[data-host='desktop'] .tsugi-watch-board [data-ui='series-discovery'] [data-ui='media-row-nav']{display:flex;}
 .tsugi-watch-board-toolbar {display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;}
 .tsugi-watch-search {display:flex;flex:1 1 220px;min-width:0;align-items:center;gap:8px;}
 .tsugi-watch-search>svg {flex:none;width:20px;height:20px;color:var(--tsugi-muted);}
