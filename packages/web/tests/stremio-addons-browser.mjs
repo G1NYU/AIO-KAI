@@ -454,17 +454,17 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.ok(await page.evaluate(()=>window.__stremioFixture.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='browse-catalog')));
     assert.equal(await board.getByText('Disabled films',{exact:true}).count(),0);
     assert.equal(await watch.getByRole('heading',{name:'Installed addons',exact:true}).count(),0);
-    const featuredHero=board.locator('[data-ui="hero"]');
-    const seriesSlide=featuredHero.getByRole('button',{name:'Show Fixture anime series',exact:true});
+    const watchCarouselHero=board.locator('[data-ui="hero"]');
+    const seriesSlide=watchCarouselHero.getByRole('button',{name:'Show Fixture anime series',exact:true});
     await seriesSlide.waitFor();
     await seriesSlide.click();
-    await featuredHero.getByRole('heading',{name:'Fixture anime series',exact:true}).waitFor();
+    await watchCarouselHero.getByRole('heading',{name:'Fixture anime series',exact:true}).waitFor();
     assert.equal(await seriesSlide.getAttribute('aria-current'),'true');
-    await assertArtwork(featuredHero.locator('[data-ui="backdrop-frame"]'));
+    await assertArtwork(watchCarouselHero.locator('[data-ui="backdrop-frame"]'));
     if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-tv-carousel.png'),animations:'disabled'});
-    const filmSlide=featuredHero.getByRole('button',{name:'Show Fixture cinema film',exact:true});
+    const filmSlide=watchCarouselHero.getByRole('button',{name:'Show Fixture cinema film',exact:true});
     await filmSlide.click();
-    await featuredHero.getByRole('heading',{name:'Fixture cinema film',exact:true}).waitFor();
+    await watchCarouselHero.getByRole('heading',{name:'Fixture cinema film',exact:true}).waitFor();
     if(screenshotDir){await mkdir(screenshotDir,{recursive:true});await board.locator('[data-ui="hero"]').scrollIntoViewIfNeeded();await page.screenshot({path:join(screenshotDir,'watch-content-board.png'),animations:'disabled'});}
     await film.click();
     const item=watch.locator('[data-ui="watch-item-details"]');
