@@ -9,6 +9,6 @@
   :root[data-host='desktop'] .oto-feature > .tsugi-landscape-credit { inset-inline-start:20px; max-width:calc(100% - 40px); }
   :root[data-host='desktop'] .oto-feature:has(> .oto-feature-controls) .oto-feature-copy { padding-block-end:88px; }
   :root[data-host='desktop'] .oto-feature:has(> .oto-feature-controls) > .tsugi-landscape-credit { bottom:50px; }
-  .tsugi-landscape-spotlight:has(.tsugi-spotlight-featured-next) { padding-bottom:88px!important; }
+  .tsugi-landscape-spotlight:not([data-design-area='read'][data-artwork-mode='featured']):has(.tsugi-spotlight-featured-next) { padding-bottom:88px!important; }
   .tsugi-spotlight-featured-next { inset-inline-start:20px; bottom:46px; }
 }

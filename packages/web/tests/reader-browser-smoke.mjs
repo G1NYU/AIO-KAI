@@ -851,6 +851,36 @@ try {
   await hero.getByRole('heading',{name:'Tsugi Original Fixture',exact:true}).waitFor();
   await hero.locator('.tsugi-spotlight-source-cover img[data-cover-origin="source"]').waitFor();
   assert.equal(await hero.getAttribute('data-artwork-mode'),'featured');
+  // Real featured covers and both artwork actions must occupy distinct layout regions.
+  for (const width of [2560, 1440, 1024, 760, 440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const regions = await hero.evaluate(el => {
+      const rect = node => { const {left, right, top, bottom, width, height} = node.getBoundingClientRect(); return {left, right, top, bottom, width, height}; };
+      return { hero: rect(el), regions: ['.tsugi-spotlight-source-cover', '.tsugi-spotlight-copy', '.tsugi-landscape-credit', '.tsugi-spotlight-featured-next'].map(selector => ({selector, ...rect(el.querySelector(selector))})) };
+    });
+    const [cover] = regions.regions;
+    assert.ok(cover.width >= (width >= 1440 ? 190 : 100), `featured cover is visible at ${width}px`);
+    assert.ok(Math.abs(cover.width / cover.height - 2 / 3) < .02, `portrait ratio at ${width}px`);
+    for (const region of regions.regions) {
+      assert.ok(region.left >= regions.hero.left - 1 && region.right <= regions.hero.right + 1 && region.top >= regions.hero.top - 1 && region.bottom <= regions.hero.bottom + 1, `${region.selector} stays in hero at ${width}px`);
+    }
+    for (let i = 0; i < regions.regions.length; i++) {
+      for (const b of regions.regions.slice(i + 1)) {
+        const a = regions.regions[i];
+        assert.ok(Math.min(a.right, b.right) - Math.max(a.left, b.left) <= 1 || Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) <= 1, `${a.selector} does not overlap ${b.selector} at ${width}px`);
+      }
+    }
+    const filters = await hero.evaluate(el => ({
+      decoration: [...el.querySelectorAll('.tsugi-spotlight-backdrop > :is(img,svg)')].map(node => getComputedStyle(node).filter),
+      foreground: ['.tsugi-spotlight-source-cover img', '.tsugi-spotlight-copy', '.tsugi-landscape-credit', '.tsugi-spotlight-featured-next'].map(selector => getComputedStyle(el.querySelector(selector)).filter),
+      coverFit: getComputedStyle(el.querySelector('.tsugi-spotlight-source-cover img')).objectFit,
+    }));
+    assert.ok(filters.decoration.length > 0 && filters.decoration.every(filter => /^blur\([\d.]+px\) brightness\(0\.75\)$/.test(filter) && parseFloat(filter.slice(5)) >= 32), `decorative background blurred at ${width}px`);
+    assert.ok(filters.foreground.every(filter => filter === 'none'), `foreground remains sharp at ${width}px`);
+    assert.equal(filters.coverFit, 'contain');
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await capture('03b-reading-featured-library');
   await hero.getByRole('button',{name:'Next featured title',exact:true}).click();
   await hero.getByRole('heading',{name:'ZZ Missing Fixture',exact:true}).waitFor();
   assert.equal(await hero.locator('.tsugi-spotlight-source-cover img').count(),0,'missing featured cover never invents a title cover');

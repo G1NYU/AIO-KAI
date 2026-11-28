@@ -592,6 +592,79 @@
   .yomi-workspace .tsugi-manga-card:hover:not(:disabled) .tsugi-manga-cover { transform:none; }
 }
 
+
+/* Featured Library art gets a real layout column and a separate controls row. */
+:root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,min(38%,340px));
+  grid-template-areas:'copy cover' 'next credit';
+  gap:14px clamp(16px,3vw,48px);
+  padding:26px 34px 18px;
+  align-items:center;
+}
+:root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] > .tsugi-spotlight-copy {
+  grid-area:copy;
+  max-width:min(760px,100%);
+  padding:0;
+  overflow-wrap:anywhere;
+}
+:root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] > .tsugi-spotlight-copy h2 { max-width:100%; }
+:root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] > .tsugi-spotlight-source-cover {
+  grid-area:cover;
+  position:relative;
+  inset:auto;
+  display:block;
+  justify-self:end;
+  width:min(100%,clamp(160px,15vw,220px));
+  height:auto;
+  aspect-ratio:2/3;
+}
+:root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] > .tsugi-spotlight-source-cover:not(:has(img)) { visibility:hidden; }
+:root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] > .tsugi-spotlight-source-cover .tsugi-manga-cover {
+  height:100%;
+  background:transparent;
+  border-radius:inherit;
+}
+:root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] > .tsugi-spotlight-source-cover img {
+  object-fit:contain;
+  object-position:center;
+}
+:root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] > :is(.tsugi-spotlight-featured-next,.tsugi-landscape-credit) {
+  position:relative;
+  inset:auto;
+  max-width:100%;
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+:root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] > .tsugi-spotlight-featured-next {
+  grid-area:next;
+  justify-self:start;
+}
+:root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] > .tsugi-landscape-credit {
+  grid-area:credit;
+  justify-self:end;
+}
+@media(max-width:760px) {
+  :root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] { padding:22px 20px 18px; }
+  :root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] > .tsugi-spotlight-source-cover { width:min(100%,160px); }
+}
+@media(max-width:560px) {
+  :root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] {
+    grid-template-columns:minmax(0,1fr);
+    grid-template-areas:'copy' 'cover' 'next' 'credit';
+  }
+  :root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] > .tsugi-spotlight-source-cover { justify-self:center; }
+  :root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] > .tsugi-landscape-credit { justify-self:start; }
+}
+
+/* Only the featured Reader hero's decorative layer becomes atmospheric. */
+:root[data-host='desktop'] .yomi-workspace .tsugi-landscape-spotlight[data-design-area='read'][data-artwork-mode='featured'] > .tsugi-spotlight-backdrop > :is(img,svg) {
+  inset:-112px;
+  width:calc(100% + 224px);
+  height:calc(100% + 224px);
+  filter:blur(clamp(32px,3vw,56px)) brightness(.75);
+}
+
 /* Subtle state indicator, not a decorative section separator. */
 .yomi-workspace .tsugi-reading-unread-dot {
   display: inline-block;
