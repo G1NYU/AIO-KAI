@@ -225,7 +225,7 @@ export type TmdbCastMember={id:number;name:string;character?:string;portrait?:st
 const tmdbCrewRoles=['director','writer','producer','cinematography','music','editor','creator'] as const;
 export type TmdbCrewRole=typeof tmdbCrewRoles[number];
 export type TmdbCrewCredit={role:TmdbCrewRole;names:string[]};
-export type TmdbTitle=MetadataItem&{tmdbId:number;genres?:string[];cast?:string[];castMembers?:TmdbCastMember[];crewCredits?:TmdbCrewCredit[];tagline?:string;runtime?:number};
+export type TmdbTitle=MetadataItem&{tmdbId:number;genres?:string[];cast?:string[];castMembers?:TmdbCastMember[];crewCredits?:TmdbCrewCredit[];related?:MetadataItem[];tagline?:string;runtime?:number};
 function castMembers(value:unknown):TmdbCastMember[]|undefined{
   if(!Array.isArray(value))return undefined;
   const seen=new Set<number>();
@@ -247,10 +247,24 @@ function crewCredits(value:unknown):TmdbCrewCredit[]|undefined{
     seen.add(role);return [{role,names}];
   });
 }
+function relatedTmdbItems(value:unknown,current:MetadataItem):MetadataItem[]{
+  if(!Array.isArray(value))return [];
+  const seen=new Set([current.id]);
+  const result:MetadataItem[]=[];
+  for(const entry of value.slice(0,60)){
+    try{
+      const item=parseTmdbItem(entry);
+      if(item.mediaType!==current.mediaType||!item.poster||seen.has(item.id))continue;
+      seen.add(item.id);result.push(item);
+      if(result.length===18)break;
+    }catch{/* Optional invalid recommendation must not invalidate the selected title. */}
+  }
+  return result;
+}
 export async function loadTmdbTitle(profileId:number,mediaType:string,itemId:string):Promise<TmdbTitle>{
   const row=obj((await scoped(profileId,{kind:'tmdb-title',mediaType,itemId})).item),item=parseTmdbItem(row),tmdbId=integer(row.tmdbId,1,9999999999);
   if(Number(item.id.split(':').at(-1))!==tmdbId)return fail();
-  return {...item,tmdbId,genres:optionalDisplayList(row.genres,16,80),cast:optionalDisplayList(row.cast,12,128),castMembers:castMembers(row.castMembers),crewCredits:crewCredits(row.crewCredits),tagline:optionalDisplay(row.tagline,256),runtime:row.runtime==null?undefined:integer(row.runtime,1,1440)};
+  return {...item,tmdbId,genres:optionalDisplayList(row.genres,16,80),cast:optionalDisplayList(row.cast,12,128),castMembers:castMembers(row.castMembers),crewCredits:crewCredits(row.crewCredits),related:relatedTmdbItems(row.related,item),tagline:optionalDisplay(row.tagline,256),runtime:row.runtime==null?undefined:integer(row.runtime,1,1440)};
 }
 export type TmdbEpisode={episode:number;name?:string;description?:string;thumbnail?:string;runtime?:number;tmdbRating?:number};
 export async function loadTmdbSeason(profileId:number,tmdbId:number,season:number):Promise<TmdbEpisode[]>{

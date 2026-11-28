@@ -226,6 +226,11 @@ export function installStremioFixture(initializeStartup=true){
         if(f.boardFixture&&source?.sourceId===103&&a.itemId==='tmdb:90007')return reply({sourceId:103,metadata:{id:a.itemId,mediaType:'movie',name:'Fixture alias movie',description:null,videos:[{id:a.itemId,name:'Fixture alias movie',season:null,episode:null}],identities:['tt90007','tmdb:90007']}});
         if(a.sourceId===0&&f.boardFixture&&a.itemId==='tt90003')return reply({sourceId:0,metadata:{id:a.itemId,mediaType:'movie',name:'Public movie fixture',description:'Public metadata without a catalogue addon.',videos:[]}});
         if(a.sourceId===0&&f.boardFixture&&a.itemId==='kitsu:90004'&&a.mediaType==='series')return reply({sourceId:0,metadata:{id:a.itemId,mediaType:'series',name:'Public anime discovery fixture',description:'Public mapped anime metadata.',videos:[{id:'kitsu:90004:1',name:'Episode one',season:1,episode:1},{id:'kitsu:90004:2',name:'Episode two',season:1,episode:2}]}});
+        if(f.boardFixture&&a.itemId==='tmdb:tv:90025')return emit(null,'unsupported-resource');
+        if(f.boardFixture&&a.itemId==='tt90025'){
+          if(a.sourceId!==0)return emit(null,'unsupported-resource');
+          return reply({sourceId:0,metadata:{id:a.itemId,mediaType:'series',name:'Related fixture series',description:'A separate related title.',videos:[{id:'tt90025:1:1',name:'Related first episode',season:1,episode:1}]}});
+        }
         if(!f.boardFixture||!source||source.sourceId!==103)return emit(null,'unsupported-resource');
         if(f.failMetadata)return emit(null,'request');
         const videos=!f.emptyMetadata&&a.mediaType==='series'?[{id:'tt90002:1:1',name:'Episode one',season:1,episode:1,thumbnail:'https://image.tmdb.org/t/p/w300/episode.jpg',description:'Episode overview from the provider.'},{id:'tt90002:1:2',name:'Episode two',season:1,episode:2},{id:'tt90002:0:1',name:'Special',season:0,episode:1},{id:'tt90002:2:1',name:'Second season',season:2,episode:1},{id:'tt90002:extra',name:'Unnumbered episode',season:null,episode:null}]:[];
@@ -238,7 +243,8 @@ export function installStremioFixture(initializeStartup=true){
         {id:'tmdb:tv:90024',mediaType:'series',name:'Unrelated series',poster:'https://image.tmdb.org/t/p/w500/unrelated.jpg'}
       ]:[]});
       case 'tmdb-title':
-        if(f.boardFixture&&a.itemId==='tt90002')return reply({item:{id:'tmdb:tv:90002',tmdbId:90002,mediaType:'series',name:'Fixture anime series',imdbId:'tt90002',genres:['Drama','Animation'],tagline:'A fixture tagline',castMembers:[{id:1,name:'Fixture Actor',character:'Lead role',portrait:'https://image.tmdb.org/t/p/w185/person.jpg'},{id:2,name:'Another actor'}],crewCredits:[{role:'director',names:['Fixture Director']},{role:'writer',names:['Fixture Writer']}],poster:'https://image.tmdb.org/t/p/w500/anime.jpg',background:'https://image.tmdb.org/t/p/w1280/anime.jpg',description:'A synthetic series used for layout verification.',releaseInfo:'2024',tmdbRating:8.4}});
+        if(f.boardFixture&&a.itemId==='tt90002')return reply({item:{id:'tmdb:tv:90002',tmdbId:90002,mediaType:'series',name:'Fixture anime series',imdbId:'tt90002',genres:['Drama','Animation'],tagline:'A fixture tagline',castMembers:[{id:1,name:'Fixture Actor',character:'Lead role',portrait:'https://image.tmdb.org/t/p/w185/person.jpg'},{id:2,name:'Another actor'}],crewCredits:[{role:'director',names:['Fixture Director']},{role:'writer',names:['Fixture Writer']}],related:[{id:'tmdb:tv:90002',mediaType:'series',name:'Current title',poster:'https://image.tmdb.org/t/p/w500/anime.jpg'},{id:'tmdb:tv:90025',mediaType:'series',name:'Related fixture series',poster:'https://image.tmdb.org/t/p/w500/related.jpg',tmdbRating:7.7,releaseInfo:'2023'},{id:'tmdb:tv:90025',mediaType:'series',name:'Duplicate fixture',poster:'https://image.tmdb.org/t/p/w500/related.jpg'},{id:'invalid',mediaType:'series',name:'Malformed fixture'},{id:'tmdb:movie:90026',mediaType:'movie',name:'Wrong-kind fixture',poster:'https://image.tmdb.org/t/p/w500/wrong.jpg'}],poster:'https://image.tmdb.org/t/p/w500/anime.jpg',background:'https://image.tmdb.org/t/p/w1280/anime.jpg',description:'A synthetic series used for layout verification.',releaseInfo:'2024',tmdbRating:8.4}});
+        if(f.boardFixture&&['tmdb:tv:90025','tt90025'].includes(a.itemId))return reply({item:{id:'tmdb:tv:90025',tmdbId:90025,mediaType:'series',name:'Related fixture series',imdbId:'tt90025',identities:['tmdb:tv:90025','tt90025'],poster:'https://image.tmdb.org/t/p/w500/related.jpg',description:'A separate related title.',tmdbRating:7.7}});
         return emit(null,'tmdb-not-found');
       case 'tmdb-season':return reply({tmdbId:a.tmdbId,season:a.season,episodes:a.tmdbId===90002&&a.season===1?[{episode:1,thumbnail:'https://image.tmdb.org/t/p/w500/episode-one.jpg',runtime:24,tmdbRating:8.5},{episode:2,thumbnail:'https://image.tmdb.org/t/p/w500/episode-two.jpg',description:'A synopsis supplied by TMDB.',runtime:25,tmdbRating:8.2}]:[]});
       case 'begin-stream-options':
@@ -696,6 +702,26 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     await player.hover();
     await player.getByRole('button',{name:'Back',exact:true}).click();
     await player.waitFor({state:'detached'});
+    const related=item.locator('[data-ui="watch-related-titles"]');
+    await related.waitFor();
+    assert.equal(await related.locator('[data-ui="poster-card"]').count(),1,'related shelf excludes self, duplicate and malformed/wrong-kind entries');
+    const relatedCard=related.getByRole('button',{name:'Related fixture series',exact:true});
+    await relatedCard.scrollIntoViewIfNeeded();
+    await assertArtwork(relatedCard);
+    await relatedCard.getByText('TMDB 7.7',{exact:true}).waitFor();
+    const episodeBounds=await item.locator('[data-ui="watch-episode-grid"]').boundingBox();
+    const castBounds=await item.locator('[data-ui="watch-cast-card"]').first().boundingBox();
+    assert.ok(episodeBounds&&castBounds&&episodeBounds.y+episodeBounds.height<=castBounds.y+2,'series episodes precede optional cast and recommendation shelves');
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-related-titles.png'),animations:'disabled'});
+    const streamCallsBeforeRelated=await page.evaluate(()=>window.__stremioFixture.calls.filter(a=>a.kind==='profile-request'&&['begin-stream-options','all-stream-options'].includes(a.action.kind)).length);
+    await relatedCard.click();
+    await item.getByRole('heading',{name:'Related fixture series',exact:true}).waitFor();
+    await item.locator('[data-video-id="tt90025:1:1"]').waitFor();
+    assert.equal(await related.count(),0,'stale recommendations do not survive title changes');
+    assert.equal(await page.evaluate(()=>window.__stremioFixture.calls.filter(a=>a.kind==='profile-request'&&['begin-stream-options','all-stream-options'].includes(a.action.kind)).length),streamCallsBeforeRelated,'opening a related title does not request streams before playback selection');
+    await item.getByRole('button',{name:'Close title',exact:true}).click();
+    await anime.waitFor({state:'visible'});
+    console.log('PASS: related TMDB titles use real artwork, explicit IMDb aliases, exact episodes and the normal browsing return path.');
     console.log('PASS: imported standalone Watch profile loads ordered shelves, isolates failures, resolves metadata and streams across addons, and plays an exact anime episode without MAL or a media server.');
     await watch.getByRole('button',{name:'Switch profile',exact:true}).click();
     await watch.locator('[data-ui="watch-profile-picker"]').getByRole('button',{name:'Stream only 1 addons',exact:true}).click();

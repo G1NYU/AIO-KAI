@@ -67,6 +67,24 @@ fn summary(row:&Value,kind:&str)->Option<Value>{
         "poster":image(&row["poster_path"],"w500"),"background":image(&row["backdrop_path"],"w1280"),"description":clean(&row["overview"],4096),
         "releaseInfo":date,"tmdbRating":rating(&row["vote_average"]),"identities":[tmdb_id(kind,id)]}))
 }
+/// Keep recommendation order, omit self/duplicate/adult entries and entries
+/// without a valid portrait. Fall back to TMDB similar titles only if needed.
+fn related_titles(row:&Value,kind:&str,id:u64)->Vec<Value>{
+    for field in ["recommendations","similar"]{
+        let mut seen=std::collections::HashSet::from([id]);
+        let items:Vec<_>=row[field]["results"].as_array().into_iter().flatten().take(60).filter_map(|entry|{
+            let candidate=number(&entry["id"])?;
+            if seen.contains(&candidate){return None;}
+            if entry["media_type"].as_str().is_some_and(|media|media!=kind){return None;}
+            let item=summary(entry,kind)?;
+            if !item["poster"].is_string(){return None;}
+            seen.insert(candidate);
+            Some(item)
+        }).take(18).collect();
+        if !items.is_empty(){return items;}
+    }
+    Vec::new()
+}
 fn enrich_credits(item:&mut Value,row:&Value){
     let mut seen=std::collections::HashSet::new();
     let cast:Vec<Value>=row["credits"]["cast"].as_array().into_iter().flatten().filter_map(|person|{
@@ -117,7 +135,7 @@ impl Connection{
     }
     pub(super) fn title(&self,media_type:&str,item_id:&str)->Result<Value>{
         let kind=kind(media_type)?;let id=self.resolve(kind,item_id)?;
-        let row=self.request(&format!("{kind}/{id}"),&[("append_to_response","external_ids,images,credits".into()),("include_image_language","en,null".into())])?;
+        let row=self.request(&format!("{kind}/{id}"),&[("append_to_response","external_ids,images,credits,recommendations,similar".into()),("include_image_language","en,null".into())])?;
         if number(&row["id"])!=Some(id){return Err("tmdb-response");}
         let mut item=summary(&row,kind).ok_or("tmdb-response")?;
         let imdb=row["external_ids"]["imdb_id"].as_str().filter(|s|s.strip_prefix("tt").is_some_and(|n|!n.is_empty()&&n.len()<=12&&n.bytes().all(|b|b.is_ascii_digit())));
@@ -127,6 +145,7 @@ impl Connection{
         item["genres"]=json!(row["genres"].as_array().into_iter().flatten().filter_map(|r|clean(&r["name"],80)).take(16).collect::<Vec<_>>());
         item["cast"]=json!(row["credits"]["cast"].as_array().into_iter().flatten().filter_map(|r|clean(&r["name"],128)).take(12).collect::<Vec<_>>());
         enrich_credits(&mut item,&row);
+        item["related"]=json!(related_titles(&row,kind,id));
         item["runtime"]=json!(row["runtime"].as_u64().or_else(||row["episode_run_time"].as_array().and_then(|a|a.first()).and_then(Value::as_u64)).filter(|n|*n>0&&*n<=1440));
         Ok(json!({"item":item}))
     }
@@ -162,6 +181,26 @@ mod tests{
         assert!(item["castMembers"][1]["portrait"].is_null());
         assert_eq!(item["crewCredits"][1]["names"],json!(["Writer"]));
         assert_eq!(item["tagline"],"A verified tagline");
+    }
+    #[test]
+    fn related_titles_use_exact_kind_and_order_with_safe_artwork(){
+        let row=json!({"recommendations":{"results":[
+            {"id":1,"title":"Self","poster_path":"/self.jpg"},
+            {"id":2,"title":"First","poster_path":"/first.jpg","vote_average":7.4},
+            {"id":2,"title":"Duplicate","poster_path":"/dup.jpg"},
+            {"id":3,"title":"Adult","adult":true,"poster_path":"/adult.jpg"},
+            {"id":4,"title":"Invalid art","poster_path":"https://private.example/path"},
+            {"id":5,"title":"Wrong kind","media_type":"tv","poster_path":"/wrong.jpg"},
+            {"id":6,"title":"Second","poster_path":"/second.jpg"}
+        ]},"similar":{"results":[{"id":7,"title":"Fallback","poster_path":"/fallback.jpg"}]}});
+        let related=related_titles(&row,"movie",1);
+        assert_eq!(related.iter().map(|r|r["id"].as_str().unwrap()).collect::<Vec<_>>(),vec!["tmdb:movie:2","tmdb:movie:6"]);
+        assert_eq!(related[0]["tmdbRating"],json!(7.4));
+        let fallback=related_titles(&json!({"recommendations":{"results":[{"id":1,"name":"Self"}]},"similar":{"results":[{"id":8,"name":"Similar series","poster_path":"/series.jpg"}]}}),"tv",1);
+        assert_eq!(fallback[0]["id"],"tmdb:tv:8");
+        let many=(2..=40).map(|id|json!({"id":id,"title":"Film","poster_path":"/film.jpg"})).collect::<Vec<_>>();
+        assert_eq!(related_titles(&json!({"recommendations":{"results":many}}),"movie",1).len(),18);
+        assert!(related_titles(&json!({}),"movie",1).is_empty());
     }
     const FIXTURE:&str="00000000000000000000000000000000";
     #[test]
