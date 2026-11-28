@@ -509,7 +509,7 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const discovery=board.locator('[data-ui="series-discovery"]');
     const feeds=discovery.locator('[data-ui="series-discovery-feed"]');
     for(const feed of ['streaming-today','streaming-tomorrow','broadcast-us','broadcast-gb']){
-      const row=feeds.locator('[data-feed="'+feed+'"]');
+      const row=discovery.locator('[data-ui="series-discovery-feed"][data-feed="'+feed+'"]');
       await row.getByRole('button',{name:'Family Guy',exact:true}).waitFor();
       assert.equal(await row.getByRole('button',{name:'Family Guy',exact:true}).count(),1);
     }

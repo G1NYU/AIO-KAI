@@ -1,3 +1,7 @@
+## 2026-11-28 — Final candidate CI follow-up
+
+Run 46138102157 passed native compile and 256 native tests (18 ignored), web typecheck/lint/build, and the existing web unit-test list. Browser regression stopped at a descendant locator for a shelf that itself owns data-feed; correct the locator without changing the production implementation. The independent disposable WebView2 cache probe reported a local seed-phase fetch failure; the probe and native source are unchanged. Do not waive it. Rerun the complete validation on this revision. Register the new TVmaze unit suite in the explicit CI list. Prepare v0.1.1 release metadata without changing the existing package/publish guards or publishing a tag. Do not publish without green checks, visual review and confirmation of public redistribution rights for supplied wallpapers. The latest image mentioned in chat was not separately available; the explicit Home-only artwork blur and earlier hero annotations govern.
+
 ## 2026-11-28 — Final release corrections (candidate)
 
 - Maintainer live-approved the previous Windows portable recovery build except duplicate Discover, optional Discord Rich Presence and newly reported hero/card polish. Discover now uses TVmaze public web/broadcast schedules and show search, not TVDB. Explicit IMDb mapping only; preserve existing addon metadata/episode/stream routes, omit unmapped shows. TVmaze attribution included. No API key.

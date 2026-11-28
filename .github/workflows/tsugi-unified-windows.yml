@@ -46,7 +46,7 @@ jobs:
       - name: Verify pinned ebook engine preparation
         run: pnpm -F @aiostreams/web prepare:ebooks
       - name: Desktop navigation and music regression tests
-        run: pnpm exec vitest run packages/web/tests/reader-utils.test.ts packages/web/tests/desktop-area.test.ts packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts packages/web/tests/player-template.test.ts packages/web/tests/player-layout.test.ts packages/web/tests/music-feature-pack.test.ts packages/web/tests/music-lyrics.test.ts packages/web/tests/music-history.test.ts packages/web/tests/eclipse-appearance.test.ts packages/web/tests/music-library.test.ts packages/web/tests/audio-profiles.test.ts packages/web/tests/music-reactivity.test.ts packages/web/tests/up-next.test.ts packages/web/tests/vault-audio.test.ts packages/web/tests/preferences-backup.test.ts packages/web/tests/music-backup.test.ts packages/web/tests/book-backup.test.ts packages/web/tests/manga-backup.test.ts packages/web/tests/portable-archive.test.ts packages/web/tests/manga-categories.test.ts packages/web/tests/managed-archive.test.ts packages/web/tests/backup-schedule.test.ts packages/web/tests/tsugi-release.test.ts packages/web/tests/restore-session.test.ts packages/web/tests/mihon-backup.test.ts packages/web/tests/download-cleanup.test.ts packages/web/tests/reader-cache-cleanup.test.ts packages/web/tests/source-feed-preferences.test.ts packages/web/tests/source-feed.test.ts packages/web/tests/source-metadata.test.ts packages/web/tests/reader-settings-search.test.ts packages/web/tests/title-reader-preferences.test.ts packages/web/tests/support-summary.test.ts packages/web/tests/reader-downloads.test.ts packages/web/tests/local-comic-import.test.ts packages/web/tests/presence.test.ts packages/web/tests/mihon-writer.test.ts packages/web/tests/youtube-session.test.ts packages/web/tests/landscape-artwork.test.ts packages/web/tests/vault-transfer.test.ts packages/web/tests/watch-search.test.ts packages/web/tests/watch-identities.test.ts packages/web/tests/watch-stream-tags.test.ts
+        run: pnpm exec vitest run packages/web/tests/reader-utils.test.ts packages/web/tests/desktop-area.test.ts packages/web/tests/eclipse.test.ts packages/web/tests/music-connections.test.ts packages/web/tests/player-template.test.ts packages/web/tests/player-layout.test.ts packages/web/tests/music-feature-pack.test.ts packages/web/tests/music-lyrics.test.ts packages/web/tests/music-history.test.ts packages/web/tests/eclipse-appearance.test.ts packages/web/tests/music-library.test.ts packages/web/tests/audio-profiles.test.ts packages/web/tests/music-reactivity.test.ts packages/web/tests/up-next.test.ts packages/web/tests/vault-audio.test.ts packages/web/tests/preferences-backup.test.ts packages/web/tests/music-backup.test.ts packages/web/tests/book-backup.test.ts packages/web/tests/manga-backup.test.ts packages/web/tests/portable-archive.test.ts packages/web/tests/manga-categories.test.ts packages/web/tests/managed-archive.test.ts packages/web/tests/backup-schedule.test.ts packages/web/tests/tsugi-release.test.ts packages/web/tests/restore-session.test.ts packages/web/tests/mihon-backup.test.ts packages/web/tests/download-cleanup.test.ts packages/web/tests/reader-cache-cleanup.test.ts packages/web/tests/source-feed-preferences.test.ts packages/web/tests/source-feed.test.ts packages/web/tests/source-metadata.test.ts packages/web/tests/reader-settings-search.test.ts packages/web/tests/title-reader-preferences.test.ts packages/web/tests/support-summary.test.ts packages/web/tests/reader-downloads.test.ts packages/web/tests/local-comic-import.test.ts packages/web/tests/presence.test.ts packages/web/tests/mihon-writer.test.ts packages/web/tests/youtube-session.test.ts packages/web/tests/landscape-artwork.test.ts packages/web/tests/vault-transfer.test.ts packages/web/tests/watch-search.test.ts packages/web/tests/watch-identities.test.ts packages/web/tests/watch-stream-tags.test.ts packages/web/tests/tvmaze.test.ts
       # Verify production compilation on normal feature-branch pushes too.
       # Artifact uploads, native packaging and publication retain their separate gates.
       - name: Build standalone web
@@ -503,7 +503,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag=v0.1.0
+          tag=v0.1.1
           cd release
           mv Tsugi-windows-x64-test.zip Tsugi-windows-x64.zip
           python - <<'PY'
@@ -522,22 +522,25 @@ jobs:
             exit 1
           fi
           cat > notes.md <<EOF
-          First official Windows x64 release of Tsugi. Includes the Vault overflow and reader setup improvements from Preview 2, contiguous album track tables, and Dot Wave as the default visualizer for new settings. Existing explicit visualizer preferences are preserved.
+          Updated Windows x64 release of Tsugi, including the recovery build improvements and final Watch and launcher polish.
 
-          - Movies & TV through the AIOStreams / Stremio addon and Jellyfin-compatible ecosystem.
-          - Music, local library, saved albums and collections, native YouTube Music, Eclipse sources and fullscreen visualizers.
-          - Mihon-compatible reading repositories, local EPUB/PDF and the Vault download workspace.
+          - TVmaze-powered Series Hub with separate broadcast and streaming schedules and public series search.
+          - Cinematic movie, series and anime title details, integrated episode and stream selection, and full-bleed artwork with a bottom blur.
+          - Stremio and Nuvio account addon import, improved manifest compatibility, and imported Stremio Continue Watching positions.
+          - Updated launcher artwork, softly blurred category cards, and the in-app GitHub Releases discovery control.
+          - Music, local library, Mihon-compatible reading repositories, EPUB/PDF and Vault downloads remain available.
+          - Discord Rich Presence is optional and has not been verified with a live client in this revision.
 
           Download **Tsugi-windows-x64.zip**, extract the entire archive and run \`current/Tsugi.exe\`. Keep the companion files and \`.portable\` marker. This is a portable release, not an installer; Windows may warn about the unsigned executable. The reading runtime is fetched and verified on first setup. Back up existing portable data before replacing files.
 
-          Automated validation and package checks passed. Live provider compatibility, hardware-specific performance and physical-machine acceptance remain subject to testing. Native YouTube Music cold-start latency is unchanged.
+          Automated validation and package checks passed. Live acceptance of the prior recovery package was reported by the maintainer. Live TVmaze availability, Discord Rich Presence, provider compatibility and hardware-specific performance remain subject to testing.
 
           Corresponding Tsugi source: https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_SHA}
           Third-party notices and source references: https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/packages/desktop/THIRD-PARTY.md
           Validation: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           License: AGPL-3.0; bundled components retain their respective licenses. See included notices and source archives.
           EOF
-          gh release create "$tag" Tsugi-windows-x64.zip SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Tsugi v0.1.0 — Windows" --notes-file notes.md --draft
+          gh release create "$tag" Tsugi-windows-x64.zip SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Tsugi v0.1.1 — Windows" --notes-file notes.md --draft
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort > actual-assets.txt
           printf '%s\n' SHA256SUMS.txt Tsugi-windows-x64.zip | sort > expected-assets.txt
           diff -u expected-assets.txt actual-assets.txt
