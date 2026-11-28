@@ -97,6 +97,7 @@ function DirectPlayer({playback,viewingId,close,switchPlayback,onHistoryError}:{
   async function openNative(active:()=>boolean){
     // Source switching prepares after the previous engine's stop invalidates
     // its grant. No URL or arbitrary headers cross into the renderer.
+    if(!active())return;
     const grant=playback.selection
       ? await prepareAddonMedia(playback.profileId,playback.selection.reviewId,playback.selection.optionIndex,false,playback.startMs)
       : playback.grantId;

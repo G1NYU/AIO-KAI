@@ -34,6 +34,7 @@ import {
 import { audioCodes } from '@/lib/playback/track-picks';
 import { currentHost } from '..';
 import { appBridge, type AppTrack, type ShellMessage } from './bridge';
+import { AddonError } from './stremio';
 import { exoStats } from './exo-stats';
 import { passthroughFormats } from './sound';
 
@@ -314,9 +315,19 @@ export const appEngine: EngineFactory = (emit, { launched }) => {
           send('player-frame', { frame: null });
           send('player-set', { paused: !!next.paused, subtitleDelayMs: next.subtitleDelayMs, ...next.volume });
           report({ fullscreen: !!currentHost().fullscreen?.active() });
-          void next.openNative!(() => generation === nativeGeneration && loadedBy === self).catch(() => {
-            if (generation === nativeGeneration && loadedBy === self)
-              emit({ type: 'failed', error: t`The selected addon stream could not be opened. Choose another version.` });
+          void next.openNative!(() => generation === nativeGeneration && loadedBy === self).catch((reason:unknown) => {
+            if (generation !== nativeGeneration || loadedBy !== self) return;
+            // Only fixed categories from the native bridge; never expose
+            // provider URLs, request parameters, headers or raw errors.
+            const code=reason instanceof AddonError?reason.code:'request';
+            const error=code==='expired-review'?t`The stream selection expired before playback. Open Versions to refresh the results.`:
+              code==='disabled-source'||code==='profile-changed'?t`The addon or profile changed before playback. Open Versions to select a current stream.`:
+              code==='invalid-media-selection'?t`This stream is no longer available. Refresh Versions and select it again.`:
+              code==='network'?t`The native player did not respond to the selected stream. Try another version.`:
+              code==='unsupported'?t`The native playback engine is unavailable.`:
+              code==='invalid-response'?t`The native player returned an invalid playback response. Open Versions to try again.`:
+              t`The native player rejected the selected stream. Try another version.`;
+            emit({type:'failed',error});
           });
         }, 0);
         return;

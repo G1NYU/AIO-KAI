@@ -1,5 +1,14 @@
 # TSUGI Watch recovery — mandatory P0–P5
 
+## 2026-11-28 — Live portable acceptance: reopen Watch and launcher gates
+
+The maintainer's Windows screenshots from the delivered portable build are authoritative live acceptance evidence. Most selected streams failed before playback; six imported addons were rejected, the global Anime filter returned no results, and several layout corrections remain. Do not treat the preceding synthetic playback checks as live acceptance.
+
+- Manifest parser: allow nullable optional arrays, empty global types with per-resource types, and normalize legacy required extras without silently dropping filters. Keep endpoint, type/prefix, array bounds, and permission checks. Compare Stremio core `9d3dee7f58f5a8931039d220a27c4590769231c8` manifest types and NuvioDesktop `1ece6d7ae5dbda29d0ab05952375692a56d81078` parser. Exact rejected manifests have not been reproduced; retest the maintainer's account.
+- Playback: defer the initial grant until the player opens, preserve outstanding grants across passive reads, and do not consume a valid grant on a mismatched ID. Keep expiry, single use, profile/source mutation and stop invalidation. Surface fixed native error categories without leaking private URLs or credentials. Added native race regression; real provider playback still requires Windows acceptance.
+- Global Anime filter uses the existing public anime search; remove redundant catalogue source/type subtitles. Welcome cards use centered copy and distinct minimalist artwork; remove the oversized welcome slogan. Home hero extends to the content edges with a canvas fade; preserve the native control strip. General settings no longer mounts the addon stack; the explicit Watch addon manager has sticky dismissal chrome. Updated browser regressions for these changes.
+- Open: exact supplied purple wallpaper binary integration (not substituted), Stremio Continue Watching history import with native read-only authentication and no token persistence, actual CI/visual review and live playback/import verification. No new package or stable release marker. README postponed until acceptance.
+
 ## 2026-11-28 — Portable Windows x64 candidate delivered
 
 - [Successful build 46124104739](https://github.com/G1NYU/TSUGI/actions/runs/46124104739), exact package source `1f1ea19b3c2df69b178ea13da819f7fe1b37b514`, [artifact 15254829458](https://github.com/G1NYU/TSUGI/actions/runs/46124104739/artifacts/15254829458). All active jobs passed; stable publish skipped intentionally. Runtime source identical to validated `88a099379940785c4e4b6a4f6d85ed4778dad991`.

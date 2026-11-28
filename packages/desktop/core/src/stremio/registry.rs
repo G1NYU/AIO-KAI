@@ -594,8 +594,13 @@ impl Worker {
             other=>other,
         };
         let Ok(mut slot)=self.1.lock() else{return false;};
-        // A late poll or exact-query cancellation must not revoke a playback grant.
-        if matches!(&action,Action::ProfileRequest{action,..} if matches!(action.as_ref(),Action::PollStreamOptions{..}|Action::CancelStreamOptions{..})){
+        // Passive UI reads and late polls must not revoke a pending native
+        // handoff. Mutations, new media reviews and profile changes still do.
+        if matches!(&action,Action::ProfileList) ||
+            matches!(&action,Action::ProfileRequest{action,..} if matches!(action.as_ref(),
+                Action::List|Action::WatchHistory|Action::WatchCollections|Action::WatchSetupStatus|
+                Action::MalAnimeList|Action::RefractStatus|Action::MdblistStatus|
+                Action::PollStreamOptions{..}|Action::CancelStreamOptions{..})){
             return self.0.try_send((request,action,slot.generation)).is_ok();
         }
         // A newer stateful request immediately invalidates a pending handoff, even
@@ -607,7 +612,10 @@ impl Worker {
     }
     pub fn take_grant(&self,id:u32)->Option<MediaGrant>{
         let mut slot=self.1.lock().ok()?;
-        slot.grant.take().filter(|grant|grant.id==id&&grant.created.elapsed()<Duration::from_secs(15))
+        if slot.grant.as_ref().is_some_and(|grant|grant.created.elapsed()>=Duration::from_secs(15)){
+            slot.grant=None;
+        }
+        if slot.grant.as_ref().is_some_and(|grant|grant.id==id){slot.grant.take()}else{None}
     }
     pub fn invalidate_grant(&self){
         if let Ok(mut slot)=self.1.lock(){slot.grant=None;slot.generation=slot.generation.saturating_add(1);}
@@ -646,7 +654,15 @@ mod tests {
         assert!(worker.request("browse-only".into(),Action::ProfileRequest{profile_id:1,action:Box::new(Action::BrowseCatalog{source_id:0,media_type:"movie".into(),catalog_id:"top".into(),extras:BTreeMap::new()})}));
         assert_eq!(browse_rx.try_recv().unwrap().0,"browse-only");
         assert_eq!(worker.1.lock().unwrap().generation,0);
+        assert!(worker.request("profile-read".into(),Action::ProfileList));
+        assert!(worker.request("history-read".into(),Action::ProfileRequest{profile_id:1,action:Box::new(Action::WatchHistory)}));
+        assert_eq!(worker.1.lock().unwrap().generation,0);
+        assert!(worker.take_grant(grant.id()+1).is_none());
         assert!(worker.take_grant(grant.id()).is_some());
+        assert!(worker.take_grant(grant.id()).is_none());
+        worker.1.lock().unwrap().grant=Some(grant.clone());
+        // Even when a conflicting mutation cannot enqueue, invalidate the grant.
+        assert!(!worker.request("disable-source".into(),Action::ProfileRequest{profile_id:1,action:Box::new(Action::SetEnabled{source_id:id,enabled:false})}));
         assert!(worker.take_grant(grant.id()).is_none());
         worker.1.lock().unwrap().grant=Some(grant.clone());
         worker.invalidate_grant();

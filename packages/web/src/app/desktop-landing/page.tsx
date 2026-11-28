@@ -14,12 +14,7 @@ type World = 'video' | 'music' | 'read' | 'vault';
 type Preferences = { name: string; favorites: World[]; stillArtwork: boolean };
 const key = 'tsugi-home-personalization-v1';
 const ids: World[] = ['video', 'music', 'read', 'vault'];
-const art: Record<World, { image: string; character: string }> = {
-  video: { image: '/design/shared/hero-neon.webp', character: '映' },
-  music: { image: '/design/launch/music-cassette.png', character: '音' },
-  read: { image: '/design/yomi/hero-torii.webp', character: '読' },
-  vault: { image: '/design/launch/vault-archive.png', character: '蔵' },
-};
+const characters:Record<World,string>={video:'映',music:'音',read:'読',vault:'蔵'};
 function readPreferences(): Preferences {
   const saved = storage.get<Partial<Preferences>>(key);
   const favorites = saved?.favorites;
@@ -93,9 +88,7 @@ export function DesktopLandingPage({ openVideo, openWatch, openMusic, openRead, 
       <section className="tsugi-world-hero" data-ui="tsugi-world-hero">
         <img src={welcome ? '/design/launch/welcome-city.webp' : '/design/shared/hero-train.webp'} alt="" decoding="async"/>
         <div className="tsugi-world-hero-copy">
-          {welcome&&<><span className="tsugi-world-eyebrow"><Trans>Welcome to your next world</Trans></span>
-          <h1><Trans>Your next world starts here.</Trans></h1>
-          <p><Trans>Films to fall into. Pages to turn. Sounds to keep. Everything you love, with a little more room to get lost.</Trans></p></>}
+          {welcome&&<p><Trans>Films to fall into. Pages to turn. Sounds to keep. Everything you love, with a little more room to get lost.</Trans></p>}
           {openVault && <div className="tsugi-world-actions"><button type="button" className="tsugi-world-primary" onClick={personalize}><Trans>Make it yours</Trans><FiArrowRight aria-hidden/></button>{welcome && <button type="button" className="tsugi-world-secondary" onClick={explore}><Trans>Explore first</Trans></button>}</div>}
         </div>
         {welcome&&<span className="tsugi-world-hero-japanese" lang="ja" aria-hidden="true">好きな世界へ。</span>}
@@ -103,9 +96,9 @@ export function DesktopLandingPage({ openVideo, openWatch, openMusic, openRead, 
       <div className="tsugi-world-heading"><div>{welcome&&<span className="tsugi-world-eyebrow"><Trans>One home. Many ways in.</Trans></span>}<h2>{welcome ? <Trans>Where will you get lost?</Trans> : <Trans>Where will you go first?</Trans>}</h2></div><p><Trans>Every world is already open to you.</Trans></p></div>
       <nav className="tsugi-world-grid" aria-label={t({ id: 'Media sections', message: 'Media sections' })}>
         {worlds.map(({ id, label, detail, open }) => <button key={id} type="button" className="tsugi-world-card" data-world={id} aria-label={label} onClick={() => enter(open)}>
-          {welcome?<img src={art[id].image} alt="" decoding="async"/>:<span className="tsugi-world-minimal-art" aria-hidden="true"><TsugiMediaIcon area={id}/></span>}
-          <span className="tsugi-world-card-top"><TsugiMediaIcon area={id}/><span lang="ja" aria-hidden="true">{art[id].character}</span></span>
-          <span className="tsugi-world-card-copy"><span className="tsugi-world-card-title">{label}<FiArrowRight aria-hidden/></span><span className="tsugi-world-detail">{detail}</span></span>
+          <span className="tsugi-world-minimal-art" aria-hidden="true"><TsugiMediaIcon area={id}/></span>
+          <span className="tsugi-world-card-top"><TsugiMediaIcon area={id}/><span lang="ja" aria-hidden="true">{characters[id]}</span></span>
+          <span className="tsugi-world-card-copy"><span className="tsugi-world-card-title">{label}</span><span className="tsugi-world-detail">{detail}</span></span>
         </button>)}
       </nav>
       {!welcome && openVault && <section className="tsugi-world-discovery"><div><span className="tsugi-world-eyebrow"><Trans>Your next discovery</Trans></span><h2><Trans>Bring your library together.</Trans></h2><p><Trans>Collect files, links and downloads in the Vault, or pick up a story where you left off.</Trans></p></div><div className="tsugi-world-actions"><button type="button" className="tsugi-world-primary" onClick={() => enter(openVault)}><Trans>Manage downloads</Trans><FiArrowRight aria-hidden/></button>{desktopArea?.openResume && <button type="button" className="tsugi-world-quiet" onClick={() => setUpNextOpen(true)}><Trans>Continue your journey</Trans></button>}</div></section>}

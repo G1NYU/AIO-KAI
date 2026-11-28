@@ -25,7 +25,7 @@ import { isWatchMovie, titleIdentityRoutes, mergeAliasMetadata, watchVideoRoutes
 import './stremio-workspace.css';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { AddonError, retryAddonImport, cancelAddonImport, type ImportResult, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, beginAddonStreams, pollAddonStreams, cancelAddonStreams, retryAddonStreams, type AddonStreamGroup, type AddonMetadata, type AddonVideo, type AddonOptions, prepareAddonMedia, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry, loadTmdbTitle, loadTmdbSeason, type TmdbTitle, type TmdbEpisode } from '@/lib/hosts/shell/stremio';
+import { AddonError, retryAddonImport, cancelAddonImport, type ImportResult, listAddons, reviewAddon, mutateAddon, cancelAddonReview, loadAddonCatalog, listAddonProfiles, mutateAddonProfile, type ProfileState, type ProfileMutation, type AddonSource, type AddonReview, type CatalogPage, type Mutation, loadAddonMetadata, loadAddonOptions, beginAddonStreams, pollAddonStreams, cancelAddonStreams, retryAddonStreams, type AddonStreamGroup, type AddonMetadata, type AddonVideo, type AddonOptions, listWatchHistory, completeWatch, removeWatchHistory, type WatchPlayback, type WatchProgress, type WatchHistoryEntry, loadTmdbTitle, loadTmdbSeason, type TmdbTitle, type TmdbEpisode } from '@/lib/hosts/shell/stremio';
 
 function feedback(reason: unknown) {
   const code=reason instanceof AddonError?reason.code:'request';
@@ -304,10 +304,12 @@ export function StremioAddonSettings({workspace=false,initialProfileId,onProfile
     const played=metadata?.videos.find(v=>v.id===video);
     const still=played&&String(played.season)===selectedSeason?seasonArt.find(e=>e.episode===played.episode)?.thumbnail:undefined;
     rememberWatchArtwork(profileId,{mediaType:item.mediaType,itemId:item.id,videoId:video},still,played?.thumbnail,cinema?.background,metadata?.background,item.background,metadata?.poster,item.poster,...(item.posterAlternatives??[]));
-    const grantId=await prepareAddonMedia(profileId,picked.reviewId,index,false,startMs);
     if(!mounted.current)return;
     suppressSourceFocus.current=true;setSourceOpen(false);setOptions(null);setStreamGroups(null);
-    onPlay({profileId,grantId,mediaType:item.mediaType,itemId:item.id,videoId:video,title:metadata?.name??item.name,
+    // Like in-player version changes, prepare the grant only once the native
+    // engine has mounted. A previous player-stop or passive UI read must not
+    // destroy an already-issued capability before it can be consumed.
+    onPlay({profileId,selection:{reviewId:picked.reviewId,optionIndex:index},mediaType:item.mediaType,itemId:item.id,videoId:video,title:metadata?.name??item.name,
       episodeTitle:isWatchMovie(item.mediaType)?null:metadata?.videos.find(v=>v.id===video)?.name??episodeTitle,
       startMs,anime:pane==='anime'||item.mediaType.startsWith('anime')||item.id.startsWith('kitsu:'),videos:metadata?.videos??[],routes:watchVideoRoutes(item,video,metadata),streamSources:sources.filter(s=>s.enabled&&s.manifest.resources.includes('stream')).map(s=>({sourceId:s.sourceId,name:s.manifest.name})),
       subtitleSources:sources.filter(s=>s.enabled&&s.manifest.resources.includes('subtitles')).map(s=>({sourceId:s.sourceId,name:s.manifest.name}))});

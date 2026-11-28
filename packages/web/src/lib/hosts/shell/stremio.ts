@@ -550,7 +550,8 @@ export async function prepareAddonMedia(profileId:number,reviewId:number,optionI
 }
 export async function consumeAddonMedia(grantId:number,subtitles:boolean){
   const requestId=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
-  const reply=await ask({type:'stremio-consume-grant',request:requestId,grantId},'stremio-result',{timeoutMs:10_000,matches:m=>m.request===requestId});
+  const reply=await ask({type:'stremio-consume-grant',request:requestId,grantId},'stremio-result',{timeoutMs:10_000,matches:m=>m.request===requestId})
+    .catch(()=>{throw new AddonError('network');});
   if(reply.error!==null)throw new AddonError(codes.has(reply.error)?reply.error:'request');
   const v=obj(reply.data);
   if(v.grantId!==grantId||v.accepted!==true||v.subtitles!==subtitles)return fail();

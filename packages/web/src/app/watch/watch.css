@@ -33,3 +33,11 @@
 :root[data-host='desktop'] :is(.tsugi-direct-watch,.tsugi-direct-player){font-family:var(--tsugi-font);}
 :root[data-host='desktop'] :is(.tsugi-direct-watch,.tsugi-direct-player) :is(h1,h2,h3,h4,h5){font-family:var(--tsugi-font);font-weight:650;letter-spacing:-.025em;}
 :root[data-host='desktop'] .tsugi-direct-watch :is(button,input,select,textarea){font-family:var(--tsugi-font);}
+
+/* The home masthead overlays the full-bleed featured artwork, but the native
+ * drag/title-bar strip and fixed media rail keep their existing hit areas. */
+@media(min-width:1024px){
+  :root[data-host='desktop'] .tsugi-direct-watch .tsugi-watch-hub[data-watch-pane='home']:has(.tsugi-watch-board:not([hidden]) .tsugi-watch-featured)>header{grid-row:1;z-index:2;align-self:start}
+  :root[data-host='desktop'] .tsugi-direct-watch .tsugi-watch-hub[data-watch-pane='home']:has(.tsugi-watch-board:not([hidden]) .tsugi-watch-featured)>.tsugi-watch-content{grid-row:1}
+  :root[data-host='desktop'] .tsugi-direct-watch .tsugi-watch-hub[data-watch-pane='home'] .tsugi-watch-board:not([hidden]) .tsugi-watch-featured{margin-inline:calc(-32px - var(--tsugi-page-gap,24px)) -32px;margin-block-start:-24px;padding-inline:calc(32px + var(--tsugi-page-gap,24px)) 32px;padding-block-start:clamp(150px,15vw,210px);border-radius:0;min-height:clamp(420px,44vw,640px)}
+}

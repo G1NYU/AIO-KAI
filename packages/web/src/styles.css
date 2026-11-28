@@ -3457,3 +3457,9 @@ html[data-host='desktop']:has(.tsugi-chapter-reader[data-active='true'][data-foc
 @media(prefers-reduced-motion:reduce) {
   .tsugi-onboarding[open] .tsugi-intro-art > img { animation:none; }
 }
+
+/* General preferences and the separately opened addon manager retain
+ * reachable dismissal chrome regardless of the number of installed sources. */
+:root[data-host='desktop'] dialog.tsugi-settings-chrome>header{position:sticky;top:0;z-index:5;background:var(--tsugi-canvas);padding-block:12px;align-items:center}
+:root[data-host='desktop'] dialog.tsugi-settings-chrome[data-addon-manager]{width:min(920px,94vw)}
+:root[data-host='desktop'] dialog.tsugi-settings-chrome>header>button{flex:none}

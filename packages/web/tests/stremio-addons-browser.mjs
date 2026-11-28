@@ -454,6 +454,16 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     const heroFont=await board.locator('[data-ui="hero"] h2').evaluate(el=>({family:getComputedStyle(el).fontFamily,weight:Number(getComputedStyle(el).fontWeight)}));
     assert.match(heroFont.family,/^Interface(?:,|$)/);
     assert.ok(heroFont.weight>=600&&heroFont.weight<=750);
+    await watch.evaluate(node=>node.scrollTo({top:0}));
+    const hero=board.locator('[data-ui="hero"]');
+    assert.equal(await hero.evaluate(node=>getComputedStyle(node).borderRadius),'0px');
+    assert.ok(await hero.evaluate(node=>{
+      const r=node.getBoundingClientRect(),root=node.closest('.tsugi-direct-watch'),rail=root.querySelector('.tsugi-watch-shared-rail');
+      const bounds=root.getBoundingClientRect(),side=rail.getBoundingClientRect();
+      return Math.abs(r.left-side.right)<=3&&Math.abs(r.right-(bounds.left+root.clientLeft+root.clientWidth))<=3&&r.top>=0;
+    }),'home feature reaches the rail and content edges');
+    assert.equal(await board.locator('[data-ui="watch-catalogue-shelf"]>small').count(),0);
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-edge-to-edge-hero.png'),animations:'disabled'});
     assert.equal(await watch.locator('.tsugi-watch-nav').getByRole('button',{name:/Stremio|Nuvio|Add addon/}).count(),0);
     await page.waitForFunction(()=>{const f=window.__stremioFixture;return f.catalogPending===0&&['broken','empty'].every(id=>f.calls.some(a=>a.kind==='profile-request'&&a.action.kind==='browse-catalog'&&a.action.catalogId===id));});
     assert.equal(await board.getByText('This catalogue is unavailable.',{exact:true}).count(),0);
@@ -704,6 +714,14 @@ async function verifyContentFirstWatch({browser,origin,installDesktopFixture,scr
     assert.ok(await clearedSearch.evaluate(node=>node===document.activeElement),'clear returns keyboard focus to the search field');
     assert.equal(await searchDialog.getByRole('button',{name:'Clear search',exact:true}).count(),0);
     console.log('PASS: TMDB title search places the exact series match first and separates related movies below it.');
+    await searchDialog.getByRole('button',{name:'Anime',exact:true}).click();
+    await clearedSearch.fill('Public anime discovery fixture');
+    const globalAnimeResult=results.locator('[data-search-kind="series"]').getByRole('button',{name:'Public anime discovery fixture',exact:true});
+    await globalAnimeResult.waitFor();
+    await assertArtwork(globalAnimeResult);
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-global-anime-filter.png'),animations:'disabled'});
+    await searchDialog.getByRole('button',{name:'All titles',exact:true}).click();
+    await searchDialog.getByRole('button',{name:'Clear search',exact:true}).click();
     await clearedSearch.fill('Fixture alias movie');
     await results.getByRole('button',{name:'Fixture alias movie',exact:true}).click();
     await item.locator('[data-ui="watch-play-title"]').click();
@@ -1004,7 +1022,10 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await page.addInitScript({content:'('+installDesktopFixture.toString()+')();('+installStremioFixture.toString()+')();'});
     await page.goto(origin);
     await page.getByRole('button',{name:'App settings',exact:true}).first().click();
-    const dialog=page.getByRole('dialog',{name:'App settings',exact:true});
+    const appSettings=page.getByRole('dialog',{name:'App settings',exact:true});
+    assert.equal(await appSettings.locator('[data-ui="stremio-addon-settings"]').count(),0,'general settings excludes installed addon management');
+    await appSettings.getByRole('button',{name:'Manage Watch addons',exact:true}).click();
+    const dialog=page.getByRole('dialog',{name:'Watch addon manager',exact:true});
     const panel=dialog.locator('[data-ui="stremio-addon-settings"]');
     const review=panel.locator('[data-ui="stremio-review"]');
     const field=panel.getByLabel('Configured manifest URL');
@@ -1085,7 +1106,10 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await active.locator('option').filter({hasText:'Renamed'}).waitFor({state:'detached'});
     await row.waitFor();
     await dialog.getByRole('button',{name:'Close',exact:true}).click();
-    await page.getByRole('button',{name:'App settings',exact:true}).first().click();await row.waitFor();
+    await page.getByRole('button',{name:'App settings',exact:true}).first().click();
+    assert.equal(await appSettings.locator('[data-stremio-source-id]').count(),0);
+    await appSettings.getByRole('button',{name:'Manage Watch addons',exact:true}).click();
+    await row.waitFor();
     await row.getByRole('button',{name:'Remove',exact:true}).click();
     await panel.getByText('No addons installed for this profile.').waitFor();
     const account=panel.locator('[data-ui="stremio-account-import"]');
@@ -1153,6 +1177,12 @@ export async function verifyStremioAddonsBrowser({browser,origin,installDesktopF
     await panel.locator('[data-stremio-source-id="1127"]').waitFor();
     assert.equal(await panel.locator('[data-stremio-source-id]').count(),128);
     assert.equal(await panel.locator('[data-stremio-source-id]').first().getAttribute('data-stremio-source-id'),'1000');
+    await panel.locator('[data-stremio-source-id="1127"]').scrollIntoViewIfNeeded();
+    assert.ok(await dialog.getByRole('button',{name:'Close',exact:true}).evaluate(button=>{
+      const r=button.getBoundingClientRect(),d=button.closest('dialog').getBoundingClientRect();
+      return r.top>=d.top&&r.bottom<=d.bottom&&button.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
+    }),'close remains reachable even after scrolling a full addon stack');
+    if(screenshotDir)await page.screenshot({path:join(screenshotDir,'watch-addon-manager-close.png'),animations:'disabled'});
     console.log('Stremio/Nuvio account import, profile isolation, single-action import, manifest diagnostics and large source/catalogue limits passed');
   }finally{await page.close();}
   // Do not trust an existing introduction flag or preferred startup area.

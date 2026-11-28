@@ -41,11 +41,11 @@ export function catalogueTargets(sources:AddonSource[],scope:Scope,kind:Kind,que
     if(!source.enabled||source.manifest.adult||source.manifest.configurationRequired||query&&!source.manifest.resources.includes('meta'))continue;
     for(const catalog of source.manifest.catalogs){
       const normalized=catalog.mediaType==='anime.movie'?'movie':catalog.mediaType==='anime.series'?'series':catalog.mediaType;
-      if(!['movie','series','anime'].includes(normalized)||kind!=='all'&&kind!==normalized&&!(kind==='anime'&&catalog.mediaType.startsWith('anime.')))continue;
+      if(!['movie','series','anime'].includes(normalized)||kind!=='all'&&kind!=='anime'&&kind!==normalized)continue;
       const extras:Record<string,string>={};
       const animeGenre=catalog.extras.find(e=>e.name==='genre')?.options.find(o=>o.toLowerCase()==='anime');
       const explicitAnime=(catalog.mediaType==='anime'||catalog.mediaType.startsWith('anime.'))||animeWord.test(catalog.name)||animeWord.test(catalog.id)||animeWord.test(source.manifest.name);
-      if(scope!=='all'){
+      if(scope!=='all'||kind==='anime'){
         if(!explicitAnime&&!animeGenre)continue;
         if(scope==='anime-films'&&normalized!=='movie'&&!(catalog.mediaType==='anime'&&/(^|[^a-z])(film|films|movie|movies)([^a-z]|$)/i.test(catalog.name)))continue;
         if(!explicitAnime&&animeGenre)extras.genre=animeGenre;
@@ -80,10 +80,11 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
   const mounted=React.useRef(false);
   const visible=targets.slice(0,limit);
   React.useEffect(()=>{
-    if(!search||!active||paused||scope==='all'&&kind==='anime'){setTmdbPending(false);return;}
+    if(!search||!active||paused){setTmdbPending(false);return;}
     let current=true;const controller=new AbortController();setTmdbPending(true);
-    const request=scope==='all'?searchTmdb(profileId,search):searchPublicAnime(search,scope==='anime-films',controller.signal);
-    void request.then(items=>{if(current)setTmdb(items.filter(item=>kind==='all'||item.mediaType===kind));}).catch(()=>{}).finally(()=>{if(current)setTmdbPending(false);});
+    const publicAnime=scope!=='all'||kind==='anime';
+    const request=publicAnime?searchPublicAnime(search,scope==='anime-films',controller.signal):searchTmdb(profileId,search);
+    void request.then(items=>{if(current)setTmdb(items.filter(item=>kind==='all'||kind==='anime'||item.mediaType===kind));}).catch(()=>{}).finally(()=>{if(current)setTmdbPending(false);});
     return ()=>{current=false;controller.abort();};
   },[profileId,search,active,paused,scope,kind]);
   React.useEffect(()=>{mounted.current=true;return ()=>{mounted.current=false;};},[]);
@@ -138,7 +139,7 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
   const featuredMetadata=featuredResolved?.key===featureKey?featuredResolved.title:null;
   React.useEffect(()=>{if(!active||paused||!includeHistory||!featuredId||!featuredType)return;let current=true;void loadTmdbTitle(profileId,featuredType,featuredId).then(item=>{if(current)setFeaturedResolved({key:featureKey,title:item});}).catch(()=>{});return ()=>{current=false;};},[profileId,active,paused,includeHistory,featuredId,featuredType,featureKey]);
   React.useEffect(()=>{
-    if(!search||!active||paused||scope!=='all')return;
+    if(!search||!active||paused||scope!=='all'||kind==='anime')return;
     const addonItems=Object.values(rows).flatMap(row=>row.page?.items??[]);
     for(const item of searchAliasTargets(tmdb,addonItems)){
       if(checkedAliases.current.has(item.id)||checkedAliases.current.size>=4)continue;
@@ -148,11 +149,11 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
         setTmdb(old=>old.map(row=>row.id===item.id?{...row,imdbId:metadata.imdbId,identities:metadata.identities,poster:row.poster??metadata.poster,background:row.background??metadata.background,logo:metadata.logo}:row));
       }).catch(()=>{});
     }
-  },[profileId,search,active,paused,scope,tmdb,rows]);
+  },[profileId,search,active,paused,scope,kind,tmdb,rows]);
   const pending=visible.some(target=>!rows[target.key]||rows[target.key].loading);
   const hits=search?rankCatalogueSearch<{sourceId?:number}>([
     ...visible.flatMap(target=>(rows[target.key]?.page?.items??[]).map(item=>({item,target:{sourceId:target.source.sourceId},sourceId:target.source.sourceId}))),
-    ...tmdb.map(item=>({item,target:{},sourceId:0,providerMatch:scope!=='all'}))
+    ...tmdb.map(item=>({item,target:{},sourceId:0,providerMatch:scope!=='all'||kind==='anime'}))
   ],search):[];
   const searchGroups=[{key:'series',label:t`Series`,items:hits.filter(h=>h.item.mediaType==='series'||h.item.mediaType==='anime.series')},{key:'movie',label:t`Movies`,items:hits.filter(h=>h.item.mediaType==='movie'||h.item.mediaType==='anime.movie')},{key:'anime',label:t`Anime`,items:hits.filter(h=>h.item.mediaType==='anime')}];
   const canRequest=visible.filter(target=>rows[target.key]?.loading).length<PARALLEL;
@@ -228,7 +229,6 @@ function CatalogueRows({profileId,posterPattern,targets,busy,active,paused,run,o
           </div>}>
             {row?.page?.items.map(item=><PosterCard key={item.id} title={item.name} image={watchPosterSources(item,posterPattern)} itemType={item.mediaType==='movie'?t`Movie`:t`Series`} disabled={busy} onClick={()=>openTitle(item,target.source.sourceId)}/>)}
           </MediaRow>
-          {row?.page&&row.page.items.length>0&&<small>{target.source.manifest.name} · {target.catalog.mediaType==='movie'?t`Movies`:target.catalog.mediaType==='series'?t`Series`:t`Anime`}</small>}
         </section>;
       })}
       {(pending||stopped||limit<targets.length)&&<div className="flex flex-wrap gap-3">

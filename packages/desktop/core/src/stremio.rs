@@ -116,11 +116,17 @@ impl ItemResource {
     }
 }
 
+// Stremio permits null optional arrays (notably idPrefixes and
+// catalog options). Keep strict element typing and the existing bounds.
+fn nullable_vec<'de,D,T>(deserializer:D)->std::result::Result<Vec<T>,D::Error>
+where D:serde::Deserializer<'de>,T:Deserialize<'de>{
+    Option::<Vec<T>>::deserialize(deserializer).map(Option::unwrap_or_default)
+}
 #[derive(Clone, Deserialize, serde::Serialize)]
 #[serde(untagged)]
 enum Declaration {
     Name(String),
-    Detailed { name: String, types: Vec<String>, #[serde(default, rename="idPrefixes")] id_prefixes: Vec<String> },
+    Detailed { name: String, types: Vec<String>, #[serde(default, rename="idPrefixes",deserialize_with="nullable_vec")] id_prefixes: Vec<String> },
 }
 #[derive(Clone, Deserialize, serde::Serialize)]
 #[serde(rename_all="camelCase")]
@@ -128,7 +134,7 @@ pub struct CatalogExtra {
     pub name: String,
     #[serde(default)]
     pub is_required: bool,
-    #[serde(default)]
+    #[serde(default,deserialize_with="nullable_vec")]
     pub options: Vec<String>,
     #[serde(default)]
     pub options_limit: Option<u32>,
@@ -151,11 +157,11 @@ impl<'de> Deserialize<'de> for Catalog {
             id:String,
             #[serde(default)]
             name:Option<String>,
-            #[serde(default)]
+            #[serde(default,deserialize_with="nullable_vec")]
             extra:Vec<CatalogExtra>,
-            #[serde(default)]
+            #[serde(default,deserialize_with="nullable_vec")]
             extra_supported:Vec<String>,
-            #[serde(default)]
+            #[serde(default,deserialize_with="nullable_vec")]
             extra_required:Vec<String>,
         }
         let raw=WireCatalog::deserialize(deserializer)?;
@@ -164,13 +170,15 @@ impl<'de> Deserialize<'de> for Catalog {
         // A required legacy extra must never become optional in mixed notation.
         let supported:BTreeSet<&str>=raw.extra_supported.iter().map(String::as_str).collect();
         let required:BTreeSet<&str>=raw.extra_required.iter().map(String::as_str).collect();
-        if supported.len()!=raw.extra_supported.len()||required.len()!=raw.extra_required.len()||
-            supported.len()>16||!required.is_subset(&supported)||
-            supported.iter().any(|name|!type_valid(name)){
+        if raw.extra_supported.len()>64||raw.extra_required.len()>64||
+            supported.union(&required).count()>16||
+            supported.union(&required).any(|name|!type_valid(name)){
             return Err(serde::de::Error::custom("manifest-extras"));
         }
         let mut extra=raw.extra;
-        for name in &raw.extra_supported{
+        // Required-only legacy entries must remain required, even if the
+        // addon omitted them from extraSupported. Never invent a filter value.
+        for name in raw.extra_supported.iter().chain(&raw.extra_required){
             let is_required=required.contains(name.as_str());
             if let Some(existing)=extra.iter_mut().find(|entry|entry.name==*name){
                 existing.is_required|=is_required;
@@ -209,7 +217,7 @@ pub struct Manifest {
     #[serde(default,deserialize_with="deserialize_addon_logo",skip_serializing_if="Option::is_none")]
     pub logo: Option<String>,
     pub types: Vec<String>,
-    #[serde(default)]
+    #[serde(default,deserialize_with="nullable_vec")]
     id_prefixes: Vec<String>,
     resources: Vec<Declaration>,
     #[serde(default)]
@@ -235,7 +243,7 @@ fn manifest_parse_error(bytes:&[u8])->&'static str{
     }
     if !["id","name","version"].iter().all(|key|field::<String>(&root,key,true))||
         !field::<Option<String>>(&root,"description",false){return "manifest-identity";}
-    if !field::<Vec<String>>(&root,"types",true)||!field::<Vec<String>>(&root,"idPrefixes",false){return "manifest-types";}
+    if !field::<Vec<String>>(&root,"types",true)||!field::<Option<Vec<String>>>(&root,"idPrefixes",false){return "manifest-types";}
     if !field::<Vec<Declaration>>(&root,"resources",true){return "manifest-resources";}
     if let Some(catalogs)=root.get("catalogs"){
         let Some(rows)=catalogs.as_array()else{return "manifest-catalogs";};
@@ -255,7 +263,9 @@ impl Manifest {
         let mut m: Self = serde_json::from_slice(bytes).map_err(|_|manifest_parse_error(bytes))?;
         if !id_valid(&m.id) || !text_valid(&m.name, 256) || !text_valid(&m.version, 64) ||
             m.description.len() > 4096 {return Err("manifest-identity");}
-        if m.types.is_empty()||!types_valid(&m.types)||!prefixes_valid(&m.id_prefixes){return Err("manifest-types");}
+        // Detailed resource declarations may carry every supported type while
+        // manifest.types is empty. The per-resource filter still governs calls.
+        if !types_valid(&m.types)||!prefixes_valid(&m.id_prefixes){return Err("manifest-types");}
         if m.resources.is_empty()||m.resources.len()>64{return Err("manifest-resources");}
         if m.catalogs.len()>MAX_MANIFEST_CATALOGS{return Err("manifest-catalog-limit");}
         for resource in &m.resources {
@@ -658,6 +668,23 @@ mod tests {
         }
     }
     #[test]
+    fn manifest_accepts_empty_global_types_and_nullable_optional_arrays(){
+        let m=Manifest::parse(br#"{"id":"compat.fixture","name":"Compatibility fixture","version":"1","types":[],"idPrefixes":null,"resources":[{"name":"stream","types":["movie","series","anime"],"idPrefixes":["tt","kitsu:","mal:"]},{"name":"meta","types":["series"],"idPrefixes":null}],"catalogs":[]}"#).unwrap();
+        assert!(m.supports(ItemResource::Stream,"series","tt123:1:1"));
+        assert!(m.supports(ItemResource::Stream,"anime","kitsu:12:1"));
+        assert!(!m.supports(ItemResource::Stream,"music","tt123"));
+        assert!(!m.supports(ItemResource::Stream,"movie","unknown:123"));
+        assert!(m.supports(ItemResource::Meta,"series","fixture:1"));
+        let roundtrip=Manifest::parse(&serde_json::to_vec(&m).unwrap()).unwrap();
+        assert!(roundtrip.supports(ItemResource::Stream,"series","tt123:1:1"));
+        let catalog=Manifest::parse(br#"{"id":"catalog.fixture","name":"Catalog fixture","version":"1","types":["movie"],"resources":["catalog"],"catalogs":[{"type":"movie","id":"search","extra":[{"name":"search","options":null}],"extraSupported":["skip","skip"],"extraRequired":["search","genre"]},{"type":"movie","id":"plain","extra":null,"extraSupported":null,"extraRequired":null}]}"#).unwrap();
+        assert_eq!(catalog.declared_catalogs().count(),2);
+        assert_eq!(catalog.catalog_request("movie","search",&BTreeMap::new()).err(),Some("required-extra"));
+        assert!(catalog.catalog_request("movie","search",&BTreeMap::from([("search".into(),"Fixture".into()),("genre".into(),"Drama".into())])).is_ok());
+        assert!(catalog.catalog_request("movie","plain",&BTreeMap::new()).is_ok());
+        assert!(Manifest::parse(br#"{"id":"bad","name":"Bad","version":"1","types":[],"idPrefixes":[42],"resources":["stream"]}"#).is_err());
+    }
+    #[test]
     fn manifest_errors_are_fixed_schema_categories(){
         let valid=json!({"id":"fixture","name":"Fixture","version":"1","types":["movie"],"resources":["stream"]});
         for (field,value,expected) in [
@@ -666,7 +693,6 @@ mod tests {
             ("idPrefixes",json!("fixture-secret"),"manifest-types"),
             ("resources",json!([{"name":"stream","idPrefixes":["tt"]}]),"manifest-resources"),
             ("catalogs",json!([{"type":"movie","id":"../private"}]),"manifest-catalogs"),
-            ("catalogs",json!([{"type":"movie","id":"x","extraSupported":["skip"],"extraRequired":["search"]}]),"manifest-extras"),
             ("catalogs",json!([{"type":"movie","id":"x","extra":[{"name":"genre","options":42}]}]),"manifest-extras"),
             ("behaviorHints",json!({"configurationRequired":"fixture-secret"}),"manifest-behavior"),
         ]{

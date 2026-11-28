@@ -341,14 +341,17 @@ try {
   await welcomeHero.evaluate(image => image.decode());
   assert.equal(await welcomeHero.getAttribute('src'),'/design/launch/welcome-city.webp');
   assert.equal(await landing.locator('.tsugi-world-card').count(), 4);
-  const welcomeArt=await landing.locator('.tsugi-world-hero img,.tsugi-world-card img').evaluateAll(images=>Promise.all(images.map(async image=>{await image.decode();return image.getAttribute('src');})));
-  assert.equal(welcomeArt.length,5);assert.equal(new Set(welcomeArt).size,5);
-  // Different file names alone did not catch the two near-identical city illustrations.
-  for (const [world,src,width,height] of [['music','/design/launch/music-cassette.png',443,443],['vault','/design/launch/vault-archive.png',362,543]]) {
-    const image=landing.locator(`.tsugi-world-card[data-world="${world}"] img`);
-    assert.equal(await image.getAttribute('src'),src);
-    assert.deepEqual(await image.evaluate(img=>[img.naturalWidth,img.naturalHeight]),[width,height],`${world} uses the reviewed original illustration crop`);
-  }
+  const welcomeArt=await landing.locator('.tsugi-world-hero img').evaluateAll(images=>Promise.all(images.map(async image=>{await image.decode();return image.getAttribute('src');})));
+  assert.equal(welcomeArt.length,1);
+  assert.equal(await landing.getByText('Your next world starts here.',{exact:true}).count(),0);
+  assert.equal(await landing.locator('.tsugi-world-card img').count(),0);
+  const minimalArt=landing.locator('.tsugi-world-card .tsugi-world-minimal-art .tsugi-media-icon');
+  assert.equal(await minimalArt.count(),4);
+  assert.equal(new Set(await minimalArt.evaluateAll(nodes=>nodes.map(node=>node.innerHTML))).size,4);
+  assert.ok(await landing.locator('.tsugi-world-card').evaluateAll(cards=>cards.every(card=>{
+    const a=card.getBoundingClientRect(),b=card.querySelector('.tsugi-world-card-copy').getBoundingClientRect();
+    return Math.abs(a.x+a.width/2-b.x-b.width/2)<2&&Math.abs(a.y+a.height/2-b.y-b.height/2)<2;
+  })),'minimal welcome card copy is centered');
   await capture('00-illustrated-welcome');
   await landing.getByRole('button', { name: 'Make it yours', exact: true }).click();
   await onboarding.waitFor({ state: 'visible' });

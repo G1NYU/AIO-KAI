@@ -117,6 +117,7 @@ export function GlobalAppearanceSettings() {
 export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:boolean;onClose():void;hasReadSection?:boolean}) {
   const [archive,setArchive]=React.useState<PortableArchive|null>(null);
   const [licensesOpen,setLicensesOpen]=React.useState(false);
+  const [addonManager,setAddonManager]=React.useState(false);
   const licenseId=React.useId();
   const archived=(kind:ArchiveKind)=>archive?.entries.find(entry=>entry.kind===kind)?.payload;
   const [startup,setStartup] = React.useState(readStartupArea);
@@ -137,10 +138,15 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
       setMatrix(readMatrixMode());
       node.showModal();
     }
-    else if (!open && node.open) {node.close();setLicensesOpen(false);}
+    else if (!open && node.open) {node.close();setLicensesOpen(false);setAddonManager(false);}
   }, [open]);
-  return <dialog ref={dialog} className="tsugi-global-settings" onCancel={(event) => { event.preventDefault(); onClose(); }} aria-labelledby="tsugi-app-settings-title">
-    <header><h2 id="tsugi-app-settings-title"><Trans id="App settings">App settings</Trans></h2><button className="tsugi-read-action" onClick={onClose}><Trans id="Close">Close</Trans></button></header>
+  React.useEffect(()=>{if(open)dialog.current?.scrollTo({top:0});},[open,addonManager]);
+  return <dialog ref={dialog} className="tsugi-global-settings tsugi-settings-chrome" data-addon-manager={addonManager||undefined} onCancel={(event) => { event.preventDefault(); onClose(); }} aria-labelledby="tsugi-app-settings-title">
+    <header><h2 id="tsugi-app-settings-title">{addonManager?<Trans>Watch addon manager</Trans>:<Trans id="App settings">App settings</Trans>}</h2><button type="button" className="tsugi-read-action" onClick={onClose}><Trans id="Close">Close</Trans></button></header>
+    {addonManager?<>
+      <button type="button" className="tsugi-read-action" onClick={()=>setAddonManager(false)}><Trans>Back to app settings</Trans></button>
+      {open&&bridge?.stremioAddons&&<StremioAddonSettings/>}
+    </>:<>
     <section className="tsugi-app-general" aria-label={t`General preferences`}>
       <h3><Trans>General</Trans></h3>
       <label><Trans>Open on startup</Trans>
@@ -193,7 +199,7 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
     </section>
     <GlobalAppearanceSettings />
     <DiscordPresenceSettings />
-    {open && bridge?.stremioAddons && <StremioAddonSettings />}
+    {bridge?.stremioAddons&&<section className="tsugi-app-general" aria-label={t`Watch connections`}><h3><Trans>Watch connections</Trans></h3><p><Trans>Installed sources are managed separately from application preferences.</Trans></p><button type="button" className="tsugi-read-action" onClick={()=>setAddonManager(true)}><Trans>Manage Watch addons</Trans></button></section>}
     <PortableArchiveSettings archive={archive} onArchive={setArchive} />
     {/* Closing or replacing an archive invalidates every unconfirmed section review. */}
     <React.Fragment key={archive?.entries.map(entry=>entry.sha256).join(':')??'standalone'}>
@@ -272,5 +278,6 @@ export function GlobalSettingsDialog({open,onClose,hasReadSection=false}:{open:b
       <button type="button" className="tsugi-read-action justify-self-start" aria-expanded={licensesOpen} aria-controls={licenseId} onClick={()=>setLicensesOpen(value=>!value)}>{licensesOpen?<Trans>Hide dependency licenses</Trans>:<Trans>Browse dependency licenses</Trans>}</button>
       <div id={licenseId} hidden={!licensesOpen} className="min-w-0 space-y-3">{open&&licensesOpen&&<Licenses/>}</div>
     </section>
+    </>}
   </dialog>;
 }
