@@ -3,8 +3,8 @@
 // BetterPosters: btttr.cc/configure, documented public IMDb poster endpoint.
 // The server-backed custom poster implementation is deliberately not used here:
 /* eslint-disable lingui/no-unlocalized-strings -- provider URL syntax and protocol identifiers */
-import type { CatalogPage } from '@/lib/hosts/shell/stremio';
-import { storage } from '@/lib/storage';
+import type { CatalogPage } from './hosts/shell/stremio';
+import { storage } from './storage';
 
 type Item=Pick<CatalogPage['items'][number],'id'|'mediaType'|'poster'|'posterAlternatives'|'identities'|'imdbId'>;
 export const POSTERS_PLUS_PATTERN='https://postersplus.cc/poster?tmdb_id={tmdb_id?}&imdb_id={imdb_id?}&stremio_id={id}&type={type}&shape={shape}';
